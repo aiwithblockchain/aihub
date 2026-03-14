@@ -107,7 +107,11 @@ private extension SidebarViewController {
         tableView.addTableColumn(column)
         tableView.headerView = nil
         tableView.rowSizeStyle = .default
-        tableView.selectionHighlightStyle = .sourceList
+        if #available(macOS 11.0, *) {
+            tableView.style = .sourceList
+        } else {
+            tableView.selectionHighlightStyle = .sourceList
+        }
         tableView.allowsEmptySelection = false
         tableView.backgroundColor = .clear
         tableView.focusRingType = .none
