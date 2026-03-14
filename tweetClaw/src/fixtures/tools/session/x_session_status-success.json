@@ -1,0 +1,12 @@
+{
+    "ok": true,
+    "data": {
+        "connected": true,
+        "platform": "x-web",
+        "profileMode": "chrome",
+        "tabBound": true,
+        "sessionValid": true,
+        "routeKind": "home",
+        "account": null
+    }
+}

@@ -16,3 +16,22 @@ bin-release/
 # Project files, i.e. `.project`, `.actionScriptProperties` and `.flexProperties`
 # should NOT be excluded as they contain compiler settings and other important
 # information for Eclipse / Flash Builder.
+
+# macOS
+.DS_Store
+/tweetClaw/.DS_Store
+
+# Node / JS dependencies
+node_modules/
+/tweetClaw/node_modules/
+
+# Build artifacts
+dist/js/
+/tweetClaw/dist/js/
+build/
+/tweetClaw/build/
+
+# Local env / logs
+.env
+/tweetClaw/.env
+*.log

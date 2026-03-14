@@ -1,0 +1,13 @@
+{
+    "ok": true,
+    "data": {
+        "account": {
+            "userId": "12345",
+            "handle": "@realuser",
+            "displayName": "Real User",
+            "verified": true,
+            "avatarUrl": "https://pbs.twimg.com/profile_images/123/abc.jpg",
+            "bio": "This is a bio."
+        }
+    }
+}
