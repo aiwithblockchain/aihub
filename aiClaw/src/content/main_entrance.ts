@@ -13,6 +13,9 @@
  */
 
 import { INJECTION_SOURCE, MsgType } from '../capture/consts';
+import { ChatGptAdapter } from '../adapters/chatgpt-adapter';
+import type { Credentials } from '../adapters/base-adapter';
+import type { ExecuteTaskPayload, ExecuteTaskResultPayload } from '../bridge/ws-protocol';
 
 // ── 1. 注入 injection.js 到页面 MAIN world ──
 
@@ -43,6 +46,13 @@ function detectPlatform(): string {
     if (hostname.includes('gemini.google.com')) return 'Gemini';
     if (hostname.includes('grok.com') || hostname.includes('x.com')) return 'Grok';
     return 'Unknown';
+}
+
+// ── Adapter 工厂：根据平台名称返回对应的 adapter 实例 ──
+function getAdapter(platform: string) {
+    if (platform === 'chatgpt' || platform === 'ChatGPT') return new ChatGptAdapter();
+    // gemini / grok adapter 待后续 Phase 4 实现
+    return null;
 }
 
 // ── 3. 监听 injection.ts 通过 window.postMessage 发来的消息 ──
@@ -90,6 +100,60 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             context: 'CONTENT_SCRIPT',
         });
         return true;
+    }
+
+    // EXECUTE_TASK：background 下发任务，在此 content script 中执行 API 调用
+    if (message.type === MsgType.EXECUTE_TASK) {
+        const task = message.task as ExecuteTaskPayload;
+        const credentials = message.credentials as Credentials;
+        const startTime = Date.now();
+
+        const adapter = getAdapter(task.platform);
+        if (!adapter) {
+            const result: ExecuteTaskResultPayload = {
+                taskId: task.taskId,
+                success: false,
+                platform: task.platform,
+                error: `No adapter available for platform: ${task.platform}`,
+                executedAt: new Date().toISOString(),
+                durationMs: Date.now() - startTime,
+            };
+            sendResponse({ ok: false, result });
+            return true;
+        }
+
+        adapter.sendMessage(
+            {
+                prompt: task.payload.prompt,
+                conversationId: task.payload.conversationId,
+                model: task.payload.model,
+            },
+            credentials
+        ).then((adapterResult) => {
+            const result: ExecuteTaskResultPayload = {
+                taskId: task.taskId,
+                success: adapterResult.success,
+                platform: task.platform,
+                content: adapterResult.content,
+                conversationId: adapterResult.conversationId,
+                error: adapterResult.error,
+                executedAt: new Date().toISOString(),
+                durationMs: Date.now() - startTime,
+            };
+            sendResponse({ ok: adapterResult.success, result });
+        }).catch((err) => {
+            const result: ExecuteTaskResultPayload = {
+                taskId: task.taskId,
+                success: false,
+                platform: task.platform,
+                error: err instanceof Error ? err.message : String(err),
+                executedAt: new Date().toISOString(),
+                durationMs: Date.now() - startTime,
+            };
+            sendResponse({ ok: false, result });
+        });
+
+        return true; // 必须返回 true，表示 sendResponse 会异步调用
     }
 
     return false;

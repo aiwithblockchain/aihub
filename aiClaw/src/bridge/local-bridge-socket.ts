@@ -16,6 +16,7 @@ export class LocalBridgeSocket {
   private lastPongTimestamp = 0;
 
   public queryAITabsHandler: (() => Promise<any>) | null = null;
+  public executeTaskHandler: ((task: any) => Promise<any>) | null = null;
 
   private WS_URL = 'ws://127.0.0.1:8766/ws'; // Default
 
@@ -158,6 +159,9 @@ export class LocalBridgeSocket {
         case MESSAGE_TYPES.REQUEST_QUERY_AI_TABS_STATUS:
           this.handleQueryAITabsStatus(msg);
           break;
+        case MESSAGE_TYPES.REQUEST_EXECUTE_TASK:
+          this.handleExecuteTask(msg);
+          break;
         default:
           console.warn(`[aiClaw] unknown message type: ${msg.type}`);
       }
@@ -184,6 +188,53 @@ export class LocalBridgeSocket {
       const resp: BaseMessage = {
         id: req.id,
         type: MESSAGE_TYPES.RESPONSE_QUERY_AI_TABS_STATUS,
+        source: 'aiClaw',
+        target: 'LocalBridgeMac',
+        timestamp: Date.now(),
+        payload: result,
+      };
+      this.send(resp);
+    } catch (e) {
+      const errResp: BaseMessage = {
+        id: req.id,
+        type: MESSAGE_TYPES.RESPONSE_ERROR,
+        source: 'aiClaw',
+        target: 'LocalBridgeMac',
+        timestamp: Date.now(),
+        payload: {
+          code: 'INTERNAL_ERROR',
+          message: e instanceof Error ? e.message : String(e),
+          details: null,
+        },
+      };
+      this.send(errResp);
+    }
+  }
+  private async handleExecuteTask(req: BaseMessage) {
+    console.log('[aiClaw] handling request.execute_task, taskId:', req.payload?.taskId);
+    if (!this.executeTaskHandler) {
+      console.error('[aiClaw] no handler registered for execute_task');
+      const errResp: BaseMessage = {
+        id: req.id,
+        type: MESSAGE_TYPES.RESPONSE_ERROR,
+        source: 'aiClaw',
+        target: 'LocalBridgeMac',
+        timestamp: Date.now(),
+        payload: {
+          code: 'NOT_CONNECTED',
+          message: 'executeTaskHandler is not registered',
+          details: null,
+        },
+      };
+      this.send(errResp);
+      return;
+    }
+
+    try {
+      const result = await this.executeTaskHandler(req.payload);
+      const resp: BaseMessage = {
+        id: req.id,
+        type: MESSAGE_TYPES.RESPONSE_EXECUTE_TASK_RESULT,
         source: 'aiClaw',
         target: 'LocalBridgeMac',
         timestamp: Date.now(),

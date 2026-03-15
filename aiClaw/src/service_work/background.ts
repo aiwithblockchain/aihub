@@ -12,24 +12,15 @@
 
 import { STORAGE_KEY_CREDENTIALS, MsgType } from '../capture/consts';
 import type { PlatformType } from '../capture/consts';
+import {
+    loadCredentials,
+    saveCredentials,
+    updatePlatformCredentials,
+    clearPlatformCredentials,
+    defaultAllCredentials,
+} from '../storage/credentials-store';
 import { LocalBridgeSocket } from '../bridge/local-bridge-socket';
 import type { AITabInfo, QueryAITabsStatusResponsePayload } from '../bridge/ws-protocol';
-
-// ── 凭证数据结构 ──
-
-interface PlatformCredentials {
-    bearerToken: string | null;
-    apiEndpoint: string | null;
-    lastCapturedHeaders: Record<string, string>;
-    lastCapturedAt: number;       // 时间戳
-    captureCount: number;         // 累计捕获次数
-}
-
-interface AllCredentials {
-    chatgpt: PlatformCredentials;
-    gemini: PlatformCredentials;
-    grok: PlatformCredentials;
-}
 
 // ── hook 状态 ──
 
@@ -42,90 +33,6 @@ interface HookStatusMap {
 }
 
 let hookStatusMap: HookStatusMap = {};
-
-// ── 默认空凭证 ──
-
-function emptyCredentials(): PlatformCredentials {
-    return {
-        bearerToken: null,
-        apiEndpoint: null,
-        lastCapturedHeaders: {},
-        lastCapturedAt: 0,
-        captureCount: 0,
-    };
-}
-
-function defaultAllCredentials(): AllCredentials {
-    return {
-        chatgpt: emptyCredentials(),
-        gemini: emptyCredentials(),
-        grok: emptyCredentials(),
-    };
-}
-
-// ── 凭证存储操作 ──
-
-async function loadCredentials(): Promise<AllCredentials> {
-    const res = await chrome.storage.local.get(STORAGE_KEY_CREDENTIALS);
-    const creds = res[STORAGE_KEY_CREDENTIALS];
-
-    if (creds && typeof creds === 'object' && 'chatgpt' in creds && 'gemini' in creds && 'grok' in creds) {
-        return creds as AllCredentials;
-    }
-
-    return defaultAllCredentials();
-}
-
-async function saveCredentials(creds: AllCredentials): Promise<void> {
-    await chrome.storage.local.set({ [STORAGE_KEY_CREDENTIALS]: creds });
-}
-
-async function updatePlatformCredentials(
-    platform: PlatformType,
-    bearerToken: string | null,
-    apiUrl: string | null,
-    headers: Record<string, string>
-): Promise<void> {
-    const creds = await loadCredentials();
-    const pc = creds[platform];
-
-    // 无论是否有 token，都更新活跃时间（只要有流量就代表已登录）
-    pc.lastCapturedAt = Date.now();
-    pc.captureCount += 1;
-
-    // 只有新值非空时才更新 token/url（防止覆盖已有值）
-    if (bearerToken) {
-        pc.bearerToken = bearerToken;
-    }
-    if (apiUrl) {
-        pc.apiEndpoint = apiUrl;
-    }
-    if (Object.keys(headers).length > 0) {
-        pc.lastCapturedHeaders = headers;
-    }
-
-    creds[platform] = pc;
-    await saveCredentials(creds);
-
-    // 打印日志
-    const tokenPreview = pc.bearerToken
-        ? `${pc.bearerToken.substring(0, 25)}...`
-        : 'null';
-    console.log(
-        `%c[aiClaw-BG] 🔐 Credentials updated for %c${platform}%c | Token: ${tokenPreview} | Count: ${pc.captureCount}`,
-        'color: #718096',
-        'color: #4ade80; font-weight: bold',
-        'color: #718096'
-    );
-}
-
-export async function clearPlatformCredentials(platform: PlatformType): Promise<void> {
-    const creds = await loadCredentials();
-    creds[platform].bearerToken = null;
-    creds[platform].apiEndpoint = null;
-    await saveCredentials(creds);
-    console.log(`[aiClaw-BG] 🗑️ Cleared credentials for ${platform}`);
-}
 
 // ── 扩展安装/更新事件 ──
 
@@ -268,6 +175,102 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 
 // ── LocalBridge WebSocket 客户端 ──
 
+// ── 任务执行调度器 ──
+
+async function executeTask(task: any): Promise<any> {
+    const platform = task.platform as PlatformType;
+    const startTime = Date.now();
+
+    // 1. 读取凭证
+    const creds = await loadCredentials();
+    const platformCreds = creds[platform];
+
+    if (!platformCreds) {
+        return {
+            taskId: task.taskId,
+            success: false,
+            platform,
+            error: `Unknown platform: ${platform}`,
+            executedAt: new Date().toISOString(),
+            durationMs: Date.now() - startTime,
+        };
+    }
+
+    // 2. 查找该平台已打开的标签页
+    let tabQueryPatterns: string[] = [];
+    if (platform === 'chatgpt') {
+        tabQueryPatterns = ['https://chatgpt.com/*', 'https://chat.openai.com/*'];
+    } else if (platform === 'gemini') {
+        tabQueryPatterns = ['https://gemini.google.com/*'];
+    } else if (platform === 'grok') {
+        tabQueryPatterns = ['https://grok.com/*', 'https://x.com/i/grok*'];
+    }
+
+    const tabs = await chrome.tabs.query({ url: tabQueryPatterns });
+
+    if (tabs.length === 0 || !tabs[0].id) {
+        return {
+            taskId: task.taskId,
+            success: false,
+            platform,
+            error: `No open tab found for platform: ${platform}. Please open ${platform} in a browser tab first.`,
+            executedAt: new Date().toISOString(),
+            durationMs: Date.now() - startTime,
+        };
+    }
+
+    // 3. 选择标签页（优先选中激活的标签，否则选第一个）
+    const targetTab = tabs.find(t => t.active) || tabs[0];
+    const tabId = targetTab.id!;
+
+    console.log(`[aiClaw-BG] 📤 Dispatching task ${task.taskId} to tab ${tabId} (${platform})`);
+
+    // 4. 将凭证和任务一起发给 content script 执行
+    //    Content script 与目标页面同源，fetch 会自动携带 Cookie
+    const credentials = {
+        bearerToken: platformCreds.bearerToken,
+        apiEndpoint: platformCreds.apiEndpoint,
+        extraHeaders: platformCreds.lastCapturedHeaders || {},
+    };
+
+    return new Promise((resolve) => {
+        chrome.tabs.sendMessage(
+            tabId,
+            {
+                type: MsgType.EXECUTE_TASK,
+                task,
+                credentials,
+            },
+            (response) => {
+                if (chrome.runtime.lastError) {
+                    resolve({
+                        taskId: task.taskId,
+                        success: false,
+                        platform,
+                        error: `Failed to send message to tab: ${chrome.runtime.lastError.message}`,
+                        executedAt: new Date().toISOString(),
+                        durationMs: Date.now() - startTime,
+                    });
+                    return;
+                }
+
+                if (response && response.result) {
+                    resolve(response.result);
+                } else {
+                    resolve({
+                        taskId: task.taskId,
+                        success: false,
+                        platform,
+                        error: 'Content script returned no result',
+                        executedAt: new Date().toISOString(),
+                        durationMs: Date.now() - startTime,
+                    });
+                }
+            }
+        );
+    });
+}
+
 async function queryAITabsStatus(): Promise<QueryAITabsStatusResponsePayload> {
     // 1. 查询凭证获取登录状态
     const creds = await loadCredentials();
@@ -327,6 +330,7 @@ async function queryAITabsStatus(): Promise<QueryAITabsStatusResponsePayload> {
 
 const localBridge = new LocalBridgeSocket();
 localBridge.queryAITabsHandler = queryAITabsStatus;
+localBridge.executeTaskHandler = executeTask;
 
 
 // ── 启动日志 ──

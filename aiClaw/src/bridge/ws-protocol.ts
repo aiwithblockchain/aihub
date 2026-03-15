@@ -8,6 +8,8 @@ export type MessageType =
   | 'pong'
   | 'request.query_ai_tabs_status'
   | 'response.query_ai_tabs_status'
+  | 'request.execute_task'
+  | 'response.execute_task_result'
   | 'response.error';
 
 export const MESSAGE_TYPES: Record<string, MessageType> = {
@@ -17,6 +19,8 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   PONG: 'pong',
   REQUEST_QUERY_AI_TABS_STATUS: 'request.query_ai_tabs_status',
   RESPONSE_QUERY_AI_TABS_STATUS: 'response.query_ai_tabs_status',
+  REQUEST_EXECUTE_TASK: 'request.execute_task',
+  RESPONSE_EXECUTE_TASK_RESULT: 'response.execute_task_result',
   RESPONSE_ERROR: 'response.error',
 };
 
@@ -87,3 +91,29 @@ export const ERROR_CODES = {
   REQUEST_TIMEOUT: 'REQUEST_TIMEOUT',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
 };
+
+// ── 任务执行相关接口 ──
+
+export interface ExecuteTaskPayload {
+  taskId: string;                // 任务唯一 ID
+  platform: 'chatgpt' | 'gemini' | 'grok';  // 目标平台
+  action: 'send_message';        // 动作类型
+  payload: {
+    prompt: string;              // Prompt 文本
+    conversationId?: string;     // 可选：续对话 ID
+    model?: string;              // 可选：指定模型
+  };
+  priority?: number;
+  timeout?: number;              // 超时时间 ms，默认 60000
+}
+
+export interface ExecuteTaskResultPayload {
+  taskId: string;
+  success: boolean;
+  platform: 'chatgpt' | 'gemini' | 'grok';
+  content?: string;              // AI 回复文本（success=true 时有值）
+  conversationId?: string;       // 对话 ID（方便后续续对话）
+  error?: string;                // 错误信息（success=false 时有值）
+  executedAt: string;            // ISO 8601 时间戳
+  durationMs: number;            // 执行耗时（毫秒）
+}

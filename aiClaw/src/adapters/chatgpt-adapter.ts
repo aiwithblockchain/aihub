@@ -6,7 +6,7 @@ import {
     SendMessageResponse,
 } from './base-adapter';
 import { SseParser } from '../utils/sse-parser';
-import { clearPlatformCredentials } from '../service_work/background';
+import { clearPlatformCredentials } from '../storage/credentials-store';
 
 export class ChatGptAdapter extends BasePlatformAdapter {
     readonly platform: PlatformType = 'chatgpt';
