@@ -9,6 +9,7 @@ module.exports = (env, argv) => {
         entry: {
             background: path.resolve(__dirname, 'src/service_work/background.ts'),
             content: path.resolve(__dirname, 'src/content/main_entrance.ts'),
+            injection: path.resolve(__dirname, 'src/capture/injection.ts'),
         },
         output: {
             path: path.resolve(__dirname, 'dist'),
