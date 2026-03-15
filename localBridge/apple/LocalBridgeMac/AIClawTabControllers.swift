@@ -6,6 +6,12 @@ final class AIClawHumanViewController: NSViewController {
     
     private let platformPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let queryButton = NSButton(title: "查询状态", target: nil, action: #selector(queryClicked))
+    
+    private let messageTitleLabel = NSTextField(labelWithString: "发送消息")
+    private let messagePlatformPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let messageTextView = NSTextField()
+    private let sendMessageButton = NSButton(title: "发送消息", target: nil, action: #selector(sendMessageClicked))
+    
     private var resultTextView: NSTextView!
     private var resultScrollView: NSScrollView!
     
@@ -18,6 +24,7 @@ final class AIClawHumanViewController: NSViewController {
         setupUI()
         
         NotificationCenter.default.addObserver(self, selector: #selector(handleQueryResult(_:)), name: NSNotification.Name("QueryAITabsStatusReceived"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleSendMessageResult(_:)), name: NSNotification.Name("SendMessageReceived"), object: nil)
     }
     
     deinit {
@@ -52,11 +59,42 @@ final class AIClawHumanViewController: NSViewController {
         platformRow.alignment = .centerY
         platformRow.spacing = 8
         
-        let leftStack = NSStackView(views: [titleLabel, statusLabel, platformRow, queryButton])
+        // Send Message UI
+        messageTitleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
+        messagePlatformPopup.addItems(withTitles: ["chatgpt", "gemini", "grok"])
+        messagePlatformPopup.translatesAutoresizingMaskIntoConstraints = false
+        
+        messageTextView.placeholderString = "输入消息内容..."
+        messageTextView.translatesAutoresizingMaskIntoConstraints = false
+        
+        sendMessageButton.bezelStyle = .rounded
+        sendMessageButton.target = self
+        
+        let msgPlatformLabel = NSTextField(labelWithString: "平台:")
+        let msgPlatformRow = NSStackView(views: [msgPlatformLabel, messagePlatformPopup])
+        msgPlatformRow.orientation = .horizontal
+        msgPlatformRow.spacing = 8
+        
+        let separator = NSBox()
+        separator.boxType = .separator
+        
+        let leftStack = NSStackView(views: [
+            titleLabel, 
+            statusLabel, 
+            platformRow, 
+            queryButton,
+            separator,
+            messageTitleLabel,
+            msgPlatformRow,
+            messageTextView,
+            sendMessageButton
+        ])
         leftStack.orientation = .vertical
         leftStack.alignment = .leading
-        leftStack.spacing = 16
+        leftStack.spacing = 12
         leftStack.translatesAutoresizingMaskIntoConstraints = false
+        leftStack.setCustomSpacing(20, after: queryButton)
+        leftStack.setCustomSpacing(20, after: separator)
         
         view.addSubview(leftStack)
         view.addSubview(resultScrollView)
@@ -85,6 +123,31 @@ final class AIClawHumanViewController: NSViewController {
         UserDefaults.standard.set(selectedPlatform, forKey: "aiClawQueryPlatformFilter")
         
         AppDelegate.shared?.sendQueryAITabsStatus()
+    }
+    
+    @objc private func sendMessageClicked() {
+        let platform = messagePlatformPopup.titleOfSelectedItem ?? "chatgpt"
+        let prompt = messageTextView.stringValue
+        
+        if prompt.isEmpty {
+            resultTextView.string = "Error: Prompt cannot be empty"
+            return
+        }
+        
+        DispatchQueue.main.async {
+            self.resultTextView.string = "Sending message to \(platform)...\n"
+        }
+        
+        AppDelegate.shared?.sendSendMessage(platform: platform, prompt: prompt)
+    }
+    
+    @objc private func handleSendMessageResult(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let jsonString = userInfo["dataString"] as? String else { return }
+        
+        DispatchQueue.main.async {
+            self.resultTextView.string = "--- Send Message Result ---\n\(jsonString)"
+        }
     }
     
     @objc private func handleQueryResult(_ notification: Notification) {
@@ -162,44 +225,34 @@ final class AIClawBotViewController: NSViewController {
         apiDocLabel.isSelectable = true
         apiDocLabel.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
         apiDocLabel.stringValue = """
-        ### REST API Documentation
+        Usage:
+        curl -X GET http://127.0.0.1:8769/api/v1/ai/status
         
-        Endpoint: GET http://127.0.0.1:8769/api/v1/ai/status
-        Description: Queries AI platform tabs (ChatGPT, Gemini, Grok)
-                     from aiClaw browser extension.
+        ---
         
-        Prerequisites:
-        - aiClaw extension must be installed and active
-        - WebSocket connection must be established
+        Endpoint: POST http://127.0.0.1:8769/api/v1/ai/message
+        Description: Sends a message to a specific AI platform.
+        
+        Body (JSON):
+        {
+          "platform": "chatgpt",
+          "prompt": "请用一句话介绍你自己"
+        }
         
         Response Example:
         {
-          "hasAITabs": true,
-          "platforms": {
-            "chatgpt": true,
-            "gemini": false,
-            "grok": true
-          },
-          "activeAITabId": 123,
-          "activeAIUrl": "https://chatgpt.com/",
-          "tabs": [
-            {
-              "tabId": 123,
-              "url": "https://chatgpt.com/",
-              "platform": "chatgpt",
-              "active": true
-            }
-          ]
+          "taskId": "task_123456789",
+          "success": true,
+          "platform": "chatgpt",
+          "content": "AI 回复的内容",
+          "executedAt": "2024-03-21T12:00:00Z",
+          "durationMs": 1500
         }
         
-        Error Responses:
-        - 503: {"error":"aiclaw_offline"}
-             aiClaw extension is not connected.
-        - 504: {"error":"timeout"}
-             Request timed out after 5 seconds.
-        
         Usage:
-        curl -X GET http://127.0.0.1:8769/api/v1/ai/status
+        curl -X POST http://127.0.0.1:8769/api/v1/ai/message \
+             -H "Content-Type: application/json" \
+             -d '{"platform":"chatgpt", "prompt":"Hello"}'
         
         ---
         

@@ -69,6 +69,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func sendQueryAITabsStatus() {
         wsServer.sendQueryAITabsStatus()
     }
+    
+    func sendSendMessage(platform: String, prompt: String) {
+        wsServer.sendSendMessage(platform: platform, prompt: prompt)
+    }
     @objc private func restartWebSocketServer() {
         print("[LocalBridgeMac] Restarting WebSocket Service...")
         wsServer.stop { [weak self] in

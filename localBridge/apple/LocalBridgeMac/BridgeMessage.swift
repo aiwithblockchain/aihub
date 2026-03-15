@@ -14,6 +14,8 @@ enum MessageType: String, Codable {
     case responseQueryXBasicInfo = "response.query_x_basic_info"
     case requestQueryAITabsStatus = "request.query_ai_tabs_status"
     case responseQueryAITabsStatus = "response.query_ai_tabs_status"
+    case requestExecuteTask = "request.execute_task"
+    case responseExecuteTaskResult = "response.execute_task_result"
     case responseError = "response.error"
 }
 
@@ -117,6 +119,27 @@ struct QueryXBasicInfoResponsePayload: Codable {
     let twitterId: String?
     let verified: Bool?
     let updatedAt: Int64?
+}
+
+struct ExecuteTaskRequestPayload: Codable {
+    let taskId: String
+    let platform: String
+    let action: String
+    let payload: SendMessagePromptPayload
+}
+
+struct SendMessagePromptPayload: Codable {
+    let prompt: String
+}
+
+struct ExecuteTaskResultPayload: Codable {
+    let taskId: String
+    let success: Bool
+    let platform: String
+    let content: String?
+    let error: String?
+    let executedAt: String
+    let durationMs: Int
 }
 
 struct ErrorPayload: Codable {
