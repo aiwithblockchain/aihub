@@ -12,7 +12,8 @@
 
 import { STORAGE_KEY_CREDENTIALS, MsgType } from '../capture/consts';
 import type { PlatformType } from '../capture/consts';
-import { ChatGptAdapter } from '../adapters/chatgpt-adapter';
+import { LocalBridgeSocket } from '../bridge/local-bridge-socket';
+import type { AITabInfo, QueryAITabsStatusResponsePayload } from '../bridge/ws-protocol';
 
 // ── 凭证数据结构 ──
 
@@ -204,31 +205,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;  // 异步 sendResponse
     }
 
-    if (message.type === MsgType.AC_SEND_TEST_MESSAGE) {
-        console.log('[aiClaw-BG] Received test message request');
-        loadCredentials().then(async (creds) => {
-            const chatGptCreds = creds.chatgpt;
-            if (chatGptCreds && chatGptCreds.bearerToken && chatGptCreds.apiEndpoint) {
-                const adapter = new ChatGptAdapter();
-                const response = await adapter.sendMessage(
-                    { prompt: 'Hello, this is a test message.' },
-                    chatGptCreds
-                );
-                console.log('[aiClaw-BG] Test message response:', response);
-                sendResponse({ ok: true, response });
-            } else {
-                sendResponse({ ok: false, error: 'ChatGPT credentials not found' });
-            }
-        });
-        return true;
-    }
-
-    if (message.type === MsgType.TASK_RESULT) {
-        wsClient.sendResult(message.result);
-        wsClient.isExecutingTask = false;
-        wsClient.executeNextTask();
-        return; // No response needed
-    }
 
     return false;
 });
@@ -284,150 +260,55 @@ chrome.tabs.onRemoved.addListener((tabId) => {
     delete hookStatusMap[tabId];
 });
 
-// ── WebSocket 客户端 ──
+// ── LocalBridge WebSocket 客户端 ──
 
-const LOCALBRIDGE_URL = 'ws://localhost:8765/ws/aiclaw';
+async function queryAITabsStatus(): Promise<QueryAITabsStatusResponsePayload> {
+    // 查询所有 AI 平台的 tabs
+    const chatgptTabs = await chrome.tabs.query({
+        url: ['https://chatgpt.com/*', 'https://chat.openai.com/*'],
+    });
+    const geminiTabs = await chrome.tabs.query({
+        url: ['https://gemini.google.com/*'],
+    });
+    const grokTabs = await chrome.tabs.query({
+        url: ['https://grok.com/*', 'https://x.com/i/grok*'],
+    });
 
-class WebSocketClient {
-    private ws: WebSocket | null = null;
-    private reconnectAttempts = 0;
-    private taskQueue: any[] = [];
-    public isExecutingTask = false;
-    private lastUsedTabIndex: Map<PlatformType, number> = new Map();
+    const allTabs: AITabInfo[] = [];
 
-    connect() {
-        this.ws = new WebSocket(LOCALBRIDGE_URL);
-
-        this.ws.onopen = () => {
-            console.log('[aiClaw-BG] 🔌 WebSocket connected to localBridge');
-            this.reconnectAttempts = 0;
-            this.executeNextTask(); // Start executing tasks if any were queued while disconnected
-        };
-
-        this.ws.onmessage = (event) => {
-            try {
-                const task = JSON.parse(event.data);
-                console.log('[aiClaw-BG] 📩 Received task from localBridge:', task);
-                this.enqueueTask(task);
-            } catch (e) {
-                console.error('[aiClaw-BG] ❌ Error parsing task from localBridge:', e);
-            }
-        };
-
-        this.ws.onclose = () => {
-            console.log('[aiClaw-BG] 🔌 WebSocket disconnected from localBridge');
-            this.reconnect();
-        };
-
-        this.ws.onerror = (err) => {
-            console.error('[aiClaw-BG] ❌ WebSocket error:', err);
-            // onclose will be called next, which will handle reconnect
-        };
-    }
-
-    private reconnect() {
-        if (this.reconnectAttempts >= 30) {
-            console.error('[aiClaw-BG] ❌ Too many reconnect attempts, giving up.');
-            return;
+    for (const tab of chatgptTabs) {
+        if (tab.id && tab.url) {
+            allTabs.push({ tabId: tab.id, url: tab.url, platform: 'chatgpt', active: tab.active || false });
         }
-
-        const delay = Math.min(30000, 1000 * Math.pow(2, this.reconnectAttempts));
-        this.reconnectAttempts++;
-
-        console.log(`[aiClaw-BG] 🔌 Reconnecting WebSocket in ${delay / 1000}s...`);
-        setTimeout(() => this.connect(), delay);
     }
-
-    private enqueueTask(task: any) {
-        this.taskQueue.push(task);
-        this.executeNextTask();
-    }
-
-    public executeNextTask() {
-        if (this.isExecutingTask || this.taskQueue.length === 0) {
-            return;
+    for (const tab of geminiTabs) {
+        if (tab.id && tab.url) {
+            allTabs.push({ tabId: tab.id, url: tab.url, platform: 'gemini', active: tab.active || false });
         }
-        this.isExecutingTask = true;
-        const task = this.taskQueue.shift();
-        this.dispatchTask(task);
     }
-
-    private getPlatformUrlPatterns(platform: PlatformType): string[] {
-        switch (platform) {
-            case 'chatgpt':
-                return ['https://chat.openai.com/*', 'https://chatgpt.com/*'];
-            case 'gemini':
-                return ['https://gemini.google.com/*'];
-            case 'grok':
-                return ['https://grok.com/*', 'https://x.com/i/grok*'];
+    for (const tab of grokTabs) {
+        if (tab.id && tab.url) {
+            allTabs.push({ tabId: tab.id, url: tab.url, platform: 'grok', active: tab.active || false });
         }
     }
 
-    private async dispatchTask(task: any) {
-        if (!task.platform || !task.payload?.prompt) {
-            console.error('[aiClaw-BG] ❌ Invalid task received:', task);
-            this.isExecutingTask = false;
-            this.executeNextTask();
-            return;
-        }
+    const activeTab = allTabs.find(t => t.active) || null;
 
-        const platform = task.platform as PlatformType;
-        const urlPatterns = this.getPlatformUrlPatterns(platform);
-
-        let tabs: chrome.tabs.Tab[] = [];
-        for (const pattern of urlPatterns) {
-            const matchingTabs = await chrome.tabs.query({ url: pattern });
-            tabs = tabs.concat(matchingTabs);
-        }
-
-
-        if (tabs.length === 0) {
-            console.error(`[aiClaw-BG] ❌ No active tab found for platform: ${platform}`);
-            this.sendResult({ taskId: task.taskId, success: false, error: `No active tab found for platform: ${platform}` });
-            this.isExecutingTask = false;
-            this.executeNextTask();
-            return;
-        }
-
-        const lastIndex = this.lastUsedTabIndex.get(platform) || -1;
-        const nextIndex = (lastIndex + 1) % tabs.length;
-        const tab = tabs[nextIndex];
-        this.lastUsedTabIndex.set(platform, nextIndex);
-
-        const tabId = tab.id;
-        if (tabId) {
-            try {
-                await chrome.tabs.sendMessage(tabId, {
-                    type: MsgType.EXECUTE_TASK,
-                    task: task,
-                });
-            } catch (e: any) {
-                console.error(`[aiClaw-BG] ❌ Error sending task to tab ${tabId}:`, e);
-                this.sendResult({ taskId: task.taskId, success: false, error: `Failed to send task to content script: ${e.message}` });
-                this.isExecutingTask = false;
-                this.executeNextTask();
-            }
-        }
-    }
-
-    sendResult(result: any) {
-        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-            this.ws.send(JSON.stringify(result));
-        }
-    }
+    return {
+        hasAITabs: allTabs.length > 0,
+        platforms: {
+            chatgpt: chatgptTabs.length > 0,
+            gemini: geminiTabs.length > 0,
+            grok: grokTabs.length > 0,
+        },
+        activeAITabId: activeTab?.tabId || null,
+        activeAIUrl: activeTab?.url || null,
+        tabs: allTabs,
+    };
 }
 
-const wsClient = new WebSocketClient();
-wsClient.connect();
-
-
-// ── Service Worker Keep-alive ──
-chrome.alarms.create('keep-alive', { periodInMinutes: 0.5 });
-chrome.alarms.onAlarm.addListener((alarm) => {
-    if (alarm.name === 'keep-alive') {
-        // console.log('[aiClaw-BG] Keep-alive alarm triggered');
-    }
-});
+const localBridge = new LocalBridgeSocket();
+localBridge.queryAITabsHandler = queryAITabsStatus;
 
 
 // ── 启动日志 ──
