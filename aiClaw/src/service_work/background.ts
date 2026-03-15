@@ -233,8 +233,11 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
         const authHeader = headers.find(
             h => h.name.toLowerCase() === 'authorization'
         );
+        const csrfHeader = headers.find(h => h.name.toLowerCase() === 'x-csrf-token' || h.name.toLowerCase() === 'x-goog-authuser');
 
-        if (authHeader?.value?.startsWith('Bearer ')) {
+        const authValue = authHeader?.value || csrfHeader?.value;
+
+        if (authValue) {
             const url = details.url;
             let platform: PlatformType | null = null;
 
@@ -247,9 +250,9 @@ chrome.webRequest.onBeforeSendHeaders.addListener(
             }
 
             if (platform) {
-                updatePlatformCredentials(platform, authHeader.value, url, {});
+                updatePlatformCredentials(platform, authValue, url, {});
                 console.log(
-                    `%c[aiClaw-BG] 🌐 WebRequest captured Bearer for ${platform}`,
+                    `%c[aiClaw-BG] 🌐 WebRequest captured Auth for ${platform}`,
                     'color: #60a5fa'
                 );
             }
@@ -307,9 +310,18 @@ async function queryAITabsStatus(): Promise<QueryAITabsStatusResponsePayload> {
     return {
         hasAITabs: allTabs.length > 0,
         platforms: {
-            chatgpt: { hasTab: chatgptTabs.length > 0, isLoggedIn: !!creds.chatgpt.bearerToken },
-            gemini: { hasTab: geminiTabs.length > 0, isLoggedIn: !!creds.gemini.bearerToken },
-            grok: { hasTab: grokTabs.length > 0, isLoggedIn: !!creds.grok.bearerToken },
+            chatgpt: { 
+                hasTab: chatgptTabs.length > 0, 
+                isLoggedIn: !!creds.chatgpt.bearerToken || (creds.chatgpt.captureCount > 0 && (Date.now() - creds.chatgpt.lastCapturedAt < 3600000))
+            },
+            gemini: { 
+                hasTab: geminiTabs.length > 0, 
+                isLoggedIn: !!creds.gemini.bearerToken || (creds.gemini.captureCount > 0 && (Date.now() - creds.gemini.lastCapturedAt < 3600000))
+            },
+            grok: { 
+                hasTab: grokTabs.length > 0, 
+                isLoggedIn: !!creds.grok.bearerToken || (creds.grok.captureCount > 0 && (Date.now() - creds.grok.lastCapturedAt < 3600000))
+            },
         },
         activeAITabId: activeTab?.tabId || null,
         activeAIUrl: activeTab?.url || null,

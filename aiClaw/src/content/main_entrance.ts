@@ -46,31 +46,35 @@ function detectPlatform(): string {
 }
 
 // ── 3. 监听 injection.ts 通过 window.postMessage 发来的消息 ──
-
 window.addEventListener('message', (event) => {
     // 安全检查：只处理来自 aiClaw injection 的消息
     if (event.data?.source !== INJECTION_SOURCE) return;
 
-    // 3a. 凭证捕获消息 → 转发给 background
-    if (event.data.type === 'CREDENTIALS_CAPTURED') {
-        chrome.runtime.sendMessage({
-            type: MsgType.CAPTURED_CREDENTIALS,
-            platform: event.data.platform,
-            apiUrl: event.data.apiUrl,
-            method: event.data.method,
-            bearerToken: event.data.bearerToken || null,
-            requestHeaders: event.data.requestHeaders || {},
-            requestBody: event.data.requestBody || null,
-            timestamp: event.data.timestamp || Date.now(),
-        });
-    }
+    try {
+        // 3a. 凭证捕获消息 (支持新旧两种 type 标识)
+        if (event.data.type === 'CREDENTIALS_CAPTURED' || event.data.type === 'AC_CAPTURED_CREDENTIALS') {
+            chrome.runtime.sendMessage({
+                type: MsgType.CAPTURED_CREDENTIALS,
+                platform: event.data.platform,
+                apiUrl: event.data.apiUrl,
+                method: event.data.method,
+                bearerToken: event.data.bearerToken || null,
+                requestHeaders: event.data.requestHeaders || {},
+                requestBody: event.data.requestBody || null,
+                timestamp: event.data.timestamp || Date.now(),
+            });
+        }
 
-    // 3b. Hook 状态上报 → 转发给 background
-    if (event.data.type === 'HOOK_STATUS_REPORT') {
-        chrome.runtime.sendMessage({
-            type: 'AC_HOOK_STATUS',
-            status: event.data.status,
-        });
+        // 3b. Hook 状态上报
+        if (event.data.type === 'HOOK_STATUS_REPORT') {
+            chrome.runtime.sendMessage({
+                type: 'AC_HOOK_STATUS',
+                status: event.data.status,
+            });
+        }
+    } catch (e) {
+        // 如果插件重载导致 Context Invalidated，忽略报错，等待页面下次刷新
+        // console.warn('[aiClaw-CS] Failed to forward message to background:', e);
     }
 });
 

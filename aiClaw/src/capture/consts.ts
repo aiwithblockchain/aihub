@@ -26,8 +26,8 @@ export const INJECTION_SOURCE = 'aiclaw-injection';
 // 用于 injection.ts 判断当前拦截到的 fetch 请求属于哪个平台的 API
 export const PLATFORM_API_PATTERNS: Record<PlatformType, RegExp[]> = {
     chatgpt: [
-        /chatgpt\.com\/backend-api\//,
-        /chat\.openai\.com\/backend-api\//,
+        /chatgpt\.com\/backend-api\/(conversation|me|accounts\/check)/,
+        /chat\.openai\.com\/backend-api\/(conversation|me|accounts\/check)/,
     ],
     gemini: [
         /gemini\.google\.com\/_\/BardChatUi\//,
@@ -36,6 +36,7 @@ export const PLATFORM_API_PATTERNS: Record<PlatformType, RegExp[]> = {
     ],
     grok: [
         /grok\.com\/rest\/app-chat\//,
+        /grok\.com\/rest\/user-settings\//,
         /x\.com\/i\/api\/2\/grok\//,
     ],
 };

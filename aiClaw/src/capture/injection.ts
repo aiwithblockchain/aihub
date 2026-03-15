@@ -19,8 +19,8 @@
     // ── 平台 API 匹配规则（与 consts.ts 保持一致，但 injection 运行在 MAIN world，无法 import） ──
     const PLATFORM_API_PATTERNS: Record<string, RegExp[]> = {
         chatgpt: [
-            /chatgpt\.com\/backend-api\//,
-            /chat\.openai\.com\/backend-api\//,
+            /chatgpt\.com\/backend-api\/(conversation|me|accounts\/check)/,
+            /chat\.openai\.com\/backend-api\/(conversation|me|accounts\/check)/,
         ],
         gemini: [
             /gemini\.google\.com\/_\/BardChatUi\//,
@@ -29,6 +29,7 @@
         ],
         grok: [
             /grok\.com\/rest\/app-chat\//,
+            /grok\.com\/rest\/user-settings\//,
             /x\.com\/i\/api\/2\/grok\//,
         ],
     };
@@ -55,19 +56,27 @@
             const hdrs = initArg?.headers;
             if (!hdrs) return null;
             let auth: string | null = null;
+            let csrf: string | null = null;
 
             if (hdrs instanceof Headers) {
                 auth = hdrs.get('authorization') || hdrs.get('Authorization');
+                csrf = hdrs.get('x-csrf-token') || hdrs.get('x-goog-authuser');
             } else if (Array.isArray(hdrs)) {
-                const pair = hdrs.find((h: any) =>
-                    (typeof h[0] === 'string') && h[0].toLowerCase() === 'authorization'
-                );
-                if (pair) auth = pair[1];
+                const aPair = hdrs.find((h: any) => h[0]?.toLowerCase() === 'authorization');
+                if (aPair) auth = aPair[1];
+                const cPair = hdrs.find((h: any) => h[0]?.toLowerCase() === 'x-csrf-token' || h[0]?.toLowerCase() === 'x-goog-authuser');
+                if (cPair) csrf = cPair[1];
             } else if (typeof hdrs === 'object') {
                 auth = hdrs['authorization'] || hdrs['Authorization'] || null;
+                csrf = hdrs['x-csrf-token'] || hdrs['X-CSRF-Token'] || hdrs['x-goog-authuser'] || null;
             }
 
-            return (auth && auth.startsWith('Bearer ')) ? auth : null;
+            // 如果有 Authorization，直接返回（不管是 Bearer 还是其他的）
+            if (auth) return auth;
+            // 如果没有 Authorization 但有 CSRF 或 Google AuthUser，返回一个占位符表示“已感知到鉴权头”
+            if (csrf) return `Captured-${csrf.substring(0, 8)}`;
+            
+            return null;
         } catch {
             return null;
         }
@@ -126,7 +135,7 @@
 
         window.postMessage({
             source: 'aiclaw-injection',
-            type: 'CREDENTIALS_CAPTURED',
+            type: 'AC_CAPTURED_CREDENTIALS',
             platform,
             apiUrl,
             method,
