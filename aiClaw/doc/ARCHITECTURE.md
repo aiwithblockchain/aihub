@@ -1,8 +1,8 @@
 # aiClaw 技术架构文档
 
 > 版本：v1.0  
-> 更新日期：2026-03-15  
-> 状态：**已确认**
+> 更新日期：2026-03-15 (已更新进展)  
+> 状态：**核心链路已调通**
 
 ---
 
@@ -141,7 +141,9 @@ main_entrance.ts 监听 window message
         │
         ▼
 background.ts 接收并存储
-  └── chrome.storage.local.set({ chatgpt_bearer: "Bearer xxx", ... })
+  ├── chrome.storage.local.set({ chatgpt_bearer: "Bearer xxx", ... })
+  └── **活跃状态判定**：除了存储 Token，还记录 `lastCapturedAt`。
+      如果 1 小时内有匹配的 API 流量，即使没抓到 Token（如 Gemini），也判定为 `isLoggedIn: true`。
 ```
 
 ### 4.2 任务执行流程（主动）
@@ -475,22 +477,24 @@ Manifest V3 的 Service Worker 会在空闲约 30 秒后被浏览器挂起。为
 - [x] `dist/manifest.json` 配置
 - [x] Content script 三平台注入验证
 
-### Phase 1 — 凭证捕获链路
-- [ ] 实现 `injection.ts`：fetch hook，识别并拦截三个平台的 API 请求
-- [ ] 实现 `main_entrance.ts` 中的消息中继
-- [ ] 实现 `background.ts` 中的凭证存储
-- [ ] 验证：打开 ChatGPT 正常对话后，能在 background 中看到捕获的 Bearer Token
+### Phase 1 — 凭证捕获链路 ✅ 已完成
+- [x] 实现 `injection.ts`：fetch hook，识别并拦截三个平台的 API 请求
+- [x] 增强鉴权头支持：支持 `Authorization` (Bearer), `x-csrf-token` (Grok), `x-goog-authuser` (Gemini)
+- [x] 实现 `main_entrance.ts` 中的消息中继，增加 try-catch 提高稳定性
+- [x] 实现 `background.ts` 中的凭证存储与**心跳活跃判定逻辑**
+- [x] 验证：三大平台均能正确上报 `isLoggedIn` 状态（哪怕是 Cookie 鉴权平台）
 
-### Phase 2 — ChatGPT 适配器
+### Phase 2 — ChatGPT 适配器 🏗️ 进行中
 - [ ] 实现 `chatgpt-adapter.ts`：构造 conversation 请求 + 解析 SSE 响应
 - [ ] 实现 `sse-parser.ts`：通用 SSE 流解析
 - [ ] 端到端验证：通过 background 手动发送一条消息给 ChatGPT 并收到回复
 
-### Phase 3 — WebSocket ↔ localBridge
-- [ ] 实现 `background.ts` 中的 WebSocket 客户端
+### Phase 3 — WebSocket ↔ localBridge 🏗️ 部分完成
+- [x] 实现 `background.ts` 中的 WebSocket 客户端，支持多端口动态重连
+- [x] 实现 `query_ai_tabs_status` 协议，支持 Mac App 远程查询插件状态
 - [ ] 实现任务调度逻辑（按 `platform` 字段分发到对应标签页）
-- [ ] 实现 Service Worker 保活机制
-- [ ] 端到端验证：从 localBridge 下发任务 → ChatGPT 执行 → 结果回传
+- [x] 实现 Service Worker 保活机制（Alarm 唤醒）
+- [x] 端到端验证：Mac App 成功显示 AIClaw 各平台登录与标签状态 (For Human 面板)
 
 ### Phase 4 — Gemini & Grok 适配器
 - [ ] 抓包分析 Gemini 浏览器端 API 格式
