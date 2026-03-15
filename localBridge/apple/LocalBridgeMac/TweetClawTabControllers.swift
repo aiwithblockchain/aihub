@@ -99,8 +99,8 @@ final class TweetClawHumanViewController: NSViewController {
     }
 }
 
-final class TweetClawBotViewController: NSViewController {
-    private let titleLabel = NSTextField(labelWithString: "TweetClaw - For ClawBot")
+final class TweetClawClawViewController: NSViewController {
+    private let titleLabel = NSTextField(labelWithString: "TweetClaw - For Claw")
     private let apiDocLabel = NSTextField(wrappingLabelWithString: "")
     
     override func loadView() {

@@ -63,9 +63,9 @@ export interface PingPayload {
 export interface QueryAITabsStatusResponsePayload {
   hasAITabs: boolean;
   platforms: {
-    chatgpt: boolean;
-    gemini: boolean;
-    grok: boolean;
+    chatgpt: { hasTab: boolean; isLoggedIn: boolean };
+    gemini: { hasTab: boolean; isLoggedIn: boolean };
+    grok: { hasTab: boolean; isLoggedIn: boolean };
   };
   activeAITabId: number | null;
   activeAIUrl: string | null;

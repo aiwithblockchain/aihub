@@ -116,14 +116,16 @@ final class AIClawHumanViewController: NSViewController {
                     if let tabs = json["tabs"] as? [[String: Any]] {
                         let filteredTabs = tabs.filter { ($0["platform"] as? String) == targetPlatform }
                         filtered["tabs"] = filteredTabs
-                        filtered["hasAITabs"] = !filteredTabs.isEmpty
+                        filtered["count"] = filteredTabs.count
                     }
                     
-                    // Check platform login status
-                    if let platforms = json["platforms"] as? [String: Bool] {
-                        let isActive = platforms[targetPlatform] ?? false
-                        filtered["platformQueried"] = targetPlatform
-                        filtered["hasTabs"] = isActive
+                    // Check platform login status and tab presence
+                    if let platforms = json["platforms"] as? [String: [String: Any]] {
+                        if let status = platforms[targetPlatform] {
+                            filtered["platformQueried"] = targetPlatform
+                            filtered["hasTabs"] = status["hasTab"] as? Bool ?? false
+                            filtered["isLoggedIn"] = status["isLoggedIn"] as? Bool ?? false
+                        }
                     }
                     
                     if let resultData = try? JSONSerialization.data(withJSONObject: filtered, options: .prettyPrinted),

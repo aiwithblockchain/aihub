@@ -91,10 +91,15 @@ struct AITabInfo: Codable {
     let active: Bool
 }
 
+struct PlatformStatus: Codable {
+    let hasTab: Bool
+    let isLoggedIn: Bool
+}
+
 struct AIPlatformsInfo: Codable {
-    let chatgpt: Bool
-    let gemini: Bool
-    let grok: Bool
+    let chatgpt: PlatformStatus
+    let gemini: PlatformStatus
+    let grok: PlatformStatus
 }
 
 struct QueryAITabsStatusResponsePayload: Codable {

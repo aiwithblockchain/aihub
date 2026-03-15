@@ -270,7 +270,10 @@ chrome.tabs.onRemoved.addListener((tabId) => {
 // ── LocalBridge WebSocket 客户端 ──
 
 async function queryAITabsStatus(): Promise<QueryAITabsStatusResponsePayload> {
-    // 查询所有 AI 平台的 tabs
+    // 1. 查询凭证获取登录状态
+    const creds = await loadCredentials();
+  
+    // 2. 查询所有 AI 平台的 tabs
     const chatgptTabs = await chrome.tabs.query({
         url: ['https://chatgpt.com/*', 'https://chat.openai.com/*'],
     });
@@ -304,9 +307,9 @@ async function queryAITabsStatus(): Promise<QueryAITabsStatusResponsePayload> {
     return {
         hasAITabs: allTabs.length > 0,
         platforms: {
-            chatgpt: chatgptTabs.length > 0,
-            gemini: geminiTabs.length > 0,
-            grok: grokTabs.length > 0,
+            chatgpt: { hasTab: chatgptTabs.length > 0, isLoggedIn: !!creds.chatgpt.bearerToken },
+            gemini: { hasTab: geminiTabs.length > 0, isLoggedIn: !!creds.gemini.bearerToken },
+            grok: { hasTab: grokTabs.length > 0, isLoggedIn: !!creds.grok.bearerToken },
         },
         activeAITabId: activeTab?.tabId || null,
         activeAIUrl: activeTab?.url || null,

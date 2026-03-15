@@ -24,16 +24,20 @@ bin-release/
 # Node / JS dependencies
 node_modules/
 /tweetClaw/node_modules/
+/aiClaw/node_modules/
 
 # Build artifacts
 dist/js/
 /tweetClaw/dist/js/
+/aiClaw/dist/js/
 build/
 /tweetClaw/build/
+/aiClaw/build/
 
 # Local env / logs
 .env
 /tweetClaw/.env
+/aiClaw/.env
 *.log
 
 # Xcode user data

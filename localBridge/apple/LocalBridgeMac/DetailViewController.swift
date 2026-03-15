@@ -4,12 +4,12 @@ final class DetailViewController: NSViewController {
     // TweetClaw tab view
     private let tweetClawTabView = NSTabView()
     private let humanVC = TweetClawHumanViewController()
-    private let botVC = TweetClawBotViewController()
+    private let clawVC = TweetClawClawViewController()
     
     // AIClaw tab view
     private let aiClawTabView = NSTabView()
     private let aiHumanVC = AIClawHumanViewController()
-    private let aiBotVC = AIClawBotViewController()
+    private let aiClawVC = AIClawBotViewController()
     
     private let placeholderLabel = NSTextField(labelWithString: "选择左侧会话查看内容")
 
@@ -56,11 +56,11 @@ private extension DetailViewController {
         let humanItem = NSTabViewItem(viewController: humanVC)
         humanItem.label = "For Human"
         
-        let botItem = NSTabViewItem(viewController: botVC)
-        botItem.label = "For ClawBot"
+        let clawItem = NSTabViewItem(viewController: clawVC)
+        clawItem.label = "For Claw"
         
         tweetClawTabView.addTabViewItem(humanItem)
-        tweetClawTabView.addTabViewItem(botItem)
+        tweetClawTabView.addTabViewItem(clawItem)
         
         view.addSubview(tweetClawTabView)
         tweetClawTabView.isHidden = true
@@ -71,11 +71,11 @@ private extension DetailViewController {
         let aiHumanItem = NSTabViewItem(viewController: aiHumanVC)
         aiHumanItem.label = "For Human"
         
-        let aiBotItem = NSTabViewItem(viewController: aiBotVC)
-        aiBotItem.label = "For Claw"
+        let aiClawItem = NSTabViewItem(viewController: aiClawVC)
+        aiClawItem.label = "For Claw"
         
         aiClawTabView.addTabViewItem(aiHumanItem)
-        aiClawTabView.addTabViewItem(aiBotItem)
+        aiClawTabView.addTabViewItem(aiClawItem)
         
         view.addSubview(aiClawTabView)
         aiClawTabView.isHidden = true
