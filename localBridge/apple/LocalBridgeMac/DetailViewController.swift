@@ -1,10 +1,11 @@
 import AppKit
 
 final class DetailViewController: NSViewController {
-    private let titleLabel = NSTextField(labelWithString: "LocalBridge")
-    private let subtitleLabel = NSTextField(labelWithString: "选择左侧会话查看内容")
-    private let previewLabel = NSTextField(wrappingLabelWithString: "")
-    private let queryButton = NSButton(title: "Query X Status", target: nil, action: #selector(queryXStatusClicked))
+    private let tabView = NSTabView()
+    private let humanVC = TweetClawHumanViewController()
+    private let botVC = TweetClawBotViewController()
+    
+    private let placeholderLabel = NSTextField(labelWithString: "选择左侧会话查看内容")
 
     override func loadView() {
         view = NSView()
@@ -13,21 +14,16 @@ final class DetailViewController: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         configureView()
-        configureLayout()
     }
 
     func display(conversation: Conversation) {
-        titleLabel.stringValue = conversation.title
-        subtitleLabel.stringValue = conversation.subtitle
-        previewLabel.stringValue = conversation.preview
-    }
-
-    @objc private func queryXStatusClicked() {
-        print("[LocalBridgeMac] query button clicked")
-        if let sharedDelegate = AppDelegate.shared {
-            sharedDelegate.sendQueryXTabsStatus()
+        if conversation.title == "TweetClaw" {
+            placeholderLabel.isHidden = true
+            tabView.isHidden = false
         } else {
-            print("[LocalBridgeMac] error: AppDelegate.shared is nil")
+            placeholderLabel.isHidden = false
+            tabView.isHidden = true
+            placeholderLabel.stringValue = "\(conversation.title): \(conversation.preview)"
         }
     }
 }
@@ -37,45 +33,33 @@ private extension DetailViewController {
         view.wantsLayer = true
         view.layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
 
-        titleLabel.font = .systemFont(ofSize: 24, weight: .semibold)
+        placeholderLabel.translatesAutoresizingMaskIntoConstraints = false
+        placeholderLabel.font = .systemFont(ofSize: 18)
+        placeholderLabel.textColor = .secondaryLabelColor
+        view.addSubview(placeholderLabel)
 
-        subtitleLabel.font = .systemFont(ofSize: 13, weight: .medium)
-        subtitleLabel.textColor = .secondaryLabelColor
-
-        previewLabel.font = .systemFont(ofSize: 15)
-        previewLabel.maximumNumberOfLines = 0
-        previewLabel.textColor = .labelColor
-    }
-
-    func configureLayout() {
-        let contentCard = NSView()
-        contentCard.translatesAutoresizingMaskIntoConstraints = false
-        contentCard.wantsLayer = true
-        contentCard.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
-        contentCard.layer?.cornerRadius = 18
-
-        queryButton.target = self
-        queryButton.bezelStyle = .rounded
+        tabView.translatesAutoresizingMaskIntoConstraints = false
         
-        let stackView = NSStackView(views: [titleLabel, subtitleLabel, previewLabel, queryButton])
-        stackView.translatesAutoresizingMaskIntoConstraints = false
-        stackView.orientation = .vertical
-        stackView.alignment = .leading
-        stackView.spacing = 14
-
-        contentCard.addSubview(stackView)
-        view.addSubview(contentCard)
+        let humanItem = NSTabViewItem(viewController: humanVC)
+        humanItem.label = "For Human"
+        
+        let botItem = NSTabViewItem(viewController: botVC)
+        botItem.label = "For ClawBot"
+        
+        tabView.addTabViewItem(humanItem)
+        tabView.addTabViewItem(botItem)
+        
+        view.addSubview(tabView)
+        tabView.isHidden = true
 
         NSLayoutConstraint.activate([
-            contentCard.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 28),
-            contentCard.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -28),
-            contentCard.topAnchor.constraint(equalTo: view.topAnchor, constant: 28),
-            contentCard.bottomAnchor.constraint(lessThanOrEqualTo: view.bottomAnchor, constant: -28),
-
-            stackView.leadingAnchor.constraint(equalTo: contentCard.leadingAnchor, constant: 24),
-            stackView.trailingAnchor.constraint(equalTo: contentCard.trailingAnchor, constant: -24),
-            stackView.topAnchor.constraint(equalTo: contentCard.topAnchor, constant: 24),
-            stackView.bottomAnchor.constraint(equalTo: contentCard.bottomAnchor, constant: -24),
+            placeholderLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            placeholderLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+            
+            tabView.topAnchor.constraint(equalTo: view.topAnchor, constant: 10),
+            tabView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
+            tabView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
+            tabView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -10)
         ])
     }
 }

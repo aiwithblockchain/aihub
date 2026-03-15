@@ -3,7 +3,11 @@ import Network
 
 class LocalBridgeWebSocketServer {
     private var listener: NWListener?
+    private var httpListener: NWListener?
     private var connectedClient: NWConnection?
+    
+    // HTTP handling
+    private var pendingHttpCallbacks: [String: (Data) -> Void] = [:]
     
     // Heartbeat monitoring
     private var lastPingReceived: Date?
@@ -51,6 +55,9 @@ class LocalBridgeWebSocketServer {
             self.startHeartbeatTimer()
             
             listener?.start(queue: .main)
+            
+            // Start REST API server on 8769
+            self.startHttpServer()
             
         } catch {
             print("[LocalBridgeMac] failed to start listener: \(error)")
@@ -124,6 +131,11 @@ class LocalBridgeWebSocketServer {
             case .responseQueryXTabsStatus:
                 print("[LocalBridgeMac] received response.query_x_tabs_status")
                 self.handleQueryXTabsResponse(data: data)
+                // Check if there is a pending HTTP caller for this request ID
+                if let callback = self.pendingHttpCallbacks[peekMsg.id] {
+                    callback(data)
+                    self.pendingHttpCallbacks.removeValue(forKey: peekMsg.id)
+                }
                 
             case .responseError:
                 print("[LocalBridgeMac] received response.error")
@@ -253,6 +265,98 @@ class LocalBridgeWebSocketServer {
             } else {
                 // print("[LocalBridgeMac] sent message: \(message)")
             }
+        }))
+    }
+    
+    // MARK: - HTTP Server (REST API)
+    
+    private func startHttpServer() {
+        let port: NWEndpoint.Port = 8769
+        do {
+            let parameters = NWParameters.tcp
+            httpListener = try NWListener(using: parameters, on: port)
+            httpListener?.newConnectionHandler = { connection in
+                self.handleHttpConnection(connection)
+            }
+            httpListener?.start(queue: .main)
+            print("[LocalBridgeMac] HTTP REST server started on port \(port)")
+        } catch {
+            print("[LocalBridgeMac] failed to start HTTP listener: \(error)")
+        }
+    }
+    
+    private func handleHttpConnection(_ connection: NWConnection) {
+        connection.stateUpdateHandler = { state in
+            if case .ready = state {
+                self.receiveHttpRequest(from: connection)
+            }
+        }
+        connection.start(queue: .main)
+    }
+    
+    private func receiveHttpRequest(from connection: NWConnection) {
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 1024) { data, context, isComplete, error in
+            if let data = data, let request = String(data: data, encoding: .utf8) {
+                if request.contains("GET /api/v1/x/status") {
+                    self.handleXStatusHttpRequest(connection)
+                } else {
+                    self.sendHttpResponse(connection, status: "404 Not Found", body: "{\"error\":\"not_found\"}")
+                }
+            } else {
+                connection.cancel()
+            }
+        }
+    }
+    
+    private func handleXStatusHttpRequest(_ connection: NWConnection) {
+        guard let wsClient = connectedClient, wsClient.state == .ready else {
+            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"websocket_offline\"}")
+            return
+        }
+        
+        let reqId = "http_req_\(Int(Date().timeIntervalSince1970))"
+        
+        // Wait for WebSocket response
+        self.pendingHttpCallbacks[reqId] = { responseData in
+            // Extract the payload only to return to HTTP caller
+            let decoder = JSONDecoder()
+            if let resp = try? decoder.decode(BaseMessage<QueryXTabsStatusResponsePayload>.self, from: responseData) {
+                if let bodyData = try? JSONEncoder().encode(resp.payload),
+                   let body = String(data: bodyData, encoding: .utf8) {
+                    self.sendHttpResponse(connection, status: "200 OK", body: body)
+                    return
+                }
+            }
+            self.sendHttpResponse(connection, status: "500 Internal Server Error", body: "{\"error\":\"decode_failed\"}")
+        }
+        
+        // Trigger the WebSocket request
+        let req = BaseMessage(
+            id: reqId,
+            type: .requestQueryXTabsStatus,
+            source: "LocalBridgeMac",
+            target: "tweetClaw",
+            timestamp: Int64(Date().timeIntervalSince1970 * 1000),
+            payload: EmptyPayload()
+        )
+        
+        if let data = try? JSONEncoder().encode(req), let jsonString = String(data: data, encoding: .utf8) {
+            self.sendMessage(jsonString)
+        }
+        
+        // Timeout handling for HTTP request
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+            if self.pendingHttpCallbacks[reqId] != nil {
+                self.pendingHttpCallbacks.removeValue(forKey: reqId)
+                self.sendHttpResponse(connection, status: "504 Gateway Timeout", body: "{\"error\":\"timeout\"}")
+            }
+        }
+    }
+    
+    private func sendHttpResponse(_ connection: NWConnection, status: String, body: String) {
+        let response = "HTTP/1.1 \(status)\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: \(body.count)\r\n\r\n\(body)"
+        connection.send(content: response.data(using: .utf8), completion: .contentProcessed({ _ in
+            connection.cancel()
         }))
     }
 }
