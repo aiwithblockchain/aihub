@@ -8,6 +8,11 @@ import {
 import { findViewerSummary, findFeaturedTweet, findRepliesSnapshot, findProfileTweetsSnapshot, findTweetById } from '../capture/extractor';
 import { derivePageContext } from '../utils/scene-parser';
 import { extractTweetId } from '../utils/route-parser';
+import { LocalBridgeSocket } from '../bridge/local-bridge-socket';
+
+// Initialize LocalBridge WebSocket Client
+const localBridge = new LocalBridgeSocket();
+localBridge.queryXTabsHandler = queryXTabsStatus;
 
 interface ApiHit {
     op: string;
@@ -669,6 +674,54 @@ chrome.webRequest.onBeforeRequest.addListener(
     },
     { urls: ["https://x.com/i/api/*"] }
 );
+
+// ── LocalBridge 业务逻辑 ──────────────────────────────────────────
+
+export async function queryXTabsStatus() {
+    console.log('[TweetClaw-BG] queryXTabsStatus called');
+    
+    // 1. Query all X tabs
+    const tabs = await chrome.tabs.query({ url: ["*://x.com/*", "*://twitter.com/*"] });
+    
+    // 2. Query active tab in current window
+    const [activeTab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    
+    // 3. Find if active tab is an X tab
+    const isXTabNative = (url: string | undefined) => {
+        if (!url) return false;
+        return url.includes('x.com') || url.includes('twitter.com');
+    }
+    
+    let activeXTabId: number | null = null;
+    let activeXUrl: string | null = null;
+    
+    if (activeTab && isXTabNative(activeTab.url)) {
+        activeXTabId = activeTab.id || null;
+        activeXUrl = activeTab.url || null;
+    }
+    
+    // 4. Check login status (twid cookie)
+    const uid = await getAuthenticUid();
+    const isLoggedIn = !!uid;
+    
+    // 5. Map tabs to XTabInfo
+    const tabInfos = tabs.map(t => ({
+        tabId: t.id || 0,
+        url: t.url || '',
+        active: t.active
+    }));
+    
+    const payload = {
+        hasXTabs: tabs.length > 0,
+        isLoggedIn: isLoggedIn,
+        activeXTabId: activeXTabId,
+        activeXUrl: activeXUrl,
+        tabs: tabInfos
+    };
+    
+    console.log('[TweetClaw-BG] queryXTabsStatus result:', payload);
+    return payload;
+}
 
 // 启动时确保存储已就绪
 initDefaultQueryKeys();

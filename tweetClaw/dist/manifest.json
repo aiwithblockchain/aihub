@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TweetClaw",
-  "version": "0.3.17",
+  "version": "0.4.0",
   "description": "TweetClaw: Powerful agentic tool for X web session binding.",
   "background": {
     "service_worker": "js/background.js"
@@ -43,7 +43,9 @@
     "*://twitter.com/*",
     "*://x.com/*",
     "*://*.twitter.com/*",
-    "*://*.x.com/*"
+    "*://*.x.com/*",
+    "http://127.0.0.1:8765/*",
+    "ws://127.0.0.1:8765/*"
   ],
   "web_accessible_resources": [
     {
