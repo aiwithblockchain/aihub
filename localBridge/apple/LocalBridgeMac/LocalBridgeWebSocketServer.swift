@@ -228,8 +228,17 @@ class LocalBridgeWebSocketServer {
             let tabsInfo = p.tabs.map { "{tabId:\($0.tabId),url:\($0.url),active:\($0.active)}" }.joined(separator: ",")
             print("[LocalBridgeMac] tabs=[\(tabsInfo)]")
             
+            // Format nice JSON string for UI text view
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .prettyPrinted
+            if let formattedData = try? encoder.encode(p),
+               let formattedString = String(data: formattedData, encoding: .utf8) {
+                NotificationCenter.default.post(name: NSNotification.Name("QueryXTabsStatusReceived"), object: nil, userInfo: ["dataString": formattedString])
+            }
+            
         } catch {
             print("[LocalBridgeMac] failed to decode response: \(error)")
+            NotificationCenter.default.post(name: NSNotification.Name("QueryXTabsStatusReceived"), object: nil, userInfo: ["dataString": "Error decoding response:\n\(error.localizedDescription)"])
         }
     }
     

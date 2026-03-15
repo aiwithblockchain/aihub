@@ -115,7 +115,7 @@ private extension SidebarViewController {
         } else {
             tableView.selectionHighlightStyle = .sourceList
         }
-        tableView.allowsEmptySelection = false
+        tableView.allowsEmptySelection = true
         tableView.backgroundColor = .clear
         tableView.focusRingType = .none
         tableView.intercellSpacing = NSSize(width: 0, height: 6)
@@ -160,6 +160,7 @@ private extension SidebarViewController {
     }
     
     @objc func showSettingsMenu(_ sender: NSButton) {
+        tableView.deselectAll(nil)
         delegate?.sidebarViewControllerDidSelectSettings(self)
     }
 }

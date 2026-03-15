@@ -3,6 +3,7 @@ import AppKit
 final class SettingsViewController: NSViewController {
     private let titleLabel = NSTextField(labelWithString: "设置")
     private let stayOnTopCheckbox = NSButton(checkboxWithTitle: "窗口保持在最前面", target: nil, action: #selector(toggleStayOnTop))
+    private let quitButton = NSButton(title: "退出 LocalBridge 进程", target: nil, action: #selector(quitClicked))
 
     override func loadView() {
         let view = NSView()
@@ -28,7 +29,16 @@ final class SettingsViewController: NSViewController {
         stayOnTopCheckbox.translatesAutoresizingMaskIntoConstraints = false
         stayOnTopCheckbox.target = self
         
-        let stackView = NSStackView(views: [titleLabel, stayOnTopCheckbox])
+        quitButton.translatesAutoresizingMaskIntoConstraints = false
+        quitButton.target = self
+        quitButton.bezelStyle = .rounded
+        
+        // Add a line separator or spacing using an empty view
+        let spacer = NSView()
+        spacer.translatesAutoresizingMaskIntoConstraints = false
+        spacer.heightAnchor.constraint(equalToConstant: 20).isActive = true
+        
+        let stackView = NSStackView(views: [titleLabel, stayOnTopCheckbox, spacer, quitButton])
         stackView.orientation = .vertical
         stackView.alignment = .leading
         stackView.spacing = 20
@@ -55,5 +65,9 @@ final class SettingsViewController: NSViewController {
         } else {
             window.level = .normal
         }
+    }
+    
+    @objc private func quitClicked() {
+        NSApplication.shared.terminate(nil)
     }
 }
