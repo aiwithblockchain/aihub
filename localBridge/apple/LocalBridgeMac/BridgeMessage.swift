@@ -12,6 +12,8 @@ enum MessageType: String, Codable {
     case responseQueryXTabsStatus = "response.query_x_tabs_status"
     case requestQueryXBasicInfo = "request.query_x_basic_info"
     case responseQueryXBasicInfo = "response.query_x_basic_info"
+    case requestQueryAITabsStatus = "request.query_ai_tabs_status"
+    case responseQueryAITabsStatus = "response.query_ai_tabs_status"
     case responseError = "response.error"
 }
 
@@ -80,6 +82,27 @@ struct QueryXTabsStatusResponsePayload: Codable {
     let activeXTabId: Int?
     let activeXUrl: String?
     let tabs: [XTabInfo]
+}
+
+struct AITabInfo: Codable {
+    let tabId: Int
+    let url: String
+    let platform: String
+    let active: Bool
+}
+
+struct AIPlatformsInfo: Codable {
+    let chatgpt: Bool
+    let gemini: Bool
+    let grok: Bool
+}
+
+struct QueryAITabsStatusResponsePayload: Codable {
+    let hasAITabs: Bool
+    let platforms: AIPlatformsInfo
+    let activeAITabId: Int?
+    let activeAIUrl: String?
+    let tabs: [AITabInfo]
 }
 
 struct QueryXBasicInfoResponsePayload: Codable {

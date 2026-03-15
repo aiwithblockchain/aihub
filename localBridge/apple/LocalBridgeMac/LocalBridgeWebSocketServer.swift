@@ -8,6 +8,7 @@ class LocalBridgeWebSocketServer {
     
     // HTTP handling
     private var pendingHttpCallbacks: [String: (Data) -> Void] = [:]
+    private var pendingUiRequests: Set<String> = []
     
     // Heartbeat monitoring
     private var lastPingReceived: Date?
@@ -15,6 +16,7 @@ class LocalBridgeWebSocketServer {
     
     // Server status
     var isRunning: Bool = false
+    private var connectedClientName: String = "tweetClaw" // Defaults to tweetClaw
     
     func start() {
         let port: NWEndpoint.Port = 8765
@@ -120,6 +122,10 @@ class LocalBridgeWebSocketServer {
             switch peekMsg.type {
             case .clientHello:
                 print("[LocalBridgeMac] received client.hello")
+                if let helloMsg = try? decoder.decode(BaseMessage<ClientHelloPayload>.self, from: data) {
+                    self.connectedClientName = helloMsg.payload.clientName
+                    print("[LocalBridgeMac] client identified as: \(self.connectedClientName)")
+                }
                 // Parse specifically if needed, but for now we just ack
                 self.sendHelloAck(replyToId: peekMsg.id)
                 
@@ -136,6 +142,17 @@ class LocalBridgeWebSocketServer {
                     callback(data)
                     self.pendingHttpCallbacks.removeValue(forKey: peekMsg.id)
                 }
+                self.pendingUiRequests.remove(peekMsg.id)
+
+            case .responseQueryAITabsStatus:
+                print("[LocalBridgeMac] received response.query_ai_tabs_status")
+                self.handleQueryAITabsResponse(data: data)
+                // Check if there is a pending HTTP caller for this request ID
+                if let callback = self.pendingHttpCallbacks[peekMsg.id] {
+                    callback(data)
+                    self.pendingHttpCallbacks.removeValue(forKey: peekMsg.id)
+                }
+                self.pendingUiRequests.remove(peekMsg.id)
 
             case .responseQueryXBasicInfo:
                 print("[LocalBridgeMac] received response.query_x_basic_info")
@@ -145,10 +162,21 @@ class LocalBridgeWebSocketServer {
                     callback(data)
                     self.pendingHttpCallbacks.removeValue(forKey: peekMsg.id)
                 }
+                self.pendingUiRequests.remove(peekMsg.id)
                 
             case .responseError:
                 print("[LocalBridgeMac] received response.error")
                 // Log error details if needed
+                if self.pendingUiRequests.contains(peekMsg.id) {
+                    self.pendingUiRequests.remove(peekMsg.id)
+                    let errorMsg = "Error: Received response.error from extension"
+                    NotificationCenter.default.post(name: NSNotification.Name("QueryXTabsStatusReceived"), object: nil, userInfo: ["dataString": errorMsg])
+                    NotificationCenter.default.post(name: NSNotification.Name("QueryXBasicInfoReceived"), object: nil, userInfo: ["dataString": errorMsg])
+                }
+                if let callback = self.pendingHttpCallbacks[peekMsg.id] {
+                    callback(data)
+                    self.pendingHttpCallbacks.removeValue(forKey: peekMsg.id)
+                }
                 
             default:
                 print("[LocalBridgeMac] unhandled message type: \(peekMsg.type)")
@@ -201,23 +229,41 @@ class LocalBridgeWebSocketServer {
     }
     
     func sendQueryXTabsStatus() {
+        guard let connection = connectedClient, connection.state == .ready else {
+            NotificationCenter.default.post(name: NSNotification.Name("QueryXTabsStatusReceived"), object: nil, userInfo: ["dataString": "Error: WebSocket is not connected"])
+            return
+        }
+
         let reqId = "req_\(Int(Date().timeIntervalSince1970))"
+        let isAI = (self.connectedClientName == "aiClaw")
+        
         let req = BaseMessage(
             id: reqId,
-            type: .requestQueryXTabsStatus,
+            type: isAI ? .requestQueryAITabsStatus : .requestQueryXTabsStatus,
             source: "LocalBridgeMac",
-            target: "tweetClaw",
+            target: isAI ? "aiClaw" : "tweetClaw",
             timestamp: Int64(Date().timeIntervalSince1970 * 1000),
             payload: EmptyPayload()
         )
         
+        self.pendingUiRequests.insert(reqId)
+        
         do {
             let data = try JSONEncoder().encode(req)
             if let jsonString = String(data: data, encoding: .utf8) {
-                print("[LocalBridgeMac] sending request.query_x_tabs_status, id: \(reqId)")
+                let reqName = isAI ? "request.query_ai_tabs_status" : "request.query_x_tabs_status"
+                print("[LocalBridgeMac] sending \(reqName), id: \(reqId)")
                 self.sendMessage(jsonString)
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+                    if self.pendingUiRequests.contains(reqId) {
+                        self.pendingUiRequests.remove(reqId)
+                        NotificationCenter.default.post(name: NSNotification.Name("QueryXTabsStatusReceived"), object: nil, userInfo: ["dataString": "Error: Query timeout after 5 seconds"])
+                    }
+                }
             }
         } catch {
+            self.pendingUiRequests.remove(reqId)
             print("[LocalBridgeMac] failed to encode query request: \(error)")
         }
     }
@@ -251,7 +297,38 @@ class LocalBridgeWebSocketServer {
         }
     }
     
+    private func handleQueryAITabsResponse(data: Data) {
+        let decoder = JSONDecoder()
+        do {
+            let resp = try decoder.decode(BaseMessage<QueryAITabsStatusResponsePayload>.self, from: data)
+            let p = resp.payload
+            
+            print("[LocalBridgeMac] query_ai_tabs_status success")
+            print("[LocalBridgeMac] hasAITabs=\(p.hasAITabs)")
+            
+            let tabsInfo = p.tabs.map { "{tabId:\($0.tabId),platform:\($0.platform),url:\($0.url),active:\($0.active)}" }.joined(separator: ",")
+            print("[LocalBridgeMac] tabs=[\(tabsInfo)]")
+            
+            // Format nice JSON string for UI text view
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .prettyPrinted
+            if let formattedData = try? encoder.encode(p),
+               let formattedString = String(data: formattedData, encoding: .utf8) {
+                NotificationCenter.default.post(name: NSNotification.Name("QueryXTabsStatusReceived"), object: nil, userInfo: ["dataString": formattedString])
+            }
+            
+        } catch {
+            print("[LocalBridgeMac] failed to decode AI response: \(error)")
+            NotificationCenter.default.post(name: NSNotification.Name("QueryXTabsStatusReceived"), object: nil, userInfo: ["dataString": "Error decoding response:\n\(error.localizedDescription)"])
+        }
+    }
+    
     func sendQueryXBasicInfo() {
+        guard let connection = connectedClient, connection.state == .ready else {
+            NotificationCenter.default.post(name: NSNotification.Name("QueryXBasicInfoReceived"), object: nil, userInfo: ["dataString": "Error: WebSocket is not connected"])
+            return
+        }
+
         let reqId = "req_basic_\(Int(Date().timeIntervalSince1970))"
         let req = BaseMessage(
             id: reqId,
@@ -262,13 +339,23 @@ class LocalBridgeWebSocketServer {
             payload: EmptyPayload()
         )
         
+        self.pendingUiRequests.insert(reqId)
+        
         do {
             let data = try JSONEncoder().encode(req)
             if let jsonString = String(data: data, encoding: .utf8) {
                 print("[LocalBridgeMac] sending request.query_x_basic_info, id: \(reqId)")
                 self.sendMessage(jsonString)
+                
+                DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+                    if self.pendingUiRequests.contains(reqId) {
+                        self.pendingUiRequests.remove(reqId)
+                        NotificationCenter.default.post(name: NSNotification.Name("QueryXBasicInfoReceived"), object: nil, userInfo: ["dataString": "Error: Query timeout after 5 seconds"])
+                    }
+                }
             }
         } catch {
+            self.pendingUiRequests.remove(reqId)
             print("[LocalBridgeMac] failed to encode query request: \(error)")
         }
     }
