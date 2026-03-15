@@ -13,6 +13,7 @@ import { LocalBridgeSocket } from '../bridge/local-bridge-socket';
 // Initialize LocalBridge WebSocket Client
 const localBridge = new LocalBridgeSocket();
 localBridge.queryXTabsHandler = queryXTabsStatus;
+localBridge.queryXBasicInfoHandler = queryXBasicInfo;
 
 interface ApiHit {
     op: string;
@@ -84,8 +85,9 @@ async function getAuthenticUid(): Promise<string | null> {
     return new Promise(resolve => {
         chrome.cookies.get({ url: 'https://x.com', name: 'twid' }, cookie => {
             if (cookie?.value) {
-                const match = cookie.value.match(/u=(\d+)/);
-                resolve(match ? match[1] : cookie.value);
+                const decoded = decodeURIComponent(cookie.value);
+                const match = decoded.match(/u=(\d+)/);
+                resolve(match ? match[1] : decoded);
             } else {
                 resolve(null);
             }
@@ -273,6 +275,13 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             if (summary) {
                 state.account = { ...state.account, ...summary };
                 state.uid = summary.userId;
+                // 将最新身份写入会话级全局存储，确保其他所有模块能快速访问
+                chrome.storage.session.set({
+                    '_tc_global_session_account': {
+                        ...summary,
+                        _updatedAt: Date.now()
+                    }
+                }).catch(() => {});
             }
 
             // 推文提取
@@ -720,6 +729,69 @@ export async function queryXTabsStatus() {
     };
     
     console.log('[TweetClaw-BG] queryXTabsStatus result:', payload);
+    return payload;
+}
+
+export async function queryXBasicInfo() {
+    console.log('[TweetClaw-BG] queryXBasicInfo called');
+    
+    // Check login status (twid cookie)
+    const uid = await getAuthenticUid();
+    const isLoggedIn = !!uid;
+    
+    if (!isLoggedIn) {
+        return { isLoggedIn: false };
+    }
+    
+    // 优先从 session storage 判断是否已有最近更新的数据
+    let matchedAccount: any = null;
+    let updatedAt: number | null = null;
+    try {
+        const sessionData = await chrome.storage.session.get('_tc_global_session_account');
+        if (sessionData && sessionData._tc_global_session_account) {
+            const acc = sessionData._tc_global_session_account as any;
+            // 确保 userId 匹配当前有效的 uid
+            if (acc.userId === uid) {
+                matchedAccount = acc;
+                updatedAt = acc._updatedAt || null;
+            }
+        }
+    } catch (e) {
+        console.warn('[TweetClaw-BG] queryXBasicInfo session.get err:', e);
+    }
+    
+    // 如果 session 中没有命中，再降级去查找 tab 状态缓存
+    if (!matchedAccount) {
+        for (const [tabId, state] of tabDataStore.entries()) {
+            if (state.account && state.account.userId === uid) {
+                matchedAccount = state.account;
+                updatedAt = state.timestamp || null; // fallback
+                break;
+            }
+        }
+    }
+    
+    // 最后如果还是找不到完全一致的，返回任意存在的账号兜底
+    if (!matchedAccount) {
+        for (const [tabId, state] of tabDataStore.entries()) {
+            if (state.account) {
+                matchedAccount = state.account;
+                updatedAt = state.timestamp || null;
+                break;
+            }
+        }
+    }
+    
+    const payload: any = {
+        isLoggedIn: true,
+        name: matchedAccount?.displayName,
+        screenName: matchedAccount?.handle,
+        twitterId: uid,
+        verified: matchedAccount?.verified
+    };
+    if (updatedAt) payload.updatedAt = updatedAt;
+    
+    console.log('[TweetClaw-BG] queryXBasicInfo result:', payload);
     return payload;
 }
 

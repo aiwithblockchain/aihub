@@ -8,6 +8,8 @@ export type MessageType =
   | 'pong'
   | 'request.query_x_tabs_status'
   | 'response.query_x_tabs_status'
+  | 'request.query_x_basic_info'
+  | 'response.query_x_basic_info'
   | 'response.error';
 
 export const MESSAGE_TYPES: Record<string, MessageType> = {
@@ -17,6 +19,8 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   PONG: 'pong',
   REQUEST_QUERY_X_TABS_STATUS: 'request.query_x_tabs_status',
   RESPONSE_QUERY_X_TABS_STATUS: 'response.query_x_tabs_status',
+  REQUEST_QUERY_X_BASIC_INFO: 'request.query_x_basic_info',
+  RESPONSE_QUERY_X_BASIC_INFO: 'response.query_x_basic_info',
   RESPONSE_ERROR: 'response.error',
 };
 
@@ -65,6 +69,15 @@ export interface QueryXTabsStatusResponsePayload {
   activeXTabId: number | null;
   activeXUrl: string | null;
   tabs: XTabInfo[];
+}
+
+export interface QueryXBasicInfoResponsePayload {
+  isLoggedIn: boolean;
+  name?: string;
+  screenName?: string;
+  twitterId?: string;
+  verified?: boolean;
+  updatedAt?: number;
 }
 
 export interface ErrorPayload {

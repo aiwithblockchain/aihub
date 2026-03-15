@@ -136,6 +136,15 @@ class LocalBridgeWebSocketServer {
                     callback(data)
                     self.pendingHttpCallbacks.removeValue(forKey: peekMsg.id)
                 }
+
+            case .responseQueryXBasicInfo:
+                print("[LocalBridgeMac] received response.query_x_basic_info")
+                self.handleQueryXBasicInfoResponse(data: data)
+                // Check if there is a pending HTTP caller for this request ID
+                if let callback = self.pendingHttpCallbacks[peekMsg.id] {
+                    callback(data)
+                    self.pendingHttpCallbacks.removeValue(forKey: peekMsg.id)
+                }
                 
             case .responseError:
                 print("[LocalBridgeMac] received response.error")
@@ -242,6 +251,51 @@ class LocalBridgeWebSocketServer {
         }
     }
     
+    func sendQueryXBasicInfo() {
+        let reqId = "req_basic_\(Int(Date().timeIntervalSince1970))"
+        let req = BaseMessage(
+            id: reqId,
+            type: .requestQueryXBasicInfo,
+            source: "LocalBridgeMac",
+            target: "tweetClaw",
+            timestamp: Int64(Date().timeIntervalSince1970 * 1000),
+            payload: EmptyPayload()
+        )
+        
+        do {
+            let data = try JSONEncoder().encode(req)
+            if let jsonString = String(data: data, encoding: .utf8) {
+                print("[LocalBridgeMac] sending request.query_x_basic_info, id: \(reqId)")
+                self.sendMessage(jsonString)
+            }
+        } catch {
+            print("[LocalBridgeMac] failed to encode query request: \(error)")
+        }
+    }
+    
+    private func handleQueryXBasicInfoResponse(data: Data) {
+        let decoder = JSONDecoder()
+        do {
+            let resp = try decoder.decode(BaseMessage<QueryXBasicInfoResponsePayload>.self, from: data)
+            let p = resp.payload
+            
+            print("[LocalBridgeMac] query_x_basic_info success")
+            print("[LocalBridgeMac] isLoggedIn=\(p.isLoggedIn)")
+            if let name = p.name { print("[LocalBridgeMac] name=\(name)") }
+            if let screenName = p.screenName { print("[LocalBridgeMac] screenName=\(screenName)") }
+            
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .prettyPrinted
+            if let formattedData = try? encoder.encode(p),
+               let formattedString = String(data: formattedData, encoding: .utf8) {
+                NotificationCenter.default.post(name: NSNotification.Name("QueryXBasicInfoReceived"), object: nil, userInfo: ["dataString": formattedString])
+            }
+        } catch {
+            print("[LocalBridgeMac] failed to decode response: \(error)")
+            NotificationCenter.default.post(name: NSNotification.Name("QueryXBasicInfoReceived"), object: nil, userInfo: ["dataString": "Error decoding response:\n\(error.localizedDescription)"])
+        }
+    }
+    
     // Heartbeat timeout logic
     private func startHeartbeatTimer() {
         heartbeatTimer?.invalidate()
@@ -308,6 +362,8 @@ class LocalBridgeWebSocketServer {
             if let data = data, let request = String(data: data, encoding: .utf8) {
                 if request.contains("GET /api/v1/x/status") {
                     self.handleXStatusHttpRequest(connection)
+                } else if request.contains("GET /api/v1/x/basic_info") {
+                    self.handleXBasicInfoHttpRequest(connection)
                 } else {
                     self.sendHttpResponse(connection, status: "404 Not Found", body: "{\"error\":\"not_found\"}")
                 }
@@ -343,6 +399,51 @@ class LocalBridgeWebSocketServer {
         let req = BaseMessage(
             id: reqId,
             type: .requestQueryXTabsStatus,
+            source: "LocalBridgeMac",
+            target: "tweetClaw",
+            timestamp: Int64(Date().timeIntervalSince1970 * 1000),
+            payload: EmptyPayload()
+        )
+        
+        if let data = try? JSONEncoder().encode(req), let jsonString = String(data: data, encoding: .utf8) {
+            self.sendMessage(jsonString)
+        }
+        
+        // Timeout handling for HTTP request
+        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+            if self.pendingHttpCallbacks[reqId] != nil {
+                self.pendingHttpCallbacks.removeValue(forKey: reqId)
+                self.sendHttpResponse(connection, status: "504 Gateway Timeout", body: "{\"error\":\"timeout\"}")
+            }
+        }
+    }
+    
+    private func handleXBasicInfoHttpRequest(_ connection: NWConnection) {
+        guard let wsClient = connectedClient, wsClient.state == .ready else {
+            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"websocket_offline\"}")
+            return
+        }
+        
+        let reqId = "http_req_basic_\(Int(Date().timeIntervalSince1970))"
+        
+        // Wait for WebSocket response
+        self.pendingHttpCallbacks[reqId] = { responseData in
+            // Extract the payload only to return to HTTP caller
+            let decoder = JSONDecoder()
+            if let resp = try? decoder.decode(BaseMessage<QueryXBasicInfoResponsePayload>.self, from: responseData) {
+                if let bodyData = try? JSONEncoder().encode(resp.payload),
+                   let body = String(data: bodyData, encoding: .utf8) {
+                    self.sendHttpResponse(connection, status: "200 OK", body: body)
+                    return
+                }
+            }
+            self.sendHttpResponse(connection, status: "500 Internal Server Error", body: "{\"error\":\"decode_failed\"}")
+        }
+        
+        // Trigger the WebSocket request
+        let req = BaseMessage(
+            id: reqId,
+            type: .requestQueryXBasicInfo,
             source: "LocalBridgeMac",
             target: "tweetClaw",
             timestamp: Int64(Date().timeIntervalSince1970 * 1000),

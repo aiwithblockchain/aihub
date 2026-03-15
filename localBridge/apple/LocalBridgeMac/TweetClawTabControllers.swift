@@ -4,6 +4,7 @@ final class TweetClawHumanViewController: NSViewController {
     private let titleLabel = NSTextField(labelWithString: "TweetClaw - For Human")
     private let statusLabel = NSTextField(labelWithString: "交互式操作")
     private let queryButton = NSButton(title: "Query X Status (Immediate)", target: nil, action: #selector(queryXStatusClicked))
+    private let queryBasicInfoButton = NSButton(title: "Query X Basic Info", target: nil, action: #selector(queryBasicInfoClicked))
     private var resultTextView: NSTextView!
     private var resultScrollView: NSScrollView!
     
@@ -16,6 +17,7 @@ final class TweetClawHumanViewController: NSViewController {
         setupUI()
         
         NotificationCenter.default.addObserver(self, selector: #selector(handleQueryResult(_:)), name: NSNotification.Name("QueryXTabsStatusReceived"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleBasicInfoResult(_:)), name: NSNotification.Name("QueryXBasicInfoReceived"), object: nil)
     }
     
     deinit {
@@ -26,6 +28,9 @@ final class TweetClawHumanViewController: NSViewController {
         titleLabel.font = .systemFont(ofSize: 20, weight: .bold)
         queryButton.bezelStyle = .rounded
         queryButton.target = self
+        
+        queryBasicInfoButton.bezelStyle = .rounded
+        queryBasicInfoButton.target = self
         
         // Setup result text view
         resultScrollView = NSTextView.scrollableTextView()
@@ -39,7 +44,7 @@ final class TweetClawHumanViewController: NSViewController {
         resultScrollView.borderType = .bezelBorder
         resultScrollView.translatesAutoresizingMaskIntoConstraints = false
         
-        let leftStack = NSStackView(views: [titleLabel, statusLabel, queryButton])
+        let leftStack = NSStackView(views: [titleLabel, statusLabel, queryButton, queryBasicInfoButton])
         leftStack.orientation = .vertical
         leftStack.alignment = .leading
         leftStack.spacing = 20
@@ -69,6 +74,22 @@ final class TweetClawHumanViewController: NSViewController {
     }
     
     @objc private func handleQueryResult(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let jsonString = userInfo["dataString"] as? String else { return }
+        
+        DispatchQueue.main.async {
+            self.resultTextView.string = jsonString
+        }
+    }
+    
+    @objc private func queryBasicInfoClicked() {
+        DispatchQueue.main.async {
+            self.resultTextView.string = "Querying Basic Info...\n"
+        }
+        AppDelegate.shared?.sendQueryXBasicInfo()
+    }
+    
+    @objc private func handleBasicInfoResult(_ notification: Notification) {
         guard let userInfo = notification.userInfo,
               let jsonString = userInfo["dataString"] as? String else { return }
         
@@ -115,6 +136,23 @@ final class TweetClawBotViewController: NSViewController {
         
         Usage:
         curl -X GET http://127.0.0.1:8769/api/v1/x/status
+        
+        ---
+        
+        Endpoint: GET http://127.0.0.1:8769/api/v1/x/basic_info
+        Description: Queries basic info of the currently logged-in X.com user.
+        
+        Response Example:
+        {
+          "isLoggedIn": true,
+          "name": "Elon Musk",
+          "screenName": "@elonmusk",
+          "twitterId": "44196397",
+          "verified": true
+        }
+        
+        Usage:
+        curl -X GET http://127.0.0.1:8769/api/v1/x/basic_info
         """
         
         let stack = NSStackView(views: [titleLabel, apiDocLabel])

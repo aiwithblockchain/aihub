@@ -9,6 +9,7 @@ export class LocalBridgeSocket {
   private lastPongTimestamp = 0;
   
   public queryXTabsHandler: (() => Promise<any>) | null = null;
+  public queryXBasicInfoHandler: (() => Promise<any>) | null = null;
   
   private readonly WS_URL = 'ws://127.0.0.1:8765/ws';
   
@@ -96,7 +97,7 @@ export class LocalBridgeSocket {
         clientName: 'tweetClaw',
         clientVersion: '0.3.17',
         browser: 'chrome',
-        capabilities: ['query_x_tabs_status']
+        capabilities: ['query_x_tabs_status', 'query_x_basic_info']
       }
     };
     this.send(hello);
@@ -117,6 +118,9 @@ export class LocalBridgeSocket {
           break;
         case MESSAGE_TYPES.REQUEST_QUERY_X_TABS_STATUS:
           this.handleQueryXTabsStatus(msg);
+          break;
+        case MESSAGE_TYPES.REQUEST_QUERY_X_BASIC_INFO:
+          this.handleQueryXBasicInfo(msg);
           break;
         default:
           console.warn(`[tweetClaw] unknown message type: ${msg.type}`);
@@ -144,6 +148,42 @@ export class LocalBridgeSocket {
         const resp: BaseMessage = {
             id: req.id,
             type: MESSAGE_TYPES.RESPONSE_QUERY_X_TABS_STATUS,
+            source: 'tweetClaw',
+            target: 'LocalBridgeMac',
+            timestamp: Date.now(),
+            payload: result
+        };
+        this.send(resp);
+    } catch (e) {
+        // Send an error response
+        const errResp: BaseMessage = {
+            id: req.id,
+            type: MESSAGE_TYPES.RESPONSE_ERROR,
+            source: 'tweetClaw',
+            target: 'LocalBridgeMac',
+            timestamp: Date.now(),
+            payload: {
+                code: 'INTERNAL_ERROR',
+                message: e instanceof Error ? e.message : String(e),
+                details: null
+            }
+        };
+        this.send(errResp);
+    }
+  }
+
+  private async handleQueryXBasicInfo(req: BaseMessage) {
+    console.log('[tweetClaw] handling request.query_x_basic_info');
+    if (!this.queryXBasicInfoHandler) {
+        console.error('[tweetClaw] no handler for query_x_basic_info');
+        return;
+    }
+
+    try {
+        const result = await this.queryXBasicInfoHandler();
+        const resp: BaseMessage = {
+            id: req.id,
+            type: MESSAGE_TYPES.RESPONSE_QUERY_X_BASIC_INFO,
             source: 'tweetClaw',
             target: 'LocalBridgeMac',
             timestamp: Date.now(),

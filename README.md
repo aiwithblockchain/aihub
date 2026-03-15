@@ -120,6 +120,23 @@ AIHub 会启动一个本地运行的 WebSocket 服务器，用来建立实时消
 - `tweetClaw/`：浏览器扩展示例，演示如何承接 AIHub 路由来的结构化任务
 - `docs/`：后续用于补充接口文档、协议说明和使用指南
 
+## API 规范入口
+
+如果后续要在 `localBridge/` 下设计、修改或评审对外 REST API，必须先阅读这些文件：
+
+- [API_DESIGN_RULES.md](/Users/hyperorchid/aiwithblockchain/aihub/localBridge/API_DESIGN_RULES.md)
+- [AGENTS.md](/Users/hyperorchid/aiwithblockchain/aihub/localBridge/AGENTS.md)
+- [SKILL.md](/Users/hyperorchid/aiwithblockchain/aihub/localBridge/rest-api-governance/SKILL.md)
+
+其中：
+
+- `API_DESIGN_RULES.md` 是权威 REST 规范
+- `AGENTS.md` 是 `localBridge/` 目录级执行约束
+- `rest-api-governance/SKILL.md` 是给支持 skill 的 AI 的触发入口
+
+这套规则以 Microsoft Learn 的 RESTful Web API 最佳实践为上位依据，并结合本项目进行了收敛：  
+<https://learn.microsoft.com/zh-cn/azure/architecture/best-practices/api-design>
+
 ## 安全假设
 
 当前 AIHub 默认监听本地 IP / 本地端口，不包含额外鉴权机制。

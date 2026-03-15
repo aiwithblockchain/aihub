@@ -10,6 +10,8 @@ enum MessageType: String, Codable {
     case pong = "pong"
     case requestQueryXTabsStatus = "request.query_x_tabs_status"
     case responseQueryXTabsStatus = "response.query_x_tabs_status"
+    case requestQueryXBasicInfo = "request.query_x_basic_info"
+    case responseQueryXBasicInfo = "response.query_x_basic_info"
     case responseError = "response.error"
 }
 
@@ -78,6 +80,15 @@ struct QueryXTabsStatusResponsePayload: Codable {
     let activeXTabId: Int?
     let activeXUrl: String?
     let tabs: [XTabInfo]
+}
+
+struct QueryXBasicInfoResponsePayload: Codable {
+    let isLoggedIn: Bool
+    let name: String?
+    let screenName: String?
+    let twitterId: String?
+    let verified: Bool?
+    let updatedAt: Int64?
 }
 
 struct ErrorPayload: Codable {

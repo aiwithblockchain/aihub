@@ -59,4 +59,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func sendQueryXTabsStatus() {
         wsServer.sendQueryXTabsStatus()
     }
+    
+    func sendQueryXBasicInfo() {
+        wsServer.sendQueryXBasicInfo()
+    }
 }
