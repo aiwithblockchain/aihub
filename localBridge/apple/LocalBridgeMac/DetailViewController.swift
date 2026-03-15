@@ -4,6 +4,7 @@ final class DetailViewController: NSViewController {
     private let titleLabel = NSTextField(labelWithString: "LocalBridge")
     private let subtitleLabel = NSTextField(labelWithString: "选择左侧会话查看内容")
     private let previewLabel = NSTextField(wrappingLabelWithString: "")
+    private let queryButton = NSButton(title: "Query X Status", target: nil, action: #selector(queryXStatusClicked))
 
     override func loadView() {
         view = NSView()
@@ -19,6 +20,13 @@ final class DetailViewController: NSViewController {
         titleLabel.stringValue = conversation.title
         subtitleLabel.stringValue = conversation.subtitle
         previewLabel.stringValue = conversation.preview
+    }
+
+    @objc private func queryXStatusClicked() {
+        print("[LocalBridgeMac] query button clicked")
+        if let appDelegate = NSApp.delegate as? AppDelegate {
+            appDelegate.sendQueryXTabsStatus()
+        }
     }
 }
 
@@ -44,7 +52,10 @@ private extension DetailViewController {
         contentCard.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
         contentCard.layer?.cornerRadius = 18
 
-        let stackView = NSStackView(views: [titleLabel, subtitleLabel, previewLabel])
+        queryButton.target = self
+        queryButton.bezelStyle = .rounded
+        
+        let stackView = NSStackView(views: [titleLabel, subtitleLabel, previewLabel, queryButton])
         stackView.translatesAutoresizingMaskIntoConstraints = false
         stackView.orientation = .vertical
         stackView.alignment = .leading

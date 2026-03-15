@@ -16,6 +16,8 @@
 		A10000000000000000000036 /* SidebarViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000028 /* SidebarViewController.swift */; };
 		A10000000000000000000037 /* DetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000029 /* DetailViewController.swift */; };
 		A10000000000000000000038 /* Conversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002A /* Conversation.swift */; };
+		A1000000000000000000003B /* BridgeMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002D /* BridgeMessage.swift */; };
+		A1000000000000000000003C /* LocalBridgeWebSocketServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002E /* LocalBridgeWebSocketServer.swift */; };
 		A10000000000000000000039 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002B /* Assets.xcassets */; };
 		A1000000000000000000003A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002C /* Assets.xcassets */; };
 /* End PBXBuildFile section */
@@ -32,6 +34,8 @@
 		A10000000000000000000028 /* SidebarViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarViewController.swift; sourceTree = "<group>"; };
 		A10000000000000000000029 /* DetailViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailViewController.swift; sourceTree = "<group>"; };
 		A1000000000000000000002A /* Conversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Conversation.swift; sourceTree = "<group>"; };
+		A1000000000000000000002D /* BridgeMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeMessage.swift; sourceTree = "<group>"; };
+		A1000000000000000000002E /* LocalBridgeWebSocketServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBridgeWebSocketServer.swift; sourceTree = "<group>"; };
 		A1000000000000000000002B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1000000000000000000002C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -93,6 +97,8 @@
 				A10000000000000000000028 /* SidebarViewController.swift */,
 				A10000000000000000000029 /* DetailViewController.swift */,
 				A1000000000000000000002A /* Conversation.swift */,
+				A1000000000000000000002D /* BridgeMessage.swift */,
+				A1000000000000000000002E /* LocalBridgeWebSocketServer.swift */,
 			);
 			path = LocalBridgeMac;
 			sourceTree = "<group>";
@@ -211,6 +217,8 @@
 				A10000000000000000000036 /* SidebarViewController.swift in Sources */,
 				A10000000000000000000037 /* DetailViewController.swift in Sources */,
 				A10000000000000000000038 /* Conversation.swift in Sources */,
+				A1000000000000000000003B /* BridgeMessage.swift in Sources */,
+				A1000000000000000000003C /* LocalBridgeWebSocketServer.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
