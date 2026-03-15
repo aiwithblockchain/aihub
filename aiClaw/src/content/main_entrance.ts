@@ -1,26 +1,21 @@
 /**
- * main_entrance.ts - aiClaw Content Script (Phase 1)
+ * main_entrance.ts - aiClaw Content Script
  *
  * 职责：
- *   1. 将 injection.js 注入页面的 MAIN world（使其能 hook fetch）
+ *   1. 将 injection.js 注入页面的 MAIN world（使其能 hook fetch，用于凭证捕获）
  *   2. 中继 injection → background 的消息（凭证捕获数据）
- *   3. 响应 background 发来的 PING 消息
+ *   3. 响应 background 发来的 PING 和 EXECUTE_TASK 消息
  *
  * 架构层级：Layer 2（ISOLATED world）
- * 通信方式：
- *   - injection ↔ content：window.postMessage
- *   - content ↔ background：chrome.runtime.sendMessage
  */
 
 import { INJECTION_SOURCE, MsgType } from '../capture/consts';
 import { ChatGptAdapter } from '../adapters/chatgpt-adapter';
-import type { Credentials } from '../adapters/base-adapter';
 import type { ExecuteTaskPayload, ExecuteTaskResultPayload } from '../bridge/ws-protocol';
 
 // ── 1. 注入 injection.js 到页面 MAIN world ──
 
 (function injectScript() {
-    // 防止重复注入
     if (document.getElementById('ac_injection')) return;
 
     const script = document.createElement('script');
@@ -29,7 +24,7 @@ import type { ExecuteTaskPayload, ExecuteTaskResultPayload } from '../bridge/ws-
     (document.head || document.documentElement).appendChild(script);
 
     script.onload = () => {
-        script.remove();  // 注入后清理 DOM 中的 <script> 标签
+        script.remove();
         console.log('[aiClaw-CS] ✅ injection.js loaded into MAIN world');
     };
 
@@ -48,20 +43,18 @@ function detectPlatform(): string {
     return 'Unknown';
 }
 
-// ── Adapter 工厂：根据平台名称返回对应的 adapter 实例 ──
+// ── Adapter 工厂 ──
 function getAdapter(platform: string) {
     if (platform === 'chatgpt' || platform === 'ChatGPT') return new ChatGptAdapter();
-    // gemini / grok adapter 待后续 Phase 4 实现
     return null;
 }
 
 // ── 3. 监听 injection.ts 通过 window.postMessage 发来的消息 ──
+
 window.addEventListener('message', (event) => {
-    // 安全检查：只处理来自 aiClaw injection 的消息
     if (event.data?.source !== INJECTION_SOURCE) return;
 
     try {
-        // 3a. 凭证捕获消息 (支持新旧两种 type 标识)
         if (event.data.type === 'CREDENTIALS_CAPTURED' || event.data.type === 'AC_CAPTURED_CREDENTIALS') {
             chrome.runtime.sendMessage({
                 type: MsgType.CAPTURED_CREDENTIALS,
@@ -75,7 +68,6 @@ window.addEventListener('message', (event) => {
             });
         }
 
-        // 3b. Hook 状态上报
         if (event.data.type === 'HOOK_STATUS_REPORT') {
             chrome.runtime.sendMessage({
                 type: 'AC_HOOK_STATUS',
@@ -83,15 +75,15 @@ window.addEventListener('message', (event) => {
             });
         }
     } catch (e) {
-        // 如果插件重载导致 Context Invalidated，忽略报错，等待页面下次刷新
-        // console.warn('[aiClaw-CS] Failed to forward message to background:', e);
+        // Context invalidated after extension reload, ignore
     }
 });
 
 // ── 4. 响应 background 发来的消息 ──
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
-    // PING：background 检查 content script 是否存活
+
+    // PING
     if (message.type === MsgType.PING) {
         sendResponse({
             ok: true,
@@ -102,10 +94,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
-    // EXECUTE_TASK：background 下发任务，在此 content script 中执行 API 调用
+    // EXECUTE_TASK：DOM 操作方案，不再需要 credentials
     if (message.type === MsgType.EXECUTE_TASK) {
         const task = message.task as ExecuteTaskPayload;
-        const credentials = message.credentials as Credentials;
         const startTime = Date.now();
 
         const adapter = getAdapter(task.platform);
@@ -114,7 +105,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 taskId: task.taskId,
                 success: false,
                 platform: task.platform,
-                error: `No adapter available for platform: ${task.platform}`,
+                error: `No adapter for platform: ${task.platform}`,
                 executedAt: new Date().toISOString(),
                 durationMs: Date.now() - startTime,
             };
@@ -122,13 +113,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             return true;
         }
 
+        // DOM 操作不需要 credentials，传空对象
         adapter.sendMessage(
             {
                 prompt: task.payload.prompt,
                 conversationId: task.payload.conversationId,
                 model: task.payload.model,
             },
-            credentials
+            {}  // DOM 方案不使用凭证
         ).then((adapterResult) => {
             const result: ExecuteTaskResultPayload = {
                 taskId: task.taskId,
@@ -153,7 +145,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             sendResponse({ ok: false, result });
         });
 
-        return true; // 必须返回 true，表示 sendResponse 会异步调用
+        return true; // 异步 sendResponse 必须返回 true
     }
 
     return false;

@@ -1,8 +1,5 @@
 /**
  * credentials-store.ts - 凭证读写工具模块
- *
- * 从 background.ts 中抽取，避免 adapter 直接依赖 Service Worker。
- * 所有凭证的读写操作都通过此模块进行。
  */
 
 import { STORAGE_KEY_CREDENTIALS } from '../capture/consts';
@@ -61,6 +58,9 @@ export async function clearPlatformCredentials(platform: PlatformType): Promise<
     console.log(`[aiClaw] 🗑️ Cleared credentials for ${platform}`);
 }
 
+// ChatGPT 的 conversation 端点，只有 POST 请求才是真正发消息的接口
+const CHATGPT_CONVERSATION_ENDPOINT = 'https://chatgpt.com/backend-api/conversation';
+
 export async function updatePlatformCredentials(
     platform: PlatformType,
     bearerToken: string | null,
@@ -74,8 +74,27 @@ export async function updatePlatformCredentials(
     pc.captureCount += 1;
 
     if (bearerToken) pc.bearerToken = bearerToken;
-    if (apiUrl) pc.apiEndpoint = apiUrl;
-    if (Object.keys(headers).length > 0) pc.lastCapturedHeaders = headers;
+
+    // apiEndpoint 只存 POST conversation 端点，不被 GET 请求的 URL 覆盖
+    // ChatGPT 的 GET 请求（me、conversations 等）不是发消息用的端点
+    if (apiUrl) {
+        if (platform === 'chatgpt') {
+            // 只有 conversation 端点才更新
+            if (apiUrl.includes('backend-api/conversation') && !apiUrl.includes('conversation/')) {
+                pc.apiEndpoint = CHATGPT_CONVERSATION_ENDPOINT;
+            } else if (!pc.apiEndpoint) {
+                // 没有存过任何端点时先存一个基础值，后续会被真实的 conversation 请求覆盖
+                pc.apiEndpoint = CHATGPT_CONVERSATION_ENDPOINT;
+            }
+        } else {
+            pc.apiEndpoint = apiUrl;
+        }
+    }
+
+    // 合并请求头，保留所有捕获到的 oai-* 等关键头
+    if (Object.keys(headers).length > 0) {
+        pc.lastCapturedHeaders = { ...pc.lastCapturedHeaders, ...headers };
+    }
 
     creds[platform] = pc;
     await saveCredentials(creds);

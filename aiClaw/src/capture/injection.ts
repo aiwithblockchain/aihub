@@ -161,42 +161,36 @@
             const reqArg = args[0];
             const initArg = args[1];
 
-            // 提取 URL
-            const url = typeof reqArg === 'string'
-                ? reqArg
-                : (reqArg instanceof Request ? reqArg.url : String(reqArg));
-
-            // 检测是否是我们关心的平台 API
-            const platform = detectPlatform(url);
-
-            if (!platform) {
-                // 不是目标 API，直接放行
-                return originalFetch.apply(this, args as any);
-            }
-
-            // 提取凭证信息
-            const method = initArg?.method || 'GET';
-            const bearer = extractBearer(initArg);
-            const headers = extractHeaders(initArg);
-            let body = initArg?.body || null;
-
-            // 尝试解析 body
+            // 1. 提取 URL
+            let url = '';
             try {
-                if (typeof body === 'string') {
-                    body = JSON.parse(body);
-                }
-            } catch {}
-
-            // 发送给 content script
-            postCapture(platform, url, method, bearer, headers, body);
-
-            // 放行原始请求，不干扰正常功能
-            try {
-                return await originalFetch.apply(this, args as any);
+                url = typeof reqArg === 'string'
+                    ? reqArg
+                    : (reqArg instanceof Request ? reqArg.url : String(reqArg));
             } catch (e) {
-                console.error(`${TAG} Fetch error [${platform}]:`, e);
-                throw e;
+                console.warn(`${TAG} Failed to parse fetch URL:`, e);
             }
+
+            // 2. 执行捕获逻辑（包裹在 try 块中以防崩溃导致页面挂掉）
+            let platform: string | null = null;
+            try {
+                platform = detectPlatform(url);
+                if (platform) {
+                    const method = initArg?.method || 'GET';
+                    const bearer = extractBearer(initArg);
+                    const headers = extractHeaders(initArg);
+                    let body = initArg?.body || null;
+                    if (typeof body === 'string') {
+                        try { body = JSON.parse(body); } catch {}
+                    }
+                    postCapture(platform, url, method, bearer, headers, body);
+                }
+            } catch (e) {
+                console.error(`${TAG} Error during fetch capture (prevented crash):`, e);
+            }
+
+            // 3. 无论捕获是否成功，必须放行原始请求
+            return originalFetch.apply(this, args as any);
         };
 
         (window as any).__ac_fetch_patched = true;
