@@ -5,6 +5,7 @@ protocol SidebarViewControllerDelegate: AnyObject {
         _ controller: SidebarViewController,
         didSelect conversation: Conversation
     )
+    func sidebarViewControllerDidSelectSettings(_ controller: SidebarViewController)
 }
 
 final class SidebarViewController: NSViewController {
@@ -16,10 +17,10 @@ final class SidebarViewController: NSViewController {
 
     private let conversations: [Conversation] = [
         Conversation(
-            title: "产品设计组",
-            subtitle: "3 people",
-            preview: "本周先把 mac 菜单栏版本的交互骨架跑通。",
-            timestamp: "09:30"
+            title: "TweetClaw",
+            subtitle: "WebSocket Extension",
+            preview: "Connected to Chrome Extension. Ready for commands.",
+            timestamp: "Now"
         ),
         Conversation(
             title: "iOS 预研",
@@ -36,6 +37,7 @@ final class SidebarViewController: NSViewController {
     ]
 
     private let tableView = NSTableView(frame: .zero)
+    private let settingsButton = NSButton()
 
     override func loadView() {
         view = NSView()
@@ -45,6 +47,7 @@ final class SidebarViewController: NSViewController {
         super.viewDidLoad()
         configureView()
         configureTableView()
+        configureSettingsButton()
         configureLayout()
     }
 
@@ -128,13 +131,36 @@ private extension SidebarViewController {
         scrollView.documentView = tableView
 
         view.addSubview(scrollView)
+        view.addSubview(settingsButton)
 
         NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.topAnchor.constraint(equalTo: view.topAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: settingsButton.topAnchor, constant: -10),
+            
+            settingsButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
+            settingsButton.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -14),
+            settingsButton.widthAnchor.constraint(equalToConstant: 24),
+            settingsButton.heightAnchor.constraint(equalToConstant: 24)
         ])
+    }
+    
+    func configureSettingsButton() {
+        if #available(macOS 11.0, *) {
+            settingsButton.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")
+        } else {
+            settingsButton.image = NSImage(systemSymbolName: "action", accessibilityDescription: "Settings")
+        }
+        settingsButton.isBordered = false
+        settingsButton.bezelStyle = .regularSquare
+        settingsButton.target = self
+        settingsButton.action = #selector(showSettingsMenu)
+        settingsButton.translatesAutoresizingMaskIntoConstraints = false
+    }
+    
+    @objc func showSettingsMenu(_ sender: NSButton) {
+        delegate?.sidebarViewControllerDidSelectSettings(self)
     }
 }
 
