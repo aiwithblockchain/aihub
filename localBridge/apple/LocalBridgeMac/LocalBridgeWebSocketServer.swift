@@ -107,18 +107,18 @@ class LocalBridgeWebSocketServer {
         print("[LocalBridgeMac] handling incoming message, size: \(data.count)")
         let decoder = JSONDecoder()
         do {
-            // First decode as a generic message to check type
-            let baseMsg = try decoder.decode(BaseMessage<AnyCodable>.self, from: data)
+            // Use a lightweight peek to check message type without full payload decoding
+            let peekMsg = try decoder.decode(PeekMessage.self, from: data)
             
-            switch baseMsg.type {
+            switch peekMsg.type {
             case .clientHello:
                 print("[LocalBridgeMac] received client.hello")
                 // Parse specifically if needed, but for now we just ack
-                self.sendHelloAck(replyToId: baseMsg.id)
+                self.sendHelloAck(replyToId: peekMsg.id)
                 
             case .ping:
                 print("[LocalBridgeMac] received ping")
-                self.sendPong(replyToId: baseMsg.id)
+                self.sendPong(replyToId: peekMsg.id)
                 self.lastPingReceived = Date()
                 
             case .responseQueryXTabsStatus:
@@ -130,7 +130,7 @@ class LocalBridgeWebSocketServer {
                 // Log error details if needed
                 
             default:
-                print("[LocalBridgeMac] unhandled message type: \(baseMsg.type)")
+                print("[LocalBridgeMac] unhandled message type: \(peekMsg.type)")
             }
         } catch {
             print("[LocalBridgeMac] failed to decode message: \(error)")
@@ -190,10 +190,14 @@ class LocalBridgeWebSocketServer {
             payload: EmptyPayload()
         )
         
-        if let data = try? JSONEncoder().encode(req),
-           let jsonString = String(data: data, encoding: .utf8) {
-            print("[LocalBridgeMac] sent request.query_x_tabs_status")
-            self.sendMessage(jsonString)
+        do {
+            let data = try JSONEncoder().encode(req)
+            if let jsonString = String(data: data, encoding: .utf8) {
+                print("[LocalBridgeMac] sending request.query_x_tabs_status, id: \(reqId)")
+                self.sendMessage(jsonString)
+            }
+        } catch {
+            print("[LocalBridgeMac] failed to encode query request: \(error)")
         }
     }
     

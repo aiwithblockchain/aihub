@@ -28,6 +28,11 @@ struct BaseMessage<T: Codable>: Codable {
     let payload: T
 }
 
+struct PeekMessage: Codable {
+    let id: String
+    let type: MessageType
+}
+
 // Separate struct for decoding when type is known but payload varies
 struct GenericMessage: Codable {
     let id: String
@@ -63,7 +68,9 @@ struct PingPayload: Codable {
     let heartbeatIntervalMs: Int
 }
 
-struct EmptyPayload: Codable {}
+struct EmptyPayload: Codable {
+    var _unused: Bool? = nil
+}
 
 struct QueryXTabsStatusResponsePayload: Codable {
     let hasXTabs: Bool
@@ -89,7 +96,8 @@ struct AnyCodable: Codable {
     
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
-        if let x = try? container.decode(Bool.self) { value = x }
+        if container.decodeNil() { value = NSNull() }
+        else if let x = try? container.decode(Bool.self) { value = x }
         else if let x = try? container.decode(Int.self) { value = x }
         else if let x = try? container.decode(Double.self) { value = x }
         else if let x = try? container.decode(String.self) { value = x }
@@ -100,13 +108,14 @@ struct AnyCodable: Codable {
     
     func encode(to encoder: Encoder) throws {
         var container = encoder.singleValueContainer()
-        if let x = value as? Bool { try container.encode(x) }
+        if value is NSNull { try container.encodeNil() }
+        else if let x = value as? Bool { try container.encode(x) }
         else if let x = value as? Int { try container.encode(x) }
         else if let x = value as? Double { try container.encode(x) }
         else if let x = value as? String { try container.encode(x) }
         else if let x = value as? [String: Any] { try container.encode(x.mapValues { AnyCodable($0) }) }
         else if let x = value as? [Any] { try container.encode(x.map { AnyCodable($0) }) }
-        else { throw EncodingError.invalidValue(value, EncodingError.Context(codingPath: [], debugDescription: "AnyCodable value cannot be encoded")) }
+        else { try container.encodeNil() } // Fallback to nil
     }
 }
 

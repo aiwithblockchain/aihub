@@ -24,8 +24,10 @@ final class DetailViewController: NSViewController {
 
     @objc private func queryXStatusClicked() {
         print("[LocalBridgeMac] query button clicked")
-        if let appDelegate = NSApp.delegate as? AppDelegate {
-            appDelegate.sendQueryXTabsStatus()
+        if let sharedDelegate = AppDelegate.shared {
+            sharedDelegate.sendQueryXTabsStatus()
+        } else {
+            print("[LocalBridgeMac] error: AppDelegate.shared is nil")
         }
     }
 }

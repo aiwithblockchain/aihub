@@ -1,11 +1,14 @@
 import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
+    static private(set) var shared: AppDelegate?
+    
     private var statusItem: NSStatusItem?
     private lazy var mainWindowController = MainWindowController()
     private let wsServer = LocalBridgeWebSocketServer()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        AppDelegate.shared = self
         wsServer.start()
         
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
