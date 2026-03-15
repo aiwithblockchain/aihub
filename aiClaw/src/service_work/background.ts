@@ -89,7 +89,11 @@ async function updatePlatformCredentials(
     const creds = await loadCredentials();
     const pc = creds[platform];
 
-    // 只有新值非空时才更新（防止覆盖已有值）
+    // 无论是否有 token，都更新活跃时间（只要有流量就代表已登录）
+    pc.lastCapturedAt = Date.now();
+    pc.captureCount += 1;
+
+    // 只有新值非空时才更新 token/url（防止覆盖已有值）
     if (bearerToken) {
         pc.bearerToken = bearerToken;
     }
@@ -99,9 +103,6 @@ async function updatePlatformCredentials(
     if (Object.keys(headers).length > 0) {
         pc.lastCapturedHeaders = headers;
     }
-
-    pc.lastCapturedAt = Date.now();
-    pc.captureCount += 1;
 
     creds[platform] = pc;
     await saveCredentials(creds);
@@ -230,31 +231,26 @@ const AI_PLATFORM_URL_PATTERNS = [
 chrome.webRequest.onBeforeSendHeaders.addListener(
     (details) => {
         const headers = details.requestHeaders || [];
-        const authHeader = headers.find(
-            h => h.name.toLowerCase() === 'authorization'
-        );
+        const authHeader = headers.find(h => h.name.toLowerCase() === 'authorization');
         const csrfHeader = headers.find(h => h.name.toLowerCase() === 'x-csrf-token' || h.name.toLowerCase() === 'x-goog-authuser');
-
         const authValue = authHeader?.value || csrfHeader?.value;
 
-        if (authValue) {
-            const url = details.url;
-            let platform: PlatformType | null = null;
+        const url = details.url;
+        let platform: PlatformType | null = null;
 
-            if (url.includes('chatgpt.com') || url.includes('chat.openai.com')) {
-                platform = 'chatgpt';
-            } else if (url.includes('gemini.google.com')) {
-                platform = 'gemini';
-            } else if (url.includes('grok.com') || url.includes('x.com')) {
-                platform = 'grok';
-            }
+        if (url.includes('chatgpt.com') || url.includes('chat.openai.com')) {
+            platform = 'chatgpt';
+        } else if (url.includes('gemini.google.com')) {
+            platform = 'gemini';
+        } else if (url.includes('grok.com') || url.includes('x.com')) {
+            platform = 'grok';
+        }
 
-            if (platform) {
-                updatePlatformCredentials(platform, authValue, url, {});
-                console.log(
-                    `%c[aiClaw-BG] 🌐 WebRequest captured Auth for ${platform}`,
-                    'color: #60a5fa'
-                );
+        if (platform) {
+            // 即使 authValue 为空，也调用更新，以记录活跃心跳
+            updatePlatformCredentials(platform, authValue || null, url, {});
+            if (authValue) {
+                console.log(`%c[aiClaw-BG] 🌐 WebRequest captured Auth for ${platform}`, 'color: #60a5fa');
             }
         }
 

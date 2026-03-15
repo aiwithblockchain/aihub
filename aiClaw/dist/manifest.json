@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "aiClaw",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "aiClaw: Browser agent hub for ChatGPT, Gemini, and Grok.",
   "background": {
     "service_worker": "js/background.js"
