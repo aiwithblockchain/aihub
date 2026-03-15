@@ -4,9 +4,8 @@ final class TweetClawHumanViewController: NSViewController {
     private let titleLabel = NSTextField(labelWithString: "TweetClaw - For Human")
     private let statusLabel = NSTextField(labelWithString: "交互式操作")
     private let queryButton = NSButton(title: "Query X Status (Immediate)", target: nil, action: #selector(queryXStatusClicked))
-    
-    private let resultTextView = NSTextView()
-    private let resultScrollView = NSScrollView()
+    private var resultTextView: NSTextView!
+    private var resultScrollView: NSScrollView!
     
     override func loadView() {
         view = NSView()
@@ -29,14 +28,14 @@ final class TweetClawHumanViewController: NSViewController {
         queryButton.target = self
         
         // Setup result text view
+        resultScrollView = NSTextView.scrollableTextView()
+        resultTextView = resultScrollView.documentView as? NSTextView
+        
         resultTextView.isEditable = false
         resultTextView.isSelectable = true
         resultTextView.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
         resultTextView.textContainerInset = NSSize(width: 8, height: 8)
         
-        resultScrollView.documentView = resultTextView
-        resultScrollView.hasVerticalScroller = true
-        resultScrollView.autoresizesSubviews = true
         resultScrollView.borderType = .bezelBorder
         resultScrollView.translatesAutoresizingMaskIntoConstraints = false
         
