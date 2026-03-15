@@ -1,9 +1,15 @@
 import AppKit
 
 final class DetailViewController: NSViewController {
-    private let tabView = NSTabView()
+    // TweetClaw tab view
+    private let tweetClawTabView = NSTabView()
     private let humanVC = TweetClawHumanViewController()
     private let botVC = TweetClawBotViewController()
+    
+    // AIClaw tab view
+    private let aiClawTabView = NSTabView()
+    private let aiHumanVC = AIClawHumanViewController()
+    private let aiBotVC = AIClawBotViewController()
     
     private let placeholderLabel = NSTextField(labelWithString: "选择左侧会话查看内容")
 
@@ -19,10 +25,16 @@ final class DetailViewController: NSViewController {
     func display(conversation: Conversation) {
         if conversation.title == "TweetClaw" {
             placeholderLabel.isHidden = true
-            tabView.isHidden = false
+            tweetClawTabView.isHidden = false
+            aiClawTabView.isHidden = true
+        } else if conversation.title == "AIClaw" {
+            placeholderLabel.isHidden = true
+            tweetClawTabView.isHidden = true
+            aiClawTabView.isHidden = false
         } else {
             placeholderLabel.isHidden = false
-            tabView.isHidden = true
+            tweetClawTabView.isHidden = true
+            aiClawTabView.isHidden = true
             placeholderLabel.stringValue = "\(conversation.title): \(conversation.preview)"
         }
     }
@@ -38,7 +50,8 @@ private extension DetailViewController {
         placeholderLabel.textColor = .secondaryLabelColor
         view.addSubview(placeholderLabel)
 
-        tabView.translatesAutoresizingMaskIntoConstraints = false
+        // TweetClaw tabs
+        tweetClawTabView.translatesAutoresizingMaskIntoConstraints = false
         
         let humanItem = NSTabViewItem(viewController: humanVC)
         humanItem.label = "For Human"
@@ -46,20 +59,40 @@ private extension DetailViewController {
         let botItem = NSTabViewItem(viewController: botVC)
         botItem.label = "For ClawBot"
         
-        tabView.addTabViewItem(humanItem)
-        tabView.addTabViewItem(botItem)
+        tweetClawTabView.addTabViewItem(humanItem)
+        tweetClawTabView.addTabViewItem(botItem)
         
-        view.addSubview(tabView)
-        tabView.isHidden = true
+        view.addSubview(tweetClawTabView)
+        tweetClawTabView.isHidden = true
+        
+        // AIClaw tabs
+        aiClawTabView.translatesAutoresizingMaskIntoConstraints = false
+        
+        let aiHumanItem = NSTabViewItem(viewController: aiHumanVC)
+        aiHumanItem.label = "For Human"
+        
+        let aiBotItem = NSTabViewItem(viewController: aiBotVC)
+        aiBotItem.label = "For Claw"
+        
+        aiClawTabView.addTabViewItem(aiHumanItem)
+        aiClawTabView.addTabViewItem(aiBotItem)
+        
+        view.addSubview(aiClawTabView)
+        aiClawTabView.isHidden = true
 
         NSLayoutConstraint.activate([
             placeholderLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             placeholderLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor),
             
-            tabView.topAnchor.constraint(equalTo: view.topAnchor, constant: 10),
-            tabView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
-            tabView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
-            tabView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -10)
+            tweetClawTabView.topAnchor.constraint(equalTo: view.topAnchor, constant: 10),
+            tweetClawTabView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
+            tweetClawTabView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
+            tweetClawTabView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -10),
+            
+            aiClawTabView.topAnchor.constraint(equalTo: view.topAnchor, constant: 10),
+            aiClawTabView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
+            aiClawTabView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
+            aiClawTabView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -10)
         ])
     }
 }

@@ -146,6 +146,13 @@ chrome.runtime.onInstalled.addListener(async () => {
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
+    // 0. WebSocket port update
+    if (message.type === 'WS_PORT_CHANGED') {
+        localBridge.reconnectWithNewPort(message.port);
+        if (sendResponse) sendResponse({ ok: true });
+        return;
+    }
+
     // 1. 凭证捕获消息（来自 content script 中继）
     if (message.type === MsgType.CAPTURED_CREDENTIALS) {
         const { platform, bearerToken, apiUrl, requestHeaders } = message;

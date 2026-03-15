@@ -200,23 +200,8 @@ async function harvestBearer(bearer: string | null | undefined) {
     }
 }
 
-// ── 点击扩展图标：打开或聚焦 debug tab ──────────────────────────────
-chrome.action.onClicked.addListener(() => {
-    const debugUrl = chrome.runtime.getURL('debug.html');
-    chrome.tabs.query({ url: debugUrl }).then(existing => {
-        if (existing.length > 0 && existing[0].id) {
-            // 已有 debug tab → 聚焦它
-            chrome.tabs.update(existing[0].id, { active: true });
-            if (existing[0].windowId) {
-                chrome.windows.update(existing[0].windowId, { focused: true }).catch(() => {});
-            }
-        } else {
-            // 没有 → 新开一个
-            chrome.tabs.create({ url: debugUrl });
-        }
-    });
-});
-
+// ── 移除旧的 action.onClicked ──────────────────────────────
+// 已交由 popup 控制
 // ── 消息中枢 ─────────────────────────────────────────────────────────
 //
 // 重要架构说明：
@@ -225,6 +210,13 @@ chrome.action.onClicked.addListener(() => {
 //   因此 tabId guard 不能全局提前，必须按消息类型分别处理。
 //
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+
+    // ── WS_PORT_CHANGED 配置更新 ───────────────────────────────────
+    if (message.type === 'WS_PORT_CHANGED') {
+        localBridge.reconnectWithNewPort(message.port);
+        if (sendResponse) sendResponse({ ok: true });
+        return;
+    }
 
     // ── 来自 content script 的 API 拦截数据 ────────────────────────
     if (message.type === 'CAPTURED_DATA') {

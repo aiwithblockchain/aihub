@@ -11,6 +11,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppDelegate.shared = self
         wsServer.start()
         
+        NotificationCenter.default.addObserver(self, selector: #selector(restartWebSocketServer), name: NSNotification.Name("RestartWebSocketServer"), object: nil)
+        
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         self.statusItem = statusItem
 
@@ -62,5 +64,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     
     func sendQueryXBasicInfo() {
         wsServer.sendQueryXBasicInfo()
+    }
+    
+    func sendQueryAITabsStatus() {
+        wsServer.sendQueryAITabsStatus()
+    }
+    @objc private func restartWebSocketServer() {
+        print("[LocalBridgeMac] Restarting WebSocket Service...")
+        wsServer.stop { [weak self] in
+            print("[LocalBridgeMac] Old listeners released, starting new ones...")
+            self?.wsServer.start()
+        }
     }
 }

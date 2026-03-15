@@ -23,10 +23,10 @@ final class SidebarViewController: NSViewController {
             timestamp: "Now"
         ),
         Conversation(
-            title: "iOS 预研",
-            subtitle: "Direct message",
-            preview: "空白首页先保留，后续再接入本地桥服务状态。",
-            timestamp: "昨天"
+            title: "AIClaw",
+            subtitle: "AI Platform Hub",
+            preview: "Monitor ChatGPT, Gemini, Grok tabs and status.",
+            timestamp: "Now"
         ),
         Conversation(
             title: "Bridge Logs",

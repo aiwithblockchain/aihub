@@ -17,15 +17,32 @@ export class LocalBridgeSocket {
 
   public queryAITabsHandler: (() => Promise<any>) | null = null;
 
-  private readonly WS_URL = 'ws://127.0.0.1:8765/ws';
+  private WS_URL = 'ws://127.0.0.1:8766/ws'; // Default
 
   constructor() {
     this.connect();
   }
 
+  public reconnectWithNewPort(port: number) {
+    console.log(`[aiClaw] reconnecting to new port: ${port}`);
+    this.WS_URL = `ws://127.0.0.1:${port}/ws`;
+    this.isConnecting = false;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.ws) {
+      this.ws.onclose = null; // prevent standard reconnect loop
+      this.ws.close();
+      this.ws = null;
+    }
+    this.reconnectAttempts = 0;
+    this.connect();
+  }
+
   private isConnecting = false;
 
-  public connect() {
+  public async connect() {
     if (this.isConnecting) return;
     if (
       this.ws &&
@@ -35,8 +52,20 @@ export class LocalBridgeSocket {
       return;
     }
 
+    // Check dynamic port
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        const res = await chrome.storage.local.get('wsPort');
+        if (res.wsPort) {
+          this.WS_URL = `ws://127.0.0.1:${res.wsPort}/ws`;
+        }
+      }
+    } catch (e) {
+      console.warn('[aiClaw] failed to get dynamic port', e);
+    }
+
     this.isConnecting = true;
-    console.log('[aiClaw] websocket connecting...');
+    console.log(`[aiClaw] websocket connecting to ${this.WS_URL}...`);
 
     try {
       this.ws = new WebSocket(this.WS_URL);

@@ -11,22 +11,51 @@ export class LocalBridgeSocket {
   public queryXTabsHandler: (() => Promise<any>) | null = null;
   public queryXBasicInfoHandler: (() => Promise<any>) | null = null;
   
-  private readonly WS_URL = 'ws://127.0.0.1:8765/ws';
+  private WS_URL = 'ws://127.0.0.1:8765/ws'; // Default
   
   constructor() {
     this.connect();
   }
   
+  public reconnectWithNewPort(port: number) {
+    console.log(`[tweetClaw] reconnecting to new port: ${port}`);
+    this.WS_URL = `ws://127.0.0.1:${port}/ws`;
+    this.isConnecting = false;
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer);
+      this.reconnectTimer = null;
+    }
+    if (this.ws) {
+      this.ws.onclose = null; // prevent standard reconnect loop
+      this.ws.close();
+      this.ws = null;
+    }
+    this.reconnectAttempts = 0;
+    this.connect();
+  }
+  
   private isConnecting = false;
   
-  public connect() {
+  public async connect() {
     if (this.isConnecting) return;
     if (this.ws && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN)) {
       return;
     }
     
+    // Check dynamic port
+    try {
+      if (typeof chrome !== 'undefined' && chrome.storage) {
+        const res = await chrome.storage.local.get('wsPort');
+        if (res.wsPort) {
+          this.WS_URL = `ws://127.0.0.1:${res.wsPort}/ws`;
+        }
+      }
+    } catch (e) {
+      console.warn('[tweetClaw] failed to get dynamic port', e);
+    }
+    
     this.isConnecting = true;
-    console.log('[tweetClaw] websocket connecting...');
+    console.log(`[tweetClaw] websocket connecting to ${this.WS_URL}...`);
     
     try {
       this.ws = new WebSocket(this.WS_URL);

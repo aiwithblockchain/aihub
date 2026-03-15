@@ -11,6 +11,7 @@ module.exports = (env, argv) => {
             content: path.resolve(__dirname, 'src/content/main_entrance.ts'),
             injection: path.resolve(__dirname, 'src/capture/injection.ts'),
             debug: path.resolve(__dirname, 'src/debug/debug.ts'),
+            popup: path.resolve(__dirname, 'src/popup/popup.ts'),
         },
         output: {
             path: path.resolve(__dirname, 'dist'),
