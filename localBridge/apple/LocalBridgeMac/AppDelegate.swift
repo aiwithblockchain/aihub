@@ -37,8 +37,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     @objc
     private func openMainWindow() {
+        if let window = mainWindowController.window {
+            window.makeKeyAndOrderFront(nil)
+            // If the window was previously obscured or in another space
+            window.orderFrontRegardless()
+        }
         mainWindowController.showWindow(nil)
-        mainWindowController.window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
 
