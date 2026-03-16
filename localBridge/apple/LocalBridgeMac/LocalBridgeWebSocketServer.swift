@@ -270,6 +270,33 @@ class LocalBridgeWebSocketServer {
                 }
                 self.pendingUiRequests.remove(peekMsg.id)
                 
+            case .responseOpenTab:
+                print("[LocalBridgeMac] received response.open_tab")
+                self.handleOpenTabResponse(data: data)
+                if let callback = self.pendingHttpCallbacks[peekMsg.id] {
+                    callback(data)
+                    self.pendingHttpCallbacks.removeValue(forKey: peekMsg.id)
+                }
+                self.pendingUiRequests.remove(peekMsg.id)
+
+            case .responseCloseTab:
+                print("[LocalBridgeMac] received response.close_tab")
+                self.handleCloseTabResponse(data: data)
+                if let callback = self.pendingHttpCallbacks[peekMsg.id] {
+                    callback(data)
+                    self.pendingHttpCallbacks.removeValue(forKey: peekMsg.id)
+                }
+                self.pendingUiRequests.remove(peekMsg.id)
+                
+            case .responseNavigateTab:
+                print("[LocalBridgeMac] received response.navigate_tab")
+                self.handleNavigateTabResponse(data: data)
+                if let callback = self.pendingHttpCallbacks[peekMsg.id] {
+                    callback(data)
+                    self.pendingHttpCallbacks.removeValue(forKey: peekMsg.id)
+                }
+                self.pendingUiRequests.remove(peekMsg.id)
+                
             case .responseError:
                 print("[LocalBridgeMac] received response.error")
                 if self.pendingUiRequests.contains(peekMsg.id) {
@@ -682,6 +709,132 @@ class LocalBridgeWebSocketServer {
         }
     }
     
+    func sendOpenTab(path: String) {
+        guard let connection = activeClients["tweetClaw"], connection.state == .ready else {
+            NotificationCenter.default.post(name: NSNotification.Name("OpenTabReceived"), object: nil, userInfo: ["dataString": "Error: tweetClaw extension is not connected"])
+            return
+        }
+
+        let reqId = "req_open_\(Int(Date().timeIntervalSince1970))"
+        let payload = OpenTabRequestPayload(path: path)
+        let req = BaseMessage(
+            id: reqId,
+            type: .requestOpenTab,
+            source: "LocalBridgeMac",
+            target: "tweetClaw",
+            timestamp: Int64(Date().timeIntervalSince1970 * 1000),
+            payload: payload
+        )
+        
+        self.pendingUiRequests.insert(reqId)
+        
+        if let data = try? JSONEncoder().encode(req), let jsonString = String(data: data, encoding: .utf8) {
+            print("[LocalBridgeMac] sending request.open_tab, path: \(path)")
+            self.sendMessage(connection, jsonString)
+        }
+    }
+    
+    private func handleOpenTabResponse(data: Data) {
+        let decoder = JSONDecoder()
+        do {
+            let resp = try decoder.decode(BaseMessage<OpenTabResponsePayload>.self, from: data)
+            let p = resp.payload
+            
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .prettyPrinted
+            if let formattedData = try? encoder.encode(p),
+               let formattedString = String(data: formattedData, encoding: .utf8) {
+                NotificationCenter.default.post(name: NSNotification.Name("OpenTabReceived"), object: nil, userInfo: ["dataString": formattedString])
+            }
+        } catch {
+            print("[LocalBridgeMac] failed to decode open_tab response: \(error)")
+        }
+    }
+
+    func sendCloseTab(tabId: Int) {
+        guard let connection = activeClients["tweetClaw"], connection.state == .ready else {
+            NotificationCenter.default.post(name: NSNotification.Name("CloseTabReceived"), object: nil, userInfo: ["dataString": "Error: tweetClaw extension is not connected"])
+            return
+        }
+
+        let reqId = "req_close_\(Int(Date().timeIntervalSince1970))"
+        let payload = CloseTabRequestPayload(tabId: tabId)
+        let req = BaseMessage(
+            id: reqId,
+            type: .requestCloseTab,
+            source: "LocalBridgeMac",
+            target: "tweetClaw",
+            timestamp: Int64(Date().timeIntervalSince1970 * 1000),
+            payload: payload
+        )
+        
+        self.pendingUiRequests.insert(reqId)
+        
+        if let data = try? JSONEncoder().encode(req), let jsonString = String(data: data, encoding: .utf8) {
+            print("[LocalBridgeMac] sending request.close_tab, tabId: \(tabId)")
+            self.sendMessage(connection, jsonString)
+        }
+    }
+    
+    private func handleCloseTabResponse(data: Data) {
+        let decoder = JSONDecoder()
+        do {
+            let resp = try decoder.decode(BaseMessage<CloseTabResponsePayload>.self, from: data)
+            let p = resp.payload
+            
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .prettyPrinted
+            if let formattedData = try? encoder.encode(p),
+               let formattedString = String(data: formattedData, encoding: .utf8) {
+                NotificationCenter.default.post(name: NSNotification.Name("CloseTabReceived"), object: nil, userInfo: ["dataString": formattedString])
+            }
+                } catch {
+            print("[LocalBridgeMac] failed to decode close_tab response: \(error)")
+        }
+    }
+    
+    func sendNavigateTab(tabId: Int?, path: String) {
+        guard let connection = activeClients["tweetClaw"], connection.state == .ready else {
+            NotificationCenter.default.post(name: NSNotification.Name("NavigateTabReceived"), object: nil, userInfo: ["dataString": "Error: tweetClaw extension is not connected"])
+            return
+        }
+
+        let reqId = "req_nav_\(Int(Date().timeIntervalSince1970))"
+        let payload = NavigateTabRequestPayload(tabId: tabId, path: path)
+        let req = BaseMessage(
+            id: reqId,
+            type: .requestNavigateTab,
+            source: "LocalBridgeMac",
+            target: "tweetClaw",
+            timestamp: Int64(Date().timeIntervalSince1970 * 1000),
+            payload: payload
+        )
+        
+        self.pendingUiRequests.insert(reqId)
+        
+        if let data = try? JSONEncoder().encode(req), let jsonString = String(data: data, encoding: .utf8) {
+            print("[LocalBridgeMac] sending request.navigate_tab, tabId: \(String(describing: tabId)), path: \(path)")
+            self.sendMessage(connection, jsonString)
+        }
+    }
+    
+    private func handleNavigateTabResponse(data: Data) {
+        let decoder = JSONDecoder()
+        do {
+            let resp = try decoder.decode(BaseMessage<NavigateTabResponsePayload>.self, from: data)
+            let p = resp.payload
+            
+            let encoder = JSONEncoder()
+            encoder.outputFormatting = .prettyPrinted
+            if let formattedData = try? encoder.encode(p),
+               let formattedString = String(data: formattedData, encoding: .utf8) {
+                NotificationCenter.default.post(name: NSNotification.Name("NavigateTabReceived"), object: nil, userInfo: ["dataString": formattedString])
+            }
+        } catch {
+            print("[LocalBridgeMac] failed to decode navigate_tab response: \(error)")
+        }
+    }
+    
     // Heartbeat timeout logic
     private func startHeartbeatTimer() {
         heartbeatTimer?.invalidate()
@@ -758,6 +911,12 @@ class LocalBridgeWebSocketServer {
                     self.handleSendMessageHttpRequest(connection, requestData: data)
                 } else if request.contains("POST /api/v1/ai/new_conversation") {
                     self.handleNewConversationHttpRequest(connection, requestData: data)
+                } else if request.contains("POST /tweetclaw/open-tab") {
+                    self.handleOpenTabHttpRequest(connection, requestData: data)
+                } else if request.contains("POST /tweetclaw/close-tab") {
+                    self.handleCloseTabHttpRequest(connection, requestData: data)
+                } else if request.contains("POST /tweetclaw/navigate-tab") {
+                    self.handleNavigateTabHttpRequest(connection, requestData: data)
                 } else {
                     self.sendHttpResponse(connection, status: "404 Not Found", body: "{\"error\":\"not_found\"}")
                 }
@@ -1070,6 +1229,183 @@ class LocalBridgeWebSocketServer {
                     self.pendingHttpCallbacks.removeValue(forKey: reqId)
                     let seconds = timeoutMs / 1000
                     self.sendHttpResponse(connection, status: "504 Gateway Timeout", body: "{\"error\":\"timeout\",\"details\":\"Request timeout after \(seconds) seconds\"}")
+                }
+            }
+        } catch {
+            sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":\"invalid_json\", \"details\": \"\(error.localizedDescription)\"}")
+        }
+    }
+
+    private func handleOpenTabHttpRequest(_ connection: NWConnection, requestData: Data) {
+        guard let wsClient = activeClients["tweetClaw"], wsClient.state == .ready else {
+            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"tweetclaw_offline\"}")
+            return
+        }
+        
+        let requestString = String(data: requestData, encoding: .utf8) ?? ""
+        let parts = requestString.components(separatedBy: "\r\n\r\n")
+        guard parts.count > 1 else {
+            sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":\"missing_body\"}")
+            return
+        }
+        
+        let bodyString = parts[1]
+        guard let bodyData = bodyString.data(using: .utf8) else {
+            sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":\"invalid_body_encoding\"}")
+            return
+        }
+        
+        do {
+            let openReq = try JSONDecoder().decode(OpenTabRequestPayload.self, from: bodyData)
+            let reqId = "http_req_open_\(Int(Date().timeIntervalSince1970))"
+            
+            self.pendingHttpCallbacks[reqId] = { responseData in
+                let decoder = JSONDecoder()
+                if let resp = try? decoder.decode(BaseMessage<OpenTabResponsePayload>.self, from: responseData) {
+                    if let resBodyData = try? JSONEncoder().encode(resp.payload),
+                       let resBody = String(data: resBodyData, encoding: .utf8) {
+                        self.sendHttpResponse(connection, status: "200 OK", body: resBody)
+                        return
+                    }
+                }
+                self.sendHttpResponse(connection, status: "500 Internal Server Error", body: "{\"error\":\"decode_failed\"}")
+            }
+            
+            let req = BaseMessage(
+                id: reqId,
+                type: .requestOpenTab,
+                source: "LocalBridgeMac",
+                target: "tweetClaw",
+                timestamp: Int64(Date().timeIntervalSince1970 * 1000),
+                payload: openReq
+            )
+            
+            if let data = try? JSONEncoder().encode(req), let jsonString = String(data: data, encoding: .utf8) {
+                self.sendMessage(wsClient, jsonString)
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+                if self.pendingHttpCallbacks[reqId] != nil {
+                    self.pendingHttpCallbacks.removeValue(forKey: reqId)
+                    self.sendHttpResponse(connection, status: "504 Gateway Timeout", body: "{\"error\":\"timeout\"}")
+                }
+            }
+        } catch {
+            sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":\"invalid_json\", \"details\": \"\(error.localizedDescription)\"}")
+        }
+    }
+
+    private func handleCloseTabHttpRequest(_ connection: NWConnection, requestData: Data) {
+        guard let wsClient = activeClients["tweetClaw"], wsClient.state == .ready else {
+            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"tweetclaw_offline\"}")
+            return
+        }
+        
+        let requestString = String(data: requestData, encoding: .utf8) ?? ""
+        let parts = requestString.components(separatedBy: "\r\n\r\n")
+        guard parts.count > 1 else {
+            sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":\"missing_body\"}")
+            return
+        }
+        
+        let bodyString = parts[1]
+        guard let bodyData = bodyString.data(using: .utf8) else {
+            sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":\"invalid_body_encoding\"}")
+            return
+        }
+        
+        do {
+            let closeReq = try JSONDecoder().decode(CloseTabRequestPayload.self, from: bodyData)
+            let reqId = "http_req_close_\(Int(Date().timeIntervalSince1970))"
+            
+            self.pendingHttpCallbacks[reqId] = { responseData in
+                let decoder = JSONDecoder()
+                if let resp = try? decoder.decode(BaseMessage<CloseTabResponsePayload>.self, from: responseData) {
+                    if let resBodyData = try? JSONEncoder().encode(resp.payload),
+                       let resBody = String(data: resBodyData, encoding: .utf8) {
+                        self.sendHttpResponse(connection, status: "200 OK", body: resBody)
+                        return
+                    }
+                }
+                self.sendHttpResponse(connection, status: "500 Internal Server Error", body: "{\"error\":\"decode_failed\"}")
+            }
+            
+            let req = BaseMessage(
+                id: reqId,
+                type: .requestCloseTab,
+                source: "LocalBridgeMac",
+                target: "tweetClaw",
+                timestamp: Int64(Date().timeIntervalSince1970 * 1000),
+                payload: closeReq
+            )
+            
+            if let data = try? JSONEncoder().encode(req), let jsonString = String(data: data, encoding: .utf8) {
+                self.sendMessage(wsClient, jsonString)
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+                if self.pendingHttpCallbacks[reqId] != nil {
+                    self.pendingHttpCallbacks.removeValue(forKey: reqId)
+                    self.sendHttpResponse(connection, status: "504 Gateway Timeout", body: "{\"error\":\"timeout\"}")
+                }
+            }
+        } catch {
+            sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":\"invalid_json\", \"details\": \"\(error.localizedDescription)\"}")
+        }
+    }
+    
+    private func handleNavigateTabHttpRequest(_ connection: NWConnection, requestData: Data) {
+        guard let wsClient = activeClients["tweetClaw"], wsClient.state == .ready else {
+            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"tweetclaw_offline\"}")
+            return
+        }
+        
+        let requestString = String(data: requestData, encoding: .utf8) ?? ""
+        let parts = requestString.components(separatedBy: "\r\n\r\n")
+        guard parts.count > 1 else {
+            sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":\"missing_body\"}")
+            return
+        }
+        
+        let bodyString = parts[1]
+        guard let bodyData = bodyString.data(using: .utf8) else {
+            sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":\"invalid_body_encoding\"}")
+            return
+        }
+        
+        do {
+            let navReq = try JSONDecoder().decode(NavigateTabRequestPayload.self, from: bodyData)
+            let reqId = "http_req_nav_\(Int(Date().timeIntervalSince1970))"
+            
+            self.pendingHttpCallbacks[reqId] = { responseData in
+                let decoder = JSONDecoder()
+                if let resp = try? decoder.decode(BaseMessage<NavigateTabResponsePayload>.self, from: responseData) {
+                    if let resBodyData = try? JSONEncoder().encode(resp.payload),
+                       let resBody = String(data: resBodyData, encoding: .utf8) {
+                        self.sendHttpResponse(connection, status: "200 OK", body: resBody)
+                        return
+                    }
+                }
+                self.sendHttpResponse(connection, status: "500 Internal Server Error", body: "{\"error\":\"decode_failed\"}")
+            }
+            
+            let req = BaseMessage(
+                id: reqId,
+                type: .requestNavigateTab,
+                source: "LocalBridgeMac",
+                target: "tweetClaw",
+                timestamp: Int64(Date().timeIntervalSince1970 * 1000),
+                payload: navReq
+            )
+            
+            if let data = try? JSONEncoder().encode(req), let jsonString = String(data: data, encoding: .utf8) {
+                self.sendMessage(wsClient, jsonString)
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+                if self.pendingHttpCallbacks[reqId] != nil {
+                    self.pendingHttpCallbacks.removeValue(forKey: reqId)
+                    self.sendHttpResponse(connection, status: "504 Gateway Timeout", body: "{\"error\":\"timeout\"}")
                 }
             }
         } catch {

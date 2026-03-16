@@ -75,6 +75,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wsServer.sendQueryXBasicInfo()
     }
     
+    func sendOpenTab(path: String) {
+        wsServer.sendOpenTab(path: path)
+    }
+    
+    func sendCloseTab(tabId: Int) {
+        wsServer.sendCloseTab(tabId: tabId)
+    }
+    
+    func sendNavigateTab(tabId: Int?, path: String) {
+        wsServer.sendNavigateTab(tabId: tabId, path: path)
+    }
+    
     func sendQueryAITabsStatus() {
         wsServer.sendQueryAITabsStatus()
     }

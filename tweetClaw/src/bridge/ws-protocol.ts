@@ -10,6 +10,12 @@ export type MessageType =
   | 'response.query_x_tabs_status'
   | 'request.query_x_basic_info'
   | 'response.query_x_basic_info'
+  | 'request.open_tab'
+  | 'response.open_tab'
+  | 'request.close_tab'
+  | 'response.close_tab'
+  | 'request.navigate_tab'
+  | 'response.navigate_tab'
   | 'response.error';
 
 export const MESSAGE_TYPES: Record<string, MessageType> = {
@@ -21,6 +27,12 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_QUERY_X_TABS_STATUS: 'response.query_x_tabs_status',
   REQUEST_QUERY_X_BASIC_INFO: 'request.query_x_basic_info',
   RESPONSE_QUERY_X_BASIC_INFO: 'response.query_x_basic_info',
+  REQUEST_OPEN_TAB: 'request.open_tab',
+  RESPONSE_OPEN_TAB: 'response.open_tab',
+  REQUEST_CLOSE_TAB: 'request.close_tab',
+  RESPONSE_CLOSE_TAB: 'response.close_tab',
+  REQUEST_NAVIGATE_TAB: 'request.navigate_tab',
+  RESPONSE_NAVIGATE_TAB: 'response.navigate_tab',
   RESPONSE_ERROR: 'response.error',
 };
 
@@ -79,6 +91,39 @@ export interface QueryXBasicInfoResponsePayload {
   verified?: boolean;
   updatedAt?: number;
   raw?: any;
+}
+
+export interface OpenTabRequestPayload {
+  path: string;
+}
+
+export interface OpenTabResponsePayload {
+  success: boolean;
+  tabId?: number;
+  url?: string;
+  error?: string;
+}
+
+export interface CloseTabRequestPayload {
+  tabId: number;
+}
+
+export interface CloseTabResponsePayload {
+  success: boolean;
+  reason: 'success' | 'not_found' | 'failed';
+  error?: string;
+}
+
+export interface NavigateTabRequestPayload {
+  tabId?: number;
+  path: string;
+}
+
+export interface NavigateTabResponsePayload {
+  success: boolean;
+  tabId: number;
+  url: string;
+  error?: string;
 }
 
 export interface ErrorPayload {

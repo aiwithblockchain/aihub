@@ -16,6 +16,12 @@ enum MessageType: String, Codable {
     case responseQueryAITabsStatus = "response.query_ai_tabs_status"
     case requestExecuteTask = "request.execute_task"
     case responseExecuteTaskResult = "response.execute_task_result"
+    case requestOpenTab = "request.open_tab"
+    case responseOpenTab = "response.open_tab"
+    case requestCloseTab = "request.close_tab"
+    case responseCloseTab = "response.close_tab"
+    case requestNavigateTab = "request.navigate_tab"
+    case responseNavigateTab = "response.navigate_tab"
     case responseError = "response.error"
 }
 
@@ -157,6 +163,39 @@ struct ErrorPayload: Codable {
     let code: String
     let message: String
     let details: [String: AnyCodable]?
+}
+
+struct OpenTabRequestPayload: Codable {
+    let path: String
+}
+
+struct OpenTabResponsePayload: Codable {
+    let success: Bool
+    let tabId: Int?
+    let url: String?
+    let error: String?
+}
+
+struct CloseTabRequestPayload: Codable {
+    let tabId: Int
+}
+
+struct CloseTabResponsePayload: Codable {
+    let success: Bool
+    let reason: String // "success", "not_found", "failed"
+    let error: String?
+}
+
+struct NavigateTabRequestPayload: Codable {
+    let tabId: Int?
+    let path: String
+}
+
+struct NavigateTabResponsePayload: Codable {
+    let success: Bool
+    let tabId: Int
+    let url: String
+    let error: String?
 }
 
 // Helper for AnyCodable to handle dynamic JSON payload if needed

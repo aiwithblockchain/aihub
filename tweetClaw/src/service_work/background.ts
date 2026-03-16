@@ -9,11 +9,15 @@ import { findViewerSummary, findFeaturedTweet, findRepliesSnapshot, findProfileT
 import { derivePageContext } from '../utils/scene-parser';
 import { extractTweetId } from '../utils/route-parser';
 import { LocalBridgeSocket } from '../bridge/local-bridge-socket';
+import { OpenTabRequestPayload, OpenTabResponsePayload, CloseTabRequestPayload, CloseTabResponsePayload, NavigateTabRequestPayload, NavigateTabResponsePayload } from '../bridge/ws-protocol';
 
 // Initialize LocalBridge WebSocket Client
 const localBridge = new LocalBridgeSocket();
 localBridge.queryXTabsHandler = queryXTabsStatus;
 localBridge.queryXBasicInfoHandler = queryXBasicInfo;
+localBridge.openTabHandler = openXTab;
+localBridge.closeTabHandler = closeXTab;
+localBridge.navigateTabHandler = navigateXTab;
 
 interface ApiHit {
     op: string;
@@ -801,7 +805,7 @@ export async function queryXBasicInfo() {
         return buildProfileFromRaw(result.raw, uid);
     }
 
-    // 4. Fallback：tabDataStore 里找 uid 匹配的 UserByScreenName
+    // 4. Fallback：tabDataStore 里找 uid 匹配 of UserByScreenName
     console.warn('[TweetClaw-BG] queryXBasicInfo: content script failed/timeout, trying tabDataStore fallback');
     if (uid) {
         const capturedData = tabDataStore.get(targetTab.id)?.data?.['UserByScreenName'];
@@ -827,6 +831,93 @@ export async function queryXBasicInfo() {
         raw: null,
         updatedAt: Date.now()
     };
+}
+
+export async function openXTab(payload: OpenTabRequestPayload): Promise<OpenTabResponsePayload> {
+    const path = payload.path || "home";
+    const url = "https://x.com/" + (path.startsWith("/") ? path.substring(1) : path);
+    
+    return new Promise((resolve) => {
+        chrome.tabs.create({ url }, (tab) => {
+            if (chrome.runtime.lastError) {
+                resolve({ success: false, error: chrome.runtime.lastError.message });
+            } else {
+                resolve({
+                    success: true,
+                    tabId: tab.id,
+                    url: tab.url || url
+                });
+            }
+        });
+    });
+}
+
+export async function closeXTab(payload: CloseTabRequestPayload): Promise<CloseTabResponsePayload> {
+    const tabId = payload.tabId;
+    
+    return new Promise((resolve) => {
+        chrome.tabs.get(tabId, (tab) => {
+            if (chrome.runtime.lastError || !tab) {
+                resolve({ success: false, reason: "not_found" });
+                return;
+            }
+
+            // Check if it's an x.com tab
+            const url = tab.url || "";
+            if (!url.includes("x.com") && !url.includes("twitter.com")) {
+                resolve({ success: false, reason: "not_found" });
+                return;
+            }
+
+            chrome.tabs.remove(tabId, () => {
+                if (chrome.runtime.lastError) {
+                    resolve({ 
+                        success: false, 
+                        reason: "failed", 
+                        error: chrome.runtime.lastError.message 
+                    });
+                } else {
+                    resolve({ success: true, reason: "success" });
+                }
+            });
+        });
+    });
+}
+
+
+export async function navigateXTab(payload: NavigateTabRequestPayload): Promise<NavigateTabResponsePayload> {
+    let tabId = payload.tabId;
+    const path = payload.path || "home";
+    const url = "https://x.com/" + (path.startsWith("/") ? path.substring(1) : path);
+
+    if (!tabId) {
+        // Find the first x.com tab
+        const tabs = await chrome.tabs.query({ url: ["*://x.com/*", "*://twitter.com/*"] });
+        if (tabs.length === 0) {
+            throw new Error("No x.com tabs found to navigate");
+        }
+        tabId = tabs[0].id;
+    }
+
+    if (!tabId) {
+        throw new Error("Invalid tabId");
+    }
+
+    const targetTabId = tabId;
+
+    return new Promise((resolve) => {
+        chrome.tabs.update(targetTabId, { url }, (tab) => {
+            if (chrome.runtime.lastError) {
+                resolve({ success: false, tabId: targetTabId, url, error: chrome.runtime.lastError.message });
+            } else {
+                resolve({
+                    success: true,
+                    tabId: targetTabId,
+                    url: tab?.url || url
+                });
+            }
+        });
+    });
 }
 
 // 启动时确保存储已就绪

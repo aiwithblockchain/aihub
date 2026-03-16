@@ -10,6 +10,9 @@ export class LocalBridgeSocket {
   
   public queryXTabsHandler: (() => Promise<any>) | null = null;
   public queryXBasicInfoHandler: (() => Promise<any>) | null = null;
+  public openTabHandler: ((payload: any) => Promise<any>) | null = null;
+  public closeTabHandler: ((payload: any) => Promise<any>) | null = null;
+  public navigateTabHandler: ((payload: any) => Promise<any>) | null = null;
   
   private WS_URL = 'ws://127.0.0.1:8765/ws'; // Default
   
@@ -151,6 +154,15 @@ export class LocalBridgeSocket {
         case MESSAGE_TYPES.REQUEST_QUERY_X_BASIC_INFO:
           this.handleQueryXBasicInfo(msg);
           break;
+        case MESSAGE_TYPES.REQUEST_OPEN_TAB:
+          this.handleOpenTab(msg);
+          break;
+        case MESSAGE_TYPES.REQUEST_CLOSE_TAB:
+          this.handleCloseTab(msg);
+          break;
+        case MESSAGE_TYPES.REQUEST_NAVIGATE_TAB:
+          this.handleNavigateTab(msg);
+          break;
         default:
           console.warn(`[tweetClaw] unknown message type: ${msg.type}`);
       }
@@ -234,6 +246,111 @@ export class LocalBridgeSocket {
             }
         };
         this.send(errResp);
+    }
+  }
+
+  private async handleOpenTab(req: BaseMessage) {
+    console.log('[tweetClaw] handling request.open_tab');
+    if (!this.openTabHandler) {
+      console.error('[tweetClaw] no handler for open_tab');
+      return;
+    }
+
+    try {
+      const result = await this.openTabHandler(req.payload);
+      const resp: BaseMessage = {
+        id: req.id,
+        type: MESSAGE_TYPES.RESPONSE_OPEN_TAB,
+        source: 'tweetClaw',
+        target: 'LocalBridgeMac',
+        timestamp: Date.now(),
+        payload: result
+      };
+      this.send(resp);
+    } catch (e) {
+      const errResp: BaseMessage = {
+        id: req.id,
+        type: MESSAGE_TYPES.RESPONSE_ERROR,
+        source: 'tweetClaw',
+        target: 'LocalBridgeMac',
+        timestamp: Date.now(),
+        payload: {
+          code: 'INTERNAL_ERROR',
+          message: e instanceof Error ? e.message : String(e),
+          details: null
+        }
+      };
+      this.send(errResp);
+    }
+  }
+
+  private async handleCloseTab(req: BaseMessage) {
+    console.log('[tweetClaw] handling request.close_tab');
+    if (!this.closeTabHandler) {
+      console.error('[tweetClaw] no handler for close_tab');
+      return;
+    }
+
+    try {
+      const result = await this.closeTabHandler(req.payload);
+      const resp: BaseMessage = {
+        id: req.id,
+        type: MESSAGE_TYPES.RESPONSE_CLOSE_TAB,
+        source: 'tweetClaw',
+        target: 'LocalBridgeMac',
+        timestamp: Date.now(),
+        payload: result
+      };
+      this.send(resp);
+    } catch (e) {
+      const errResp: BaseMessage = {
+        id: req.id,
+        type: MESSAGE_TYPES.RESPONSE_ERROR,
+        source: 'tweetClaw',
+        target: 'LocalBridgeMac',
+        timestamp: Date.now(),
+        payload: {
+          code: 'INTERNAL_ERROR',
+          message: e instanceof Error ? e.message : String(e),
+          details: null
+        }
+      };
+      this.send(errResp);
+    }
+  }
+
+  private async handleNavigateTab(req: BaseMessage) {
+    console.log('[tweetClaw] handling request.navigate_tab');
+    if (!this.navigateTabHandler) {
+      console.error('[tweetClaw] no handler for navigate_tab');
+      return;
+    }
+
+    try {
+      const result = await this.navigateTabHandler(req.payload);
+      const resp: BaseMessage = {
+        id: req.id,
+        type: MESSAGE_TYPES.RESPONSE_NAVIGATE_TAB,
+        source: 'tweetClaw',
+        target: 'LocalBridgeMac',
+        timestamp: Date.now(),
+        payload: result
+      };
+      this.send(resp);
+    } catch (e) {
+      const errResp: BaseMessage = {
+        id: req.id,
+        type: MESSAGE_TYPES.RESPONSE_ERROR,
+        source: 'tweetClaw',
+        target: 'LocalBridgeMac',
+        timestamp: Date.now(),
+        payload: {
+          code: 'INTERNAL_ERROR',
+          message: e instanceof Error ? e.message : String(e),
+          details: null
+        }
+      };
+      this.send(errResp);
     }
   }
   
