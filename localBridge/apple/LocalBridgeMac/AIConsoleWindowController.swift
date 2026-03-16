@@ -174,16 +174,28 @@ final class AIConsoleWindowController: NSWindowController {
             instance = AIConsoleWindowController()
         }
         
-        // 确保显示在当前屏幕内且不超出
-        NSApp.setActivationPolicy(.regular)
-        
-        if let window = instance?.window {
-            window.makeKeyAndOrderFront(nil)
-            window.orderFrontRegardless()
+        // 1. 确保应用处于 regular 模式（显示 Dock 和菜单栏）
+        if NSApp.activationPolicy() != .regular {
+            NSApp.setActivationPolicy(.regular)
         }
         
+        // 2. 获取窗口引用
+        guard let window = instance?.window else { return }
+        
+        // 3. 强力显示并推向最前
         instance?.showWindow(nil)
-        NSApp.activate(ignoringOtherApps: true)
+        window.makeKeyAndOrderFront(nil)
+        window.orderFrontRegardless()
+        
+        // 4. 激活应用并忽略其他应用（这是确保窗口在最前面的关键）
+        // 使用 NSRunningApplication 激活通常比 NSApp.activate 更健壮
+        NSRunningApplication.current.activate(options: .activateIgnoringOtherApps)
+        
+        // 5. 额外保险：确保窗口确实收到了焦点
+        DispatchQueue.main.async {
+            window.makeMain()
+            window.makeKey()
+        }
     }
     
     init() {
@@ -358,16 +370,16 @@ final class AIConsoleRootViewController: NSViewController {
 }
 
 extension AIConsoleRootViewController: NSSplitViewDelegate {
-    func splitView(_ splitView: NSSplitView, constrainMinCoordinate proposedMinimumPosition: CGFloat, ofDividerAt dividerIndex: Int) -> CGFloat {
-        if dividerIndex == 0 { return 180 } // Sidebar 最小宽度
-        return proposedMinimumPosition
+    func splitView(_ splitView: NSSplitView, constrainMinCoordinate proposedMin: CGFloat, ofSubviewAt index: Int) -> CGFloat {
+        if index == 0 { return 180 }
+        return proposedMin
     }
     
-    func splitView(_ splitView: NSSplitView, constrainMaxCoordinate proposedMaximumPosition: CGFloat, ofDividerAt dividerIndex: Int) -> CGFloat {
+    func splitView(_ splitView: NSSplitView, constrainMaxCoordinate proposedMax: CGFloat, ofSubviewAt index: Int) -> CGFloat {
         let total = splitView.frame.width
-        if dividerIndex == 0 { return total * 0.4 } // Sidebar 最大占 40%
-        if dividerIndex == 1 { return total - 200 } // Activity 最小 200
-        return proposedMaximumPosition
+        if index == 0 { return total * 0.4 }
+        if index == 1 { return total - 200 }
+        return proposedMax
     }
     
     func splitView(_ splitView: NSSplitView, shouldHideDividerAt dividerIndex: Int) -> Bool {
