@@ -55,8 +55,14 @@ final class TweetClawHumanViewController: NSViewController {
         closeTabButton.bezelStyle = .rounded
         closeTabButton.target = self
         
-        navTabIdTextField.placeholderString = "Tab ID (可选)"
-        navPathTextField.placeholderString = "跳转路径 (如: elonmusk)"
+        navTabIdTextField.placeholderString = "Tab ID"
+        navTabIdTextField.translatesAutoresizingMaskIntoConstraints = false
+        navTabIdTextField.widthAnchor.constraint(equalToConstant: 80).isActive = true
+        
+        navPathTextField.placeholderString = "路径 (如: home)"
+        navPathTextField.stringValue = "home"
+        
+        navigateButton.title = "跳转到 ->"
         navigateButton.bezelStyle = .rounded
         navigateButton.target = self
         
@@ -80,9 +86,15 @@ final class TweetClawHumanViewController: NSViewController {
         closeTabStack.orientation = .horizontal
         closeTabStack.spacing = 8
         
-        let navigateStack = NSStackView(views: [navTabIdTextField, navPathTextField, navigateButton])
+        let navigateStack = NSStackView(views: [
+            NSTextField(labelWithString: "Tab:"),
+            navTabIdTextField,
+            navigateButton,
+            navPathTextField
+        ])
         navigateStack.orientation = .horizontal
         navigateStack.spacing = 8
+        navigateStack.alignment = .centerY
         
         let leftStack = NSStackView(views: [titleLabel, statusLabel, queryButton, queryBasicInfoButton, openTabStack, closeTabStack, navigateStack])
         leftStack.orientation = .vertical
@@ -200,32 +212,28 @@ final class TweetClawHumanViewController: NSViewController {
 }
 
 final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, NSTableViewDataSource {
-    private let titleLabel = NSTextField(labelWithString: "TweetClaw - For Claw")
+    private let titleLabel = NSTextField(labelWithString: "TweetClaw - API for Bots")
     private let tableView = NSTableView()
-    private let exampleTextView: NSTextView = {
-        let tv = NSTextView()
-        tv.isEditable = false
-        tv.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
-        tv.backgroundColor = .textBackgroundColor
-        return tv
-    }()
+    private var detailTextView: NSTextView!
     
-    private struct ApiDoc {
+    struct ApiDoc: Codable {
+        let id: String
         let name: String
-        let path: String
+        let summary: String        // Concise functional description
         let method: String
+        let path: String
         let description: String
         let body: String?
-        let example: String
+        let curl: String
+        let response: String
+        
+        enum CodingKeys: String, CodingKey {
+            case id, name, summary, method, path, description, curl, response
+            case body = "request_body"
+        }
     }
     
-    private let docs: [ApiDoc] = [
-        ApiDoc(name: "X Status", path: "/api/v1/x/status", method: "GET", description: "Query current X.com tab status", body: nil, example: "curl -X GET http://127.0.0.1:8769/api/v1/x/status"),
-        ApiDoc(name: "Basic Info", path: "/api/v1/x/basic_info", method: "GET", description: "Query current logged-in user profile", body: nil, example: "curl -X GET http://127.0.0.1:8769/api/v1/x/basic_info"),
-        ApiDoc(name: "Open Tab", path: "/tweetclaw/open-tab", method: "POST", description: "Open a new X.com tab", body: "{ \"path\": \"home\" }", example: "curl -X POST http://127.0.0.1:8769/tweetclaw/open-tab -H \"Content-Type: application/json\" -d '{\"path\": \"home\"}'"),
-        ApiDoc(name: "Close Tab", path: "/tweetclaw/close-tab", method: "POST", description: "Close specified tabId", body: "{ \"tabId\": 1234 }", example: "curl -X POST http://127.0.0.1:8769/tweetclaw/close-tab -H \"Content-Type: application/json\" -d '{\"tabId\": 1234}'"),
-        ApiDoc(name: "Navigate Tab", path: "/tweetclaw/navigate-tab", method: "POST", description: "Navigate tab to path. tabId optional.", body: "{ \"tabId\": 1234, \"path\": \"elonmusk\" }", example: "curl -X POST http://127.0.0.1:8769/tweetclaw/navigate-tab -H \"Content-Type: application/json\" -d '{\"path\": \"elonmusk\"}'")
-    ]
+    private var docs: [ApiDoc] = []
     
     override func loadView() {
         view = NSView()
@@ -233,53 +241,92 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     
     override func viewDidLoad() {
         super.viewDidLoad()
+        loadDocs()
         setupUI()
     }
     
+    private func loadDocs() {
+        guard let url = Bundle.main.url(forResource: "api_docs", withExtension: "json") else {
+            // Fallback for development (Absolute path)
+            let path = "/Users/hyperorchid/aiwithblockchain/aihub/localBridge/apple/LocalBridgeMac/api_docs.json"
+            if let data = try? Data(contentsOf: URL(fileURLWithPath: path)) {
+                do {
+                    self.docs = try JSONDecoder().decode([ApiDoc].self, from: data)
+                } catch {
+                    print("[LocalBridgeMac] JSON Decode Error: \(error)")
+                }
+            }
+            return
+        }
+        if let data = try? Data(contentsOf: url) {
+            do {
+                self.docs = try JSONDecoder().decode([ApiDoc].self, from: data)
+            } catch {
+                print("[LocalBridgeMac] JSON Decode Error from Bundle: \(error)")
+            }
+        }
+    }
+    
     private func setupUI() {
-        titleLabel.font = .systemFont(ofSize: 20, weight: .bold)
+        titleLabel.font = .systemFont(ofSize: 22, weight: .bold)
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(titleLabel)
         
+        // Left Column: Navigation List
         let scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
-        scrollView.borderType = .bezelBorder
+        scrollView.drawsBackground = false
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         
         tableView.delegate = self
         tableView.dataSource = self
-        tableView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
+        tableView.rowHeight = 84 // Increased for multi-line summary
+        tableView.headerView = nil
+        tableView.selectionHighlightStyle = .regular
         
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("ApiColumn"))
-        column.title = "Endpoints"
+        column.width = 280
         tableView.addTableColumn(column)
-        tableView.headerView = nil
         
         scrollView.documentView = tableView
         view.addSubview(scrollView)
         
-        let exampleScrollView = NSScrollView()
-        exampleScrollView.hasVerticalScroller = true
-        exampleScrollView.hasHorizontalScroller = true
-        exampleScrollView.borderType = .bezelBorder
-        exampleScrollView.translatesAutoresizingMaskIntoConstraints = false
-        exampleScrollView.documentView = exampleTextView
-        view.addSubview(exampleScrollView)
+        // Right Column: Detail Documentation Canvas
+        let detailScroll = NSTextView.scrollableTextView()
+        detailScroll.borderType = .bezelBorder
+        detailScroll.translatesAutoresizingMaskIntoConstraints = false
+        
+        detailTextView = detailScroll.documentView as? NSTextView
+        detailTextView.isEditable = false
+        detailTextView.isSelectable = true
+        detailTextView.textContainerInset = NSSize(width: 24, height: 24)
+        detailTextView.font = .systemFont(ofSize: 13)
+        detailTextView.textColor = .labelColor
+        detailTextView.backgroundColor = .textBackgroundColor
+        
+        view.addSubview(detailScroll)
         
         NSLayoutConstraint.activate([
             titleLabel.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
             titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             
-            scrollView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 15),
+            scrollView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 20),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            scrollView.widthAnchor.constraint(equalToConstant: 250),
+            scrollView.widthAnchor.constraint(equalToConstant: 300),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
             
-            exampleScrollView.topAnchor.constraint(equalTo: scrollView.topAnchor),
-            exampleScrollView.leadingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: 15),
-            exampleScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-            exampleScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20)
+            detailScroll.topAnchor.constraint(equalTo: scrollView.topAnchor),
+            detailScroll.leadingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: 20),
+            detailScroll.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            detailScroll.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20)
         ])
+        
+        // Default selection
+        if !docs.isEmpty {
+            DispatchQueue.main.async {
+                self.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            }
+        }
     }
     
     func numberOfRows(in tableView: NSTableView) -> Int {
@@ -289,38 +336,185 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         let identifier = NSUserInterfaceItemIdentifier("ApiCell")
         var cell = tableView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView
+        
         if cell == nil {
             cell = NSTableCellView()
             cell?.identifier = identifier
-            let textField = NSTextField(labelWithString: "")
-            textField.translatesAutoresizingMaskIntoConstraints = false
-            cell?.addSubview(textField)
-            cell?.textField = textField
+            
+            let nameLabel = NSTextField(labelWithString: "")
+            nameLabel.font = .systemFont(ofSize: 14, weight: .bold)
+            nameLabel.translatesAutoresizingMaskIntoConstraints = false
+            nameLabel.tag = 101
+            
+            let summaryLabel = NSTextField(wrappingLabelWithString: "")
+            summaryLabel.font = .systemFont(ofSize: 12)
+            summaryLabel.textColor = .secondaryLabelColor
+            summaryLabel.translatesAutoresizingMaskIntoConstraints = false
+            summaryLabel.tag = 102
+            
+            let methodLabel = NSTextField(labelWithString: "")
+            methodLabel.font = .monospacedSystemFont(ofSize: 9, weight: .bold)
+            methodLabel.alignment = .center
+            methodLabel.wantsLayer = true
+            methodLabel.layer?.cornerRadius = 4
+            methodLabel.translatesAutoresizingMaskIntoConstraints = false
+            methodLabel.tag = 103
+            
+            cell?.addSubview(nameLabel)
+            cell?.addSubview(summaryLabel)
+            cell?.addSubview(methodLabel)
+            
             NSLayoutConstraint.activate([
-                textField.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 2),
-                textField.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -2),
-                textField.centerYAnchor.constraint(equalTo: cell!.centerYAnchor)
+                methodLabel.topAnchor.constraint(equalTo: cell!.topAnchor, constant: 10),
+                methodLabel.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 10),
+                methodLabel.widthAnchor.constraint(equalToConstant: 42),
+                methodLabel.heightAnchor.constraint(equalToConstant: 16),
+                
+                nameLabel.centerYAnchor.constraint(equalTo: methodLabel.centerYAnchor),
+                nameLabel.leadingAnchor.constraint(equalTo: methodLabel.trailingAnchor, constant: 8),
+                nameLabel.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -10),
+                
+                summaryLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 4),
+                summaryLabel.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 10),
+                summaryLabel.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -10),
+                summaryLabel.bottomAnchor.constraint(lessThanOrEqualTo: cell!.bottomAnchor, constant: -8)
             ])
         }
+        
         let doc = docs[row]
-        cell?.textField?.stringValue = "\(doc.method) \(doc.name)"
+        
+        if let methodLabel = cell?.viewWithTag(103) as? NSTextField {
+            methodLabel.stringValue = doc.method.uppercased()
+            let color = methodColor(doc.method)
+            methodLabel.textColor = .white
+            methodLabel.backgroundColor = color
+            methodLabel.drawsBackground = true
+        }
+        
+        if let nameLabel = cell?.viewWithTag(101) as? NSTextField {
+            nameLabel.stringValue = doc.name
+        }
+        
+        if let summaryLabel = cell?.viewWithTag(102) as? NSTextField {
+            summaryLabel.stringValue = doc.summary
+        }
+        
         return cell
     }
     
     func tableViewSelectionDidChange(_ notification: Notification) {
         let row = tableView.selectedRow
+        print("[LocalBridgeMac] API Table Selection Changed: \(row)")
         guard row >= 0 && row < docs.count else {
-            exampleTextView.string = ""
+            updateDetailView(with: nil)
             return
         }
-        let doc = docs[row]
-        var content = "## \(doc.name)\n\n"
-        content += "Description: \(doc.description)\n"
-        content += "Endpoint: \(doc.method) \(doc.path)\n"
-        if let body = doc.body {
-            content += "Request Body:\n\(body)\n"
+        updateDetailView(with: docs[row])
+    }
+    
+    private func updateDetailView(with doc: ApiDoc?) {
+        guard let textView = detailTextView else {
+            print("[LocalBridgeMac] Error: detailTextView is NIL")
+            return
         }
-        content += "\nUsage Example:\n\(doc.example)\n"
-        exampleTextView.string = content
+        
+        print("[LocalBridgeMac] Updating Detail View for: \(doc?.name ?? "None")")
+        guard let doc = doc else {
+            textView.string = "Select an API from the left sidebar to view details."
+            return
+        }
+        
+        let attrStr = NSMutableAttributedString()
+        
+        let titleFont = NSFont.systemFont(ofSize: 22, weight: .bold)
+        let methodFont = NSFont.monospacedSystemFont(ofSize: 14, weight: .bold)
+        let normalFont = NSFont.systemFont(ofSize: 13)
+        let sectionFont = NSFont.systemFont(ofSize: 15, weight: .bold)
+        let codeFont = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        
+        // Title
+        attrStr.append(NSAttributedString(string: "\(doc.name)\n", attributes: [
+            .font: titleFont,
+            .foregroundColor: NSColor.labelColor
+        ]))
+        
+        // Method and Path
+        attrStr.append(NSAttributedString(string: "\(doc.method) ", attributes: [
+            .font: methodFont,
+            .foregroundColor: methodColor(doc.method)
+        ]))
+        attrStr.append(NSAttributedString(string: "\(doc.path)\n\n", attributes: [
+            .font: codeFont,
+            .foregroundColor: NSColor.secondaryLabelColor
+        ]))
+        
+        // Description
+        attrStr.append(NSAttributedString(string: "DESCRIPTION\n", attributes: [
+            .font: sectionFont,
+            .foregroundColor: NSColor.labelColor
+        ]))
+        attrStr.append(NSAttributedString(string: "\(doc.description)\n\n", attributes: [
+            .font: normalFont,
+            .foregroundColor: NSColor.labelColor
+        ]))
+        
+        // Request Body
+        if let body = doc.body {
+            attrStr.append(NSAttributedString(string: "REQUEST BODY (JSON)\n", attributes: [
+                .font: sectionFont,
+                .foregroundColor: NSColor.labelColor
+            ]))
+            attrStr.append(NSAttributedString(string: "\(body)\n\n", attributes: [
+                .font: codeFont,
+                .foregroundColor: NSColor.labelColor,
+                .backgroundColor: NSColor.windowBackgroundColor
+            ]))
+        }
+        
+        // cURL
+        attrStr.append(NSAttributedString(string: "cURL EXAMPLE\n", attributes: [
+            .font: sectionFont,
+            .foregroundColor: NSColor.labelColor
+        ]))
+        attrStr.append(NSAttributedString(string: "\(doc.curl)\n\n", attributes: [
+            .font: codeFont,
+            .foregroundColor: NSColor.labelColor,
+            .backgroundColor: NSColor.windowBackgroundColor
+        ]))
+        
+        // Response
+        attrStr.append(NSAttributedString(string: "RESPONSE FORMAT\n", attributes: [
+            .font: sectionFont,
+            .foregroundColor: NSColor.systemGreen
+        ]))
+        attrStr.append(NSAttributedString(string: "\(doc.response)\n", attributes: [
+            .font: codeFont,
+            .foregroundColor: NSColor.labelColor,
+            .backgroundColor: NSColor.windowBackgroundColor
+        ]))
+        
+        let style = NSMutableParagraphStyle()
+        style.lineSpacing = 4
+        style.paragraphSpacing = 8
+        attrStr.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: attrStr.length))
+        
+        // Explicitly set the attributed string to the text storage
+        textView.textStorage?.setAttributedString(attrStr)
+        
+        // Ensure visibility
+        textView.needsDisplay = true
+        textView.scrollToBeginningOfDocument(nil)
+        
+        print("[LocalBridgeMac] Detail View updated with \(attrStr.length) characters")
+    }
+    
+    private func methodColor(_ method: String) -> NSColor {
+        switch method.uppercased() {
+        case "GET": return NSColor.systemBlue
+        case "POST": return NSColor.systemGreen
+        case "PUT": return NSColor.systemOrange
+        case "DELETE": return NSColor.systemRed
+        default: return NSColor.labelColor
+        }
     }
 }
