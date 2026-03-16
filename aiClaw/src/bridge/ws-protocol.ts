@@ -97,9 +97,9 @@ export const ERROR_CODES = {
 export interface ExecuteTaskPayload {
   taskId: string;                // 任务唯一 ID
   platform: 'chatgpt' | 'gemini' | 'grok';  // 目标平台
-  action: 'send_message';        // 动作类型
+  action: 'send_message' | 'new_conversation';        // 动作类型
   payload: {
-    prompt: string;              // Prompt 文本
+    prompt?: string;             // Prompt 文本
     conversationId?: string;     // 可选：续对话 ID
     model?: string;              // 可选：指定模型
   };

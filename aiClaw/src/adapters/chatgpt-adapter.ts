@@ -49,6 +49,24 @@ const SEL = {
     MSG_ASST:   '[data-message-author-role="assistant"]',  // assistant 消息容器
 } as const;
 
+const NEW_CHAT_SELECTORS = [
+    '[data-testid="create-new-chat-button"]',
+    'button[aria-label="New chat"]',
+    'button[aria-label*="New chat"]',
+    'a[aria-label="New chat"]',
+    'a[aria-label*="New chat"]',
+    'button[title="New chat"]',
+    'a[title="New chat"]',
+] as const;
+
+const NEW_CHAT_TEXT_PATTERNS = [
+    'new chat',
+    'new conversation',
+    '新聊天',
+    '新建聊天',
+    '新对话',
+] as const;
+
 // 超时配置（ms）
 const TIMEOUTS = {
     FIND_INPUT:     8_000,   // 等待输入框
@@ -59,6 +77,71 @@ const TIMEOUTS = {
 
 export class ChatGptAdapter extends BasePlatformAdapter {
     readonly platform: PlatformType = 'chatgpt';
+
+    public async createNewConversation(
+        request: Pick<SendMessageRequest, 'model'>
+    ): Promise<SendMessageResponse> {
+        const t = (msg: string) => console.log(`[aiClaw ChatGPT] ${msg}`);
+        const previousConversationId = this.getCurrentConversationId();
+
+        try {
+            t('New conversation: 检查当前是否已经是空白会话...');
+            if (!previousConversationId) {
+                const input = await this.waitForElement<HTMLElement>(SEL.INPUT, 3_000);
+                if (input) {
+                    t('New conversation: 当前已在新会话页面');
+                    return {
+                        success: true,
+                        content: '',
+                        conversationId: undefined,
+                    };
+                }
+            }
+
+            t('New conversation: 查找 New chat 按钮...');
+            const trigger = this.findNewConversationTrigger();
+            if (!trigger) {
+                return {
+                    success: false,
+                    content: '',
+                    error: '未找到 New chat 按钮，请确认 ChatGPT 侧边栏已展开',
+                };
+            }
+
+            this.clickElement(trigger);
+            t('New conversation: 已点击 New chat');
+
+            const ready = await this.waitForNewConversationReady(previousConversationId, 15_000);
+            if (!ready) {
+                return {
+                    success: false,
+                    content: '',
+                    error: '新建对话后页面未就绪，请确认 ChatGPT 页面可正常切换到新会话',
+                };
+            }
+
+            await this.sleep(300);
+            const conversationId = this.getCurrentConversationId() || undefined;
+            t(`New conversation: 页面已就绪 (conversationId=${conversationId ?? 'none'})`);
+
+            if (request.model) {
+                t(`New conversation: 当前忽略 model=${request.model}，后续可再补模型切换`);
+            }
+
+            return {
+                success: true,
+                content: '',
+                conversationId,
+            };
+        } catch (error: any) {
+            console.error('[aiClaw ChatGPT] createNewConversation 出错:', error);
+            return {
+                success: false,
+                content: '',
+                error: error.message || String(error),
+            };
+        }
+    }
 
     public isTargetApiUrl(url: string): boolean {
         return url.includes('chatgpt.com/backend-api') && url.includes('conversation');
@@ -335,6 +418,68 @@ export class ChatGptAdapter extends BasePlatformAdapter {
 
         console.log(`[aiClaw ChatGPT] 提取回复（共 ${messages.length} 条 assistant 消息，发送前 ${msgCountBefore} 条）: "${text.slice(0, 50)}..."`);
         return text;
+    }
+
+    private findNewConversationTrigger(): HTMLElement | null {
+        for (const selector of NEW_CHAT_SELECTORS) {
+            const element = document.querySelector<HTMLElement>(selector);
+            if (this.isUsableNewConversationTrigger(element)) {
+                return element;
+            }
+        }
+
+        const candidates = Array.from(document.querySelectorAll<HTMLElement>('button, a, [role="button"]'));
+        for (const candidate of candidates) {
+            if (!this.isUsableNewConversationTrigger(candidate)) {
+                continue;
+            }
+            const text = this.normalizedText(candidate);
+            if (NEW_CHAT_TEXT_PATTERNS.some((pattern) => text.includes(pattern))) {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private isUsableNewConversationTrigger(element: HTMLElement | null): element is HTMLElement {
+        if (!element) {
+            return false;
+        }
+        if ((element as HTMLButtonElement).disabled) {
+            return false;
+        }
+        const style = window.getComputedStyle(element);
+        return style.display !== 'none' && style.visibility !== 'hidden';
+    }
+
+    private normalizedText(element: HTMLElement): string {
+        return (element.innerText || element.textContent || '').trim().toLowerCase();
+    }
+
+    private clickElement(element: HTMLElement) {
+        element.scrollIntoView({ block: 'center', inline: 'center' });
+        element.click();
+    }
+
+    private async waitForNewConversationReady(previousConversationId: string | null, timeout: number): Promise<boolean> {
+        const startedAt = Date.now();
+        while (Date.now() - startedAt < timeout) {
+            const input = document.querySelector<HTMLElement>(SEL.INPUT);
+            const stopBtn = document.querySelector(SEL.STOP_BTN);
+            const currentConversationId = this.getCurrentConversationId();
+            const routeChanged = previousConversationId == null
+                ? currentConversationId == null
+                : currentConversationId !== previousConversationId;
+
+            if (routeChanged && input && !stopBtn) {
+                return true;
+            }
+
+            await this.sleep(200);
+        }
+
+        return false;
     }
 
     /**

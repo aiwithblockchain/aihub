@@ -43,4 +43,13 @@ export abstract class BasePlatformAdapter {
         requestHeaders: Record<string, string>,
         responseBody: any
     ): Partial<Credentials>;
+
+    /** 创建新对话。默认不支持，子类按需覆盖。 */
+    createNewConversation(_request: Pick<SendMessageRequest, 'model'>): Promise<SendMessageResponse> {
+        return Promise.resolve({
+            success: false,
+            content: '',
+            error: `Platform ${this.platform} does not support creating a new conversation`,
+        });
+    }
 }

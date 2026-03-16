@@ -73,6 +73,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func sendSendMessage(platform: String, prompt: String) {
         wsServer.sendSendMessage(platform: platform, prompt: prompt)
     }
+
+    func sendNewConversation(platform: String) {
+        wsServer.sendNewConversation(platform: platform)
+    }
+
     @objc private func restartWebSocketServer() {
         print("[LocalBridgeMac] Restarting WebSocket Service...")
         wsServer.stop { [weak self] in

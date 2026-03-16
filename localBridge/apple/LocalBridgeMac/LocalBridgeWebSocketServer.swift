@@ -16,6 +16,7 @@ class LocalBridgeWebSocketServer {
     // HTTP handling
     private var pendingHttpCallbacks: [String: (Data) -> Void] = [:]
     private var pendingUiRequests: Set<String> = []
+    private var pendingUiRequestTitles: [String: String] = [:]
     
     // Heartbeat monitoring
     private var heartbeatTimer: Timer?
@@ -93,6 +94,7 @@ class LocalBridgeWebSocketServer {
         lastPingReceived.removeAll()
         pendingHttpCallbacks.removeAll()
         pendingUiRequests.removeAll()
+        pendingUiRequestTitles.removeAll()
         
         isRunning = false
         
@@ -257,6 +259,7 @@ class LocalBridgeWebSocketServer {
                     self.pendingHttpCallbacks.removeValue(forKey: peekMsg.id)
                 }
                 self.pendingUiRequests.remove(peekMsg.id)
+                self.pendingUiRequestTitles.removeValue(forKey: peekMsg.id)
 
             case .responseQueryXBasicInfo:
                 print("[LocalBridgeMac] received response.query_x_basic_info")
@@ -272,8 +275,15 @@ class LocalBridgeWebSocketServer {
                 if self.pendingUiRequests.contains(peekMsg.id) {
                     self.pendingUiRequests.remove(peekMsg.id)
                     let errorMsg = "Error: Received response.error from extension"
-                    NotificationCenter.default.post(name: NSNotification.Name("QueryXTabsStatusReceived"), object: nil, userInfo: ["dataString": errorMsg])
-                    NotificationCenter.default.post(name: NSNotification.Name("QueryXBasicInfoReceived"), object: nil, userInfo: ["dataString": errorMsg])
+                    if let resultTitle = self.pendingUiRequestTitles.removeValue(forKey: peekMsg.id) {
+                        NotificationCenter.default.post(name: NSNotification.Name("SendMessageReceived"), object: nil, userInfo: [
+                            "dataString": errorMsg,
+                            "resultTitle": resultTitle
+                        ])
+                    } else {
+                        NotificationCenter.default.post(name: NSNotification.Name("QueryXTabsStatusReceived"), object: nil, userInfo: ["dataString": errorMsg])
+                        NotificationCenter.default.post(name: NSNotification.Name("QueryXBasicInfoReceived"), object: nil, userInfo: ["dataString": errorMsg])
+                    }
                 }
                 if let callback = self.pendingHttpCallbacks[peekMsg.id] {
                     callback(data)
@@ -462,7 +472,10 @@ class LocalBridgeWebSocketServer {
     
     func sendSendMessage(platform: String, prompt: String) {
         guard let connection = activeClients["aiClaw"], connection.state == .ready else {
-            NotificationCenter.default.post(name: NSNotification.Name("SendMessageReceived"), object: nil, userInfo: ["dataString": "Error: aiClaw extension is not connected or installed"])
+            NotificationCenter.default.post(name: NSNotification.Name("SendMessageReceived"), object: nil, userInfo: [
+                "dataString": "Error: aiClaw extension is not connected or installed",
+                "resultTitle": "Send Message Result"
+            ])
             return
         }
 
@@ -487,6 +500,7 @@ class LocalBridgeWebSocketServer {
         )
         
         self.pendingUiRequests.insert(reqId)
+        self.pendingUiRequestTitles[reqId] = "Send Message Result"
         
         do {
             let data = try JSONEncoder().encode(req)
@@ -497,14 +511,84 @@ class LocalBridgeWebSocketServer {
                 DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(timeoutMs)) {
                     if self.pendingUiRequests.contains(reqId) {
                         self.pendingUiRequests.remove(reqId)
+                        self.pendingUiRequestTitles.removeValue(forKey: reqId)
                         let seconds = timeoutMs / 1000
-                        NotificationCenter.default.post(name: NSNotification.Name("SendMessageReceived"), object: nil, userInfo: ["dataString": "Error: Request timeout after \(seconds) seconds"])
+                        NotificationCenter.default.post(name: NSNotification.Name("SendMessageReceived"), object: nil, userInfo: [
+                            "dataString": "Error: Request timeout after \(seconds) seconds",
+                            "resultTitle": "Send Message Result"
+                        ])
                     }
                 }
             }
         } catch {
             self.pendingUiRequests.remove(reqId)
+            self.pendingUiRequestTitles.removeValue(forKey: reqId)
             print("[LocalBridgeMac] failed to encode SendMessage request: \(error)")
+        }
+    }
+
+    func sendNewConversation(platform: String) {
+        guard platform == "chatgpt" else {
+            NotificationCenter.default.post(name: NSNotification.Name("SendMessageReceived"), object: nil, userInfo: [
+                "dataString": "Error: New conversation is currently supported only for chatgpt",
+                "resultTitle": "New Conversation Result"
+            ])
+            return
+        }
+
+        guard let connection = activeClients["aiClaw"], connection.state == .ready else {
+            NotificationCenter.default.post(name: NSNotification.Name("SendMessageReceived"), object: nil, userInfo: [
+                "dataString": "Error: aiClaw extension is not connected or installed",
+                "resultTitle": "New Conversation Result"
+            ])
+            return
+        }
+
+        let reqId = "req_new_conv_\(Int(Date().timeIntervalSince1970))"
+        let taskId = "task_new_conv_\(Int(Date().timeIntervalSince1970))"
+        let timeoutMs = 30_000
+        let payload = ExecuteTaskRequestPayload(
+            taskId: taskId,
+            platform: platform,
+            action: "new_conversation",
+            payload: SendMessagePromptPayload(prompt: nil, conversationId: nil, model: nil),
+            timeout: timeoutMs
+        )
+
+        let req = BaseMessage(
+            id: reqId,
+            type: .requestExecuteTask,
+            source: "LocalBridgeMac",
+            target: "aiClaw",
+            timestamp: Int64(Date().timeIntervalSince1970 * 1000),
+            payload: payload
+        )
+
+        self.pendingUiRequests.insert(reqId)
+        self.pendingUiRequestTitles[reqId] = "New Conversation Result"
+
+        do {
+            let data = try JSONEncoder().encode(req)
+            if let jsonString = String(data: data, encoding: .utf8) {
+                print("[LocalBridgeMac] sending request.execute_task(new_conversation), id: \(reqId), taskId: \(taskId), timeoutMs: \(timeoutMs)")
+                self.sendMessage(connection, jsonString)
+
+                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(timeoutMs)) {
+                    if self.pendingUiRequests.contains(reqId) {
+                        self.pendingUiRequests.remove(reqId)
+                        self.pendingUiRequestTitles.removeValue(forKey: reqId)
+                        let seconds = timeoutMs / 1000
+                        NotificationCenter.default.post(name: NSNotification.Name("SendMessageReceived"), object: nil, userInfo: [
+                            "dataString": "Error: Request timeout after \(seconds) seconds",
+                            "resultTitle": "New Conversation Result"
+                        ])
+                    }
+                }
+            }
+        } catch {
+            self.pendingUiRequests.remove(reqId)
+            self.pendingUiRequestTitles.removeValue(forKey: reqId)
+            print("[LocalBridgeMac] failed to encode new conversation request: \(error)")
         }
     }
     
@@ -513,6 +597,7 @@ class LocalBridgeWebSocketServer {
         do {
             let resp = try decoder.decode(BaseMessage<ExecuteTaskResultPayload>.self, from: data)
             let p = resp.payload
+            let resultTitle = self.pendingUiRequestTitles.removeValue(forKey: resp.id) ?? "Execute Task Result"
             
             print("[LocalBridgeMac] execute_task response received: success=\(p.success), taskId=\(p.taskId)")
             
@@ -521,12 +606,18 @@ class LocalBridgeWebSocketServer {
             encoder.outputFormatting = .prettyPrinted
             if let formattedData = try? encoder.encode(p),
                let formattedString = String(data: formattedData, encoding: .utf8) {
-                NotificationCenter.default.post(name: NSNotification.Name("SendMessageReceived"), object: nil, userInfo: ["dataString": formattedString])
+                NotificationCenter.default.post(name: NSNotification.Name("SendMessageReceived"), object: nil, userInfo: [
+                    "dataString": formattedString,
+                    "resultTitle": resultTitle
+                ])
             }
             
         } catch {
             print("[LocalBridgeMac] failed to decode SendMessage response: \(error)")
-            NotificationCenter.default.post(name: NSNotification.Name("SendMessageReceived"), object: nil, userInfo: ["dataString": "Error decoding response:\n\(error.localizedDescription)"])
+            NotificationCenter.default.post(name: NSNotification.Name("SendMessageReceived"), object: nil, userInfo: [
+                "dataString": "Error decoding response:\n\(error.localizedDescription)",
+                "resultTitle": "Execute Task Result"
+            ])
         }
     }
     
@@ -664,6 +755,8 @@ class LocalBridgeWebSocketServer {
                     self.handleAIStatusHttpRequest(connection)
                 } else if request.contains("POST /api/v1/ai/message") {
                     self.handleSendMessageHttpRequest(connection, requestData: data)
+                } else if request.contains("POST /api/v1/ai/new_conversation") {
+                    self.handleNewConversationHttpRequest(connection, requestData: data)
                 } else {
                     self.sendHttpResponse(connection, status: "404 Not Found", body: "{\"error\":\"not_found\"}")
                 }
@@ -897,6 +990,87 @@ class LocalBridgeWebSocketServer {
                 }
             }
             
+        } catch {
+            sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":\"invalid_json\", \"details\": \"\(error.localizedDescription)\"}")
+        }
+    }
+
+    private func handleNewConversationHttpRequest(_ connection: NWConnection, requestData: Data) {
+        guard let wsClient = activeClients["aiClaw"], wsClient.state == .ready else {
+            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"aiclaw_offline\"}")
+            return
+        }
+
+        let requestString = String(data: requestData, encoding: .utf8) ?? ""
+        let parts = requestString.components(separatedBy: "\r\n\r\n")
+        guard parts.count > 1 else {
+            sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":\"missing_body\"}")
+            return
+        }
+
+        let bodyString = parts[1]
+        guard let bodyData = bodyString.data(using: .utf8) else {
+            sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":\"invalid_body_encoding\"}")
+            return
+        }
+
+        do {
+            struct NewConversationRequest: Codable {
+                let platform: String
+                let model: String?
+                let timeoutMs: Int?
+            }
+
+            let req = try JSONDecoder().decode(NewConversationRequest.self, from: bodyData)
+            guard req.platform == "chatgpt" else {
+                sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":\"unsupported_platform\",\"details\":\"new_conversation currently supports only chatgpt\"}")
+                return
+            }
+            let reqId = "http_req_new_conv_\(Int(Date().timeIntervalSince1970))"
+            let timeoutMs = max(req.timeoutMs ?? 30_000, 1_000)
+
+            self.pendingHttpCallbacks[reqId] = { responseData in
+                let decoder = JSONDecoder()
+                if let resp = try? decoder.decode(BaseMessage<ExecuteTaskResultPayload>.self, from: responseData),
+                   let resBodyData = try? JSONEncoder().encode(resp.payload),
+                   let resBody = String(data: resBodyData, encoding: .utf8) {
+                    self.sendHttpResponse(connection, status: "200 OK", body: resBody)
+                    return
+                }
+
+                self.sendHttpResponse(connection, status: "500 Internal Server Error", body: "{\"error\":\"decode_failed\"}")
+            }
+
+            let taskId = "task_api_new_conv_\(Int(Date().timeIntervalSince1970))"
+            let payload = ExecuteTaskRequestPayload(
+                taskId: taskId,
+                platform: req.platform,
+                action: "new_conversation",
+                payload: SendMessagePromptPayload(prompt: nil, conversationId: nil, model: req.model),
+                timeout: timeoutMs
+            )
+
+            let wsReq = BaseMessage(
+                id: reqId,
+                type: .requestExecuteTask,
+                source: "LocalBridgeMac",
+                target: "aiClaw",
+                timestamp: Int64(Date().timeIntervalSince1970 * 1000),
+                payload: payload
+            )
+
+            if let data = try? JSONEncoder().encode(wsReq), let jsonString = String(data: data, encoding: .utf8) {
+                print("[LocalBridgeMac] sending request.execute_task(new_conversation) via REST, id: \(reqId), taskId: \(taskId), timeoutMs: \(timeoutMs)")
+                self.sendMessage(wsClient, jsonString)
+            }
+
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(timeoutMs)) {
+                if self.pendingHttpCallbacks[reqId] != nil {
+                    self.pendingHttpCallbacks.removeValue(forKey: reqId)
+                    let seconds = timeoutMs / 1000
+                    self.sendHttpResponse(connection, status: "504 Gateway Timeout", body: "{\"error\":\"timeout\",\"details\":\"Request timeout after \(seconds) seconds\"}")
+                }
+            }
         } catch {
             sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":\"invalid_json\", \"details\": \"\(error.localizedDescription)\"}")
         }

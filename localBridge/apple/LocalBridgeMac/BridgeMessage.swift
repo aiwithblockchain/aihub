@@ -130,7 +130,7 @@ struct ExecuteTaskRequestPayload: Codable {
 }
 
 struct SendMessagePromptPayload: Codable {
-    let prompt: String
+    let prompt: String?
     let conversationId: String?
     let model: String?
 }

@@ -11,6 +11,7 @@ final class AIClawHumanViewController: NSViewController {
     private let messagePlatformPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let messageTextView = NSTextField()
     private let sendMessageButton = NSButton(title: "发送消息", target: nil, action: #selector(sendMessageClicked))
+    private let newConversationButton = NSButton(title: "新建对话", target: nil, action: #selector(newConversationClicked))
     
     private var resultTextView: NSTextView!
     private var resultScrollView: NSScrollView!
@@ -69,6 +70,8 @@ final class AIClawHumanViewController: NSViewController {
         
         sendMessageButton.bezelStyle = .rounded
         sendMessageButton.target = self
+        newConversationButton.bezelStyle = .rounded
+        newConversationButton.target = self
         
         let msgPlatformLabel = NSTextField(labelWithString: "平台:")
         let msgPlatformRow = NSStackView(views: [msgPlatformLabel, messagePlatformPopup])
@@ -87,7 +90,8 @@ final class AIClawHumanViewController: NSViewController {
             messageTitleLabel,
             msgPlatformRow,
             messageTextView,
-            sendMessageButton
+            sendMessageButton,
+            newConversationButton
         ])
         leftStack.orientation = .vertical
         leftStack.alignment = .leading
@@ -140,13 +144,29 @@ final class AIClawHumanViewController: NSViewController {
         
         AppDelegate.shared?.sendSendMessage(platform: platform, prompt: prompt)
     }
+
+    @objc private func newConversationClicked() {
+        let platform = messagePlatformPopup.titleOfSelectedItem ?? "chatgpt"
+
+        if platform != "chatgpt" {
+            resultTextView.string = "Error: New conversation is currently supported only for chatgpt"
+            return
+        }
+
+        DispatchQueue.main.async {
+            self.resultTextView.string = "Creating new conversation on \(platform)...\n"
+        }
+
+        AppDelegate.shared?.sendNewConversation(platform: platform)
+    }
     
     @objc private func handleSendMessageResult(_ notification: Notification) {
         guard let userInfo = notification.userInfo,
               let jsonString = userInfo["dataString"] as? String else { return }
+        let resultTitle = (userInfo["resultTitle"] as? String) ?? "Send Message Result"
         
         DispatchQueue.main.async {
-            self.resultTextView.string = "--- Send Message Result ---\n\(jsonString)"
+            self.resultTextView.string = "--- \(resultTitle) ---\n\(jsonString)"
         }
     }
     
@@ -255,6 +275,22 @@ final class AIClawBotViewController: NSViewController {
              -H "Content-Type: application/json" \
              -d '{"platform":"chatgpt", "prompt":"Hello"}'
         
+        ---
+
+        Endpoint: POST http://127.0.0.1:8769/api/v1/ai/new_conversation
+        Description: Creates a new AI conversation. Currently intended for ChatGPT.
+
+        Body (JSON):
+        {
+          "platform": "chatgpt",
+          "timeoutMs": 30000
+        }
+
+        Usage:
+        curl -X POST http://127.0.0.1:8769/api/v1/ai/new_conversation \
+             -H "Content-Type: application/json" \
+             -d '{"platform":"chatgpt"}'
+
         ---
         
         Filter by platform (parse tabs[].platform):

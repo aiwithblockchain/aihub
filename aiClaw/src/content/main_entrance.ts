@@ -113,15 +113,20 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             return true;
         }
 
-        // DOM 操作不需要 credentials，传空对象
-        adapter.sendMessage(
-            {
-                prompt: task.payload.prompt,
-                conversationId: task.payload.conversationId,
+        const actionPromise = task.action === 'new_conversation'
+            ? adapter.createNewConversation({
                 model: task.payload.model,
-            },
-            {}  // DOM 方案不使用凭证
-        ).then((adapterResult) => {
+            })
+            : adapter.sendMessage(
+                {
+                    prompt: task.payload.prompt ?? '',
+                    conversationId: task.payload.conversationId,
+                    model: task.payload.model,
+                },
+                {}  // DOM 方案不使用凭证
+            );
+
+        actionPromise.then((adapterResult) => {
             const result: ExecuteTaskResultPayload = {
                 taskId: task.taskId,
                 success: adapterResult.success,
