@@ -8,20 +8,31 @@ final class ConsoleSidebarViewController: NSViewController {
     private let stackView     = NSStackView()
     private let scrollView    = NSScrollView()
 
-    // MARK: View Lifecycle
+    // MARK: - View Lifecycle
 
     override func loadView() {
+        // ⚠️ 不设置 translatesAutoresizingMaskIntoConstraints = false
         view = NSView()
-        view.translatesAutoresizingMaskIntoConstraints = false
         view.wantsLayer = true
         view.layer?.backgroundColor = NSColor.consoleZ900.withAlphaComponent(0.6).cgColor
+    }
 
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        setupBorder()
+        setupHeader()
+        setupList()
+        update(for: 0)
+    }
+
+    // MARK: - Border
+
+    private func setupBorder() {
         let border = NSView()
         border.wantsLayer = true
         border.layer?.backgroundColor = NSColor.consoleZ800.cgColor
         border.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(border)
-
         NSLayoutConstraint.activate([
             border.topAnchor.constraint(equalTo: view.topAnchor),
             border.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -30,14 +41,7 @@ final class ConsoleSidebarViewController: NSViewController {
         ])
     }
 
-    override func viewDidLoad() {
-        super.viewDidLoad()
-        setupHeader()
-        setupList()
-        update(for: 0)
-    }
-
-    // MARK: Header
+    // MARK: - Header
 
     private func setupHeader() {
         titleLabel.font      = .systemFont(ofSize: 13, weight: .semibold)
@@ -50,9 +54,9 @@ final class ConsoleSidebarViewController: NSViewController {
 
         let addBtn = NSButton()
         addBtn.image = NSImage(systemSymbolName: "plus", accessibilityDescription: "增加")
-        addBtn.contentTintColor = .consoleText2
-        addBtn.isBordered  = false
-        addBtn.wantsLayer  = true
+        addBtn.contentTintColor       = .consoleText2
+        addBtn.isBordered             = false
+        addBtn.wantsLayer             = true
         addBtn.layer?.cornerRadius    = 6
         addBtn.layer?.backgroundColor = NSColor.consoleZ800.cgColor
         addBtn.translatesAutoresizingMaskIntoConstraints = false
@@ -75,7 +79,6 @@ final class ConsoleSidebarViewController: NSViewController {
             addBtn.heightAnchor.constraint(equalToConstant: 24)
         ])
 
-        // 底部分割线
         let border = NSView()
         border.wantsLayer = true
         border.layer?.backgroundColor = NSColor.consoleZ800.cgColor
@@ -89,7 +92,7 @@ final class ConsoleSidebarViewController: NSViewController {
         ])
     }
 
-    // MARK: List
+    // MARK: - List
 
     private func setupList() {
         scrollView.drawsBackground = false
@@ -113,25 +116,17 @@ final class ConsoleSidebarViewController: NSViewController {
         ])
     }
 
-    // MARK: Public Update
+    // MARK: - Public Update
 
     func update(for index: Int) {
         stackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
 
         let filtered: [AIAgent]
         switch index {
-        case 0:
-            titleLabel.stringValue = "项目经理"
-            filtered = MockData.agents.filter { $0.role == .pm }
-        case 1:
-            titleLabel.stringValue = "开发人员"
-            filtered = MockData.agents.filter { $0.role == .developer }
-        case 2:
-            titleLabel.stringValue = "验收人员"
-            filtered = MockData.agents.filter { $0.role == .qa }
-        default:
-            titleLabel.stringValue = "AI 列表"
-            filtered = MockData.agents
+        case 0: titleLabel.stringValue = "项目经理"; filtered = MockData.agents.filter { $0.role == .pm }
+        case 1: titleLabel.stringValue = "开发人员"; filtered = MockData.agents.filter { $0.role == .developer }
+        case 2: titleLabel.stringValue = "验收人员"; filtered = MockData.agents.filter { $0.role == .qa }
+        default: titleLabel.stringValue = "AI 列表"; filtered = MockData.agents
         }
 
         subtitleLabel.stringValue = "\(filtered.count) 个 AI"

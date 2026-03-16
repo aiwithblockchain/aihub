@@ -15,8 +15,8 @@ final class ConsoleChatViewController: NSViewController {
     required init?(coder: NSCoder) { fatalError() }
 
     override func loadView() {
+        // ⚠️ 不设置 translatesAutoresizingMaskIntoConstraints = false
         view = NSView()
-        view.translatesAutoresizingMaskIntoConstraints = false
         view.wantsLayer = true
         view.layer?.backgroundColor = NSColor.consoleZ950.cgColor
     }
@@ -37,14 +37,13 @@ final class ConsoleChatViewController: NSViewController {
         header.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(header)
 
-        // Avatar
         let avatar = NSView()
         avatar.wantsLayer = true
         avatar.layer?.cornerRadius = 7
         avatar.translatesAutoresizingMaskIntoConstraints = false
         let grad = CAGradientLayer()
-        grad.colors      = [agent.role.color.withAlphaComponent(0.25).cgColor,
-                            agent.role.color.withAlphaComponent(0.1).cgColor]
+        grad.colors       = [agent.role.color.withAlphaComponent(0.25).cgColor,
+                             agent.role.color.withAlphaComponent(0.1).cgColor]
         grad.frame        = CGRect(x: 0, y: 0, width: 36, height: 36)
         grad.cornerRadius = 7
         avatar.layer?.addSublayer(grad)
@@ -55,7 +54,6 @@ final class ConsoleChatViewController: NSViewController {
         avatar.addSubview(emoji)
         header.addSubview(avatar)
 
-        // Name & subtitle
         let name = NSTextField(labelWithString: agent.name)
         name.font      = .systemFont(ofSize: 13, weight: .semibold)
         name.textColor = .consoleText
@@ -68,7 +66,6 @@ final class ConsoleChatViewController: NSViewController {
         sub.translatesAutoresizingMaskIntoConstraints = false
         header.addSubview(sub)
 
-        // Online badge
         let online = NSView()
         online.wantsLayer = true
         online.layer?.cornerRadius    = 10
@@ -76,7 +73,6 @@ final class ConsoleChatViewController: NSViewController {
         online.layer?.borderColor     = NSColor.consoleGreen.withAlphaComponent(0.3).cgColor
         online.layer?.borderWidth     = 1
         online.translatesAutoresizingMaskIntoConstraints = false
-
         let onlineLbl = NSTextField(labelWithString: "在线")
         onlineLbl.font      = .systemFont(ofSize: 11)
         onlineLbl.textColor = .consoleGreen
@@ -84,7 +80,6 @@ final class ConsoleChatViewController: NSViewController {
         online.addSubview(onlineLbl)
         header.addSubview(online)
 
-        // Bottom border
         let border = NSView()
         border.wantsLayer = true
         border.layer?.backgroundColor = NSColor.consoleZ800.cgColor
@@ -137,11 +132,9 @@ final class ConsoleChatViewController: NSViewController {
         scrollView.documentView = stackView
 
         NSLayoutConstraint.activate([
-            // 61 = header 60 + border 1
             scrollView.topAnchor.constraint(equalTo: view.topAnchor, constant: 61),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            // 68 = input area height
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -68),
             stackView.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor),
             stackView.centerXAnchor.constraint(equalTo: scrollView.centerXAnchor),
@@ -260,7 +253,6 @@ final class ConsoleChatViewController: NSViewController {
     @objc private func sendMessage() {
         let text = inputField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-
         addMessageBubble(AIMessage(sender: .human, content: text, timestamp: Date(), role: nil))
         inputField.stringValue = ""
 
