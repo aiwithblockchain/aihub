@@ -114,7 +114,8 @@
  				A10000000000000000000046 /* TweetClawTabControllers.swift */,
  				A10000000000000000000048 /* AIClawTabControllers.swift */,
  				A10000000000000000000049 /* AIConsoleWindowController.swift */,
-			path = LocalBridgeMac;
+ 			);
+ 			path = LocalBridgeMac;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -238,7 +239,8 @@
  				A1000000000000000000003F /* TweetClawTabControllers.swift in Sources */,
  				A10000000000000000000047 /* AIClawTabControllers.swift in Sources */,
  				A1000000000000000000004A /* AIConsoleWindowController.swift in Sources */,
-			runOnlyForDeploymentPostprocessing = 0;
+ 			);
+ 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
