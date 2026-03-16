@@ -131,19 +131,6 @@ export function findViewerSummary(
         };
     }
 
-    // 2. GraphQL 路径探测（仿照 TweetCat 的 findDeepUser）
-    const findDeepUser = (obj: any): any => {
-        if (!obj) return null;
-        // 如果当前层级就有核心数据，直接返回
-        if (obj.rest_id && (obj.core || obj.legacy)) return obj;
-        if (obj.result && (obj.result.core || obj.result.legacy)) return obj.result;
-
-        // 尝试常见的嵌套路径
-        const next = obj.data || obj.user || obj.user_result_by_screen_name || obj.result;
-        if (next && next !== obj) return findDeepUser(next);
-        return null;
-    };
-
     const u = findDeepUser(data);
     if (u) {
         console.log('[TweetClaw-Extractor] findDeepUser found valid user object');
@@ -323,4 +310,32 @@ export function findProfileTweetsSnapshot(
         console.warn('[TweetClaw-Extractor] Error in findProfileTweetsSnapshot', e);
     }
     return [];
+}
+/**
+ * 递归在任意深度的 JSON 对象中找到 Twitter User 结果对象。
+ * 兼容 UserByScreenName / UserByRestId 等多种响应结构变体。
+ */
+export function findDeepUser(obj: any, depth = 0): any | null {
+  if (!obj || typeof obj !== 'object' || depth > 8) return null;
+
+  // 命中条件：是一个有 rest_id 且 __typename 为 User 的对象
+  if (obj.__typename === 'User' && obj.rest_id) return obj;
+
+  // 优先尝试语义路径
+  const priorityKeys = ['result', 'user', 'user_result', 'data'];
+  for (const key of priorityKeys) {
+    if (obj[key]) {
+      const found = findDeepUser(obj[key], depth + 1);
+      if (found) return found;
+    }
+  }
+
+  // 兜底：遍历所有 key
+  for (const key of Object.keys(obj)) {
+    if (priorityKeys.includes(key)) continue; // 已处理
+    const found = findDeepUser(obj[key], depth + 1);
+    if (found) return found;
+  }
+
+  return null;
 }
