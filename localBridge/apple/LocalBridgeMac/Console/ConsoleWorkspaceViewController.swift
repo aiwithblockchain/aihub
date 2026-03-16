@@ -37,10 +37,13 @@ final class ConsoleWorkspaceViewController: NSViewController {
         newVC.view.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(newVC.view)
 
+        let trailing = newVC.view.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        trailing.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             newVC.view.topAnchor.constraint(equalTo: view.topAnchor),
             newVC.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            newVC.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            trailing,
             newVC.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
         currentVC = newVC

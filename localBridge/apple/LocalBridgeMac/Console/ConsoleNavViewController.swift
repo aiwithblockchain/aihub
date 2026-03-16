@@ -52,10 +52,16 @@ final class ConsoleNavViewController: NSViewController {
         border.layer?.backgroundColor = NSColor.consoleZ800.cgColor
         border.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(border)
+        let borderTrailing = border.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        borderTrailing.priority = NSLayoutConstraint.Priority(999)
+
+        let borderBottom = border.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        borderBottom.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             border.topAnchor.constraint(equalTo: view.topAnchor),
-            border.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            border.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            borderTrailing,
+            borderBottom,
             border.widthAnchor.constraint(equalToConstant: 1)
         ])
     }
@@ -125,10 +131,13 @@ final class ConsoleNavViewController: NSViewController {
             navButtons.append(btn)
         }
 
+        let stackTrailing = stack.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        stackTrailing.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: view.topAnchor, constant: 60),
             stack.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            stackTrailing,
             selectionIndicator.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             selectionIndicator.widthAnchor.constraint(equalToConstant: 3),
             selectionIndicator.heightAnchor.constraint(equalToConstant: 24)

@@ -86,10 +86,16 @@ final class ConsoleChatViewController: NSViewController {
         border.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(border)
 
+        let trailingConstraint = header.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        trailingConstraint.priority = NSLayoutConstraint.Priority(999)
+
+        let borderTrailing = border.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        borderTrailing.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             header.topAnchor.constraint(equalTo: view.topAnchor),
             header.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            header.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            trailingConstraint,
             header.heightAnchor.constraint(equalToConstant: 60),
 
             avatar.centerYAnchor.constraint(equalTo: header.centerYAnchor),
@@ -113,7 +119,7 @@ final class ConsoleChatViewController: NSViewController {
 
             border.topAnchor.constraint(equalTo: header.bottomAnchor),
             border.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            border.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            borderTrailing,
             border.heightAnchor.constraint(equalToConstant: 1)
         ])
     }
@@ -131,14 +137,23 @@ final class ConsoleChatViewController: NSViewController {
         stackView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.documentView = stackView
 
+        let scrollTrailing = scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        scrollTrailing.priority = NSLayoutConstraint.Priority(999)
+
+        let scrollBottom = scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -68)
+        scrollBottom.priority = NSLayoutConstraint.Priority(999)
+
+        let stackWidth = stackView.widthAnchor.constraint(equalTo: scrollView.widthAnchor, constant: -32)
+        stackWidth.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: view.topAnchor, constant: 61),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -68),
+            scrollTrailing,
+            scrollBottom,
             stackView.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor),
             stackView.centerXAnchor.constraint(equalTo: scrollView.centerXAnchor),
-            stackView.widthAnchor.constraint(equalTo: scrollView.widthAnchor, constant: -32)
+            stackWidth
         ])
         for m in agent.messages { addMessageBubble(m) }
     }
@@ -222,9 +237,15 @@ final class ConsoleChatViewController: NSViewController {
         hint.translatesAutoresizingMaskIntoConstraints = false
         inputArea.addSubview(hint)
 
+        let inputAreaTrailing = inputArea.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        inputAreaTrailing.priority = NSLayoutConstraint.Priority(999)
+
+        let inputFieldTrailing = inputField.trailingAnchor.constraint(equalTo: btn.leadingAnchor, constant: -8)
+        inputFieldTrailing.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             inputArea.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            inputArea.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            inputAreaTrailing,
             inputArea.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             inputArea.heightAnchor.constraint(equalToConstant: 68),
 

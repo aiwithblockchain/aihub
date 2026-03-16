@@ -95,6 +95,18 @@ final class PMTaskListViewController: NSViewController {
         stack.translatesAutoresizingMaskIntoConstraints = false
         scroll.documentView = stack
 
+        let borderTrailing = border.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        borderTrailing.priority = NSLayoutConstraint.Priority(999)
+
+        let scrollTrailing = scroll.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        scrollTrailing.priority = NSLayoutConstraint.Priority(999)
+
+        let scrollBottom = scroll.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        scrollBottom.priority = NSLayoutConstraint.Priority(999)
+
+        let stackTrailing = stack.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor)
+        stackTrailing.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             title.topAnchor.constraint(equalTo: view.topAnchor, constant: 14),
             title.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
@@ -102,15 +114,15 @@ final class PMTaskListViewController: NSViewController {
             subtitle.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
             border.topAnchor.constraint(equalTo: view.topAnchor, constant: 56),
             border.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            border.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            borderTrailing,
             border.heightAnchor.constraint(equalToConstant: 1),
             scroll.topAnchor.constraint(equalTo: border.bottomAnchor),
             scroll.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            scroll.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scroll.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            scrollTrailing,
+            scrollBottom,
             stack.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
             stack.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor)
+            stackTrailing
         ])
 
         for task in MockData.tasks {
@@ -142,13 +154,19 @@ final class PMTaskListViewController: NSViewController {
         desc.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(desc)
 
+        let titleTrailing = title.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -12)
+        titleTrailing.priority = NSLayoutConstraint.Priority(999)
+
+        let descTrailing = desc.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -12)
+        descTrailing.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             title.topAnchor.constraint(equalTo: card.topAnchor, constant: 10),
             title.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 12),
-            title.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -12),
+            titleTrailing,
             desc.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 4),
             desc.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 12),
-            desc.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -12)
+            descTrailing
         ])
         return card
     }
@@ -179,10 +197,12 @@ final class DevWorkspaceViewController: NSViewController {
                                     subtitle: "开发团队 · claude-3.5-sonnet",
                                     gradColors: [NSColor.consoleBlue, NSColor(hex: "#06B6D4")])
         view.addSubview(header)
+        let headerTrailing = header.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        headerTrailing.priority = NSLayoutConstraint.Priority(999)
         NSLayoutConstraint.activate([
             header.topAnchor.constraint(equalTo: view.topAnchor),
             header.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            header.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            headerTrailing,
             header.heightAnchor.constraint(equalToConstant: 60)
         ])
     }
@@ -202,15 +222,24 @@ final class DevWorkspaceViewController: NSViewController {
         containerView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(containerView)
 
+        let barTrailing = bar.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        barTrailing.priority = NSLayoutConstraint.Priority(999)
+
+        let containerTrailing = containerView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        containerTrailing.priority = NSLayoutConstraint.Priority(999)
+
+        let containerBottom = containerView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        containerBottom.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             bar.topAnchor.constraint(equalTo: view.topAnchor, constant: 60),
             bar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            bar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            barTrailing,
             bar.heightAnchor.constraint(equalToConstant: 40),
             containerView.topAnchor.constraint(equalTo: bar.bottomAnchor),
             containerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            containerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            containerView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            containerTrailing,
+            containerBottom
         ])
     }
 
@@ -229,10 +258,13 @@ final class DevWorkspaceViewController: NSViewController {
         addChild(vc)
         vc.view.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(vc.view)
+        let vcViewTrailing = vc.view.trailingAnchor.constraint(equalTo: containerView.trailingAnchor)
+        vcViewTrailing.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             vc.view.topAnchor.constraint(equalTo: containerView.topAnchor),
             vc.view.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
-            vc.view.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
+            vcViewTrailing,
             vc.view.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
         ])
         currentVC = vc
@@ -266,11 +298,17 @@ final class DevCodePreviewController: NSViewController {
         code.translatesAutoresizingMaskIntoConstraints = false
         editor.addSubview(code)
 
+        let editorTrailing = editor.trailingAnchor.constraint(equalTo: v.trailingAnchor, constant: -20)
+        editorTrailing.priority = NSLayoutConstraint.Priority(999)
+
+        let editorBottom = editor.bottomAnchor.constraint(equalTo: v.bottomAnchor, constant: -20)
+        editorBottom.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             editor.topAnchor.constraint(equalTo: v.topAnchor, constant: 20),
             editor.leadingAnchor.constraint(equalTo: v.leadingAnchor, constant: 20),
-            editor.trailingAnchor.constraint(equalTo: v.trailingAnchor, constant: -20),
-            editor.bottomAnchor.constraint(equalTo: v.bottomAnchor, constant: -20),
+            editorTrailing,
+            editorBottom,
             filename.topAnchor.constraint(equalTo: editor.topAnchor, constant: 12),
             filename.leadingAnchor.constraint(equalTo: editor.leadingAnchor, constant: 16),
             code.topAnchor.constraint(equalTo: filename.bottomAnchor, constant: 16),
@@ -295,10 +333,13 @@ final class DevTaskListController: NSViewController {
         stack.translatesAutoresizingMaskIntoConstraints = false
         v.addSubview(stack)
 
+        let stackTrailing = stack.trailingAnchor.constraint(equalTo: v.trailingAnchor)
+        stackTrailing.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: v.topAnchor),
             stack.leadingAnchor.constraint(equalTo: v.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: v.trailingAnchor)
+            stackTrailing
         ])
 
         for task in MockData.tasks {
@@ -320,12 +361,15 @@ final class DevTaskListController: NSViewController {
             progress.translatesAutoresizingMaskIntoConstraints = false
             card.addSubview(progress)
 
+            let progressTrailing = progress.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -12)
+            progressTrailing.priority = NSLayoutConstraint.Priority(999)
+
             NSLayoutConstraint.activate([
                 name.topAnchor.constraint(equalTo: card.topAnchor, constant: 12),
                 name.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 12),
                 progress.topAnchor.constraint(equalTo: name.bottomAnchor, constant: 12),
                 progress.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 12),
-                progress.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -12),
+                progressTrailing,
                 progress.heightAnchor.constraint(equalToConstant: 8)
             ])
             stack.addArrangedSubview(card)
@@ -359,10 +403,12 @@ final class QAWorkspaceViewController: NSViewController {
                                     subtitle: "验收团队 · claude-3-haiku",
                                     gradColors: [NSColor.consoleGreen, NSColor(hex: "#4ADE80")])
         view.addSubview(header)
+        let headerTrailing = header.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        headerTrailing.priority = NSLayoutConstraint.Priority(999)
         NSLayoutConstraint.activate([
             header.topAnchor.constraint(equalTo: view.topAnchor),
             header.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            header.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            headerTrailing,
             header.heightAnchor.constraint(equalToConstant: 60)
         ])
     }
@@ -382,15 +428,24 @@ final class QAWorkspaceViewController: NSViewController {
         containerView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(containerView)
 
+        let barTrailing = bar.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        barTrailing.priority = NSLayoutConstraint.Priority(999)
+
+        let containerTrailing = containerView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        containerTrailing.priority = NSLayoutConstraint.Priority(999)
+
+        let containerBottom = containerView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        containerBottom.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             bar.topAnchor.constraint(equalTo: view.topAnchor, constant: 60),
             bar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            bar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            barTrailing,
             bar.heightAnchor.constraint(equalToConstant: 40),
             containerView.topAnchor.constraint(equalTo: bar.bottomAnchor),
             containerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            containerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            containerView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            containerTrailing,
+            containerBottom
         ])
     }
 
@@ -409,11 +464,17 @@ final class QAWorkspaceViewController: NSViewController {
         addChild(vc)
         vc.view.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(vc.view)
+        let vcViewTrailing = vc.view.trailingAnchor.constraint(equalTo: containerView.trailingAnchor)
+        vcViewTrailing.priority = NSLayoutConstraint.Priority(999)
+
+        let vcViewBottom = vc.view.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
+        vcViewBottom.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             vc.view.topAnchor.constraint(equalTo: containerView.topAnchor),
             vc.view.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
-            vc.view.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
-            vc.view.bottomAnchor.constraint(equalTo: containerView.bottomAnchor)
+            vcViewTrailing,
+            vcViewBottom
         ])
         currentVC = vc
     }
@@ -439,12 +500,21 @@ final class QATestResultsController: NSViewController {
         stack.translatesAutoresizingMaskIntoConstraints = false
         scroll.documentView = stack
 
+        let scrollTrailing = scroll.trailingAnchor.constraint(equalTo: v.trailingAnchor)
+        scrollTrailing.priority = NSLayoutConstraint.Priority(999)
+
+        let stackWidth = stack.widthAnchor.constraint(equalTo: scroll.widthAnchor)
+        stackWidth.priority = NSLayoutConstraint.Priority(999)
+
+        let scrollBottom = scroll.bottomAnchor.constraint(equalTo: v.bottomAnchor)
+        scrollBottom.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             scroll.topAnchor.constraint(equalTo: v.topAnchor),
             scroll.leadingAnchor.constraint(equalTo: v.leadingAnchor),
-            scroll.trailingAnchor.constraint(equalTo: v.trailingAnchor),
-            scroll.bottomAnchor.constraint(equalTo: v.bottomAnchor),
-            stack.widthAnchor.constraint(equalTo: scroll.widthAnchor)
+            scrollTrailing,
+            scrollBottom,
+            stackWidth
         ])
 
         let results: [(String, Bool, String)] = [
@@ -505,10 +575,13 @@ final class QATestReportController: NSViewController {
         stack.edgeInsets  = NSEdgeInsets(top: 24, left: 24, bottom: 24, right: 24)
         stack.translatesAutoresizingMaskIntoConstraints = false
         v.addSubview(stack)
+        let stackTrailing = stack.trailingAnchor.constraint(equalTo: v.trailingAnchor)
+        stackTrailing.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: v.topAnchor),
             stack.leadingAnchor.constraint(equalTo: v.leadingAnchor),
-            stack.trailingAnchor.constraint(equalTo: v.trailingAnchor)
+            stackTrailing
         ])
 
         let stats = NSStackView()
@@ -573,14 +646,20 @@ final class QATestReportController: NSViewController {
         p.font = .systemFont(ofSize: 12); p.textColor = color
         p.translatesAutoresizingMaskIntoConstraints = false; row.addSubview(p)
 
+        let barTrailing = bar.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -40)
+        barTrailing.priority = NSLayoutConstraint.Priority(999)
+
+        let pTrailing = p.trailingAnchor.constraint(equalTo: row.trailingAnchor)
+        pTrailing.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             l.leadingAnchor.constraint(equalTo: row.leadingAnchor),
             l.centerYAnchor.constraint(equalTo: row.centerYAnchor),
             bar.leadingAnchor.constraint(equalTo: row.leadingAnchor, constant: 80),
-            bar.trailingAnchor.constraint(equalTo: row.trailingAnchor, constant: -40),
+            barTrailing,
             bar.centerYAnchor.constraint(equalTo: row.centerYAnchor),
             bar.heightAnchor.constraint(equalToConstant: 8),
-            p.trailingAnchor.constraint(equalTo: row.trailingAnchor),
+            pTrailing,
             p.centerYAnchor.constraint(equalTo: row.centerYAnchor)
         ])
         return row
@@ -617,14 +696,23 @@ final class MessageFlowViewController: NSViewController {
         stack.translatesAutoresizingMaskIntoConstraints = false
         scroll.documentView = stack
 
+        let scrollTrailing = scroll.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        scrollTrailing.priority = NSLayoutConstraint.Priority(999)
+
+        let scrollBottom = scroll.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        scrollBottom.priority = NSLayoutConstraint.Priority(999)
+
+        let stackWidth = stack.widthAnchor.constraint(equalTo: scroll.widthAnchor)
+        stackWidth.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             title.topAnchor.constraint(equalTo: view.topAnchor, constant: 16),
             title.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
             scroll.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 16),
             scroll.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            scroll.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scroll.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            stack.widthAnchor.constraint(equalTo: scroll.widthAnchor)
+            scrollTrailing,
+            scrollBottom,
+            stackWidth
         ])
 
         for agent in MockData.agents {
@@ -656,16 +744,22 @@ final class MessageFlowViewController: NSViewController {
         content.maximumNumberOfLines = 0
         content.translatesAutoresizingMaskIntoConstraints = false; bubble.addSubview(content)
 
+        let bubbleTrailing = bubble.trailingAnchor.constraint(equalTo: v.trailingAnchor)
+        bubbleTrailing.priority = NSLayoutConstraint.Priority(999)
+
+        let contentTrailing = content.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -12)
+        contentTrailing.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             name.topAnchor.constraint(equalTo: v.topAnchor),
             name.leadingAnchor.constraint(equalTo: v.leadingAnchor),
             bubble.topAnchor.constraint(equalTo: name.bottomAnchor, constant: 6),
             bubble.leadingAnchor.constraint(equalTo: v.leadingAnchor),
-            bubble.trailingAnchor.constraint(equalTo: v.trailingAnchor),
+            bubbleTrailing,
             bubble.bottomAnchor.constraint(equalTo: v.bottomAnchor),
             content.topAnchor.constraint(equalTo: bubble.topAnchor, constant: 10),
             content.leadingAnchor.constraint(equalTo: bubble.leadingAnchor, constant: 12),
-            content.trailingAnchor.constraint(equalTo: bubble.trailingAnchor, constant: -12),
+            contentTrailing,
             content.bottomAnchor.constraint(equalTo: bubble.bottomAnchor, constant: -10)
         ])
         return v
@@ -698,10 +792,13 @@ final class AIConfigViewController: NSViewController {
         split.addArrangedSubview(left)
         split.addArrangedSubview(rightArea)
 
+        let splitTrailing = split.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        splitTrailing.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             split.topAnchor.constraint(equalTo: view.topAnchor),
             split.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            split.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            splitTrailing,
             split.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             left.widthAnchor.constraint(equalToConstant: 260)
         ])
@@ -723,14 +820,20 @@ final class AIConfigViewController: NSViewController {
         listStack.translatesAutoresizingMaskIntoConstraints = false
         scroll.documentView = listStack
 
+        let scrollTrailing = scroll.trailingAnchor.constraint(equalTo: left.trailingAnchor)
+        scrollTrailing.priority = NSLayoutConstraint.Priority(999)
+
+        let listStackWidth = listStack.widthAnchor.constraint(equalTo: scroll.widthAnchor)
+        listStackWidth.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             title.topAnchor.constraint(equalTo: left.topAnchor, constant: 16),
             title.leadingAnchor.constraint(equalTo: left.leadingAnchor, constant: 14),
             scroll.topAnchor.constraint(equalTo: left.topAnchor, constant: 50),
             scroll.leadingAnchor.constraint(equalTo: left.leadingAnchor),
-            scroll.trailingAnchor.constraint(equalTo: left.trailingAnchor),
+            scrollTrailing,
             scroll.bottomAnchor.constraint(equalTo: left.bottomAnchor),
-            listStack.widthAnchor.constraint(equalTo: scroll.widthAnchor)
+            listStackWidth
         ])
 
         updateList()
@@ -800,20 +903,29 @@ final class AIConfigViewController: NSViewController {
         saveBtn.bezelStyle = .rounded
         form.addArrangedSubview(saveBtn)
 
+        let headerTrailing = header.trailingAnchor.constraint(equalTo: rightArea.trailingAnchor)
+        headerTrailing.priority = NSLayoutConstraint.Priority(999)
+
+        let borderTrailing = border.trailingAnchor.constraint(equalTo: rightArea.trailingAnchor)
+        borderTrailing.priority = NSLayoutConstraint.Priority(999)
+
+        let formTrailing = form.trailingAnchor.constraint(equalTo: rightArea.trailingAnchor)
+        formTrailing.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             header.topAnchor.constraint(equalTo: rightArea.topAnchor),
             header.leadingAnchor.constraint(equalTo: rightArea.leadingAnchor),
-            header.trailingAnchor.constraint(equalTo: rightArea.trailingAnchor),
+            headerTrailing,
             header.heightAnchor.constraint(equalToConstant: 52),
             headerTitle.centerYAnchor.constraint(equalTo: header.centerYAnchor),
             headerTitle.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 16),
             border.topAnchor.constraint(equalTo: header.bottomAnchor),
             border.leadingAnchor.constraint(equalTo: rightArea.leadingAnchor),
-            border.trailingAnchor.constraint(equalTo: rightArea.trailingAnchor),
+            borderTrailing,
             border.heightAnchor.constraint(equalToConstant: 1),
             form.topAnchor.constraint(equalTo: border.bottomAnchor),
             form.leadingAnchor.constraint(equalTo: rightArea.leadingAnchor),
-            form.trailingAnchor.constraint(equalTo: rightArea.trailingAnchor)
+            formTrailing
         ])
     }
 
@@ -902,10 +1014,13 @@ func makeRoleHeader(emoji: String, name: String, subtitle: String, gradColors: [
     sub.font = .systemFont(ofSize: 11); sub.textColor = .consoleText2
     sub.translatesAutoresizingMaskIntoConstraints = false; header.addSubview(sub)
 
+    let borderTrailing = border.trailingAnchor.constraint(equalTo: header.trailingAnchor)
+    borderTrailing.priority = NSLayoutConstraint.Priority(999)
+
     NSLayoutConstraint.activate([
         border.bottomAnchor.constraint(equalTo: header.bottomAnchor),
         border.leadingAnchor.constraint(equalTo: header.leadingAnchor),
-        border.trailingAnchor.constraint(equalTo: header.trailingAnchor),
+        borderTrailing,
         border.heightAnchor.constraint(equalToConstant: 1),
         avatar.centerYAnchor.constraint(equalTo: header.centerYAnchor),
         avatar.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 14),
@@ -934,12 +1049,15 @@ func makeTabBar(containing control: NSSegmentedControl) -> NSView {
     bar.addSubview(border)
     bar.addSubview(control)
 
+    let borderTrailing = border.trailingAnchor.constraint(equalTo: bar.trailingAnchor)
+    borderTrailing.priority = NSLayoutConstraint.Priority(999)
+
     NSLayoutConstraint.activate([
         control.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
         control.leadingAnchor.constraint(equalTo: bar.leadingAnchor, constant: 14),
         border.bottomAnchor.constraint(equalTo: bar.bottomAnchor),
         border.leadingAnchor.constraint(equalTo: bar.leadingAnchor),
-        border.trailingAnchor.constraint(equalTo: bar.trailingAnchor),
+        borderTrailing,
         border.heightAnchor.constraint(equalToConstant: 1)
     ])
     return bar

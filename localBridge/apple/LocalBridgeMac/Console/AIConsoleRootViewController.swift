@@ -74,10 +74,13 @@ final class AIConsoleRootViewController: NSViewController {
             splitView.addArrangedSubview($0.view)
         }
 
+        let splitTrailing = splitView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        splitTrailing.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             splitView.topAnchor.constraint(equalTo: view.topAnchor),
             splitView.leadingAnchor.constraint(equalTo: navVC.view.trailingAnchor),
-            splitView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            splitTrailing,
             splitView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
     }

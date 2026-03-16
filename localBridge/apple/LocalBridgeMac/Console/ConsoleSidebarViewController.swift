@@ -33,9 +33,11 @@ final class ConsoleSidebarViewController: NSViewController {
         border.layer?.backgroundColor = NSColor.consoleZ800.cgColor
         border.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(border)
+        let borderTrailing = border.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        borderTrailing.priority = NSLayoutConstraint.Priority(999)
         NSLayoutConstraint.activate([
             border.topAnchor.constraint(equalTo: view.topAnchor),
-            border.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            borderTrailing,
             border.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             border.widthAnchor.constraint(equalToConstant: 1)
         ])
@@ -65,6 +67,9 @@ final class ConsoleSidebarViewController: NSViewController {
         view.addSubview(subtitleLabel)
         view.addSubview(addBtn)
 
+        let btnTrailing = addBtn.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12)
+        btnTrailing.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             titleLabel.topAnchor.constraint(equalTo: view.topAnchor, constant: 14),
             titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
@@ -74,7 +79,7 @@ final class ConsoleSidebarViewController: NSViewController {
             subtitleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
 
             addBtn.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
-            addBtn.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
+            btnTrailing,
             addBtn.widthAnchor.constraint(equalToConstant: 24),
             addBtn.heightAnchor.constraint(equalToConstant: 24)
         ])
@@ -84,10 +89,12 @@ final class ConsoleSidebarViewController: NSViewController {
         border.layer?.backgroundColor = NSColor.consoleZ800.cgColor
         border.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(border)
+        let headerBorderTrailing = border.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        headerBorderTrailing.priority = NSLayoutConstraint.Priority(999)
         NSLayoutConstraint.activate([
             border.topAnchor.constraint(equalTo: view.topAnchor, constant: 64),
             border.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            border.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            headerBorderTrailing,
             border.heightAnchor.constraint(equalToConstant: 1)
         ])
     }
@@ -105,14 +112,23 @@ final class ConsoleSidebarViewController: NSViewController {
         stackView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.documentView = stackView
 
+        let scrollTrailing = scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor)
+        scrollTrailing.priority = NSLayoutConstraint.Priority(999)
+
+        let stackTrailing = stackView.trailingAnchor.constraint(equalTo: scrollView.contentView.trailingAnchor)
+        stackTrailing.priority = NSLayoutConstraint.Priority(999)
+
+        let scrollBottom = scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        scrollBottom.priority = NSLayoutConstraint.Priority(999)
+
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: view.topAnchor, constant: 65),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            scrollTrailing,
+            scrollBottom,
             stackView.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor),
             stackView.leadingAnchor.constraint(equalTo: scrollView.contentView.leadingAnchor),
-            stackView.trailingAnchor.constraint(equalTo: scrollView.contentView.trailingAnchor)
+            stackTrailing
         ])
     }
 
