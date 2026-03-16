@@ -2,7 +2,7 @@ import AppKit
 
 // MARK: - PM Workspace
 
-final class PMWorkspaceViewController: NSViewController {
+final class PMWorkspaceViewController: NSViewController, NSSplitViewDelegate {
     private let splitView  = NSSplitView()
     private let taskListVC = PMTaskListViewController()
     private var chatVC: ConsoleChatViewController?
@@ -20,6 +20,7 @@ final class PMWorkspaceViewController: NSViewController {
 
         splitView.isVertical   = true
         splitView.dividerStyle = .thin
+        splitView.delegate     = self
         splitView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(splitView)
 
@@ -34,9 +35,28 @@ final class PMWorkspaceViewController: NSViewController {
             splitView.topAnchor.constraint(equalTo: view.topAnchor),
             splitView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             splitView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            splitView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            taskListVC.view.widthAnchor.constraint(equalToConstant: 320)
+            splitView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
+
+        // 初始宽度 240（可拖动）
+        DispatchQueue.main.async { [weak self] in
+            self?.splitView.setPosition(240, ofDividerAt: 0)
+        }
+    }
+
+    // MARK: NSSplitViewDelegate — 控制任务列表拖动范围
+
+    func splitView(_ splitView: NSSplitView, constrainMinCoordinate proposedMin: CGFloat, ofSubviewAt index: Int) -> CGFloat {
+        return 160   // 任务列表最小 160
+    }
+
+    func splitView(_ splitView: NSSplitView, constrainMaxCoordinate proposedMax: CGFloat, ofSubviewAt index: Int) -> CGFloat {
+        return min(splitView.frame.width * 0.45, 380)  // 任务列表最大 45% 或 380
+    }
+
+    func splitView(_ splitView: NSSplitView, effectiveRect proposedEffectiveRect: NSRect,
+                   forDrawnRect drawnRect: NSRect, ofDividerAt dividerIndex: Int) -> NSRect {
+        return proposedEffectiveRect.insetBy(dx: -3, dy: 0)
     }
 }
 
@@ -53,13 +73,13 @@ final class PMTaskListViewController: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        let title    = NSTextField(labelWithString: "任务总览")
-        title.font      = .systemFont(ofSize: 16, weight: .semibold)
+        let title = NSTextField(labelWithString: "任务总览")
+        title.font      = .systemFont(ofSize: 14, weight: .semibold)
         title.textColor = .consoleText
         title.translatesAutoresizingMaskIntoConstraints = false
 
         let subtitle = NSTextField(labelWithString: "共 \(MockData.tasks.count) 个任务")
-        subtitle.font      = .systemFont(ofSize: 14)
+        subtitle.font      = .systemFont(ofSize: 12)
         subtitle.textColor = .consoleText2
         subtitle.translatesAutoresizingMaskIntoConstraints = false
 
@@ -79,17 +99,17 @@ final class PMTaskListViewController: NSViewController {
 
         let stack = NSStackView()
         stack.orientation = .vertical
-        stack.spacing     = 12
-        stack.edgeInsets  = NSEdgeInsets(top: 16, left: 16, bottom: 16, right: 16)
+        stack.spacing     = 10
+        stack.edgeInsets  = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
         stack.translatesAutoresizingMaskIntoConstraints = false
         scroll.documentView = stack
 
         NSLayoutConstraint.activate([
-            title.topAnchor.constraint(equalTo: view.topAnchor, constant: 16),
-            title.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            subtitle.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 4),
-            subtitle.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            border.topAnchor.constraint(equalTo: view.topAnchor, constant: 60),
+            title.topAnchor.constraint(equalTo: view.topAnchor, constant: 14),
+            title.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
+            subtitle.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 2),
+            subtitle.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
+            border.topAnchor.constraint(equalTo: view.topAnchor, constant: 56),
             border.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             border.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             border.heightAnchor.constraint(equalToConstant: 1),
@@ -116,24 +136,25 @@ final class PMTaskListViewController: NSViewController {
         card.layer?.backgroundColor = NSColor.consoleZ900.withAlphaComponent(0.5).cgColor
         card.layer?.borderColor     = NSColor.consoleZ800.cgColor
         card.layer?.borderWidth     = 1
-        card.heightAnchor.constraint(equalToConstant: 100).isActive = true
+        card.heightAnchor.constraint(equalToConstant: 88).isActive = true
 
         let title = NSTextField(labelWithString: task.title)
-        title.font                 = .systemFont(ofSize: 14, weight: .semibold)
+        title.font                 = .systemFont(ofSize: 13, weight: .semibold)
         title.textColor            = .consoleText
         title.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(title)
 
         let desc = NSTextField(labelWithString: task.description)
-        desc.font                 = .systemFont(ofSize: 12)
+        desc.font                 = .systemFont(ofSize: 11)
         desc.textColor            = .consoleText2
         desc.maximumNumberOfLines = 2
         desc.translatesAutoresizingMaskIntoConstraints = false
         card.addSubview(desc)
 
         NSLayoutConstraint.activate([
-            title.topAnchor.constraint(equalTo: card.topAnchor, constant: 12),
+            title.topAnchor.constraint(equalTo: card.topAnchor, constant: 10),
             title.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 12),
+            title.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -12),
             desc.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 4),
             desc.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 12),
             desc.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -12)
@@ -171,7 +192,7 @@ final class DevWorkspaceViewController: NSViewController {
             header.topAnchor.constraint(equalTo: view.topAnchor),
             header.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             header.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            header.heightAnchor.constraint(equalToConstant: 72)
+            header.heightAnchor.constraint(equalToConstant: 60)
         ])
     }
 
@@ -191,10 +212,10 @@ final class DevWorkspaceViewController: NSViewController {
         view.addSubview(containerView)
 
         NSLayoutConstraint.activate([
-            bar.topAnchor.constraint(equalTo: view.topAnchor, constant: 72),
+            bar.topAnchor.constraint(equalTo: view.topAnchor, constant: 60),
             bar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             bar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            bar.heightAnchor.constraint(equalToConstant: 44),
+            bar.heightAnchor.constraint(equalToConstant: 40),
             containerView.topAnchor.constraint(equalTo: bar.bottomAnchor),
             containerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             containerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -347,7 +368,7 @@ final class QAWorkspaceViewController: NSViewController {
             header.topAnchor.constraint(equalTo: view.topAnchor),
             header.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             header.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            header.heightAnchor.constraint(equalToConstant: 72)
+            header.heightAnchor.constraint(equalToConstant: 60)
         ])
     }
 
@@ -367,10 +388,10 @@ final class QAWorkspaceViewController: NSViewController {
         view.addSubview(containerView)
 
         NSLayoutConstraint.activate([
-            bar.topAnchor.constraint(equalTo: view.topAnchor, constant: 72),
+            bar.topAnchor.constraint(equalTo: view.topAnchor, constant: 60),
             bar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             bar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            bar.heightAnchor.constraint(equalToConstant: 44),
+            bar.heightAnchor.constraint(equalToConstant: 40),
             containerView.topAnchor.constraint(equalTo: bar.bottomAnchor),
             containerView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             containerView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -497,7 +518,6 @@ final class QATestReportController: NSViewController {
             stack.trailingAnchor.constraint(equalTo: v.trailingAnchor)
         ])
 
-        // Stats grid
         let stats = NSStackView()
         stats.distribution = .fillEqually
         stats.spacing      = 16
@@ -703,11 +723,11 @@ final class AIConfigViewController: NSViewController {
             split.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             split.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             split.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            left.widthAnchor.constraint(equalToConstant: 320)
+            left.widthAnchor.constraint(equalToConstant: 280)
         ])
 
         let title = NSTextField(labelWithString: "AI 配置中心")
-        title.font = .systemFont(ofSize: 16, weight: .semibold)
+        title.font = .systemFont(ofSize: 14, weight: .semibold)
         title.translatesAutoresizingMaskIntoConstraints = false
         left.addSubview(title)
 
@@ -717,15 +737,15 @@ final class AIConfigViewController: NSViewController {
         left.addSubview(scroll)
 
         listStack.orientation = .vertical
-        listStack.spacing     = 10
-        listStack.edgeInsets  = NSEdgeInsets(top: 0, left: 16, bottom: 20, right: 16)
+        listStack.spacing     = 8
+        listStack.edgeInsets  = NSEdgeInsets(top: 0, left: 12, bottom: 16, right: 12)
         listStack.translatesAutoresizingMaskIntoConstraints = false
         scroll.documentView = listStack
 
         NSLayoutConstraint.activate([
-            title.topAnchor.constraint(equalTo: left.topAnchor, constant: 20),
-            title.leadingAnchor.constraint(equalTo: left.leadingAnchor, constant: 16),
-            scroll.topAnchor.constraint(equalTo: left.topAnchor, constant: 60),
+            title.topAnchor.constraint(equalTo: left.topAnchor, constant: 16),
+            title.leadingAnchor.constraint(equalTo: left.leadingAnchor, constant: 14),
+            scroll.topAnchor.constraint(equalTo: left.topAnchor, constant: 52),
             scroll.leadingAnchor.constraint(equalTo: left.leadingAnchor),
             scroll.trailingAnchor.constraint(equalTo: left.trailingAnchor),
             scroll.bottomAnchor.constraint(equalTo: left.bottomAnchor),
@@ -741,7 +761,7 @@ final class AIConfigViewController: NSViewController {
         for agent in MockData.agents {
             let card = ConsoleAICard(agent: agent)
             card.isSelected = agent.id == selectedAgentId
-            card.heightAnchor.constraint(equalToConstant: 76).isActive = true
+            card.heightAnchor.constraint(equalToConstant: 68).isActive = true
             card.onTap = { [weak self] in
                 self?.selectedAgentId = agent.id
                 self?.updateList()
@@ -805,7 +825,7 @@ final class AIConfigViewController: NSViewController {
             header.topAnchor.constraint(equalTo: rightArea.topAnchor),
             header.leadingAnchor.constraint(equalTo: rightArea.leadingAnchor),
             header.trailingAnchor.constraint(equalTo: rightArea.trailingAnchor),
-            header.heightAnchor.constraint(equalToConstant: 60),
+            header.heightAnchor.constraint(equalToConstant: 56),
             headerTitle.centerYAnchor.constraint(equalTo: header.centerYAnchor),
             headerTitle.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 16),
             border.topAnchor.constraint(equalTo: header.bottomAnchor),
@@ -868,51 +888,66 @@ final class AIConfigViewController: NSViewController {
     }
 }
 
-// MARK: - Shared Helpers (private free functions)
+// MARK: - Shared Helpers
 
-/// 创建通用角色 Header 视图，返回一个高度 72 pt 的 NSView（需要外部添加约束）
+/// 创建通用角色 Header 视图（高度由外部约束指定）
 func makeRoleHeader(emoji: String, name: String, subtitle: String, gradColors: [NSColor]) -> NSView {
     let header = NSView()
     header.translatesAutoresizingMaskIntoConstraints = false
+    header.wantsLayer = true
+    header.layer?.backgroundColor = NSColor.consoleZ950.cgColor
+
+    // 底部分割线
+    let border = NSView()
+    border.wantsLayer = true
+    border.layer?.backgroundColor = NSColor.consoleZ800.cgColor
+    border.translatesAutoresizingMaskIntoConstraints = false
+    header.addSubview(border)
 
     let avatar = NSView()
     avatar.wantsLayer = true
-    avatar.layer?.cornerRadius = 8
+    avatar.layer?.cornerRadius = 7
     avatar.translatesAutoresizingMaskIntoConstraints = false
     let grad = CAGradientLayer()
-    grad.colors      = gradColors.map { $0.withAlphaComponent(0.2).cgColor }
-    grad.frame        = CGRect(x: 0, y: 0, width: 40, height: 40)
-    grad.cornerRadius = 8
+    grad.colors      = gradColors.map { $0.withAlphaComponent(0.25).cgColor }
+    grad.frame        = CGRect(x: 0, y: 0, width: 36, height: 36)
+    grad.cornerRadius = 7
     avatar.layer?.addSublayer(grad)
 
     let emojiLbl = NSTextField(labelWithString: emoji)
+    emojiLbl.font = .systemFont(ofSize: 18)
     emojiLbl.translatesAutoresizingMaskIntoConstraints = false
     avatar.addSubview(emojiLbl)
     header.addSubview(avatar)
 
     let nameLbl = NSTextField(labelWithString: name)
-    nameLbl.font      = .systemFont(ofSize: 14, weight: .semibold)
+    nameLbl.font      = .systemFont(ofSize: 13, weight: .semibold)
     nameLbl.textColor = .consoleText
     nameLbl.translatesAutoresizingMaskIntoConstraints = false
     header.addSubview(nameLbl)
 
     let sub = NSTextField(labelWithString: subtitle)
-    sub.font      = .systemFont(ofSize: 12)
+    sub.font      = .systemFont(ofSize: 11)
     sub.textColor = .consoleText2
     sub.translatesAutoresizingMaskIntoConstraints = false
     header.addSubview(sub)
 
     NSLayoutConstraint.activate([
+        border.bottomAnchor.constraint(equalTo: header.bottomAnchor),
+        border.leadingAnchor.constraint(equalTo: header.leadingAnchor),
+        border.trailingAnchor.constraint(equalTo: header.trailingAnchor),
+        border.heightAnchor.constraint(equalToConstant: 1),
+
         avatar.centerYAnchor.constraint(equalTo: header.centerYAnchor),
-        avatar.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 16),
-        avatar.widthAnchor.constraint(equalToConstant: 40),
-        avatar.heightAnchor.constraint(equalToConstant: 40),
+        avatar.leadingAnchor.constraint(equalTo: header.leadingAnchor, constant: 14),
+        avatar.widthAnchor.constraint(equalToConstant: 36),
+        avatar.heightAnchor.constraint(equalToConstant: 36),
         emojiLbl.centerXAnchor.constraint(equalTo: avatar.centerXAnchor),
         emojiLbl.centerYAnchor.constraint(equalTo: avatar.centerYAnchor),
-        nameLbl.topAnchor.constraint(equalTo: avatar.topAnchor),
-        nameLbl.leadingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: 12),
-        sub.bottomAnchor.constraint(equalTo: avatar.bottomAnchor),
-        sub.leadingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: 12)
+        nameLbl.topAnchor.constraint(equalTo: avatar.topAnchor, constant: 2),
+        nameLbl.leadingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: 10),
+        sub.bottomAnchor.constraint(equalTo: avatar.bottomAnchor, constant: -1),
+        sub.leadingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: 10)
     ])
     return header
 }
@@ -921,13 +956,23 @@ func makeRoleHeader(emoji: String, name: String, subtitle: String, gradColors: [
 func makeTabBar(containing control: NSSegmentedControl) -> NSView {
     let bar = NSView()
     bar.wantsLayer = true
-    bar.layer?.backgroundColor = NSColor.consoleZ900.cgColor
+    bar.layer?.backgroundColor = NSColor.consoleZ900.withAlphaComponent(0.8).cgColor
     bar.translatesAutoresizingMaskIntoConstraints = false
+
+    let border = NSView()
+    border.wantsLayer = true
+    border.layer?.backgroundColor = NSColor.consoleZ800.cgColor
+    border.translatesAutoresizingMaskIntoConstraints = false
+    bar.addSubview(border)
     bar.addSubview(control)
 
     NSLayoutConstraint.activate([
         control.centerYAnchor.constraint(equalTo: bar.centerYAnchor),
-        control.leadingAnchor.constraint(equalTo: bar.leadingAnchor, constant: 16)
+        control.leadingAnchor.constraint(equalTo: bar.leadingAnchor, constant: 14),
+        border.bottomAnchor.constraint(equalTo: bar.bottomAnchor),
+        border.leadingAnchor.constraint(equalTo: bar.leadingAnchor),
+        border.trailingAnchor.constraint(equalTo: bar.trailingAnchor),
+        border.heightAnchor.constraint(equalToConstant: 1)
     ])
     return bar
 }

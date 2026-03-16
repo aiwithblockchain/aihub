@@ -39,11 +39,12 @@ final class AIConsoleWindowController: NSWindowController {
         window.title = "AI 融合器"
 
         let screenFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
-        let targetWidth  = min(screenFrame.width  * 0.9, 1280)
-        let targetHeight = min(screenFrame.height * 0.9, 880)
+        // 目标比例：参考截图1，宽高约 1280×820，尽量接近 IDE 比例
+        let targetWidth  = min(screenFrame.width  * 0.88, 1280)
+        let targetHeight = min(screenFrame.height * 0.88, 820)
 
         window.setContentSize(NSSize(width: targetWidth, height: targetHeight))
-        window.minSize = NSSize(width: 900, height: 600)
+        window.minSize = NSSize(width: 800, height: 560)
         window.center()
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.isReleasedWhenClosed = false

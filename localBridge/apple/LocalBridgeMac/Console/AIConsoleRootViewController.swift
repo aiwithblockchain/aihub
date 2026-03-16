@@ -12,8 +12,8 @@ final class AIConsoleRootViewController: NSViewController {
     private let sidebarToggleBtn  = NSButton()
     private let activityToggleBtn = NSButton()
 
-    private var lastSidebarWidth:  CGFloat = 260
-    private var lastActivityWidth: CGFloat = 300
+    private var lastSidebarWidth:  CGFloat = 220
+    private var lastActivityWidth: CGFloat = 260
 
     // MARK: View Lifecycle
 
@@ -43,7 +43,7 @@ final class AIConsoleRootViewController: NSViewController {
             navVC.view.topAnchor.constraint(equalTo: view.topAnchor),
             navVC.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             navVC.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            navVC.view.widthAnchor.constraint(equalToConstant: 60)
+            navVC.view.widthAnchor.constraint(equalToConstant: 48)
         ])
     }
 
@@ -66,18 +66,19 @@ final class AIConsoleRootViewController: NSViewController {
             splitView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
 
-        splitView.setPosition(260, ofDividerAt: 0)
+        // 侧边栏 220，右侧活动面板 260
+        splitView.setPosition(220, ofDividerAt: 0)
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
             let totalWidth = self.splitView.frame.width
-            self.splitView.setPosition(totalWidth - 300, ofDividerAt: 1)
+            self.splitView.setPosition(totalWidth - 260, ofDividerAt: 1)
         }
     }
 
     private func setupToggleButtons() {
         [sidebarToggleBtn, activityToggleBtn].forEach { btn in
             btn.wantsLayer = true
-            btn.layer?.cornerRadius = 16
+            btn.layer?.cornerRadius = 12
             btn.layer?.backgroundColor = NSColor.consoleZ800.cgColor
             btn.layer?.borderColor = NSColor.consoleZ700.cgColor
             btn.layer?.borderWidth = 1
@@ -88,23 +89,25 @@ final class AIConsoleRootViewController: NSViewController {
         }
 
         sidebarToggleBtn.image = NSImage(systemSymbolName: "chevron.left", accessibilityDescription: nil)
+        sidebarToggleBtn.contentTintColor = .consoleText3
         sidebarToggleBtn.target = self
         sidebarToggleBtn.action = #selector(toggleSidebar)
 
         activityToggleBtn.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil)
+        activityToggleBtn.contentTintColor = .consoleText3
         activityToggleBtn.target = self
         activityToggleBtn.action = #selector(toggleActivity)
 
         NSLayoutConstraint.activate([
-            sidebarToggleBtn.topAnchor.constraint(equalTo: view.topAnchor, constant: 16),
-            sidebarToggleBtn.leadingAnchor.constraint(equalTo: sidebarVC.view.trailingAnchor, constant: -16),
-            sidebarToggleBtn.widthAnchor.constraint(equalToConstant: 32),
-            sidebarToggleBtn.heightAnchor.constraint(equalToConstant: 32),
+            sidebarToggleBtn.topAnchor.constraint(equalTo: view.topAnchor, constant: 14),
+            sidebarToggleBtn.leadingAnchor.constraint(equalTo: sidebarVC.view.trailingAnchor, constant: -14),
+            sidebarToggleBtn.widthAnchor.constraint(equalToConstant: 24),
+            sidebarToggleBtn.heightAnchor.constraint(equalToConstant: 24),
 
-            activityToggleBtn.topAnchor.constraint(equalTo: view.topAnchor, constant: 16),
-            activityToggleBtn.trailingAnchor.constraint(equalTo: activityVC.view.leadingAnchor, constant: 16),
-            activityToggleBtn.widthAnchor.constraint(equalToConstant: 32),
-            activityToggleBtn.heightAnchor.constraint(equalToConstant: 32)
+            activityToggleBtn.topAnchor.constraint(equalTo: view.topAnchor, constant: 14),
+            activityToggleBtn.trailingAnchor.constraint(equalTo: activityVC.view.leadingAnchor, constant: 14),
+            activityToggleBtn.widthAnchor.constraint(equalToConstant: 24),
+            activityToggleBtn.heightAnchor.constraint(equalToConstant: 24)
         ])
     }
 
@@ -115,7 +118,7 @@ final class AIConsoleRootViewController: NSViewController {
         if !isCollapsed { lastSidebarWidth = sidebarVC.view.frame.width }
 
         NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.25
+            ctx.duration = 0.22
             ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             sidebarVC.view.isHidden = !isCollapsed
             let icon = !isCollapsed ? "chevron.right" : "chevron.left"
@@ -129,7 +132,7 @@ final class AIConsoleRootViewController: NSViewController {
         if !isCollapsed { lastActivityWidth = activityVC.view.frame.width }
 
         NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.25
+            ctx.duration = 0.22
             ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
             activityVC.view.isHidden = !isCollapsed
             let icon = !isCollapsed ? "chevron.left" : "chevron.right"
@@ -142,14 +145,19 @@ final class AIConsoleRootViewController: NSViewController {
 // MARK: - NSSplitViewDelegate
 
 extension AIConsoleRootViewController: NSSplitViewDelegate {
+
     func splitView(_ splitView: NSSplitView, constrainMinCoordinate proposedMin: CGFloat, ofSubviewAt index: Int) -> CGFloat {
-        if index == 0 { return 180 }
+        // 侧边栏最小 160，中间区域左边界最小保证聊天区至少 320
+        if index == 0 { return 160 }
+        if index == 1 { return 160 + 320 }  // sidebar_min + workspace_min
         return proposedMin
     }
 
     func splitView(_ splitView: NSSplitView, constrainMaxCoordinate proposedMax: CGFloat, ofSubviewAt index: Int) -> CGFloat {
         let total = splitView.frame.width
-        if index == 0 { return total * 0.4 }
+        // 侧边栏最大不超过总宽 30%
+        if index == 0 { return min(total * 0.30, 320) }
+        // 中间+侧边栏最大，保证右侧活动面板至少 200
         if index == 1 { return total - 200 }
         return proposedMax
     }
@@ -160,7 +168,8 @@ extension AIConsoleRootViewController: NSSplitViewDelegate {
 
     func splitView(_ splitView: NSSplitView, effectiveRect proposedEffectiveRect: NSRect,
                    forDrawnRect drawnRect: NSRect, ofDividerAt dividerIndex: Int) -> NSRect {
-        return proposedEffectiveRect.insetBy(dx: -2, dy: 0)
+        // 加宽分割线点击区域，提升拖动手感
+        return proposedEffectiveRect.insetBy(dx: -3, dy: 0)
     }
 }
 

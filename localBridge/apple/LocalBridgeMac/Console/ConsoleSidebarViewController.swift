@@ -14,7 +14,7 @@ final class ConsoleSidebarViewController: NSViewController {
         view = NSView()
         view.translatesAutoresizingMaskIntoConstraints = false
         view.wantsLayer = true
-        view.layer?.backgroundColor = NSColor.consoleZ900.withAlphaComponent(0.5).cgColor
+        view.layer?.backgroundColor = NSColor.consoleZ900.withAlphaComponent(0.6).cgColor
 
         let border = NSView()
         border.wantsLayer = true
@@ -40,19 +40,20 @@ final class ConsoleSidebarViewController: NSViewController {
     // MARK: Header
 
     private func setupHeader() {
-        titleLabel.font = .systemFont(ofSize: 16, weight: .semibold)
+        titleLabel.font      = .systemFont(ofSize: 13, weight: .semibold)
         titleLabel.textColor = .consoleText
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        subtitleLabel.font = .systemFont(ofSize: 14)
+        subtitleLabel.font      = .systemFont(ofSize: 11)
         subtitleLabel.textColor = .consoleText2
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
 
         let addBtn = NSButton()
         addBtn.image = NSImage(systemSymbolName: "plus", accessibilityDescription: "增加")
-        addBtn.isBordered = false
-        addBtn.wantsLayer = true
-        addBtn.layer?.cornerRadius = 8
+        addBtn.contentTintColor = .consoleText2
+        addBtn.isBordered  = false
+        addBtn.wantsLayer  = true
+        addBtn.layer?.cornerRadius    = 6
         addBtn.layer?.backgroundColor = NSColor.consoleZ800.cgColor
         addBtn.translatesAutoresizingMaskIntoConstraints = false
 
@@ -61,23 +62,27 @@ final class ConsoleSidebarViewController: NSViewController {
         view.addSubview(addBtn)
 
         NSLayoutConstraint.activate([
-            titleLabel.topAnchor.constraint(equalTo: view.topAnchor, constant: 16),
-            titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 4),
-            subtitleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            addBtn.centerYAnchor.constraint(equalTo: titleLabel.bottomAnchor),
-            addBtn.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            addBtn.widthAnchor.constraint(equalToConstant: 32),
-            addBtn.heightAnchor.constraint(equalToConstant: 32)
+            titleLabel.topAnchor.constraint(equalTo: view.topAnchor, constant: 14),
+            titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
+            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: addBtn.leadingAnchor, constant: -8),
+
+            subtitleLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
+            subtitleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
+
+            addBtn.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
+            addBtn.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -12),
+            addBtn.widthAnchor.constraint(equalToConstant: 24),
+            addBtn.heightAnchor.constraint(equalToConstant: 24)
         ])
 
+        // 底部分割线
         let border = NSView()
         border.wantsLayer = true
         border.layer?.backgroundColor = NSColor.consoleZ800.cgColor
         border.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(border)
         NSLayoutConstraint.activate([
-            border.topAnchor.constraint(equalTo: view.topAnchor, constant: 80),
+            border.topAnchor.constraint(equalTo: view.topAnchor, constant: 64),
             border.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             border.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             border.heightAnchor.constraint(equalToConstant: 1)
@@ -92,13 +97,13 @@ final class ConsoleSidebarViewController: NSViewController {
         view.addSubview(scrollView)
 
         stackView.orientation = .vertical
-        stackView.spacing = 8
-        stackView.edgeInsets = NSEdgeInsets(top: 12, left: 8, bottom: 12, right: 8)
+        stackView.spacing     = 6
+        stackView.edgeInsets  = NSEdgeInsets(top: 10, left: 8, bottom: 10, right: 8)
         stackView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.documentView = stackView
 
         NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: view.topAnchor, constant: 81),
+            scrollView.topAnchor.constraint(equalTo: view.topAnchor, constant: 65),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
@@ -134,7 +139,7 @@ final class ConsoleSidebarViewController: NSViewController {
         for agent in filtered {
             let card = ConsoleAICard(agent: agent)
             card.translatesAutoresizingMaskIntoConstraints = false
-            card.heightAnchor.constraint(equalToConstant: 76).isActive = true
+            card.heightAnchor.constraint(equalToConstant: 68).isActive = true
             stackView.addArrangedSubview(card)
         }
     }

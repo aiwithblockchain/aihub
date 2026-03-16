@@ -7,6 +7,17 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2BB7653B2F6864AE00309F77 /* NSColor+Console.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB765392F6864AE00309F77 /* NSColor+Console.swift */; };
+		2BB7653C2F6864AE00309F77 /* ConsoleWorkspaceDetailViewControllers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB765372F6864AE00309F77 /* ConsoleWorkspaceDetailViewControllers.swift */; };
+		2BB7653D2F6864AE00309F77 /* ConsoleComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB765342F6864AE00309F77 /* ConsoleComponents.swift */; };
+		2BB7653E2F6864AE00309F77 /* ConsoleSidebarViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB765362F6864AE00309F77 /* ConsoleSidebarViewController.swift */; };
+		2BB7653F2F6864AE00309F77 /* AIConsoleWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB765322F6864AE00309F77 /* AIConsoleWindowController.swift */; };
+		2BB765402F6864AE00309F77 /* ConsoleChatViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB765332F6864AE00309F77 /* ConsoleChatViewController.swift */; };
+		2BB765412F6864AE00309F77 /* AIConsoleModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB765302F6864AE00309F77 /* AIConsoleModels.swift */; };
+		2BB765422F6864AE00309F77 /* AIConsoleRootViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB765312F6864AE00309F77 /* AIConsoleRootViewController.swift */; };
+		2BB765432F6864AE00309F77 /* ConsoleWorkspaceViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB765382F6864AE00309F77 /* ConsoleWorkspaceViewController.swift */; };
+		2BB765442F6864AE00309F77 /* ConsoleNavViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB765352F6864AE00309F77 /* ConsoleNavViewController.swift */; };
+		2BB765452F6864AE00309F77 /* AIConsoleMockData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB7652F2F6864AE00309F77 /* AIConsoleMockData.swift */; };
 		69B055D12F680B9C0076AC1D /* api_docs.json in Resources */ = {isa = PBXBuildFile; fileRef = 69B055D02F680B9C0076AC1D /* api_docs.json */; };
 		A10000000000000000000030 /* LocalBridgeiOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000022 /* LocalBridgeiOSApp.swift */; };
 		A10000000000000000000031 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000023 /* ContentView.swift */; };
@@ -17,17 +28,27 @@
 		A10000000000000000000036 /* SidebarViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000028 /* SidebarViewController.swift */; };
 		A10000000000000000000037 /* DetailViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000029 /* DetailViewController.swift */; };
 		A10000000000000000000038 /* Conversation.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002A /* Conversation.swift */; };
-		A1000000000000000000003B /* BridgeMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002D /* BridgeMessage.swift */; };
- 		A1000000000000000000003C /* LocalBridgeWebSocketServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002E /* LocalBridgeWebSocketServer.swift */; };
- 		A1000000000000000000003E /* SettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002F /* SettingsViewController.swift */; };
- 		A1000000000000000000003F /* TweetClawTabControllers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000046 /* TweetClawTabControllers.swift */; };
- 		A10000000000000000000047 /* AIClawTabControllers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000048 /* AIClawTabControllers.swift */; };
- 		A1000000000000000000004A /* AIConsoleWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000049 /* AIConsoleWindowController.swift */; };
- 		A10000000000000000000039 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002B /* Assets.xcassets */; };
+		A10000000000000000000039 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002B /* Assets.xcassets */; };
 		A1000000000000000000003A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002C /* Assets.xcassets */; };
+		A1000000000000000000003B /* BridgeMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002D /* BridgeMessage.swift */; };
+		A1000000000000000000003C /* LocalBridgeWebSocketServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002E /* LocalBridgeWebSocketServer.swift */; };
+		A1000000000000000000003E /* SettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002F /* SettingsViewController.swift */; };
+		A1000000000000000000003F /* TweetClawTabControllers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000046 /* TweetClawTabControllers.swift */; };
+		A10000000000000000000047 /* AIClawTabControllers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000048 /* AIClawTabControllers.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		2BB7652F2F6864AE00309F77 /* AIConsoleMockData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConsoleMockData.swift; sourceTree = "<group>"; };
+		2BB765302F6864AE00309F77 /* AIConsoleModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConsoleModels.swift; sourceTree = "<group>"; };
+		2BB765312F6864AE00309F77 /* AIConsoleRootViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConsoleRootViewController.swift; sourceTree = "<group>"; };
+		2BB765322F6864AE00309F77 /* AIConsoleWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConsoleWindowController.swift; sourceTree = "<group>"; };
+		2BB765332F6864AE00309F77 /* ConsoleChatViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsoleChatViewController.swift; sourceTree = "<group>"; };
+		2BB765342F6864AE00309F77 /* ConsoleComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsoleComponents.swift; sourceTree = "<group>"; };
+		2BB765352F6864AE00309F77 /* ConsoleNavViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsoleNavViewController.swift; sourceTree = "<group>"; };
+		2BB765362F6864AE00309F77 /* ConsoleSidebarViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsoleSidebarViewController.swift; sourceTree = "<group>"; };
+		2BB765372F6864AE00309F77 /* ConsoleWorkspaceDetailViewControllers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsoleWorkspaceDetailViewControllers.swift; sourceTree = "<group>"; };
+		2BB765382F6864AE00309F77 /* ConsoleWorkspaceViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsoleWorkspaceViewController.swift; sourceTree = "<group>"; };
+		2BB765392F6864AE00309F77 /* NSColor+Console.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSColor+Console.swift"; sourceTree = "<group>"; };
 		69B055D02F680B9C0076AC1D /* api_docs.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = api_docs.json; sourceTree = "<group>"; };
 		A10000000000000000000020 /* LocalBridgeiOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LocalBridgeiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000021 /* LocalBridgeMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LocalBridgeMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -40,14 +61,13 @@
 		A10000000000000000000028 /* SidebarViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SidebarViewController.swift; sourceTree = "<group>"; };
 		A10000000000000000000029 /* DetailViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = DetailViewController.swift; sourceTree = "<group>"; };
 		A1000000000000000000002A /* Conversation.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Conversation.swift; sourceTree = "<group>"; };
-		A1000000000000000000002D /* BridgeMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeMessage.swift; sourceTree = "<group>"; };
- 		A1000000000000000000002E /* LocalBridgeWebSocketServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBridgeWebSocketServer.swift; sourceTree = "<group>"; };
- 		A1000000000000000000002F /* SettingsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewController.swift; sourceTree = "<group>"; };
- 		A10000000000000000000046 /* TweetClawTabControllers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TweetClawTabControllers.swift; sourceTree = "<group>"; };
- 		A10000000000000000000048 /* AIClawTabControllers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIClawTabControllers.swift; sourceTree = "<group>"; };
- 		A10000000000000000000049 /* AIConsoleWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConsoleWindowController.swift; sourceTree = "<group>"; };
- 		A1000000000000000000002B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A1000000000000000000002B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1000000000000000000002C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
+		A1000000000000000000002D /* BridgeMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeMessage.swift; sourceTree = "<group>"; };
+		A1000000000000000000002E /* LocalBridgeWebSocketServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBridgeWebSocketServer.swift; sourceTree = "<group>"; };
+		A1000000000000000000002F /* SettingsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewController.swift; sourceTree = "<group>"; };
+		A10000000000000000000046 /* TweetClawTabControllers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TweetClawTabControllers.swift; sourceTree = "<group>"; };
+		A10000000000000000000048 /* AIClawTabControllers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIClawTabControllers.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -68,6 +88,24 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		2BB7653A2F6864AE00309F77 /* Console */ = {
+			isa = PBXGroup;
+			children = (
+				2BB7652F2F6864AE00309F77 /* AIConsoleMockData.swift */,
+				2BB765302F6864AE00309F77 /* AIConsoleModels.swift */,
+				2BB765312F6864AE00309F77 /* AIConsoleRootViewController.swift */,
+				2BB765322F6864AE00309F77 /* AIConsoleWindowController.swift */,
+				2BB765332F6864AE00309F77 /* ConsoleChatViewController.swift */,
+				2BB765342F6864AE00309F77 /* ConsoleComponents.swift */,
+				2BB765352F6864AE00309F77 /* ConsoleNavViewController.swift */,
+				2BB765362F6864AE00309F77 /* ConsoleSidebarViewController.swift */,
+				2BB765372F6864AE00309F77 /* ConsoleWorkspaceDetailViewControllers.swift */,
+				2BB765382F6864AE00309F77 /* ConsoleWorkspaceViewController.swift */,
+				2BB765392F6864AE00309F77 /* NSColor+Console.swift */,
+			);
+			path = Console;
+			sourceTree = "<group>";
+		};
 		A10000000000000000000002 = {
 			isa = PBXGroup;
 			children = (
@@ -107,15 +145,15 @@
 				A10000000000000000000027 /* ConversationsSplitViewController.swift */,
 				A10000000000000000000028 /* SidebarViewController.swift */,
 				A10000000000000000000029 /* DetailViewController.swift */,
- 				A1000000000000000000002A /* Conversation.swift */,
- 				A1000000000000000000002D /* BridgeMessage.swift */,
- 				A1000000000000000000002E /* LocalBridgeWebSocketServer.swift */,
- 				A1000000000000000000002F /* SettingsViewController.swift */,
- 				A10000000000000000000046 /* TweetClawTabControllers.swift */,
- 				A10000000000000000000048 /* AIClawTabControllers.swift */,
- 				A10000000000000000000049 /* AIConsoleWindowController.swift */,
- 			);
- 			path = LocalBridgeMac;
+				A1000000000000000000002A /* Conversation.swift */,
+				A1000000000000000000002D /* BridgeMessage.swift */,
+				A1000000000000000000002E /* LocalBridgeWebSocketServer.swift */,
+				A1000000000000000000002F /* SettingsViewController.swift */,
+				A10000000000000000000046 /* TweetClawTabControllers.swift */,
+				A10000000000000000000048 /* AIClawTabControllers.swift */,
+				2BB7653A2F6864AE00309F77 /* Console */,
+			);
+			path = LocalBridgeMac;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -233,14 +271,24 @@
 				A10000000000000000000036 /* SidebarViewController.swift in Sources */,
 				A10000000000000000000037 /* DetailViewController.swift in Sources */,
 				A10000000000000000000038 /* Conversation.swift in Sources */,
- 				A1000000000000000000003B /* BridgeMessage.swift in Sources */,
- 				A1000000000000000000003C /* LocalBridgeWebSocketServer.swift in Sources */,
- 				A1000000000000000000003E /* SettingsViewController.swift in Sources */,
- 				A1000000000000000000003F /* TweetClawTabControllers.swift in Sources */,
- 				A10000000000000000000047 /* AIClawTabControllers.swift in Sources */,
- 				A1000000000000000000004A /* AIConsoleWindowController.swift in Sources */,
- 			);
- 			runOnlyForDeploymentPostprocessing = 0;
+				A1000000000000000000003B /* BridgeMessage.swift in Sources */,
+				A1000000000000000000003C /* LocalBridgeWebSocketServer.swift in Sources */,
+				A1000000000000000000003E /* SettingsViewController.swift in Sources */,
+				A1000000000000000000003F /* TweetClawTabControllers.swift in Sources */,
+				A10000000000000000000047 /* AIClawTabControllers.swift in Sources */,
+				2BB7653B2F6864AE00309F77 /* NSColor+Console.swift in Sources */,
+				2BB7653C2F6864AE00309F77 /* ConsoleWorkspaceDetailViewControllers.swift in Sources */,
+				2BB7653D2F6864AE00309F77 /* ConsoleComponents.swift in Sources */,
+				2BB7653E2F6864AE00309F77 /* ConsoleSidebarViewController.swift in Sources */,
+				2BB7653F2F6864AE00309F77 /* AIConsoleWindowController.swift in Sources */,
+				2BB765402F6864AE00309F77 /* ConsoleChatViewController.swift in Sources */,
+				2BB765412F6864AE00309F77 /* AIConsoleModels.swift in Sources */,
+				2BB765422F6864AE00309F77 /* AIConsoleRootViewController.swift in Sources */,
+				2BB765432F6864AE00309F77 /* ConsoleWorkspaceViewController.swift in Sources */,
+				2BB765442F6864AE00309F77 /* ConsoleNavViewController.swift in Sources */,
+				2BB765452F6864AE00309F77 /* AIConsoleMockData.swift in Sources */,
+			);
+			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
 
