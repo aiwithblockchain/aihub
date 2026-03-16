@@ -2,6 +2,8 @@ import Foundation
 import Network
 
 class LocalBridgeWebSocketServer {
+    private static let defaultExecuteTaskTimeoutMs = 210_000
+
     private var listeners: [NWListener] = []
     private var httpListener: NWListener?
     
@@ -466,11 +468,13 @@ class LocalBridgeWebSocketServer {
 
         let reqId = "req_msg_\(Int(Date().timeIntervalSince1970))"
         let taskId = "task_\(Int(Date().timeIntervalSince1970))"
+        let timeoutMs = Self.defaultExecuteTaskTimeoutMs
         let payload = ExecuteTaskRequestPayload(
             taskId: taskId,
             platform: platform,
             action: "send_message",
-            payload: SendMessagePromptPayload(prompt: prompt)
+            payload: SendMessagePromptPayload(prompt: prompt, conversationId: nil, model: nil),
+            timeout: timeoutMs
         )
         
         let req = BaseMessage(
@@ -487,13 +491,14 @@ class LocalBridgeWebSocketServer {
         do {
             let data = try JSONEncoder().encode(req)
             if let jsonString = String(data: data, encoding: .utf8) {
-                print("[LocalBridgeMac] sending request.send_message, id: \(reqId)")
+                print("[LocalBridgeMac] sending request.execute_task, id: \(reqId), taskId: \(taskId), timeoutMs: \(timeoutMs)")
                 self.sendMessage(connection, jsonString)
                 
-                DispatchQueue.main.asyncAfter(deadline: .now() + 10.0) { // Longer timeout for message generation
+                DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(timeoutMs)) {
                     if self.pendingUiRequests.contains(reqId) {
                         self.pendingUiRequests.remove(reqId)
-                        NotificationCenter.default.post(name: NSNotification.Name("SendMessageReceived"), object: nil, userInfo: ["dataString": "Error: Request timeout after 10 seconds"])
+                        let seconds = timeoutMs / 1000
+                        NotificationCenter.default.post(name: NSNotification.Name("SendMessageReceived"), object: nil, userInfo: ["dataString": "Error: Request timeout after \(seconds) seconds"])
                     }
                 }
             }
@@ -509,7 +514,7 @@ class LocalBridgeWebSocketServer {
             let resp = try decoder.decode(BaseMessage<ExecuteTaskResultPayload>.self, from: data)
             let p = resp.payload
             
-            print("[LocalBridgeMac] execute_task response received: success=\(p.success)")
+            print("[LocalBridgeMac] execute_task response received: success=\(p.success), taskId=\(p.taskId)")
             
             // Format nice JSON string for UI text view
             let encoder = JSONEncoder()
@@ -835,11 +840,15 @@ class LocalBridgeWebSocketServer {
             struct SimpleMessageRequest: Codable {
                 let platform: String
                 let prompt: String
+                let conversationId: String?
+                let model: String?
+                let timeoutMs: Int?
             }
             
             let simpleReq = try JSONDecoder().decode(SimpleMessageRequest.self, from: bodyData)
             
             let reqId = "http_req_msg_\(Int(Date().timeIntervalSince1970))"
+            let timeoutMs = max(simpleReq.timeoutMs ?? Self.defaultExecuteTaskTimeoutMs, 1_000)
             
             self.pendingHttpCallbacks[reqId] = { responseData in
                 let decoder = JSONDecoder()
@@ -858,7 +867,12 @@ class LocalBridgeWebSocketServer {
                 taskId: taskId,
                 platform: simpleReq.platform,
                 action: "send_message",
-                payload: SendMessagePromptPayload(prompt: simpleReq.prompt)
+                payload: SendMessagePromptPayload(
+                    prompt: simpleReq.prompt,
+                    conversationId: simpleReq.conversationId,
+                    model: simpleReq.model
+                ),
+                timeout: timeoutMs
             )
             
             let req = BaseMessage(
@@ -871,13 +885,15 @@ class LocalBridgeWebSocketServer {
             )
             
             if let data = try? JSONEncoder().encode(req), let jsonString = String(data: data, encoding: .utf8) {
+                print("[LocalBridgeMac] sending request.execute_task via REST, id: \(reqId), taskId: \(taskId), timeoutMs: \(timeoutMs)")
                 self.sendMessage(wsClient, jsonString)
             }
             
-            DispatchQueue.main.asyncAfter(deadline: .now() + 10.0) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(timeoutMs)) {
                 if self.pendingHttpCallbacks[reqId] != nil {
                     self.pendingHttpCallbacks.removeValue(forKey: reqId)
-                    self.sendHttpResponse(connection, status: "504 Gateway Timeout", body: "{\"error\":\"timeout\"}")
+                    let seconds = timeoutMs / 1000
+                    self.sendHttpResponse(connection, status: "504 Gateway Timeout", body: "{\"error\":\"timeout\",\"details\":\"Request timeout after \(seconds) seconds\"}")
                 }
             }
             

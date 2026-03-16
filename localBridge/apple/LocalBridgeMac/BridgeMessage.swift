@@ -126,10 +126,13 @@ struct ExecuteTaskRequestPayload: Codable {
     let platform: String
     let action: String
     let payload: SendMessagePromptPayload
+    let timeout: Int?
 }
 
 struct SendMessagePromptPayload: Codable {
     let prompt: String
+    let conversationId: String?
+    let model: String?
 }
 
 struct ExecuteTaskResultPayload: Codable {
@@ -137,6 +140,7 @@ struct ExecuteTaskResultPayload: Codable {
     let success: Bool
     let platform: String
     let content: String?
+    let conversationId: String?
     let error: String?
     let executedAt: String
     let durationMs: Int

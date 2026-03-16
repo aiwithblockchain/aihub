@@ -236,7 +236,8 @@ final class AIClawBotViewController: NSViewController {
         Body (JSON):
         {
           "platform": "chatgpt",
-          "prompt": "请用一句话介绍你自己"
+          "prompt": "请用一句话介绍你自己",
+          "timeoutMs": 210000
         }
         
         Response Example:
