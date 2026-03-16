@@ -173,9 +173,16 @@ final class AIConsoleWindowController: NSWindowController {
         if instance == nil {
             instance = AIConsoleWindowController()
         }
+        
+        // 确保显示在当前屏幕内且不超出
         NSApp.setActivationPolicy(.regular)
+        
+        if let window = instance?.window {
+            window.makeKeyAndOrderFront(nil)
+            window.orderFrontRegardless()
+        }
+        
         instance?.showWindow(nil)
-        instance?.window?.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
     
@@ -183,8 +190,14 @@ final class AIConsoleWindowController: NSWindowController {
         let vc = AIConsoleRootViewController()
         let window = NSWindow(contentViewController: vc)
         window.title = "AI 融合器"
-        window.setContentSize(NSSize(width: 1440, height: 900))
-        window.minSize = NSSize(width: 1280, height: 720)
+        
+        // 模仿 IDE 比例：宽度取 1280，高度取 880，但不超过屏幕尺寸
+        let screenFrame = NSScreen.main?.visibleFrame ?? NSRect(x: 0, y: 0, width: 1440, height: 900)
+        let targetWidth = min(screenFrame.width * 0.9, 1280)
+        let targetHeight = min(screenFrame.height * 0.9, 880)
+        
+        window.setContentSize(NSSize(width: targetWidth, height: targetHeight))
+        window.minSize = NSSize(width: 900, height: 600)
         window.center()
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
         window.isReleasedWhenClosed = false
@@ -214,13 +227,11 @@ final class AIConsoleRootViewController: NSViewController {
     private let workVC = ConsoleWorkspaceViewController()
     private let activityVC = ConsoleActivityViewController()
     
-    private var sidebarWidthConstraint: NSLayoutConstraint?
-    private var activityWidthConstraint: NSLayoutConstraint?
-    private var isSidebarCollapsed = false
-    private var isActivityCollapsed = false
-    
     private let sidebarToggleBtn = NSButton()
     private let activityToggleBtn = NSButton()
+    
+    private var lastSidebarWidth: CGFloat = 260
+    private var lastActivityWidth: CGFloat = 300
     
     override func loadView() {
         view = NSView()
@@ -255,12 +266,12 @@ final class AIConsoleRootViewController: NSViewController {
     private func setupSplitView() {
         splitView.isVertical = true
         splitView.dividerStyle = .thin
+        splitView.delegate = self
         splitView.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(splitView)
         
         [sidebarVC, workVC, activityVC].forEach {
             addChild($0)
-            $0.view.translatesAutoresizingMaskIntoConstraints = false
             splitView.addArrangedSubview($0.view)
         }
         
@@ -271,11 +282,14 @@ final class AIConsoleRootViewController: NSViewController {
             splitView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
         
-        // 设置默认宽度
-        sidebarWidthConstraint = sidebarVC.view.widthAnchor.constraint(equalToConstant: 300)
-        sidebarWidthConstraint?.isActive = true
-        activityWidthConstraint = activityVC.view.widthAnchor.constraint(equalToConstant: 400)
-        activityWidthConstraint?.isActive = true
+        // 初始比例分配
+        splitView.setPosition(260, ofDividerAt: 0)
+        // 假设窗口 1280，减去 60(nav) 和 260(sidebar)，右侧预留 300
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            let totalWidth = self.splitView.frame.width
+            self.splitView.setPosition(totalWidth - 300, ofDividerAt: 1)
+        }
     }
     
     private func setupToggleButtons() {
@@ -313,23 +327,56 @@ final class AIConsoleRootViewController: NSViewController {
     }
     
     @objc private func toggleSidebar() {
-        isSidebarCollapsed.toggle()
+        let isCollapsed = splitView.isSubviewCollapsed(sidebarVC.view)
+        if !isCollapsed {
+            lastSidebarWidth = sidebarVC.view.frame.width
+        }
+        
         NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.3
+            ctx.duration = 0.25
             ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            sidebarWidthConstraint?.animator().constant = isSidebarCollapsed ? 0 : 300
-            sidebarToggleBtn.animator().image = NSImage(systemSymbolName: isSidebarCollapsed ? "chevron.right" : "chevron.left", accessibilityDescription: nil)
+            sidebarVC.view.isHidden = !isCollapsed
+            sidebarToggleBtn.animator().image = NSImage(systemSymbolName: !isCollapsed ? "chevron.right" : "chevron.left", accessibilityDescription: nil)
+            splitView.layoutSubtreeIfNeeded()
         }
     }
     
     @objc private func toggleActivity() {
-        isActivityCollapsed.toggle()
-        NSAnimationContext.runAnimationGroup { ctx in
-            ctx.duration = 0.3
-            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-            activityWidthConstraint?.animator().constant = isActivityCollapsed ? 0 : 400
-            activityToggleBtn.animator().image = NSImage(systemSymbolName: isActivityCollapsed ? "chevron.left" : "chevron.right", accessibilityDescription: nil)
+        let isCollapsed = splitView.isSubviewCollapsed(activityVC.view)
+        if !isCollapsed {
+            lastActivityWidth = activityVC.view.frame.width
         }
+        
+        NSAnimationContext.runAnimationGroup { ctx in
+            ctx.duration = 0.25
+            ctx.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            activityVC.view.isHidden = !isCollapsed
+            activityToggleBtn.animator().image = NSImage(systemSymbolName: !isCollapsed ? "chevron.left" : "chevron.right", accessibilityDescription: nil)
+            splitView.layoutSubtreeIfNeeded()
+        }
+    }
+}
+
+extension AIConsoleRootViewController: NSSplitViewDelegate {
+    func splitView(_ splitView: NSSplitView, constrainMinCoordinate proposedMinimumPosition: CGFloat, ofDividerAt dividerIndex: Int) -> CGFloat {
+        if dividerIndex == 0 { return 180 } // Sidebar 最小宽度
+        return proposedMinimumPosition
+    }
+    
+    func splitView(_ splitView: NSSplitView, constrainMaxCoordinate proposedMaximumPosition: CGFloat, ofDividerAt dividerIndex: Int) -> CGFloat {
+        let total = splitView.frame.width
+        if dividerIndex == 0 { return total * 0.4 } // Sidebar 最大占 40%
+        if dividerIndex == 1 { return total - 200 } // Activity 最小 200
+        return proposedMaximumPosition
+    }
+    
+    func splitView(_ splitView: NSSplitView, shouldHideDividerAt dividerIndex: Int) -> Bool {
+        return false
+    }
+    
+    func splitView(_ splitView: NSSplitView, effectiveRect proposedEffectiveRect: NSRect, forDrawnRect drawnRect: NSRect, ofDividerAt dividerIndex: Int) -> NSRect {
+        // 增加点击手感
+        return proposedEffectiveRect.insetBy(dx: -2, dy: 0)
     }
 }
 
@@ -725,7 +772,7 @@ final class PMWorkspaceViewController: NSViewController {
             splitView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             splitView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             splitView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            taskListVC.view.widthAnchor.constraint(equalToConstant: 400)
+            taskListVC.view.widthAnchor.constraint(equalToConstant: 320)
         ])
     }
 }
@@ -1809,7 +1856,7 @@ final class AIConfigViewController: NSViewController {
             split.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             split.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             split.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            left.widthAnchor.constraint(equalToConstant: 400)
+            left.widthAnchor.constraint(equalToConstant: 320)
         ])
         
         let title = NSTextField(labelWithString: "AI 配置中心")
