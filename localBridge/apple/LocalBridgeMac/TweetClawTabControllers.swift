@@ -215,6 +215,8 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     private let titleLabel = NSTextField(labelWithString: "TweetClaw - API for Bots")
     private let tableView = NSTableView()
     private var detailTextView: NSTextView!
+    private let copyButton = NSButton(title: "复制 curl", target: nil, action: #selector(copyCurlClicked))
+    private var currentCurlCommand: String = ""
     
     struct ApiDoc: Codable {
         let id: String
@@ -324,11 +326,32 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             detailScroll.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20)
         ])
         
+        // Copy curl button — floats over the top-right of the detail panel
+        copyButton.bezelStyle = .rounded
+        copyButton.target = self
+        copyButton.translatesAutoresizingMaskIntoConstraints = false
+        copyButton.isHidden = true
+        view.addSubview(copyButton)
+        NSLayoutConstraint.activate([
+            copyButton.topAnchor.constraint(equalTo: detailScroll.topAnchor, constant: 8),
+            copyButton.trailingAnchor.constraint(equalTo: detailScroll.trailingAnchor, constant: -8)
+        ])
+
         // Default selection
         if !docs.isEmpty {
             DispatchQueue.main.async {
                 self.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
             }
+        }
+    }
+
+    @objc private func copyCurlClicked() {
+        guard !currentCurlCommand.isEmpty else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(currentCurlCommand, forType: .string)
+        copyButton.title = "已复制 ✓"
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+            self.copyButton.title = "复制 curl"
         }
     }
     
@@ -511,7 +534,12 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         
         // Scroll to top
         textView.scrollToBeginningOfDocument(nil)
-        
+
+        // Show copy button and bind current curl command
+        currentCurlCommand = doc.curl
+        copyButton.title = "复制 curl"
+        copyButton.isHidden = false
+
         print("[LocalBridgeMac] Successfully rendered \(attrStr.length) chars for \(doc.name)")
     }
     
