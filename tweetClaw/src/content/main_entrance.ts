@@ -84,31 +84,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             return true;
         }
     }
-    if (message.type === 'FETCH_SETTINGS') {
+    if (message.type === 'FETCH_SETTINGS_AND_PROFILE') {
         (async () => {
             try {
-                // 1. 先通过 1.1 REST 获取基础账号信息（尤其是 screen_name）
-                const resp = await fetch('https://x.com/i/api/1.1/account/settings.json', {
-                    credentials: 'include'
-                });
-                if (!resp.ok) { sendResponse(null); return; }
-                const settings = await resp.json();
+                const { fetchUserByRestId, fetchUserByUsername } = await import('../x_api/twitter_api');
+                let profile = null;
                 
-                if (settings && settings.screen_name) {
-                    // 2. 拿到 screen_name 后，通过 GraphQL 获取完整资料（含头像、粉丝数、认证状态等）
-                    const { fetchUserByUsername } = await import('../x_api/twitter_api');
-                    const profile = await fetchUserByUsername(settings.screen_name);
-                    
-                    console.log('[TweetClaw-CS] FETCH_SETTINGS combined result:', { settings, profile });
-                    sendResponse({
-                        settings,
-                        profile
-                    });
-                } else {
-                    sendResponse({ settings });
+                // 优先使用 fetchUserByUsername (UserByScreenName)，因为该 API 的 QueryId (ck5KkZ8t...) 极其稳定且在 TweetCat 中得到验证
+                if (message.screenName) {
+                    console.log('[TweetClaw-CS] Attempting UserByScreenName for:', message.screenName);
+                    profile = await fetchUserByUsername(message.screenName);
                 }
+                
+                // 如果没有 handle 或失败，再尝试 UserByRestId (虽然其 QueryId 经常变动导致 404)
+                if (!profile) {
+                    console.log('[TweetClaw-CS] Attempting UserByRestId for UID:', message.uid);
+                    profile = await fetchUserByRestId(message.uid);
+                }
+                
+                sendResponse({ profile });
             } catch (err) {
-                console.error('[TweetClaw-CS] FETCH_SETTINGS fail:', err);
+                console.error('[TweetClaw-CS] FETCH_SETTINGS_AND_PROFILE fail:', err);
                 sendResponse(null);
             }
         })();

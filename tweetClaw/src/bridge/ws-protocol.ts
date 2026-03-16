@@ -78,6 +78,7 @@ export interface QueryXBasicInfoResponsePayload {
   twitterId?: string;
   verified?: boolean;
   updatedAt?: number;
+  raw?: any;
 }
 
 export interface ErrorPayload {

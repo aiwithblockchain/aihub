@@ -131,24 +131,34 @@ export function findViewerSummary(
         };
     }
 
-    // 2. GraphQL viewer / authenticated_user_info 路径
-    const viewerBlock =
-        data.data?.viewer ||
-        data.data?.authenticated_user_info;
+    // 2. GraphQL 路径探测（仿照 TweetCat 的 findDeepUser）
+    const findDeepUser = (obj: any): any => {
+        if (!obj) return null;
+        // 如果当前层级就有核心数据，直接返回
+        if (obj.rest_id && (obj.core || obj.legacy)) return obj;
+        if (obj.result && (obj.result.core || obj.result.legacy)) return obj.result;
 
-    if (viewerBlock) {
-        if (viewerBlock.user_results?.result) return extract(viewerBlock.user_results.result);
-        const summary = extract(viewerBlock);
+        // 尝试常见的嵌套路径
+        const next = obj.data || obj.user || obj.user_result_by_screen_name || obj.result;
+        if (next && next !== obj) return findDeepUser(next);
+        return null;
+    };
+
+    const u = findDeepUser(data);
+    if (u) {
+        console.log('[TweetClaw-Extractor] findDeepUser found valid user object');
+        const summary = extract(u);
         if (summary) return summary;
     }
 
-    // 3. 特殊兜底：如果是 UserByScreenName 但恰好是 viewer 自己（此路径较少见）
-    if (data.data?.user?.result && targetUid && data.data.user.result.rest_id === targetUid) {
-        return extract(data.data.user.result);
-    }
-
+    console.warn('[TweetClaw-Extractor] findViewerSummary failed to find any valid user block in data:', {
+        hasData: !!data,
+        keys: Object.keys(data || {}),
+        targetUid
+    });
     return null;
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // findFeaturedTweet: 从响应体中提取一条代表性推文（用于 debug / quick action）

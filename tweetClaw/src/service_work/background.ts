@@ -793,63 +793,49 @@ export async function queryXBasicInfo() {
         }
     }
     
-    // 如果仍然没找到有效 account，主动通过 X tab 获取完整资料
+    // 如果仍然没找到有效 account（或数据不完整），必须在 Content 环境执行 GraphQL
     if (!matchedAccount) {
-        console.log('[TweetClaw-BG] queryXBasicInfo: no valid cached account, trying active fetch...');
+        console.log('[TweetClaw-BG] queryXBasicInfo: seeking active tab for GraphQL fetch (UserByRestId)...');
         try {
             const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-            if (xTabs.length > 0) {
-                const targetTab = xTabs.find(t => t.active) || xTabs[0];
-                if (targetTab?.id) {
-                    const result: any = await chrome.tabs.sendMessage(targetTab.id, { type: 'FETCH_SETTINGS' });
-                    
-                    if (result) {
-                        console.log('[TweetClaw-BG] queryXBasicInfo active fetch raw result:', result);
-                        // 优先从详尽的 profile (GraphQL) 中提取资料
-                        let enrichedSummary = null;
-                        if (result.profile) {
-                            enrichedSummary = findViewerSummary(result.profile, uid);
-                        }
+            const targetTab = xTabs.find(t => t.active) || xTabs[0];
+            
+            if (targetTab?.id) {
+                const result: any = await chrome.tabs.sendMessage(targetTab.id, { 
+                    type: 'FETCH_SETTINGS_AND_PROFILE',
+                    uid: uid,
+                    screenName: matchedAccount?.handle?.replace('@', '') // 尝试传递已知的 handle
+                });
+                
+                if (result?.profile) {
+                    const enrichedSummary = findViewerSummary({ data: { user: { result: result.profile } } }, uid);
+                    if (enrichedSummary) {
+                        matchedAccount = enrichedSummary;
+                        updatedAt = Date.now();
                         
-                        // 如果 profile 没提出来（可能接口变了），再从 settings 提资料兜底
-                        if (!enrichedSummary && result.settings) {
-                            enrichedSummary = findViewerSummary(result.settings, uid);
-                        }
-
-                        if (enrichedSummary && isValidAccount(enrichedSummary)) {
-                            console.log(`[TweetClaw-BG] queryXBasicInfo: active fetch success for @${enrichedSummary.handle}`);
-                            matchedAccount = enrichedSummary;
-                            updatedAt = Date.now();
-                            // 写入 session storage
-                            chrome.storage.session.set({
-                                '_tc_global_session_account': {
-                                    ...matchedAccount,
-                                    _updatedAt: updatedAt
-                                }
-                            }).catch(() => {});
-                        }
+                        await chrome.storage.session.set({
+                            '_tc_global_session_account': {
+                                ...matchedAccount,
+                                _updatedAt: updatedAt
+                            }
+                        });
+                        console.log('[TweetClaw-BG] queryXBasicInfo: session updated via Tab @' + matchedAccount.handle);
                     }
                 }
+            } else {
+                console.warn('[TweetClaw-BG] queryXBasicInfo: no active X tab found for profile fetch');
             }
         } catch (e) {
-            console.warn('[TweetClaw-BG] queryXBasicInfo active fetch err:', e);
+            console.warn('[TweetClaw-BG] queryXBasicInfo relay fetch err:', e);
         }
     }
     
     const payload: any = {
         isLoggedIn: true,
         twitterId: uid,
-        name: matchedAccount?.displayName || matchedAccount?.handle?.replace('@', ''), // 兜底使用 handle 作为名称
+        name: matchedAccount?.displayName || matchedAccount?.handle?.replace('@', ''),
         screenName: matchedAccount?.handle,
         verified: matchedAccount?.verified ?? false,
-        
-        // 扩展信息
-        description: matchedAccount?.description,
-        avatar: matchedAccount?.avatar,
-        followersCount: matchedAccount?.followersCount,
-        friendsCount: matchedAccount?.friendsCount,
-        statusesCount: matchedAccount?.statusesCount,
-        createdAt: matchedAccount?.createdAt,
         raw: matchedAccount?.raw // 携带原始完整数据
     };
     if (updatedAt) payload.updatedAt = updatedAt;

@@ -178,3 +178,20 @@ export async function fetchUserByUsername(username: string) {
     
     return userResult;
 }
+
+/**
+ * 根据 User ID 获取完整的用户 Profile 信息 (UserByRestId)
+ */
+export async function fetchUserByRestId(userId: string) {
+    const data = await performQuery('UserByRestId', {
+        userId: userId,
+        withSafetyModeUserFields: true
+    });
+    
+    const userResult = data?.data?.user?.result;
+    if (!userResult || userResult.__typename === 'UserUnavailable') {
+        return null;
+    }
+    
+    return userResult;
+}
