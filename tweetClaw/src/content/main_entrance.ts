@@ -1,5 +1,6 @@
 import { MsgType } from '../capture/consts';
-import { performMutation, performLegacyREST } from '../x_api/twitter_api';
+import { performMutation, performLegacyREST, fetchUserByScreenName } from '../x_api/twitter_api';
+import { findDeepUser } from '../capture/extractor';
 
 /**
  * main_entrance.ts - Content Script Supervisor
@@ -21,6 +22,24 @@ import { performMutation, performLegacyREST } from '../x_api/twitter_api';
 
 window.addEventListener('message', (event) => {
     if (event.data?.source !== 'tweetclaw-injection') return;
+
+    // ── 直接在 Content Script 层捕获 settings.json，立刻写入 storage ──
+    // 修复背景：settings.json 是 REST 接口，响应体没有 id_str 字段。
+    // background 里的 findViewerSummary 会因为 userId==='' 与 twid cookie uid 不匹配
+    // 而 return null，导致 screenName 从未被写入 chrome.storage.local。
+    // 解决方式：绕过 background 链路，在 Content Script 自己直接写。
+    if (event.data.type === 'SIGNAL_CAPTURED' && event.data.op === 'settings.json') {
+        const d = event.data.data;
+        const screenName: string | undefined = d?.screen_name;
+        const userId: string | undefined = d?.id_str || (d?.id ? String(d.id) : undefined);
+        if (screenName) {
+            const toStore: Record<string, string> = { screenName };
+            if (userId) toStore.userId = userId;
+            chrome.storage.local.set(toStore).then(() => {
+                console.log(`[TweetClaw-CS] ✅ screenName cached from settings.json: @${screenName}`);
+            }).catch(() => {});
+        }
+    }
 
     if (event.data.type === 'SIGNAL_CAPTURED') {
         chrome.runtime.sendMessage({
@@ -65,7 +84,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             // 针对 Follow/Unfollow 特殊处理：如果还没抓到 GraphQL Hash，直接走 1.1 REST 降级方案
             if (message.action === 'follow' || message.action === 'unfollow') {
                 const path = message.action === 'follow' ? '/i/api/1.1/friendships/create.json' : '/i/api/1.1/friendships/destroy.json';
-                
+
                 // 尝试执行，如果 performMutation 报错说明没哈希，我们就直接走 legacy
                 performMutation(op, vars)
                     .then(res => sendResponse({ ok: true, data: res }))
@@ -84,36 +103,65 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             return true;
         }
     }
-    if (message.type === 'FETCH_SETTINGS') {
+
+    if (message.type === 'FETCH_SETTINGS_AND_PROFILE') {
         (async () => {
             try {
-                // 1. 先通过 1.1 REST 获取基础账号信息（尤其是 screen_name）
-                const resp = await fetch('https://x.com/i/api/1.1/account/settings.json', {
-                    credentials: 'include'
-                });
-                if (!resp.ok) { sendResponse(null); return; }
-                const settings = await resp.json();
-                
-                if (settings && settings.screen_name) {
-                    // 2. 拿到 screen_name 后，通过 GraphQL 获取完整资料（含头像、粉丝数、认证状态等）
-                    const { fetchUserByUsername } = await import('../x_api/twitter_api');
-                    const profile = await fetchUserByUsername(settings.screen_name);
-                    
-                    console.log('[TweetClaw-CS] FETCH_SETTINGS combined result:', { settings, profile });
-                    sendResponse({
-                        settings,
-                        profile
+                // 第一步：从 storage 读 screenName
+                const stored = await chrome.storage.local.get(['screenName', 'userId']);
+                let screenName = stored.screenName as string | undefined;
+
+                // 第二步：如果 storage 里还没有（injection 还没完成拦截），
+                // 监听 postMessage 最多等待 4 秒，等 settings.json 被拦截
+                if (!screenName) {
+                    console.log('[TweetClaw-CS] screenName not in storage, waiting up to 4s for injection...');
+                    screenName = await new Promise<string | undefined>((resolve) => {
+                        const timer = setTimeout(() => {
+                            window.removeEventListener('message', onMsg);
+                            resolve(undefined);
+                        }, 4000);
+
+                        function onMsg(e: MessageEvent) {
+                            if (
+                                e.data?.source === 'tweetclaw-injection' &&
+                                e.data?.type === 'SIGNAL_CAPTURED' &&
+                                e.data?.op === 'settings.json' &&
+                                e.data?.data?.screen_name
+                            ) {
+                                clearTimeout(timer);
+                                window.removeEventListener('message', onMsg);
+                                const sn: string = e.data.data.screen_name;
+                                const uid: string | undefined =
+                                    e.data.data.id_str ||
+                                    (e.data.data.id ? String(e.data.data.id) : undefined);
+                                const toStore: Record<string, string> = { screenName: sn };
+                                if (uid) toStore.userId = uid;
+                                chrome.storage.local.set(toStore).catch(() => {});
+                                resolve(sn);
+                            }
+                        }
+                        window.addEventListener('message', onMsg);
                     });
-                } else {
-                    sendResponse({ settings });
                 }
-            } catch (err) {
-                console.error('[TweetClaw-CS] FETCH_SETTINGS fail:', err);
-                sendResponse(null);
+
+                if (!screenName) throw new Error('screenName not found in storage');
+
+                console.log(`[TweetClaw-CS] Fetching profile for @${screenName}...`);
+                const json = await fetchUserByScreenName(screenName);
+
+                // 用容错递归解析拿到 user result 对象
+                const userResult = findDeepUser(json);
+                if (!userResult) throw new Error('findDeepUser returned null');
+
+                sendResponse({ success: true, raw: userResult });
+            } catch (e: any) {
+                console.error('[TweetClaw-CS] FETCH_SETTINGS_AND_PROFILE fail:', e);
+                sendResponse({ success: false, error: e.message });
             }
         })();
-        return true;
+        return true; // 保持异步 sendResponse 通道
     }
+
     return false;
 });
 

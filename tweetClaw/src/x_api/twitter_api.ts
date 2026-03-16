@@ -119,6 +119,82 @@ export async function performLegacyREST(path: string, params: Record<string, str
     return await response.json();
 }
 
+/**
+ * 使用稳定的 QueryId 抓取用户资料（绕过哈希变动问题）
+ * 仅供在 Content Script 环境（由于 Cookie 权限问题）使用
+ */
+export async function fetchUserByScreenName(screenName: string): Promise<any> {
+    const STABLE_HASH = 'ck5KkZ8t5cOmoLssopN99Q';
+    const variables = {
+        screen_name: screenName,
+        withSafetyModeUserFields: true,
+    };
+    const features = {
+        hidden_profile_likes_enabled: true,
+        hidden_profile_subscriptions_enabled: true,
+        responsive_web_graphql_exclude_directive_enabled: true,
+        verified_phone_label_enabled: false,
+        subscriptions_verification_info_is_identity_verified_enabled: true,
+        subscriptions_verification_info_verified_since_enabled: true,
+        highlights_tweets_tab_ui_enabled: true,
+        responsive_web_twitter_article_notes_tab_enabled: false,
+        creator_subscriptions_tweet_preview_api_enabled: true,
+        responsive_web_graphql_skip_user_profile_image_extensions_enabled: false,
+        responsive_web_graphql_timeline_navigation_enabled: true,
+    };
+
+    const params = new URLSearchParams();
+    params.append('variables', JSON.stringify(variables));
+    params.append('features', JSON.stringify(features));
+
+    const url = `https://x.com/i/api/graphql/${STABLE_HASH}/UserByScreenName?${params.toString()}`;
+
+    // 优先使用动态 harvested 的 Bearer Token，fallback 到写死的默认值
+    const bearerFromStorage = await getAuthHeader();
+    const FALLBACK_BEARER = 'Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
+    const bearer = bearerFromStorage || FALLBACK_BEARER;
+
+    // CSRF Token（仅限内容脚本上下文，document.cookie 可访问）
+    const csrfToken = await getCsrfToken();
+
+    console.log(`[TwitterAPI] fetchUserByScreenName: bearer=${bearer ? 'present' : 'MISSING'}, csrf=${csrfToken ? 'present' : 'MISSING'}`);
+
+    const headers: Record<string, string> = {
+        'authorization': bearer,
+        'x-csrf-token': csrfToken,
+        'content-type': 'application/json',
+        'x-twitter-active-user': 'yes',
+        'x-twitter-client-language': 'en',
+        'referer': 'https://x.com/',
+        'accept': '*/*'
+    };
+
+    console.log('[TwitterAPI] fetchUserByScreenName: sending fetch...');
+    let response: Response;
+    try {
+        response = await fetch(url, {
+            method: 'GET',
+            headers,
+            credentials: 'include'
+        });
+    } catch (networkErr: any) {
+        console.error('[TwitterAPI] fetchUserByScreenName: network error', networkErr);
+        throw networkErr;
+    }
+
+    console.log(`[TwitterAPI] fetchUserByScreenName: response status ${response.status}`);
+
+    if (!response.ok) {
+        const errText = await response.text();
+        console.error(`[TwitterAPI] fetchUserByScreenName: ${response.status}`, errText.slice(0, 200));
+        throw new Error(`UserByScreenName failed: ${response.status}`);
+    }
+
+    const json = await response.json();
+    console.log('[TwitterAPI] fetchUserByScreenName: got JSON, keys=', Object.keys(json));
+    return json;
+}
+
 export async function performQuery(op: string, variables: any) {
     const target = await getUrlWithQueryId(op);
     if (!target) throw new Error(`Missing harvested queryId for operation: ${op}`);
@@ -171,6 +247,23 @@ export async function fetchUserByUsername(username: string) {
     });
     
     // 从复杂的 GraphQL 响应中提取用户对象
+    const userResult = data?.data?.user?.result;
+    if (!userResult || userResult.__typename === 'UserUnavailable') {
+        return null;
+    }
+    
+    return userResult;
+}
+
+/**
+ * 根据 User ID 获取完整的用户 Profile 信息 (UserByRestId)
+ */
+export async function fetchUserByRestId(userId: string) {
+    const data = await performQuery('UserByRestId', {
+        userId: userId,
+        withSafetyModeUserFields: true
+    });
+    
     const userResult = data?.data?.user?.result;
     if (!userResult || userResult.__typename === 'UserUnavailable') {
         return null;

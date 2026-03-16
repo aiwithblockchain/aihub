@@ -118,6 +118,13 @@ struct QueryXBasicInfoResponsePayload: Codable {
     let screenName: String?
     let twitterId: String?
     let verified: Bool?
+    let followersCount: Int?
+    let friendsCount: Int?
+    let statusesCount: Int?
+    let avatar: String?
+    let description: String?
+    let createdAt: String?
+    let raw: AnyCodable?
     let updatedAt: Int64?
 }
 

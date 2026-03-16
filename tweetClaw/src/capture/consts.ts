@@ -31,7 +31,8 @@ export const watchedOps = [
     'DeleteRetweet',
     'ListLatestTweetsTimeline',
     'TimelineHome',
-    'AccountUserQuery'
+    'AccountUserQuery',
+    'UserByRestId'
 ];
 
 export const defaultQueryKeyMap: Record<string, string> = {
@@ -49,7 +50,8 @@ export const defaultQueryKeyMap: Record<string, string> = {
     'UnfavoriteTweet': 'ZYKSe-w7KEslx3JhSIk5LA',
     'CreateRetweet': 'mbRO74GrOvSfRcJnlMapnQ',
     'CreateFriendship': '66v9_S_vThhArew_99v9_v9',
-    'DestroyFriendship': 'Opv7_p8AunMhJvD8X8c9rw'
+    'DestroyFriendship': 'Opv7_p8AunMhJvD8X8c9rw',
+    'UserByRestId': 'LJYI_VvTFAZf7PAdT0eWmA'
 };
 
 /**

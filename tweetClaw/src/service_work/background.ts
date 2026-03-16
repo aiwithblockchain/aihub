@@ -5,7 +5,7 @@ import {
     __DBK_bearer_token,
     defaultQueryKeyMap
 } from '../capture/consts';
-import { findViewerSummary, findFeaturedTweet, findRepliesSnapshot, findProfileTweetsSnapshot, findTweetById } from '../capture/extractor';
+import { findViewerSummary, findFeaturedTweet, findRepliesSnapshot, findProfileTweetsSnapshot, findTweetById, findDeepUser } from '../capture/extractor';
 import { derivePageContext } from '../utils/scene-parser';
 import { extractTweetId } from '../utils/route-parser';
 import { LocalBridgeSocket } from '../bridge/local-bridge-socket';
@@ -273,6 +273,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         ...summary,
                         _updatedAt: Date.now()
                     }
+                }).catch(() => {});
+                
+                // 同时保存到 local storage 供 content script fetch 使用
+                chrome.storage.local.set({ 
+                    screenName: summary.handle.replace('@', ''),
+                    userId: summary.userId
                 }).catch(() => {});
             }
 
@@ -724,138 +730,103 @@ export async function queryXTabsStatus() {
     return payload;
 }
 
+/**
+ * 从 raw user result 对象中组装标准 profile（不依赖 findViewerSummary）
+ */
+function buildProfileFromRaw(raw: any, uid: string | null) {
+    const legacy = raw?.legacy ?? {};
+
+    // X 的 GraphQL 响应中，screen_name 和 name 可能在多个位置：
+    // 1. legacy.screen_name （标准路径）
+    // 2. core.screen_name （新版本 API 把基础字段收紧到 core 顶层）
+    // 3. core.user_results.result.legacy.screen_name （嵌套引用）
+    const screenName =
+        legacy.screen_name ||
+        raw?.core?.screen_name ||
+        raw?.core?.user_results?.result?.legacy?.screen_name ||
+        '';
+    const name =
+        legacy.name ||
+        raw?.core?.name ||
+        raw?.core?.user_results?.result?.legacy?.name ||
+        screenName;
+
+    const createdAt = legacy.created_at || raw?.core?.created_at || '';
+    const avatar = legacy.profile_image_url_https
+        // X 有时返回 _normal 缩略图，换成原图
+        ? legacy.profile_image_url_https.replace('_normal', '')
+        : undefined;
+
+    return {
+        isLoggedIn: true,
+        twitterId: uid || raw?.rest_id || '',
+        name,
+        screenName: screenName ? `@${screenName}` : '',
+        verified: raw?.is_blue_verified || legacy.verified || false,
+        followersCount: legacy.followers_count,
+        friendsCount: legacy.friends_count,
+        statusesCount: legacy.statuses_count,
+        avatar,
+        description: legacy.description,
+        createdAt,
+        raw,   // 完整原始数据透传给 Mac App
+        updatedAt: Date.now()
+    };
+}
+
 export async function queryXBasicInfo() {
     console.log('[TweetClaw-BG] queryXBasicInfo called');
-    
-    // Check login status (twid cookie)
-    const uid = await getAuthenticUid();
-    const isLoggedIn = !!uid;
-    
-    if (!isLoggedIn) {
-        return { isLoggedIn: false };
-    }
-    
-    // 校验 account 是否包含有效的用户名信息
-    const isValidAccount = (acc: any): boolean => {
-        if (!acc) return false;
-        const handle = acc.handle;
-        // handle 必须是有效字符串，且不能是 "@undefined" 这种污染值
-        if (!handle || typeof handle !== 'string' || handle === '@undefined' || handle === '@') {
-            return false;
-        }
-        // displayName 只要是字符串即可（允许为空字符串，由 extractor 兜底）
-        if (typeof acc.displayName !== 'string') return false;
-        return true;
-    };
-    
-    // 优先从 session storage 判断是否已有最近更新的数据
-    let matchedAccount: any = null;
-    let updatedAt: number | null = null;
-    try {
-        const sessionData = await chrome.storage.session.get('_tc_global_session_account');
-        if (sessionData && sessionData._tc_global_session_account) {
-            const acc = sessionData._tc_global_session_account as any;
-            // 确保 userId 匹配当前有效的 uid，且数据有效
-            if (acc.userId === uid && isValidAccount(acc)) {
-                matchedAccount = acc;
-                updatedAt = acc._updatedAt || null;
-            }
-        }
-    } catch (e) {
-        console.warn('[TweetClaw-BG] queryXBasicInfo session.get err:', e);
-    }
-    
-    // 如果 session 中没有命中，再降级去查找 tab 状态缓存
-    if (!matchedAccount) {
-        for (const [tabId, state] of tabDataStore.entries()) {
-            if (state.account && state.account.userId === uid && isValidAccount(state.account)) {
-                matchedAccount = state.account;
-                updatedAt = state.timestamp || null; // fallback
-                break;
-            }
-        }
-    }
-    
-    // 关键修正：如果缓存的数据不完整（没有原始 raw 数据），则强制清空 matchedAccount 以触发布下方的“主动抓取”
-    if (matchedAccount && !matchedAccount.raw) {
-        console.log('[TweetClaw-BG] queryXBasicInfo: cached account is thin (missing raw), forcing refresh...');
-        matchedAccount = null;
-    }
-    
-    // 最后如果还是找不到完全一致的，返回任意有效的账号兜底
-    if (!matchedAccount) {
-        for (const [tabId, state] of tabDataStore.entries()) {
-            if (isValidAccount(state.account) && state.account.raw) { // 这里也优先找带 raw 的
-                matchedAccount = state.account;
-                updatedAt = state.timestamp || null;
-                break;
-            }
-        }
-    }
-    
-    // 如果仍然没找到有效 account，主动通过 X tab 获取完整资料
-    if (!matchedAccount) {
-        console.log('[TweetClaw-BG] queryXBasicInfo: no valid cached account, trying active fetch...');
-        try {
-            const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-            if (xTabs.length > 0) {
-                const targetTab = xTabs.find(t => t.active) || xTabs[0];
-                if (targetTab?.id) {
-                    const result: any = await chrome.tabs.sendMessage(targetTab.id, { type: 'FETCH_SETTINGS' });
-                    
-                    if (result) {
-                        console.log('[TweetClaw-BG] queryXBasicInfo active fetch raw result:', result);
-                        // 优先从详尽的 profile (GraphQL) 中提取资料
-                        let enrichedSummary = null;
-                        if (result.profile) {
-                            enrichedSummary = findViewerSummary(result.profile, uid);
-                        }
-                        
-                        // 如果 profile 没提出来（可能接口变了），再从 settings 提资料兜底
-                        if (!enrichedSummary && result.settings) {
-                            enrichedSummary = findViewerSummary(result.settings, uid);
-                        }
 
-                        if (enrichedSummary && isValidAccount(enrichedSummary)) {
-                            console.log(`[TweetClaw-BG] queryXBasicInfo: active fetch success for @${enrichedSummary.handle}`);
-                            matchedAccount = enrichedSummary;
-                            updatedAt = Date.now();
-                            // 写入 session storage
-                            chrome.storage.session.set({
-                                '_tc_global_session_account': {
-                                    ...matchedAccount,
-                                    _updatedAt: updatedAt
-                                }
-                            }).catch(() => {});
-                        }
-                    }
-                }
+    // 1. 找活跃的 x.com 标签页
+    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
+    const targetTab = xTabs.find(t => t.active) || xTabs[0];
+    if (!targetTab?.id) throw new Error('No active x.com tab found');
+
+    const uid = await getAuthenticUid();
+
+    // 2. 委托 Content Script 在页面上下文执行 fetchUserByScreenName
+    console.log('[TweetClaw-BG] queryXBasicInfo: delegating to content script, tab', targetTab.id);
+    const messagePromise = chrome.tabs.sendMessage(targetTab.id, {
+        type: 'FETCH_SETTINGS_AND_PROFILE',
+    }).catch((e: any) => {
+        console.warn('[TweetClaw-BG] sendMessage error:', e?.message);
+        return null;
+    });
+    const timeoutPromise = new Promise<null>(resolve => setTimeout(() => resolve(null), 15000));
+    const result: any = await Promise.race([messagePromise, timeoutPromise]);
+
+    // 3. Content Script 成功返回
+    if (result?.success && result?.raw) {
+        console.log('[TweetClaw-BG] queryXBasicInfo: success from content script');
+        return buildProfileFromRaw(result.raw, uid);
+    }
+
+    // 4. Fallback：tabDataStore 里找 uid 匹配的 UserByScreenName
+    console.warn('[TweetClaw-BG] queryXBasicInfo: content script failed/timeout, trying tabDataStore fallback');
+    if (uid) {
+        const capturedData = tabDataStore.get(targetTab.id)?.data?.['UserByScreenName'];
+        if (capturedData) {
+            const rawFromStore = findDeepUser(capturedData);
+            if (rawFromStore?.rest_id === uid) {
+                console.log('[TweetClaw-BG] queryXBasicInfo: fallback ok from tabDataStore');
+                return buildProfileFromRaw(rawFromStore, uid);
             }
-        } catch (e) {
-            console.warn('[TweetClaw-BG] queryXBasicInfo active fetch err:', e);
+            console.warn('[TweetClaw-BG] queryXBasicInfo: tabDataStore uid mismatch, skipping');
         }
     }
-    
-    const payload: any = {
+
+    // 5. 最终兜底：返回基础登录信息
+    console.error('[TweetClaw-BG] queryXBasicInfo: all strategies failed, returning minimal profile');
+    const storedScreenName = (await chrome.storage.local.get('screenName')).screenName as string | undefined;
+    return {
         isLoggedIn: true,
-        twitterId: uid,
-        name: matchedAccount?.displayName || matchedAccount?.handle?.replace('@', ''), // 兜底使用 handle 作为名称
-        screenName: matchedAccount?.handle,
-        verified: matchedAccount?.verified ?? false,
-        
-        // 扩展信息
-        description: matchedAccount?.description,
-        avatar: matchedAccount?.avatar,
-        followersCount: matchedAccount?.followersCount,
-        friendsCount: matchedAccount?.friendsCount,
-        statusesCount: matchedAccount?.statusesCount,
-        createdAt: matchedAccount?.createdAt,
-        raw: matchedAccount?.raw // 携带原始完整数据
+        twitterId: uid || '',
+        name: storedScreenName || '',
+        screenName: storedScreenName ? `@${storedScreenName}` : '',
+        verified: false,
+        raw: null,
+        updatedAt: Date.now()
     };
-    if (updatedAt) payload.updatedAt = updatedAt;
-    
-    console.log('[TweetClaw-BG] queryXBasicInfo result:', payload);
-    return payload;
 }
 
 // 启动时确保存储已就绪

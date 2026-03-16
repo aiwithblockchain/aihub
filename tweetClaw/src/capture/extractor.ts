@@ -131,24 +131,21 @@ export function findViewerSummary(
         };
     }
 
-    // 2. GraphQL viewer / authenticated_user_info 路径
-    const viewerBlock =
-        data.data?.viewer ||
-        data.data?.authenticated_user_info;
-
-    if (viewerBlock) {
-        if (viewerBlock.user_results?.result) return extract(viewerBlock.user_results.result);
-        const summary = extract(viewerBlock);
+    const u = findDeepUser(data);
+    if (u) {
+        console.log('[TweetClaw-Extractor] findDeepUser found valid user object');
+        const summary = extract(u);
         if (summary) return summary;
     }
 
-    // 3. 特殊兜底：如果是 UserByScreenName 但恰好是 viewer 自己（此路径较少见）
-    if (data.data?.user?.result && targetUid && data.data.user.result.rest_id === targetUid) {
-        return extract(data.data.user.result);
-    }
-
+    console.warn('[TweetClaw-Extractor] findViewerSummary failed to find any valid user block in data:', {
+        hasData: !!data,
+        keys: Object.keys(data || {}),
+        targetUid
+    });
     return null;
 }
+
 
 // ─────────────────────────────────────────────────────────────────────────────
 // findFeaturedTweet: 从响应体中提取一条代表性推文（用于 debug / quick action）
@@ -313,4 +310,32 @@ export function findProfileTweetsSnapshot(
         console.warn('[TweetClaw-Extractor] Error in findProfileTweetsSnapshot', e);
     }
     return [];
+}
+/**
+ * 递归在任意深度的 JSON 对象中找到 Twitter User 结果对象。
+ * 兼容 UserByScreenName / UserByRestId 等多种响应结构变体。
+ */
+export function findDeepUser(obj: any, depth = 0): any | null {
+  if (!obj || typeof obj !== 'object' || depth > 8) return null;
+
+  // 命中条件：是一个有 rest_id 且 __typename 为 User 的对象
+  if (obj.__typename === 'User' && obj.rest_id) return obj;
+
+  // 优先尝试语义路径
+  const priorityKeys = ['result', 'user', 'user_result', 'data'];
+  for (const key of priorityKeys) {
+    if (obj[key]) {
+      const found = findDeepUser(obj[key], depth + 1);
+      if (found) return found;
+    }
+  }
+
+  // 兜底：遍历所有 key
+  for (const key of Object.keys(obj)) {
+    if (priorityKeys.includes(key)) continue; // 已处理
+    const found = findDeepUser(obj[key], depth + 1);
+    if (found) return found;
+  }
+
+  return null;
 }
