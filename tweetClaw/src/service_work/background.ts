@@ -734,24 +734,28 @@ export async function queryXTabsStatus() {
  * 从 raw user result 对象中组装标准 profile（不依赖 findViewerSummary）
  */
 function buildProfileFromRaw(raw: any, uid: string | null) {
-    // legacy 可能在多个位置，优先级依次尝试
-    const legacy =
-        (raw?.legacy?.screen_name ? raw.legacy : null) ||
-        raw?.core?.user_results?.result?.legacy ||
-        raw?.legacy ||
-        {};
+    const legacy = raw?.legacy ?? {};
 
-    // screen_name 和 name 同理，再试一次 core 路径
-    const screenName = legacy.screen_name ||
+    // X 的 GraphQL 响应中，screen_name 和 name 可能在多个位置：
+    // 1. legacy.screen_name （标准路径）
+    // 2. core.screen_name （新版本 API 把基础字段收紧到 core 顶层）
+    // 3. core.user_results.result.legacy.screen_name （嵌套引用）
+    const screenName =
+        legacy.screen_name ||
+        raw?.core?.screen_name ||
         raw?.core?.user_results?.result?.legacy?.screen_name ||
         '';
-    const name = legacy.name ||
+    const name =
+        legacy.name ||
+        raw?.core?.name ||
         raw?.core?.user_results?.result?.legacy?.name ||
         screenName;
 
-    console.log(`[TweetClaw-BG] buildProfileFromRaw: screenName=${screenName}, name=${name}, rest_id=${raw?.rest_id}`);
-    console.log('[TweetClaw-BG] raw.core:', JSON.stringify(raw?.core)?.slice(0, 300));
-    console.log('[TweetClaw-BG] raw.legacy keys:', Object.keys(raw?.legacy ?? {}));
+    const createdAt = legacy.created_at || raw?.core?.created_at || '';
+    const avatar = legacy.profile_image_url_https
+        // X 有时返回 _normal 缩略图，换成原图
+        ? legacy.profile_image_url_https.replace('_normal', '')
+        : undefined;
 
     return {
         isLoggedIn: true,
@@ -762,9 +766,10 @@ function buildProfileFromRaw(raw: any, uid: string | null) {
         followersCount: legacy.followers_count,
         friendsCount: legacy.friends_count,
         statusesCount: legacy.statuses_count,
-        avatar: legacy.profile_image_url_https,
+        avatar,
         description: legacy.description,
-        raw: raw,
+        createdAt,
+        raw,   // 完整原始数据透传给 Mac App
         updatedAt: Date.now()
     };
 }
@@ -793,9 +798,6 @@ export async function queryXBasicInfo() {
     // 3. Content Script 成功返回
     if (result?.success && result?.raw) {
         console.log('[TweetClaw-BG] queryXBasicInfo: success from content script');
-        console.log('[TweetClaw-BG] raw keys:', Object.keys(result.raw));
-        console.log('[TweetClaw-BG] raw.legacy:', result.raw?.legacy);
-        console.log('[TweetClaw-BG] raw.rest_id:', result.raw?.rest_id);
         return buildProfileFromRaw(result.raw, uid);
     }
 

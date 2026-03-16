@@ -153,11 +153,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 const userResult = findDeepUser(json);
                 if (!userResult) throw new Error('findDeepUser returned null');
 
-                console.log('[TweetClaw-CS] userResult.rest_id:', userResult?.rest_id);
-                console.log('[TweetClaw-CS] legacy keys:', userResult?.legacy ? Object.keys(userResult.legacy) : 'NO LEGACY');
-                console.log('[TweetClaw-CS] screen_name from legacy:', userResult?.legacy?.screen_name);
-                console.log('[TweetClaw-CS] core keys:', userResult?.core ? Object.keys(userResult.core) : 'NO CORE');
-                console.log('[TweetClaw-CS] core.user_results:', JSON.stringify(userResult?.core?.user_results)?.slice(0, 200));
                 sendResponse({ success: true, raw: userResult });
             } catch (e: any) {
                 console.error('[TweetClaw-CS] FETCH_SETTINGS_AND_PROFILE fail:', e);
