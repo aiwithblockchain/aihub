@@ -9,6 +9,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppDelegate.shared = self
+
+        // Run as a menu-bar-only app by default (no Dock icon).
+        // AIConsoleWindowController.show() will switch to .regular when the
+        // AI Console window opens, and switch back to .accessory when it closes.
+        NSApp.setActivationPolicy(.accessory)
+
         wsServer.start()
         
         NotificationCenter.default.addObserver(self, selector: #selector(restartWebSocketServer), name: NSNotification.Name("RestartWebSocketServer"), object: nil)
@@ -21,10 +27,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
 
         if let image = NSImage(named: "MenuBarIcon") {
-            image.isTemplate = true // Allows the icon to adapt to light/dark mode
+            image.isTemplate = true
             button.image = image
         } else {
-            // Fallback to system icon if assets fail
             button.image = NSImage(systemSymbolName: "message.badge", accessibilityDescription: "LocalBridge")
         }
         button.imagePosition = .imageOnly
@@ -35,28 +40,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
+        // Never quit when the last window is closed — we live in the menu bar.
         false
     }
 
     @objc
     private func openMainWindow() {
-        if let event = NSApp.currentEvent, event.type == .rightMouseUp || (event.type == .leftMouseUp && event.modifierFlags.contains(.control)) {
+        if let event = NSApp.currentEvent,
+           event.type == .rightMouseUp ||
+           (event.type == .leftMouseUp && event.modifierFlags.contains(.control)) {
             let menu = NSMenu()
             menu.addItem(NSMenuItem(title: "退出 LocalBridge", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
             statusItem?.menu = menu
-            statusItem?.button?.performClick(nil) // trigger menu
-            statusItem?.menu = nil // clear it so left click works as normal next time
+            statusItem?.button?.performClick(nil)
+            statusItem?.menu = nil
             return
         }
         
         if let window = mainWindowController.window {
             window.makeKeyAndOrderFront(nil)
-            // If the window was previously obscured or in another space
             window.orderFrontRegardless()
         }
         mainWindowController.showWindow(nil)
         NSApp.activate(ignoringOtherApps: true)
     }
+
+    // MARK: - WebSocket forwarding
 
     func sendQueryXTabsStatus() {
         wsServer.sendQueryXTabsStatus()

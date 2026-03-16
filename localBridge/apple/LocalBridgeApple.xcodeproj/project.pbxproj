@@ -21,6 +21,7 @@
  		A1000000000000000000003E /* SettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002F /* SettingsViewController.swift */; };
  		A1000000000000000000003F /* TweetClawTabControllers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000046 /* TweetClawTabControllers.swift */; };
  		A10000000000000000000047 /* AIClawTabControllers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000048 /* AIClawTabControllers.swift */; };
+ 		A1000000000000000000004A /* AIConsoleWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000049 /* AIConsoleWindowController.swift */; };
  		A10000000000000000000039 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002B /* Assets.xcassets */; };
 		A1000000000000000000003A /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002C /* Assets.xcassets */; };
 /* End PBXBuildFile section */
@@ -42,6 +43,7 @@
  		A1000000000000000000002F /* SettingsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewController.swift; sourceTree = "<group>"; };
  		A10000000000000000000046 /* TweetClawTabControllers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TweetClawTabControllers.swift; sourceTree = "<group>"; };
  		A10000000000000000000048 /* AIClawTabControllers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIClawTabControllers.swift; sourceTree = "<group>"; };
+ 		A10000000000000000000049 /* AIConsoleWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConsoleWindowController.swift; sourceTree = "<group>"; };
  		A1000000000000000000002B /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A1000000000000000000002C /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -108,6 +110,7 @@
  				A1000000000000000000002F /* SettingsViewController.swift */,
  				A10000000000000000000046 /* TweetClawTabControllers.swift */,
  				A10000000000000000000048 /* AIClawTabControllers.swift */,
+ 				A10000000000000000000049 /* AIConsoleWindowController.swift */,
  			);
 			path = LocalBridgeMac;
 			sourceTree = "<group>";
@@ -231,6 +234,7 @@
  				A1000000000000000000003E /* SettingsViewController.swift in Sources */,
  				A1000000000000000000003F /* TweetClawTabControllers.swift in Sources */,
  				A10000000000000000000047 /* AIClawTabControllers.swift in Sources */,
+ 				A1000000000000000000004A /* AIConsoleWindowController.swift in Sources */,
  			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
