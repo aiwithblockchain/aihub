@@ -299,10 +299,13 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         detailTextView = detailScroll.documentView as? NSTextView
         detailTextView.isEditable = false
         detailTextView.isSelectable = true
+        detailTextView.isRichText = true  // Enable rich text support
+        detailTextView.importsGraphics = true
+        detailTextView.drawsBackground = true
+        detailTextView.backgroundColor = .textBackgroundColor
         detailTextView.textContainerInset = NSSize(width: 24, height: 24)
         detailTextView.font = .systemFont(ofSize: 13)
         detailTextView.textColor = .labelColor
-        detailTextView.backgroundColor = .textBackgroundColor
         
         view.addSubview(detailScroll)
         
@@ -501,11 +504,15 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         // Explicitly set the attributed string to the text storage
         textView.textStorage?.setAttributedString(attrStr)
         
-        // Ensure visibility
+        // Force layout and display update
+        textView.needsLayout = true
+        textView.layoutManager?.ensureLayout(for: textView.textContainer!)
         textView.needsDisplay = true
+        
+        // Scroll to top
         textView.scrollToBeginningOfDocument(nil)
         
-        print("[LocalBridgeMac] Detail View updated with \(attrStr.length) characters")
+        print("[LocalBridgeMac] Successfully rendered \(attrStr.length) chars for \(doc.name)")
     }
     
     private func methodColor(_ method: String) -> NSColor {
