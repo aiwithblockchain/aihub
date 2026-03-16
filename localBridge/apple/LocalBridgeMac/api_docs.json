@@ -5,9 +5,9 @@
     "summary": "获取当前所有由扩展捕获的 X.com 标签页状态，这是机器人感知浏览器环境的第一步。",
     "method": "GET",
     "path": "/api/v1/x/status",
-    "description": "此端点允许开发者实时获取浏览器中所有打开的 X (原 Twitter) 标签页的元数据。它返回的信息包括每个标签页的唯一 ID、当前 URL、是否为活动窗口以及登录状态。它是实现自动化控制逻辑的基础，确保您的 Bot 始终在正确的标签页上执行操作。",
+    "description": "此端点允许开发者实时获取浏览器中所有打开的 X (原 Twitter) 标签页的元数据。它返回的信息包括每个标签页的唯一 ID (tabId)、当前 URL、是否为活动窗口以及登录状态。REST 服务运行在本机 8769 端口。它是实现自动化控制逻辑的基础，确保您的 Bot 始终在正确的标签页上执行操作。",
     "curl": "curl -X GET http://127.0.0.1:8769/api/v1/x/status",
-    "response": "{\n  \"hasXTabs\": true,\n  \"isLoggedIn\": true,\n  \"activeXTabId\": 305036946,\n  \"tabs\": [\n    {\n      \"id\": 305036946,\n      \"url\": \"https://x.com/home\",\n      \"active\": true\n    }\n  ]\n}"
+    "response": "{\"tabs\":[{\"tabId\":123456789,\"url\":\"https://x.com/home\",\"active\":true}],\"activeXUrl\":\"https://x.com/home\",\"hasXTabs\":true,\"isLoggedIn\":true,\"activeXTabId\":123456789}"
   },
   {
     "id": "query_x_basic_info",
@@ -15,9 +15,9 @@
     "summary": "提取当前登录 X 账号的深度资料，包括显示名、原始 ID 和认证状态。",
     "method": "GET",
     "path": "/api/v1/x/basic_info",
-    "description": "通过该接口，Bot 可以确认当前登录的 X 账号身份。不仅仅是获取 @用户名，它还可以提取 Twitter 内部的数字 REST ID 和认证标签（蓝标）状态。这在需要区分多账号操作、记录账号历史或验证账号权限时至关重要。",
+    "description": "通过该接口，Bot 可以确认当前登录的 X 账号完整身份信息。返回内容包括显示名、@handle、数字 twitterId、蓝标认证状态、粉丝数、关注数、推文数、简介、注册时间，以及来自 Twitter GraphQL API 的完整原始 raw 对象（包含所有字段）。REST 服务运行在本机 8769 端口。",
     "curl": "curl -X GET http://127.0.0.1:8769/api/v1/x/basic_info",
-    "response": "{\n  \"isLoggedIn\": true,\n  \"name\": \"Elon Musk\",\n  \"screenName\": \"@elonmusk\",\n  \"twitterId\": \"44196397\",\n  \"verified\": true\n}"
+    "response": "{\"name\":\"your_name\",\"screenName\":\"@your_handle\",\"createdAt\":\"Fri Nov 28 14:14:41 +0000 2014\",\"friendsCount\":12,\"isLoggedIn\":true,\"statusesCount\":23,\"description\":\"your bio\",\"raw\":{\"profile_image_shape\":\"Circle\",\"business_account\":{},\"privacy\":{\"protected\":false},\"is_blue_verified\":false,\"legacy\":{\"needs_phone_verification\":false,\"normal_followers_count\":5,\"description\":\"your bio\",\"entities\":{\"description\":{\"urls\":[]}},\"favourites_count\":7,\"profile_interstitial_type\":\"\",\"statuses_count\":23,\"possibly_sensitive\":false,\"pinned_tweet_ids_str\":[],\"friends_count\":12,\"follow_request_sent\":false,\"is_translator\":false,\"withheld_in_countries\":[],\"want_retweets\":false,\"media_count\":4,\"followers_count\":5,\"translator_type\":\"none\",\"default_profile_image\":false,\"fast_followers_count\":0,\"notifications\":false,\"has_custom_timelines\":false,\"listed_count\":0,\"default_profile\":true},\"super_following\":false,\"super_followed_by\":false,\"legacy_extended_profile\":{},\"__typename\":\"User\",\"id\":\"some_id\",\"creator_subscriptions_count\":0,\"super_follow_eligible\":false,\"relationship_perspectives\":{\"following\":false,\"blocking\":false,\"followed_by\":false,\"blocked_by\":false,\"muting\":false},\"avatar\":{\"image_url\":\"https://pbs.twimg.com/profile_images/123456789/your_avatar.jpg\"},\"dm_permissions\":{\"can_dm\":true},\"media_permissions\":{\"can_media_tag\":true},\"has_graduated_access\":true,\"rest_id\":\"1234567890\",\"highlights_info\":{\"can_highlight_tweets\":false,\"highlighted_tweets\":\"0\"},\"is_profile_translatable\":false,\"has_hidden_subscriptions_on_profile\":false,\"verification\":{\"verified\":false},\"core\":{\"created_at\":\"Fri Nov 28 14:14:41 +0000 2014\",\"name\":\"your_name\",\"screen_name\":\"your_handle\"},\"location\":{\"location\":\"\"},\"verification_info\":{\"is_identity_verified\":false},\"affiliates_highlighted_label\":{}},\"updatedAt\":1773660294813,\"twitterId\":\"1234567890\",\"verified\":false,\"followersCount\":5}"
   },
   {
     "id": "open_tab",
@@ -25,10 +25,10 @@
     "summary": "远程控制浏览器开启新的 X (Twitter) 标签页并跳转到指定的功能模块或个人主页。",
     "method": "POST",
     "path": "/tweetclaw/open-tab",
-    "description": "实现 Bot 跨页面的自动导航。该接口能够触发浏览器打开一个全新的标签页并定位到您指定的路径（如某个用户的个人主页 'elonmusk' 或 'home'）。对于需要并发处理多任务或从零开始引导用户流程的 Bot 而言，这是必不可少的功能。",
+    "description": "实现 Bot 跨页面的自动导航。该接口能够触发浏览器在 8769 端口的服务控制下打开一个全新的标签页并定位到您指定的路径（如某个用户的个人主页 'elonmusk' 或 'home'）。对于需要并发处理多任务或从零开始引导用户流程的 Bot 而言，这是必不可少的功能。",
     "request_body": "{\n  \"path\": \"home\"\n}",
     "curl": "curl -X POST http://127.0.0.1:8769/tweetclaw/open-tab \\\n     -H \"Content-Type: application/json\" \\\n     -d '{\"path\": \"home\"}'",
-    "response": "{\n  \"success\": true,\n  \"tabId\": 305036946,\n  \"url\": \"https://x.com/home\"\n}"
+    "response": "{\"success\":true,\"url\":\"https://x.com/home\",\"tabId\":123456789}"
   },
   {
     "id": "close_tab",
@@ -36,10 +36,10 @@
     "summary": "清理浏览器环境，通过 Tab ID 强制关闭特定的 X 标签页以节省系统资源。",
     "method": "POST",
     "path": "/tweetclaw/close-tab",
-    "description": "该接口允许 Bot 优雅地结束其对特定标签页的控制。通过传入从状态查询中获取的 tabId，系统会安全地关闭对应的 X 标签页。该接口内置了安全防护，仅允许关闭 x.com 或 twitter.com 域名的页面，防止意外关闭用户的非相关工作窗口。",
+    "description": "该接口允许 Bot 优雅地结束其对特定标签页的控制。通过传入从状态查询中获取的 tabId，系统会通过本机 8769 端口安全地关闭对应的 X 标签页。该接口内置了安全防护，仅允许关闭 x.com 或 twitter.com 域名的页面，防止意外关闭用户的非相关工作窗口。",
     "request_body": "{\n  \"tabId\": 305036946\n}",
     "curl": "curl -X POST http://127.0.0.1:8769/tweetclaw/close-tab \\\n     -H \"Content-Type: application/json\" \\\n     -d '{\"tabId\": 305036946}'",
-    "response": "{\n  \"success\": true,\n  \"reason\": \"success\"\n}"
+    "response": "{\"success\":true,\"reason\":\"success\"}"
   },
   {
     "id": "navigate_tab",
@@ -47,9 +47,9 @@
     "summary": "在当前选定或指定的活动标签页内快速跳转 URL，实现平滑的内容切换。",
     "method": "POST",
     "path": "/tweetclaw/navigate-tab",
-    "description": "这是 Bot 最常用的交互接口之一。它无需打开新标签页，而是直接在现有标签页中更新 URL 路径。如果未显式提供 tabId，系统会智能地选择最符合当前上下文的活动 X 标签页进行操作。极其适用于 Bot 需要在主页、通知中心、私信列表之间快速切换的场景。",
+    "description": "这是 Bot 最常用的交互接口之一。它无需打开新标签页，而是直接在现有标签页中更新 URL 路径。通过 8769 端口调用，如果未显式提供 tabId，系统会智能地选择最符合当前上下文的活动 X 标签页进行操作。极其适用于 Bot 需要在主页、通知中心、私信列表之间快速切换的场景。",
     "request_body": "{\n  \"tabId\": 305036946,\n  \"path\": \"elonmusk\"\n}",
     "curl": "curl -X POST http://127.0.0.1:8769/tweetclaw/navigate-tab \\\n     -H \"Content-Type: application/json\" \\\n     -d '{\"path\": \"elonmusk\"}'",
-    "response": "{\n  \"success\": true,\n  \"tabId\": 305036946,\n  \"url\": \"https://x.com/elonmusk\"\n}"
+    "response": "{\"url\":\"https://x.com/home\",\"tabId\":123456789,\"success\":true}"
   }
 ]
