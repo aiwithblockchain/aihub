@@ -119,3 +119,62 @@ export async function performLegacyREST(path: string, params: Record<string, str
     return await response.json();
 }
 
+export async function performQuery(op: string, variables: any) {
+    const target = await getUrlWithQueryId(op);
+    if (!target) throw new Error(`Missing harvested queryId for operation: ${op}`);
+
+    const bearer = await getAuthHeader();
+    const csrf = await getCsrfToken();
+    const features = await buildFeatures();
+    
+    const params = new URLSearchParams();
+    params.append('variables', JSON.stringify(variables));
+    params.append('features', JSON.stringify(features));
+    
+    const url = `${target.url}?${params.toString()}`;
+
+    const headers: Record<string, string> = {
+        'authorization': bearer,
+        'x-csrf-token': csrf as string,
+        'content-type': 'application/json',
+        'x-twitter-active-user': 'yes',
+        'x-twitter-auth-type': 'OAuth2Session',
+        'referer': 'https://x.com/',
+        'accept': '*/*'
+    };
+
+    const response = await fetch(url, {
+        method: 'GET',
+        headers,
+        credentials: 'include'
+    });
+
+    if (!response.ok) {
+        const text = await response.text();
+        await extractMissingFeature(text);
+        throw new Error(`X API Error ${response.status} for ${op}: ${text}`);
+    }
+
+    const result = await response.json();
+    console.log(`[TwitterAPI] GraphQL ${op} Response:`, result);
+    return result;
+}
+
+/**
+ * 根据用户名获取完整的用户 Profile 信息
+ */
+export async function fetchUserByUsername(username: string) {
+    const cleanUsername = username.startsWith('@') ? username.substring(1) : username;
+    const data = await performQuery('UserByScreenName', {
+        screen_name: cleanUsername,
+        withSafetyModeUserFields: true
+    });
+    
+    // 从复杂的 GraphQL 响应中提取用户对象
+    const userResult = data?.data?.user?.result;
+    if (!userResult || userResult.__typename === 'UserUnavailable') {
+        return null;
+    }
+    
+    return userResult;
+}

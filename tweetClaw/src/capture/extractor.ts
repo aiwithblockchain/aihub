@@ -60,17 +60,33 @@ export function findScreenNameRecursive(obj: any, depth = 0): string | null {
 //   - data.data?.user?.result（UserByScreenName 等普通用户主页响应）
 //     → 避免把 NASA 主页误认为是"当前登录用户"
 // ─────────────────────────────────────────────────────────────────────────────
+export interface UserSummary {
+    handle: string;
+    userId: string;
+    displayName: string;
+    verified: boolean;
+    description?: string;
+    avatar?: string;
+    followersCount?: number;
+    friendsCount?: number;
+    statusesCount?: number;
+    createdAt?: string;
+    raw?: any; // 新增：原始 API 数据
+}
+
 export function findViewerSummary(
     data: any,
     targetUid?: string
-): { handle: string; userId: string; displayName: string; verified: boolean } | null {
+): UserSummary | null {
     if (!data) return null;
 
-    const extract = (obj: any) => {
+    const extract = (obj: any): UserSummary | null => {
         if (!obj || !obj.legacy) return null;
         const handle = obj.legacy.screen_name;
         const userId = obj.rest_id;
         
+        if (!handle) return null;
+
         // Safety: If it matches our confirmed UID (from twid cookie), it's the user, not a guest
         const isActuallyViewer = targetUid && userId === targetUid;
         if (isGuestHandle(handle) && !isActuallyViewer) return null;
@@ -80,7 +96,14 @@ export function findViewerSummary(
             handle: `@${handle}`,
             userId: userId,
             displayName: obj.legacy.name,
-            verified: obj.legacy.verified || false
+            verified: obj.legacy.verified || false,
+            description: obj.legacy.description,
+            avatar: obj.legacy.profile_image_url_https,
+            followersCount: obj.legacy.followers_count,
+            friendsCount: obj.legacy.friends_count,
+            statusesCount: obj.legacy.statuses_count,
+            createdAt: obj.legacy.created_at,
+            raw: obj // 附加原始对象
         };
     };
 
@@ -89,13 +112,22 @@ export function findViewerSummary(
     if (data.screen_name) {
         const userId = data.id_str || data.id?.toString() || '';
         const isActuallyViewer = targetUid && userId === targetUid;
+        
         if (isGuestHandle(data.screen_name) && !isActuallyViewer) return null;
+        if (targetUid && userId !== targetUid) return null; // 确保 UID 匹配
         
         return {
             handle: `@${data.screen_name}`,
             userId: userId,
-            displayName: data.name || '',
-            verified: data.verified || false
+            displayName: data.name || data.screen_name || '', // 确保 displayName 不为空
+            verified: data.verified || false,
+            description: data.description,
+            avatar: data.profile_image_url_https,
+            followersCount: data.followers_count,
+            friendsCount: data.friends_count,
+            statusesCount: data.statuses_count,
+            createdAt: data.created_at,
+            raw: data // 附加原始数据
         };
     }
 

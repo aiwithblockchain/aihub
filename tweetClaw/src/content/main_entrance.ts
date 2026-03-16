@@ -84,6 +84,36 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             return true;
         }
     }
+    if (message.type === 'FETCH_SETTINGS') {
+        (async () => {
+            try {
+                // 1. 先通过 1.1 REST 获取基础账号信息（尤其是 screen_name）
+                const resp = await fetch('https://x.com/i/api/1.1/account/settings.json', {
+                    credentials: 'include'
+                });
+                if (!resp.ok) { sendResponse(null); return; }
+                const settings = await resp.json();
+                
+                if (settings && settings.screen_name) {
+                    // 2. 拿到 screen_name 后，通过 GraphQL 获取完整资料（含头像、粉丝数、认证状态等）
+                    const { fetchUserByUsername } = await import('../x_api/twitter_api');
+                    const profile = await fetchUserByUsername(settings.screen_name);
+                    
+                    console.log('[TweetClaw-CS] FETCH_SETTINGS combined result:', { settings, profile });
+                    sendResponse({
+                        settings,
+                        profile
+                    });
+                } else {
+                    sendResponse({ settings });
+                }
+            } catch (err) {
+                console.error('[TweetClaw-CS] FETCH_SETTINGS fail:', err);
+                sendResponse(null);
+            }
+        })();
+        return true;
+    }
     return false;
 });
 

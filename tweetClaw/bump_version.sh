@@ -107,3 +107,6 @@ else
     echo "manifest.json 版本: $UPDATED_MANIFEST_VERSION"
     exit 1
 fi
+
+echo "🚀 正在执行构建: npm run build:d..."
+npm run build:d

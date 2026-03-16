@@ -735,6 +735,19 @@ export async function queryXBasicInfo() {
         return { isLoggedIn: false };
     }
     
+    // 校验 account 是否包含有效的用户名信息
+    const isValidAccount = (acc: any): boolean => {
+        if (!acc) return false;
+        const handle = acc.handle;
+        // handle 必须是有效字符串，且不能是 "@undefined" 这种污染值
+        if (!handle || typeof handle !== 'string' || handle === '@undefined' || handle === '@') {
+            return false;
+        }
+        // displayName 只要是字符串即可（允许为空字符串，由 extractor 兜底）
+        if (typeof acc.displayName !== 'string') return false;
+        return true;
+    };
+    
     // 优先从 session storage 判断是否已有最近更新的数据
     let matchedAccount: any = null;
     let updatedAt: number | null = null;
@@ -742,8 +755,8 @@ export async function queryXBasicInfo() {
         const sessionData = await chrome.storage.session.get('_tc_global_session_account');
         if (sessionData && sessionData._tc_global_session_account) {
             const acc = sessionData._tc_global_session_account as any;
-            // 确保 userId 匹配当前有效的 uid
-            if (acc.userId === uid) {
+            // 确保 userId 匹配当前有效的 uid，且数据有效
+            if (acc.userId === uid && isValidAccount(acc)) {
                 matchedAccount = acc;
                 updatedAt = acc._updatedAt || null;
             }
@@ -755,7 +768,7 @@ export async function queryXBasicInfo() {
     // 如果 session 中没有命中，再降级去查找 tab 状态缓存
     if (!matchedAccount) {
         for (const [tabId, state] of tabDataStore.entries()) {
-            if (state.account && state.account.userId === uid) {
+            if (state.account && state.account.userId === uid && isValidAccount(state.account)) {
                 matchedAccount = state.account;
                 updatedAt = state.timestamp || null; // fallback
                 break;
@@ -763,10 +776,16 @@ export async function queryXBasicInfo() {
         }
     }
     
-    // 最后如果还是找不到完全一致的，返回任意存在的账号兜底
+    // 关键修正：如果缓存的数据不完整（没有原始 raw 数据），则强制清空 matchedAccount 以触发布下方的“主动抓取”
+    if (matchedAccount && !matchedAccount.raw) {
+        console.log('[TweetClaw-BG] queryXBasicInfo: cached account is thin (missing raw), forcing refresh...');
+        matchedAccount = null;
+    }
+    
+    // 最后如果还是找不到完全一致的，返回任意有效的账号兜底
     if (!matchedAccount) {
         for (const [tabId, state] of tabDataStore.entries()) {
-            if (state.account) {
+            if (isValidAccount(state.account) && state.account.raw) { // 这里也优先找带 raw 的
                 matchedAccount = state.account;
                 updatedAt = state.timestamp || null;
                 break;
@@ -774,12 +793,64 @@ export async function queryXBasicInfo() {
         }
     }
     
+    // 如果仍然没找到有效 account，主动通过 X tab 获取完整资料
+    if (!matchedAccount) {
+        console.log('[TweetClaw-BG] queryXBasicInfo: no valid cached account, trying active fetch...');
+        try {
+            const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
+            if (xTabs.length > 0) {
+                const targetTab = xTabs.find(t => t.active) || xTabs[0];
+                if (targetTab?.id) {
+                    const result: any = await chrome.tabs.sendMessage(targetTab.id, { type: 'FETCH_SETTINGS' });
+                    
+                    if (result) {
+                        console.log('[TweetClaw-BG] queryXBasicInfo active fetch raw result:', result);
+                        // 优先从详尽的 profile (GraphQL) 中提取资料
+                        let enrichedSummary = null;
+                        if (result.profile) {
+                            enrichedSummary = findViewerSummary(result.profile, uid);
+                        }
+                        
+                        // 如果 profile 没提出来（可能接口变了），再从 settings 提资料兜底
+                        if (!enrichedSummary && result.settings) {
+                            enrichedSummary = findViewerSummary(result.settings, uid);
+                        }
+
+                        if (enrichedSummary && isValidAccount(enrichedSummary)) {
+                            console.log(`[TweetClaw-BG] queryXBasicInfo: active fetch success for @${enrichedSummary.handle}`);
+                            matchedAccount = enrichedSummary;
+                            updatedAt = Date.now();
+                            // 写入 session storage
+                            chrome.storage.session.set({
+                                '_tc_global_session_account': {
+                                    ...matchedAccount,
+                                    _updatedAt: updatedAt
+                                }
+                            }).catch(() => {});
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            console.warn('[TweetClaw-BG] queryXBasicInfo active fetch err:', e);
+        }
+    }
+    
     const payload: any = {
         isLoggedIn: true,
-        name: matchedAccount?.displayName,
-        screenName: matchedAccount?.handle,
         twitterId: uid,
-        verified: matchedAccount?.verified
+        name: matchedAccount?.displayName || matchedAccount?.handle?.replace('@', ''), // 兜底使用 handle 作为名称
+        screenName: matchedAccount?.handle,
+        verified: matchedAccount?.verified ?? false,
+        
+        // 扩展信息
+        description: matchedAccount?.description,
+        avatar: matchedAccount?.avatar,
+        followersCount: matchedAccount?.followersCount,
+        friendsCount: matchedAccount?.friendsCount,
+        statusesCount: matchedAccount?.statusesCount,
+        createdAt: matchedAccount?.createdAt,
+        raw: matchedAccount?.raw // 携带原始完整数据
     };
     if (updatedAt) payload.updatedAt = updatedAt;
     

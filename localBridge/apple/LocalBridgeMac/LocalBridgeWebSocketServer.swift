@@ -671,8 +671,9 @@ class LocalBridgeWebSocketServer {
             
             let encoder = JSONEncoder()
             encoder.outputFormatting = .prettyPrinted
-            if let formattedData = try? encoder.encode(p),
-               let formattedString = String(data: formattedData, encoding: .utf8) {
+            if let data = try? encoder.encode(p),
+               let formattedString = String(data: data, encoding: .utf8) {
+                print("[LocalBridgeMac] query_x_basic_info payload: \(formattedString)")
                 NotificationCenter.default.post(name: NSNotification.Name("QueryXBasicInfoReceived"), object: nil, userInfo: ["dataString": formattedString])
             }
         } catch {
