@@ -66,11 +66,24 @@ final class AIConsoleRootViewController: NSViewController {
     }
 
     private func setupTopToolbar() {
+        let topBar = NSView()
+        topBar.wantsLayer = true
+        topBar.layer?.backgroundColor = NSColor.consoleZ950.cgColor
+        topBar.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(topBar)
+        
+        // 标题与项目信息
+        let projectTitle = NSTextField(labelWithString: "Antigravity Bridge")
+        projectTitle.font = .systemFont(ofSize: 12, weight: .bold)
+        projectTitle.textColor = .consoleText
+        projectTitle.translatesAutoresizingMaskIntoConstraints = false
+        topBar.addSubview(projectTitle)
+
         let toolbar = NSStackView()
         toolbar.orientation = .horizontal
-        toolbar.spacing = 12
+        toolbar.spacing = 8
         toolbar.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(toolbar)
+        topBar.addSubview(toolbar)
 
         let btnSidebar  = makeToolbarButton(icon: "sidebar.left", action: #selector(toggleSidebar), tip: "显示/隐藏侧边栏")
         let btnBottom   = makeToolbarButton(icon: "rectangle.bottomthird.inset.filled", action: #selector(toggleBottomPanel), tip: "显示/隐藏终端")
@@ -80,9 +93,28 @@ final class AIConsoleRootViewController: NSViewController {
         [btnSidebar, btnBottom, btnActivity, btnSettings].forEach { toolbar.addArrangedSubview($0) }
 
         NSLayoutConstraint.activate([
-            toolbar.topAnchor.constraint(equalTo: view.topAnchor, constant: 12),
-            toolbar.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            toolbar.heightAnchor.constraint(equalToConstant: 32)
+            topBar.topAnchor.constraint(equalTo: view.topAnchor),
+            topBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            topBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            topBar.heightAnchor.constraint(equalToConstant: 40),
+            
+            projectTitle.centerYAnchor.constraint(equalTo: topBar.centerYAnchor),
+            projectTitle.leadingAnchor.constraint(equalTo: topBar.leadingAnchor, constant: 80),
+            
+            toolbar.centerYAnchor.constraint(equalTo: topBar.centerYAnchor),
+            toolbar.trailingAnchor.constraint(equalTo: topBar.trailingAnchor, constant: -12),
+        ])
+        
+        let border = NSView()
+        border.wantsLayer = true
+        border.layer?.backgroundColor = NSColor.consoleZ700.cgColor
+        border.translatesAutoresizingMaskIntoConstraints = false
+        topBar.addSubview(border)
+        NSLayoutConstraint.activate([
+            border.leadingAnchor.constraint(equalTo: topBar.leadingAnchor),
+            border.trailingAnchor.constraint(equalTo: topBar.trailingAnchor),
+            border.bottomAnchor.constraint(equalTo: topBar.bottomAnchor),
+            border.heightAnchor.constraint(equalToConstant: 1)
         ])
     }
 
@@ -121,7 +153,7 @@ final class AIConsoleRootViewController: NSViewController {
         parentSplitView.addArrangedSubview(terminalVC.view)
 
         NSLayoutConstraint.activate([
-            parentSplitView.topAnchor.constraint(equalTo: view.topAnchor, constant: 50),
+            parentSplitView.topAnchor.constraint(equalTo: view.topAnchor, constant: 40),
             parentSplitView.leadingAnchor.constraint(equalTo: navVC.view.trailingAnchor),
             parentSplitView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             parentSplitView.bottomAnchor.constraint(equalTo: view.bottomAnchor)

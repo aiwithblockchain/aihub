@@ -36,25 +36,19 @@ final class AIConsoleWindowController: NSWindowController {
     // MARK: - Init
 
     init() {
-        // 1. 获取屏幕和可见区域信息
         let screen = NSScreen.main ?? NSScreen.screens[0]
-        let fullFrame = screen.frame
         let visibleFrame = screen.visibleFrame
-
-        // 2. 精确计算 Menu Bar 和 Dock 占用的高度（不使用猜测值）
-        let menuBarHeight = fullFrame.maxY - visibleFrame.maxY
-        let dockHeight = visibleFrame.minY
-        let finalHeight = fullFrame.height - menuBarHeight - dockHeight
-        let hMargin: CGFloat = 20
-
+        
+        // IDE-standard size: 1280x850
+        let width: CGFloat = 1280
+        let height: CGFloat = 850
         let winFrame = NSRect(
-            x: visibleFrame.midX - 600,
-            y: visibleFrame.midY - 400,
-            width: 1200,
-            height: 800
+            x: visibleFrame.midX - width/2,
+            y: visibleFrame.midY - height/2,
+            width: width,
+            height: height
         )
 
-        // 3. 使用指定的全尺寸样式直接初始化窗口，确保布局引擎一开始就处于正确模式
         let window = NSWindow(
             contentRect: winFrame,
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
@@ -62,22 +56,26 @@ final class AIConsoleWindowController: NSWindowController {
             defer: false
         )
         
-        window.title = "AI 融合器"
+        window.title = "AI 融合器" // 窗口标题，虽然 hidden 但在 Mission Control 可见
         window.isReleasedWhenClosed = false
         window.backgroundColor = .consoleZ950
+        window.setFrameAutosaveName("AIConsoleMainWindow")
+        
+        // 沉浸式标题栏配置
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
-        window.minSize = NSSize(width: 900, height: 580)
+        window.isMovableByWindowBackground = true
+        
+        window.minSize = NSSize(width: 1000, height: 650)
 
-        // 4. 挂载根视图控制器
+        // 挂载根视图控制器
         let vc = AIConsoleRootViewController()
         window.contentViewController = vc
 
         super.init(window: window)
         window.delegate = self
         
-        // 5. 最后确认一次 Frame，display 设为 true 强制刷新
-        window.setFrame(winFrame, display: true)
+        window.center()
     }
 
     required init?(coder: NSCoder) { fatalError() }

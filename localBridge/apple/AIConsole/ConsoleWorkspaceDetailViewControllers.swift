@@ -135,7 +135,7 @@ final class PMTaskListViewController: NSViewController {
         let card = NSView()
         card.wantsLayer = true
         card.layer?.cornerRadius    = 8
-        card.layer?.backgroundColor = NSColor.white.cgColor
+        card.layer?.backgroundColor = NSColor.consoleZ900.cgColor
         card.layer?.borderColor     = NSColor.consoleZ800.cgColor
         card.layer?.borderWidth     = 1
         card.translatesAutoresizingMaskIntoConstraints = false
@@ -1076,7 +1076,7 @@ final class GeneralSettingsViewController: NSViewController {
     override func loadView() {
         view = NSView()
         view.wantsLayer = true
-        view.layer?.backgroundColor = NSColor.white.cgColor
+        view.layer?.backgroundColor = NSColor.consoleZ950.cgColor
         view.setFrameSize(NSSize(width: 720, height: 500))
     }
 

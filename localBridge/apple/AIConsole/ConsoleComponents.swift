@@ -15,7 +15,7 @@ final class ConsoleTextField: NSTextField {
         wantsLayer = true
         layer?.cornerRadius = 6
         textColor    = .consoleText
-        layer?.backgroundColor = NSColor.white.cgColor // 输入框背景设为纯白
+        layer?.backgroundColor = NSColor.consoleZ900.cgColor // 输入框背景暗色
         isBezeled    = false
         focusRingType = .none
     }
