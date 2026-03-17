@@ -9,9 +9,8 @@ public final class ConsoleChatViewModel {
     
     private var streamingTask: Task<Void, Never>?
     private var pendingDeltaBuffer: String = ""
-    private var lastFlushTime: ContinuousClock.Instant = .now
-    private let flushInterval: Duration = .milliseconds(40)
-    private let clock = ContinuousClock()
+    private var lastFlushTime: TimeInterval = 0
+    private let flushInterval: TimeInterval = 0.04 // 40ms
     
     public private(set) var isStreaming: Bool = false {
         didSet { onStreamingStateChanged?(isStreaming) }
@@ -45,11 +44,12 @@ public final class ConsoleChatViewModel {
                         let aiMessage = AIMessage(sender: .ai, content: "", timestamp: Date(), role: agent.role)
                         messages.append(aiMessage)
                         onMessagesUpdated?()
-                        lastFlushTime = clock.now
+                        lastFlushTime = Date().timeIntervalSince1970
                         
                     case .delta(_, let text):
                         pendingDeltaBuffer += text
-                        if clock.now - lastFlushTime >= flushInterval {
+                        let now = Date().timeIntervalSince1970
+                        if now - lastFlushTime >= flushInterval {
                             flushBuffer()
                         }
                         
@@ -74,13 +74,13 @@ public final class ConsoleChatViewModel {
     
     private func flushBuffer() {
         guard !pendingDeltaBuffer.isEmpty else { return }
-        guard let lastIndex = messages.lastIndex(where: { $0.sender == .ai }) else { return }
+        guard let lastIndex = messages.lastIndex(where: { $0.sender == AIMessage.Sender.ai }) else { return }
         
         let oldMessage = messages[lastIndex]
         let newMessage = AIMessage(sender: .ai, content: oldMessage.content + pendingDeltaBuffer, timestamp: oldMessage.timestamp, role: oldMessage.role)
         messages[lastIndex] = newMessage
         pendingDeltaBuffer = ""
-        lastFlushTime = clock.now
+        lastFlushTime = Date().timeIntervalSince1970
         onMessagesUpdated?()
     }
     
