@@ -32,7 +32,10 @@ export const watchedOps = [
     'ListLatestTweetsTimeline',
     'TimelineHome',
     'AccountUserQuery',
-    'UserByRestId'
+    'UserByRestId',
+    'CreateTweet',    // 新增：发推文（含回复）
+    'DeleteTweet',    // 新增：删除推文
+    'DeleteRetweet'   // 新增：取消转发
 ];
 
 export const defaultQueryKeyMap: Record<string, string> = {
@@ -51,7 +54,10 @@ export const defaultQueryKeyMap: Record<string, string> = {
     'CreateRetweet': 'mbRO74GrOvSfRcJnlMapnQ',
     'CreateFriendship': '66v9_S_vThhArew_99v9_v9',
     'DestroyFriendship': 'Opv7_p8AunMhJvD8X8c9rw',
-    'UserByRestId': 'LJYI_VvTFAZf7PAdT0eWmA'
+    'UserByRestId': 'LJYI_VvTFAZf7PAdT0eWmA',
+    'CreateTweet': 'zkcFc6F-RKRgWN8HUkJfZg',    // 新增：已确认（2025-05）
+    'DeleteTweet': 'nxpZCY2K-I6QoFHAHeojFQ',     // 新增：已确认（2025-05）
+    'DeleteRetweet': 'ZyZigVsNiFO6v1dEks1eWg'     // 新增：已确认（2025-05）
 };
 
 /**

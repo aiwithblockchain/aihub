@@ -91,8 +91,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         wsServer.sendNavigateTab(tabId: tabId, path: path, instanceId: instanceId)
     }
 
-    func sendExecAction(action: String, tweetId: String?, userId: String?, tabId: Int?, instanceId: String? = nil) {
-        wsServer.sendExecAction(action: action, tweetId: tweetId, userId: userId, tabId: tabId, instanceId: instanceId)
+    func sendExecAction(action: String, tweetId: String?, userId: String?, tabId: Int?, text: String? = nil, instanceId: String? = nil) {
+        wsServer.sendExecAction(action: action, tweetId: tweetId, userId: userId, tabId: tabId, text: text, instanceId: instanceId)
     }
 
     func sendQueryAITabsStatus(instanceId: String? = nil) {

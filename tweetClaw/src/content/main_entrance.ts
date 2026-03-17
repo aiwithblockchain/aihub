@@ -78,6 +78,54 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             case 'bookmark': op = 'CreateBookmark'; break;
             case 'follow':   op = 'CreateFriendship'; vars = { user_id: message.userId }; break;
             case 'unfollow': op = 'DestroyFriendship'; vars = { user_id: message.userId }; break;
+            case 'post_tweet':
+                // 发布新推文
+                op = 'CreateTweet';
+                vars = {
+                    tweet_text: message.text || '',
+                    media: {
+                        media_entities: [],
+                        possibly_sensitive: false
+                    },
+                    semantic_annotation_ids: [],
+                    broadcast: true,
+                    disallowed_reply_options: null
+                };
+                break;
+            case 'reply_tweet':
+                // 回复推文
+                op = 'CreateTweet';
+                vars = {
+                    tweet_text: message.text || '',
+                    reply: {
+                        in_reply_to_tweet_id: message.tweetId,
+                        exclude_reply_user_ids: []
+                    },
+                    media: {
+                        media_entities: [],
+                        possibly_sensitive: false
+                    },
+                    semantic_annotation_ids: [],
+                    broadcast: true,
+                    disallowed_reply_options: null
+                };
+                break;
+            case 'unlike':
+                op = 'UnfavoriteTweet';
+                vars = { tweet_id: message.tweetId };
+                break;
+            case 'unretweet':
+                op = 'DeleteRetweet';
+                vars = { source_tweet_id: message.tweetId };
+                break;
+            case 'unbookmark':
+                op = 'DeleteBookmark';
+                vars = { tweet_id: message.tweetId };
+                break;
+            case 'delete_tweet':
+                op = 'DeleteTweet';
+                vars = { tweet_id: message.tweetId };
+                break;
         }
 
         if (op) {
@@ -160,6 +208,36 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             }
         })();
         return true; // 保持异步 sendResponse 通道
+    }
+
+    if (message.type === 'FETCH_USER_PROFILE_BY_SCREEN_NAME') {
+        (async () => {
+            try {
+                const cleanName = (message.screenName as string).replace('@', '');
+                const json = await fetchUserByScreenName(cleanName);
+                const { findDeepUser } = await import('../capture/extractor');
+                const userResult = findDeepUser(json);
+                if (!userResult) throw new Error('User not found or unavailable');
+
+                const legacy = userResult?.legacy ?? {};
+                const data = {
+                    userId: userResult?.rest_id || '',
+                    screenName: legacy.screen_name || '',
+                    name: legacy.name || '',
+                    description: legacy.description || '',
+                    followersCount: legacy.followers_count,
+                    friendsCount: legacy.friends_count,
+                    statusesCount: legacy.statuses_count,
+                    verified: userResult?.is_blue_verified || legacy.verified || false,
+                    createdAt: legacy.created_at || '',
+                    avatar: (legacy.profile_image_url_https || '').replace('_normal', '')
+                };
+                sendResponse({ success: true, data });
+            } catch (e: any) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
     }
 
     return false;

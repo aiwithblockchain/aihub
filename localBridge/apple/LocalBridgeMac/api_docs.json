@@ -108,6 +108,112 @@
     "response": "{\"ok\":true,\"data\":{\"userId\":\"1234567890\",\"following\":false}}"
   },
   {
+    "id": "create_tweet",
+    "name": "Create Tweet",
+    "summary": "发布一条新的推文（Post），支持纯文本内容。",
+    "method": "POST",
+    "path": "/api/v1/x/tweets",
+    "description": "此端点允许 Bot 在当前的 X 账号下发布一条新推文。开发者需要在 request_body 中提供 'text' 字段。系统会模拟真实的 GraphQL 'CreateTweet' 操作下发指令到浏览器执行。它是 Bot 主动输出内容的核心接口。",
+    "request_body": "{\n  \"text\": \"Hello World from my Bot!\"\n}",
+    "curl": "curl -X POST http://127.0.0.1:10088/api/v1/x/tweets \\\n     -H \"Content-Type: application/json\" \\\n     -d '{\"text\": \"Hello World\"}'",
+    "response": "{\"ok\":true,\"data\":{\"create_tweet\":{\"tweet_results\":{\"result\":{\"rest_id\":\"...\"}}}}}"
+  },
+  {
+    "id": "create_reply",
+    "name": "Create Reply",
+    "summary": "回复某条推文，建立互动对话链。",
+    "method": "POST",
+    "path": "/api/v1/x/replies",
+    "description": "用于评论或回复他人的推文。需在 body 中提供被回复的 'tweetId' 和回复的文字 'text'。系统会自动解析上下文并执行 GraphQL 回复指令。适用于基于关键字监听后的自动响应场景。",
+    "request_body": "{\n  \"tweetId\": \"1234567890\",\n  \"text\": \"Interesting point!\"\n}",
+    "curl": "curl -X POST http://127.0.0.1:10088/api/v1/x/replies \\\n     -H \"Content-Type: application/json\" \\\n     -d '{\"tweetId\": \"1234567890\", \"text\": \"Re: Hello\"}'",
+    "response": "{\"ok\":true,\"data\":{\"create_tweet\":{\"tweet_results\":{\"result\":{\"rest_id\":\"...\"}}}}}"
+  },
+  {
+    "id": "unlike_tweet",
+    "name": "Unlike Tweet",
+    "summary": "取消点赞指定的推文。",
+    "method": "POST",
+    "path": "/api/v1/x/unlikes",
+    "description": "与 likes 接口相反，此操作将从推文中移除‘喜欢’标记。开发者需提供 tweetId。常用于整理历史点赞或纠正误点场景。",
+    "request_body": "{\n  \"tweetId\": \"1234567890\"\n}",
+    "curl": "curl -X POST http://127.0.0.1:10088/api/v1/x/unlikes \\\n     -H \"Content-Type: application/json\" \\\n     -d '{\"tweetId\": \"1234567890\"}'",
+    "response": "{\"ok\":true,\"data\":{\"unfavorite_tweet\":\"ok\"}}"
+  },
+  {
+    "id": "unretweet_tweet",
+    "name": "Unretweet",
+    "summary": "取消转发指定的推文。",
+    "method": "POST",
+    "path": "/api/v1/x/unretweets",
+    "description": "用于删除之前执行的转发（Retweet）。需传入被转发推文的原始内容 tweetId。系统会通过 GraphQL 执行 DeleteRetweet 指令。",
+    "request_body": "{\n  \"tweetId\": \"1234567890\"\n}",
+    "curl": "curl -X POST http://127.0.0.1:10088/api/v1/x/unretweets \\\n     -H \"Content-Type: application/json\" \\\n     -d '{\"tweetId\": \"1234567890\"}'",
+    "response": "{\"ok\":true,\"data\":{\"unretweet\":{\"source_tweet_results\":{\"result\":{\"rest_id\":\"...\"}}}}}"
+  },
+  {
+    "id": "unbookmark_tweet",
+    "name": "Unbookmark",
+    "summary": "将推文从书签中移除。",
+    "method": "POST",
+    "path": "/api/v1/x/unbookmarks",
+    "description": "移除之前收藏的推文。开发者需提供对应推文的 rest_id (tweetId)。适用于内容处理完后的自动清理流程。",
+    "request_body": "{\n  \"tweetId\": \"1234567890\"\n}",
+    "curl": "curl -X POST http://127.0.0.1:10088/api/v1/x/unbookmarks \\\n     -H \"Content-Type: application/json\" \\\n     -d '{\"tweetId\": \"1234567890\"}'",
+    "response": "{\"ok\":true,\"data\":{\"delete_bookmark\":\"ok\"}}"
+  },
+  {
+    "id": "delete_tweet",
+    "name": "Delete My Tweet",
+    "summary": "永久删除自己发布的推文。",
+    "method": "DELETE",
+    "path": "/api/v1/x/mytweets",
+    "description": "通过 ID 永久删除属于当前用户的某条原发推文。请注意此操作不可逆。语义上遵循 RESTful 的 DELETE 方法。仅能删除当前登录账号自己发布的推文。",
+    "request_body": "{\n  \"tweetId\": \"1234567890\"\n}",
+    "curl": "curl -X DELETE http://127.0.0.1:10088/api/v1/x/mytweets \\\n     -H \"Content-Type: application/json\" \\\n     -d '{\"tweetId\": \"1234567890\"}'",
+    "response": "{\"ok\":true,\"data\":{\"delete_tweet\":\"ok\"}}"
+  },
+  {
+    "id": "query_home_timeline",
+    "name": "Get Home Timeline",
+    "summary": "读取当前浏览器主页正在显示的推文流（Captured Read）。",
+    "method": "GET",
+    "path": "/api/v1/x/timeline",
+    "description": "此端点返回当前打开了 /home 的标签页所捕获到的推文列表。属于 B 类捕获读取接口，不会主动触发网络请求，而是读取扩展本地缓存。如果需要最新数据，建议先调用 navigate_tab 跳转或刷新页面。返回数据包含完整的 Tweet/User 原始结构。",
+    "curl": "curl -X GET http://127.0.0.1:10088/api/v1/x/timeline",
+    "response": "{\"list\":[{\"rest_id\":\"...\",\"legacy\":{\"full_text\":\"...\"}}],\"tabId\":123}"
+  },
+  {
+    "id": "query_tweet_detail",
+    "name": "Get Tweet Detail",
+    "summary": "获取指定推文的详情及其回复列表（Captured Read）。",
+    "method": "GET",
+    "path": "/api/v1/x/tweets",
+    "description": "读取特定推文详情页捕获的数据。通过 URL 参数 tweetId 过滤。必须在浏览器中曾打开过该推文的页面，扩展才能捕获到对应的数据。返回内容包括主推文详情及其下的回复对话流。",
+    "curl": "curl -X GET \"http://127.0.0.1:10088/api/v1/x/tweets?tweetId=1234567890\"",
+    "response": "{\"mainTweet\":{...},\"replies\":[...],\"tabId\":123}"
+  },
+  {
+    "id": "query_user_profile",
+    "name": "Get User Profile",
+    "summary": "获取指定用户的详细公开资料（Active/Captured Read）。",
+    "method": "GET",
+    "path": "/api/v1/x/users",
+    "description": "获取 X 用户的详细信息，包括昵称、简介、认证状态、粉丝数等。此接口通过 screenName (如 elonmusk) 查询。如果不提供 tabId，则在当前活动页执行。如果对应用户页已在浏览器中捕获，则直接返回缓存；否则将尝试触发一次轻量级的数据提取。返回结构化后的 profile 对象。",
+    "curl": "curl -X GET \"http://127.0.0.1:10088/api/v1/x/users?screenName=elonmusk\"",
+    "response": "{\"userId\":\"...\",\"screenName\":\"elonmusk\",\"name\":\"...\",\"description\":\"...\",\"followersCount\":12345,\"verified\":true}"
+  },
+  {
+    "id": "query_search_results",
+    "name": "Search Tweets",
+    "summary": "读取浏览器当前搜索结果页捕获的内容（Captured Read）。",
+    "method": "GET",
+    "path": "/api/v1/x/search",
+    "description": "读取当前 search 标签页捕获到的结果流。Bot 可以先通过 navigate_tab 跳转到 /search?q=keyword 路径，待页面加载完成后调用此接口解析内容。这是实现‘关键词监控’和‘自动化搜索’链路的关键一环。",
+    "curl": "curl -X GET http://127.0.0.1:10088/api/v1/x/search",
+    "response": "{\"list\":[{\"tweetId\":\"...\",\"text\":\"...\"}],\"tabId\":123}"
+  },
+  {
     "id": "get_instances",
     "name": "Get Connected Instances",
     "summary": "查询当前所有通过 WebSocket 连接到 LocalBridge 的浏览器扩展实例，用于多 Profile 场景下的路由选择。",

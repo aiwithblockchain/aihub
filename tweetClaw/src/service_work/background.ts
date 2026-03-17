@@ -19,6 +19,10 @@ localBridge.openTabHandler = openXTab;
 localBridge.closeTabHandler = closeXTab;
 localBridge.navigateTabHandler = navigateXTab;
 localBridge.execActionHandler = execAction;
+localBridge.queryHomeTimelineHandler = queryHomeTimeline;
+localBridge.queryTweetDetailHandler = queryTweetDetail;
+localBridge.queryUserProfileHandler = queryUserProfile;
+localBridge.querySearchTimelineHandler = querySearchTimeline;
 
 interface ApiHit {
     op: string;
@@ -945,7 +949,8 @@ export async function execAction(payload: any): Promise<any> {
             type: MsgType.EXECUTE_ACTION,
             action,
             tweetId,
-            userId
+            userId,
+            text: payload?.text || null   // 新增：透传 text 字段给 content script
         }).then(res => {
             clearTimeout(timer);
             resolve(res);
@@ -958,3 +963,119 @@ export async function execAction(payload: any): Promise<any> {
 
 // 启动时确保存储已就绪
 initDefaultQueryKeys();
+
+// B1: 读取主页时间线
+export async function queryHomeTimeline(payload: any) {
+    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
+    let targetTabId: number | undefined = payload?.tabId;
+    if (!targetTabId) {
+        const activeTab = xTabs.find(t => t.active) || xTabs[0];
+        targetTabId = activeTab?.id;
+    }
+    if (!targetTabId) return { ok: false, error: 'No x.com tab found', data: null };
+
+    const state = tabDataStore.get(targetTabId);
+    const rawTimeline = state?.data?.['HomeLatestTimeline']
+                     || state?.data?.['HomeTimeline']
+                     || state?.data?.['TimelineHome'];
+
+    if (!rawTimeline) {
+        return {
+            ok: false,
+            error: 'Home timeline not yet captured. Navigate to x.com/home and wait for the page to load.',
+            data: null
+        };
+    }
+
+    const { extractTweetsFromTimeline } = await import('../capture/timeline-extractor');
+    const tweets = extractTweetsFromTimeline(rawTimeline);
+    return { ok: true, data: { tweets, count: tweets.length }, error: null };
+}
+
+// B2: 读取推文详情及回复
+export async function queryTweetDetail(payload: any) {
+    const { tweetId, tabId } = payload as { tweetId: string, tabId?: number };
+    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
+    let targetTabId: number | undefined = tabId;
+    if (!targetTabId) {
+        const activeTab = xTabs.find(t => t.active) || xTabs[0];
+        targetTabId = activeTab?.id;
+    }
+    if (!targetTabId) return { ok: false, error: 'No x.com tab found', data: null };
+
+    const state = tabDataStore.get(targetTabId);
+    const rawDetail = (tweetId && state?.data?.[`TweetDetail_${tweetId}`])
+                   || state?.data?.['TweetDetail'];
+
+    if (!rawDetail) {
+        return {
+            ok: false,
+            error: `TweetDetail not captured yet. Navigate to the tweet detail page first.`,
+            data: null
+        };
+    }
+
+    const { extractTweetsFromTimeline } = await import('../capture/timeline-extractor');
+    const tweets = extractTweetsFromTimeline(rawDetail);
+    return {
+        ok: true,
+        data: {
+            featuredTweet: state?.featuredTweet || null,
+            replies: state?.repliesSnapshot || [],
+            allTweets: tweets,
+            count: tweets.length
+        },
+        error: null
+    };
+}
+
+// B3: 获取指定用户的 Profile（主动调用，不依赖页面导航）
+export async function queryUserProfile(payload: any) {
+    const { screenName, tabId } = payload as { screenName: string, tabId?: number };
+    if (!screenName) return { ok: false, error: 'screenName is required', data: null };
+
+    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
+    let targetTabId: number | undefined = tabId;
+    if (!targetTabId) {
+        const activeTab = xTabs.find(t => t.active) || xTabs[0];
+        targetTabId = activeTab?.id;
+    }
+    if (!targetTabId) return { ok: false, error: 'No x.com tab found', data: null };
+
+    const result: any = await new Promise(resolve => {
+        chrome.tabs.sendMessage(targetTabId!, {
+            type: 'FETCH_USER_PROFILE_BY_SCREEN_NAME',
+            screenName: screenName.replace('@', '')
+        }, (resp) => resolve(resp || { success: false, error: 'No response' }));
+    });
+
+    if (result?.success && result?.data) return { ok: true, data: result.data, error: null };
+    return { ok: false, error: result?.error || 'Failed to fetch user profile', data: null };
+}
+
+// B4: 读取搜索结果
+export async function querySearchTimeline(payload: any) {
+    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
+    let targetTabId: number | undefined = payload?.tabId;
+    if (!targetTabId) {
+        const activeTab = xTabs.find(t => t.active) || xTabs[0];
+        targetTabId = activeTab?.id;
+    }
+    if (!targetTabId) return { ok: false, error: 'No x.com tab found', data: null };
+
+    const state = tabDataStore.get(targetTabId);
+    const rawSearch = state?.data?.['SearchTimeline'];
+
+    if (!rawSearch) {
+        return {
+            ok: false,
+            error: 'Search results not captured. Navigate to x.com/search?q=... first.',
+            data: null
+        };
+    }
+
+    const { extractTweetsFromTimeline } = await import('../capture/timeline-extractor');
+    const tweets = extractTweetsFromTimeline(rawSearch);
+    return { ok: true, data: { tweets, count: tweets.length }, error: null };
+}
+

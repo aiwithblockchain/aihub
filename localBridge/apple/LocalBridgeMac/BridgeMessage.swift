@@ -24,6 +24,14 @@ enum MessageType: String, Codable {
     case responseNavigateTab = "response.navigate_tab"
     case requestExecAction = "request.exec_action"
     case responseExecAction = "response.exec_action"
+    case requestQueryHomeTimeline = "request.query_home_timeline"
+    case responseQueryHomeTimeline = "response.query_home_timeline"
+    case requestQueryTweetDetail = "request.query_tweet_detail"
+    case responseQueryTweetDetail = "response.query_tweet_detail"
+    case requestQueryUserProfile = "request.query_user_profile"
+    case responseQueryUserProfile = "response.query_user_profile"
+    case requestQuerySearchTimeline = "request.query_search_timeline"
+    case responseQuerySearchTimeline = "response.query_search_timeline"
     case responseError = "response.error"
 }
 
@@ -54,7 +62,7 @@ struct GenericMessage: Codable {
     let source: String
     let target: String
     let timestamp: Int64
-    let payload: [String: AnyCodable]
+    let payload: AnyCodable
     
     // We'll need a way to handle dynamic payload or use specific structs
 }
@@ -208,6 +216,21 @@ struct ExecActionRequestPayload: Codable {
     let action: String
     let tweetId: String?
     let userId: String?
+    let tabId: Int?
+    let text: String?  // 新增
+}
+
+struct QueryTweetDetailRequestPayload: Codable {
+    let tweetId: String
+    let tabId: Int?
+}
+
+struct QueryUserProfileRequestPayload: Codable {
+    let screenName: String
+    let tabId: Int?
+}
+
+struct QuerySearchTimelineRequestPayload: Codable {
     let tabId: Int?
 }
 

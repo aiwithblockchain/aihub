@@ -18,6 +18,14 @@ export type MessageType =
   | 'response.navigate_tab'
   | 'request.exec_action'
   | 'response.exec_action'
+  | 'request.query_home_timeline'
+  | 'response.query_home_timeline'
+  | 'request.query_tweet_detail'
+  | 'response.query_tweet_detail'
+  | 'request.query_user_profile'
+  | 'response.query_user_profile'
+  | 'request.query_search_timeline'
+  | 'response.query_search_timeline'
   | 'response.error';
 
 export const MESSAGE_TYPES: Record<string, MessageType> = {
@@ -37,6 +45,14 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_NAVIGATE_TAB: 'response.navigate_tab',
   REQUEST_EXEC_ACTION: 'request.exec_action',
   RESPONSE_EXEC_ACTION: 'response.exec_action',
+  REQUEST_QUERY_HOME_TIMELINE: 'request.query_home_timeline',
+  RESPONSE_QUERY_HOME_TIMELINE: 'response.query_home_timeline',
+  REQUEST_QUERY_TWEET_DETAIL: 'request.query_tweet_detail',
+  RESPONSE_QUERY_TWEET_DETAIL: 'response.query_tweet_detail',
+  REQUEST_QUERY_USER_PROFILE: 'request.query_user_profile',
+  RESPONSE_QUERY_USER_PROFILE: 'response.query_user_profile',
+  REQUEST_QUERY_SEARCH_TIMELINE: 'request.query_search_timeline',
+  RESPONSE_QUERY_SEARCH_TIMELINE: 'response.query_search_timeline',
   RESPONSE_ERROR: 'response.error',
 };
 
@@ -134,11 +150,30 @@ export interface NavigateTabResponsePayload {
 }
 
 export interface ExecActionRequestPayload {
-  action: 'like' | 'retweet' | 'bookmark' | 'follow' | 'unfollow';
+  action: 'like' | 'retweet' | 'bookmark' | 'follow' | 'unfollow'
+       | 'post_tweet' | 'reply_tweet' | 'unlike' | 'unretweet' | 'unbookmark'
+       | 'delete_tweet';
   tweetId?: string;
   userId?: string;
   tabId?: number;
+  text?: string;    // 新增：发推文 / 回复时的文字内容
 }
+
+export interface QueryTweetDetailRequestPayload {
+  tweetId: string;
+  tabId?: number;
+}
+
+export interface QueryUserProfileRequestPayload {
+  screenName: string;
+  tabId?: number;
+}
+
+export interface QuerySearchTimelineRequestPayload {
+  tabId?: number;
+}
+// HomeTimeline 不需要额外参数，使用 any 或 EmptyPayload (如果定义了)
+
 
 export interface ExecActionResponsePayload {
   ok: boolean;
