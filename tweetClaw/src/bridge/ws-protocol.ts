@@ -16,6 +16,8 @@ export type MessageType =
   | 'response.close_tab'
   | 'request.navigate_tab'
   | 'response.navigate_tab'
+  | 'request.exec_action'
+  | 'response.exec_action'
   | 'response.error';
 
 export const MESSAGE_TYPES: Record<string, MessageType> = {
@@ -33,6 +35,8 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_CLOSE_TAB: 'response.close_tab',
   REQUEST_NAVIGATE_TAB: 'request.navigate_tab',
   RESPONSE_NAVIGATE_TAB: 'response.navigate_tab',
+  REQUEST_EXEC_ACTION: 'request.exec_action',
+  RESPONSE_EXEC_ACTION: 'response.exec_action',
   RESPONSE_ERROR: 'response.error',
 };
 
@@ -123,6 +127,19 @@ export interface NavigateTabResponsePayload {
   success: boolean;
   tabId: number;
   url: string;
+  error?: string;
+}
+
+export interface ExecActionRequestPayload {
+  action: 'like' | 'retweet' | 'bookmark' | 'follow' | 'unfollow';
+  tweetId?: string;
+  userId?: string;
+  tabId?: number;
+}
+
+export interface ExecActionResponsePayload {
+  ok: boolean;
+  data?: any;
   error?: string;
 }
 

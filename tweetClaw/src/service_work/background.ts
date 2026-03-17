@@ -18,6 +18,7 @@ localBridge.queryXBasicInfoHandler = queryXBasicInfo;
 localBridge.openTabHandler = openXTab;
 localBridge.closeTabHandler = closeXTab;
 localBridge.navigateTabHandler = navigateXTab;
+localBridge.execActionHandler = execAction;
 
 interface ApiHit {
     op: string;
@@ -916,6 +917,41 @@ export async function navigateXTab(payload: NavigateTabRequestPayload): Promise<
                     url: tab?.url || url
                 });
             }
+        });
+    });
+}
+
+export async function execAction(payload: any): Promise<any> {
+    const { action, tweetId, userId, tabId } = payload;
+    console.log(`[TweetClaw-BG] execAction called: ${action}`, { tweetId, userId, tabId });
+
+    let targetTabId = tabId;
+    if (!targetTabId) {
+        const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
+        const targetTab = xTabs.find(t => t.active) || xTabs[0];
+        targetTabId = targetTab?.id;
+    }
+
+    if (!targetTabId) {
+        throw new Error('No target tab found for action');
+    }
+
+    return new Promise((resolve, reject) => {
+        const timer = setTimeout(() => {
+            reject(new Error('Content script response timeout'));
+        }, 8000);
+
+        chrome.tabs.sendMessage(targetTabId, {
+            type: MsgType.EXECUTE_ACTION,
+            action,
+            tweetId,
+            userId
+        }).then(res => {
+            clearTimeout(timer);
+            resolve(res);
+        }).catch(err => {
+            clearTimeout(timer);
+            reject(err);
         });
     });
 }

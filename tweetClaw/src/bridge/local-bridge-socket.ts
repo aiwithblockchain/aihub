@@ -13,6 +13,7 @@ export class LocalBridgeSocket {
   public openTabHandler: ((payload: any) => Promise<any>) | null = null;
   public closeTabHandler: ((payload: any) => Promise<any>) | null = null;
   public navigateTabHandler: ((payload: any) => Promise<any>) | null = null;
+  public execActionHandler: ((payload: any) => Promise<any>) | null = null;
   
   private WS_URL = 'ws://127.0.0.1:8765/ws'; // Default
   
@@ -162,6 +163,9 @@ export class LocalBridgeSocket {
           break;
         case MESSAGE_TYPES.REQUEST_NAVIGATE_TAB:
           this.handleNavigateTab(msg);
+          break;
+        case MESSAGE_TYPES.REQUEST_EXEC_ACTION:
+          this.handleExecAction(msg);
           break;
         default:
           console.warn(`[tweetClaw] unknown message type: ${msg.type}`);
@@ -331,6 +335,41 @@ export class LocalBridgeSocket {
       const resp: BaseMessage = {
         id: req.id,
         type: MESSAGE_TYPES.RESPONSE_NAVIGATE_TAB,
+        source: 'tweetClaw',
+        target: 'LocalBridgeMac',
+        timestamp: Date.now(),
+        payload: result
+      };
+      this.send(resp);
+    } catch (e) {
+      const errResp: BaseMessage = {
+        id: req.id,
+        type: MESSAGE_TYPES.RESPONSE_ERROR,
+        source: 'tweetClaw',
+        target: 'LocalBridgeMac',
+        timestamp: Date.now(),
+        payload: {
+          code: 'INTERNAL_ERROR',
+          message: e instanceof Error ? e.message : String(e),
+          details: null
+        }
+      };
+      this.send(errResp);
+    }
+  }
+
+  private async handleExecAction(req: BaseMessage) {
+    console.log('[tweetClaw] handling request.exec_action');
+    if (!this.execActionHandler) {
+      console.error('[tweetClaw] no handler for exec_action');
+      return;
+    }
+
+    try {
+      const result = await this.execActionHandler(req.payload);
+      const resp: BaseMessage = {
+        id: req.id,
+        type: MESSAGE_TYPES.RESPONSE_EXEC_ACTION,
         source: 'tweetClaw',
         target: 'LocalBridgeMac',
         timestamp: Date.now(),
