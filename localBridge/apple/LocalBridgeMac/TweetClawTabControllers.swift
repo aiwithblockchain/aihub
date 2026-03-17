@@ -16,6 +16,21 @@ final class TweetClawHumanViewController: NSViewController {
     private let navPathTextField = NSTextField()
     private let navigateButton = NSButton(title: "跳转到 URL", target: nil, action: #selector(navigateClicked))
     
+    private let likeTweetIdTextField = NSTextField()
+    private let likeButton = NSButton(title: "点赞 Tweet", target: nil, action: #selector(likeTweetClicked))
+    
+    private let retweetTweetIdTextField = NSTextField()
+    private let retweetButton = NSButton(title: "转推 Tweet", target: nil, action: #selector(retweetClicked))
+    
+    private let bookmarkTweetIdTextField = NSTextField()
+    private let bookmarkButton = NSButton(title: "收藏 Tweet", target: nil, action: #selector(bookmarkClicked))
+    
+    private let followUserIdTextField = NSTextField()
+    private let followButton = NSButton(title: "关注用户", target: nil, action: #selector(followClicked))
+    
+    private let unfollowUserIdTextField = NSTextField()
+    private let unfollowButton = NSButton(title: "取消关注", target: nil, action: #selector(unfollowClicked))
+    
     private var resultTextView: NSTextView!
     private var resultScrollView: NSScrollView!
     
@@ -32,6 +47,7 @@ final class TweetClawHumanViewController: NSViewController {
         NotificationCenter.default.addObserver(self, selector: #selector(handleOpenTabResult(_:)), name: NSNotification.Name("OpenTabReceived"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleCloseTabResult(_:)), name: NSNotification.Name("CloseTabReceived"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleNavigateTabResult(_:)), name: NSNotification.Name("NavigateTabReceived"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleExecActionResult(_:)), name: NSNotification.Name("ExecActionReceived"), object: nil)
     }
     
     deinit {
@@ -96,7 +112,46 @@ final class TweetClawHumanViewController: NSViewController {
         navigateStack.spacing = 8
         navigateStack.alignment = .centerY
         
-        let leftStack = NSStackView(views: [titleLabel, statusLabel, queryButton, queryBasicInfoButton, openTabStack, closeTabStack, navigateStack])
+        likeTweetIdTextField.placeholderString = "Tweet ID"
+        likeButton.bezelStyle = .rounded
+        likeButton.target = self
+        let likeStack = NSStackView(views: [likeTweetIdTextField, likeButton])
+        likeStack.orientation = .horizontal
+        likeStack.spacing = 8
+        
+        retweetTweetIdTextField.placeholderString = "Tweet ID"
+        retweetButton.bezelStyle = .rounded
+        retweetButton.target = self
+        let retweetStack = NSStackView(views: [retweetTweetIdTextField, retweetButton])
+        retweetStack.orientation = .horizontal
+        retweetStack.spacing = 8
+        
+        bookmarkTweetIdTextField.placeholderString = "Tweet ID"
+        bookmarkButton.bezelStyle = .rounded
+        bookmarkButton.target = self
+        let bookmarkStack = NSStackView(views: [bookmarkTweetIdTextField, bookmarkButton])
+        bookmarkStack.orientation = .horizontal
+        bookmarkStack.spacing = 8
+        
+        followUserIdTextField.placeholderString = "User ID"
+        followButton.bezelStyle = .rounded
+        followButton.target = self
+        let followStack = NSStackView(views: [followUserIdTextField, followButton])
+        followStack.orientation = .horizontal
+        followStack.spacing = 8
+        
+        unfollowUserIdTextField.placeholderString = "User ID"
+        unfollowButton.bezelStyle = .rounded
+        unfollowButton.target = self
+        let unfollowStack = NSStackView(views: [unfollowUserIdTextField, unfollowButton])
+        unfollowStack.orientation = .horizontal
+        unfollowStack.spacing = 8
+        
+        let leftStack = NSStackView(views: [
+            titleLabel, statusLabel, queryButton, queryBasicInfoButton,
+            openTabStack, closeTabStack, navigateStack,
+            likeStack, retweetStack, bookmarkStack, followStack, unfollowStack
+        ])
         leftStack.orientation = .vertical
         leftStack.alignment = .leading
         leftStack.spacing = 15
@@ -205,6 +260,66 @@ final class TweetClawHumanViewController: NSViewController {
         guard let userInfo = notification.userInfo,
               let jsonString = userInfo["dataString"] as? String else { return }
         
+        DispatchQueue.main.async {
+            self.resultTextView.string = jsonString
+        }
+    }
+    
+    // ── Write Actions ──────────────────────────────────
+    
+    @objc private func likeTweetClicked() {
+        let tweetId = likeTweetIdTextField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !tweetId.isEmpty else {
+            resultTextView.string = "Error: Tweet ID is required"
+            return
+        }
+        resultTextView.string = "Liking tweet: \(tweetId)...\n"
+        AppDelegate.shared?.sendExecAction(action: "like", tweetId: tweetId, userId: nil, tabId: nil)
+    }
+    
+    @objc private func retweetClicked() {
+        let tweetId = retweetTweetIdTextField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !tweetId.isEmpty else {
+            resultTextView.string = "Error: Tweet ID is required"
+            return
+        }
+        resultTextView.string = "Retweeting: \(tweetId)...\n"
+        AppDelegate.shared?.sendExecAction(action: "retweet", tweetId: tweetId, userId: nil, tabId: nil)
+    }
+    
+    @objc private func bookmarkClicked() {
+        let tweetId = bookmarkTweetIdTextField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !tweetId.isEmpty else {
+            resultTextView.string = "Error: Tweet ID is required"
+            return
+        }
+        resultTextView.string = "Bookmarking: \(tweetId)...\n"
+        AppDelegate.shared?.sendExecAction(action: "bookmark", tweetId: tweetId, userId: nil, tabId: nil)
+    }
+    
+    @objc private func followClicked() {
+        let userId = followUserIdTextField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !userId.isEmpty else {
+            resultTextView.string = "Error: User ID is required"
+            return
+        }
+        resultTextView.string = "Following user: \(userId)...\n"
+        AppDelegate.shared?.sendExecAction(action: "follow", tweetId: nil, userId: userId, tabId: nil)
+    }
+    
+    @objc private func unfollowClicked() {
+        let userId = unfollowUserIdTextField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !userId.isEmpty else {
+            resultTextView.string = "Error: User ID is required"
+            return
+        }
+        resultTextView.string = "Unfollowing user: \(userId)...\n"
+        AppDelegate.shared?.sendExecAction(action: "unfollow", tweetId: nil, userId: userId, tabId: nil)
+    }
+    
+    @objc private func handleExecActionResult(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let jsonString = userInfo["dataString"] as? String else { return }
         DispatchQueue.main.async {
             self.resultTextView.string = jsonString
         }

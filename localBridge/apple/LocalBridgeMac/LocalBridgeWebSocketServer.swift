@@ -303,7 +303,22 @@ class LocalBridgeWebSocketServer {
                     callback(data)
                     self.pendingHttpCallbacks.removeValue(forKey: peekMsg.id)
                 }
-                self.pendingUiRequests.remove(peekMsg.id)
+                
+                // New: Handle UI notification
+                if self.pendingUiRequests.contains(peekMsg.id) {
+                    self.pendingUiRequests.remove(peekMsg.id)
+                    let encoder = JSONEncoder()
+                    encoder.outputFormatting = .prettyPrinted
+                    if let resp = try? JSONDecoder().decode(BaseMessage<ExecActionResponsePayload>.self, from: data),
+                       let formattedData = try? encoder.encode(resp.payload),
+                       let formattedString = String(data: formattedData, encoding: .utf8) {
+                        NotificationCenter.default.post(
+                            name: NSNotification.Name("ExecActionReceived"),
+                            object: nil,
+                            userInfo: ["dataString": formattedString]
+                        )
+                    }
+                }
                 
             case .responseError:
                 print("[LocalBridgeMac] received response.error")
@@ -826,6 +841,49 @@ class LocalBridgeWebSocketServer {
         }
     }
     
+    func sendExecAction(action: String, tweetId: String?, userId: String?, tabId: Int?) {
+        guard let connection = activeClients["tweetClaw"], connection.state == .ready else {
+            NotificationCenter.default.post(name: NSNotification.Name("ExecActionReceived"), object: nil, userInfo: ["dataString": "Error: tweetClaw extension is not connected"])
+            return
+        }
+        
+        let reqId = "ui_req_exec_\(Int(Date().timeIntervalSince1970))"
+        let payload = ExecActionRequestPayload(
+            action: action,
+            tweetId: tweetId,
+            userId: userId,
+            tabId: tabId
+        )
+        
+        let req = BaseMessage(
+            id: reqId,
+            type: .requestExecAction,
+            source: "LocalBridgeMac",
+            target: "tweetClaw",
+            timestamp: Int64(Date().timeIntervalSince1970 * 1000),
+            payload: payload
+        )
+        
+        self.pendingUiRequests.insert(reqId)
+        
+        if let data = try? JSONEncoder().encode(req), let jsonString = String(data: data, encoding: .utf8) {
+            print("[LocalBridgeMac] sending request.exec_action via UI, action: \(action), id: \(reqId)")
+            self.sendMessage(connection, jsonString)
+        }
+        
+        DispatchQueue.main.asyncAfter(deadline: .now() + 10.0) {
+            if self.pendingUiRequests.contains(reqId) {
+                print("[LocalBridgeMac] exec_action timeout for \(reqId)")
+                self.pendingUiRequests.remove(reqId)
+                NotificationCenter.default.post(
+                    name: NSNotification.Name("ExecActionReceived"),
+                    object: nil,
+                    userInfo: ["dataString": "{\"error\":\"timeout\"}"]
+                )
+            }
+        }
+    }
+    
     private func handleNavigateTabResponse(data: Data) {
         let decoder = JSONDecoder()
         do {
@@ -935,6 +993,8 @@ class LocalBridgeWebSocketServer {
                     self.handleExecActionHttpRequest(connection, requestData: data, action: "follow")
                 } else if request.contains("POST /api/v1/x/unfollows") {
                     self.handleExecActionHttpRequest(connection, requestData: data, action: "unfollow")
+                } else if request.contains("GET /api/v1/docs") {
+                    self.handleApiDocsHttpRequest(connection)
                 } else {
                     self.sendHttpResponse(connection, status: "404 Not Found", body: "{\"error\":\"not_found\"}")
                 }
@@ -1501,6 +1561,28 @@ class LocalBridgeWebSocketServer {
             }
         } catch {
             sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":\"invalid_json\", \"details\": \"\(error.localizedDescription)\"}")
+        }
+    }
+
+    private func handleApiDocsHttpRequest(_ connection: NWConnection) {
+        var jsonString: String? = nil
+
+        if let url = Bundle.main.url(forResource: "api_docs", withExtension: "json"),
+           let data = try? Data(contentsOf: url) {
+            jsonString = String(data: data, encoding: .utf8)
+        }
+
+        if jsonString == nil {
+            let path = "/Users/hyperorchid/aiwithblockchain/aihub/localBridge/apple/LocalBridgeMac/api_docs.json"
+            if let data = try? Data(contentsOf: URL(fileURLWithPath: path)) {
+                jsonString = String(data: data, encoding: .utf8)
+            }
+        }
+
+        if let body = jsonString {
+            sendHttpResponse(connection, status: "200 OK", body: body)
+        } else {
+            sendHttpResponse(connection, status: "500 Internal Server Error", body: "{\"error\":\"api_docs_not_found\"}")
         }
     }
 }
