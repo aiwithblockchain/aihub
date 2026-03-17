@@ -71,7 +71,7 @@ final class ConsoleSidebarViewController: NSViewController {
         btnTrailing.priority = NSLayoutConstraint.Priority(999)
 
         NSLayoutConstraint.activate([
-            titleLabel.topAnchor.constraint(equalTo: view.topAnchor, constant: 14),
+            titleLabel.topAnchor.constraint(equalTo: view.topAnchor, constant: 52),
             titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
             titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: addBtn.leadingAnchor, constant: -8),
 
@@ -92,7 +92,7 @@ final class ConsoleSidebarViewController: NSViewController {
         let headerBorderTrailing = border.trailingAnchor.constraint(equalTo: view.trailingAnchor)
         headerBorderTrailing.priority = NSLayoutConstraint.Priority(999)
         NSLayoutConstraint.activate([
-            border.topAnchor.constraint(equalTo: view.topAnchor, constant: 64),
+            border.topAnchor.constraint(equalTo: view.topAnchor, constant: 100),
             border.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             headerBorderTrailing,
             border.heightAnchor.constraint(equalToConstant: 1)
@@ -122,7 +122,7 @@ final class ConsoleSidebarViewController: NSViewController {
         scrollBottom.priority = NSLayoutConstraint.Priority(999)
 
         NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: view.topAnchor, constant: 65),
+            scrollView.topAnchor.constraint(equalTo: view.topAnchor, constant: 101),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollTrailing,
             scrollBottom,

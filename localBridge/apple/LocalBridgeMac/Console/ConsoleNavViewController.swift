@@ -39,7 +39,6 @@ final class ConsoleNavViewController: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         setupBorder()
-        setupLogo()
         setupButtons()
         setupBottomControls()
     }
@@ -66,41 +65,6 @@ final class ConsoleNavViewController: NSViewController {
         ])
     }
 
-    // MARK: - Logo
-
-    private func setupLogo() {
-        let logo = NSView()
-        logo.wantsLayer = true
-        logo.layer?.cornerRadius = 7
-        logo.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(logo)
-
-        let grad = CAGradientLayer()
-        grad.colors       = [NSColor.consoleBlue.cgColor, NSColor.consoleBlueDark.cgColor]
-        grad.startPoint   = CGPoint(x: 0, y: 0)
-        grad.endPoint     = CGPoint(x: 1, y: 1)
-        grad.frame        = CGRect(x: 0, y: 0, width: 32, height: 32)
-        grad.cornerRadius = 7
-        logo.layer?.addSublayer(grad)
-
-        let icon = NSImageView()
-        icon.image = NSImage(systemSymbolName: "network", accessibilityDescription: nil)
-        icon.contentTintColor = .white
-        icon.translatesAutoresizingMaskIntoConstraints = false
-        logo.addSubview(icon)
-
-        NSLayoutConstraint.activate([
-            logo.topAnchor.constraint(equalTo: view.topAnchor, constant: 14),
-            logo.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            logo.widthAnchor.constraint(equalToConstant: 32),
-            logo.heightAnchor.constraint(equalToConstant: 32),
-            icon.centerXAnchor.constraint(equalTo: logo.centerXAnchor),
-            icon.centerYAnchor.constraint(equalTo: logo.centerYAnchor),
-            icon.widthAnchor.constraint(equalToConstant: 16),
-            icon.heightAnchor.constraint(equalToConstant: 16)
-        ])
-    }
-
     // MARK: - Nav Buttons
 
     private func setupButtons() {
@@ -124,9 +88,14 @@ final class ConsoleNavViewController: NSViewController {
             btn.tag    = i
             btn.target = self
             btn.action = #selector(navTapped(_:))
+            btn.toolTip = "\(item.label) (⌘\(i + 1))"
             btn.translatesAutoresizingMaskIntoConstraints = false
             btn.heightAnchor.constraint(equalToConstant: 40).isActive = true
-            btn.widthAnchor.constraint(equalToConstant: 48).isActive  = true
+            btn.widthAnchor.constraint(equalToConstant: 64).isActive  = true
+            
+            // 重要：确保按钮在 Hover 时有响应，有助于触发系统 Tooltip
+            btn.showsBorderOnlyWhileMouseInside = true 
+            
             stack.addArrangedSubview(btn)
             navButtons.append(btn)
         }
@@ -135,7 +104,7 @@ final class ConsoleNavViewController: NSViewController {
         stackTrailing.priority = NSLayoutConstraint.Priority(999)
 
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: view.topAnchor, constant: 60),
+            stack.topAnchor.constraint(equalTo: view.topAnchor, constant: 64),
             stack.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             stackTrailing,
             selectionIndicator.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -147,7 +116,12 @@ final class ConsoleNavViewController: NSViewController {
     }
 
     @objc private func navTapped(_ sender: NSButton) {
-        selectedIndex = sender.tag
+        selectTab(at: sender.tag)
+    }
+
+    func selectTab(at index: Int) {
+        guard index >= 0 && index < items.count else { return }
+        selectedIndex = index
         updateSelection()
         delegate?.didSelectNavItem(at: selectedIndex)
     }

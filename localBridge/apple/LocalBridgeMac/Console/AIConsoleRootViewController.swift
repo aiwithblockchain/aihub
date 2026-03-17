@@ -57,7 +57,7 @@ final class AIConsoleRootViewController: NSViewController {
             navVC.view.topAnchor.constraint(equalTo: view.topAnchor),
             navVC.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             navVC.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            navVC.view.widthAnchor.constraint(equalToConstant: 48)
+            navVC.view.widthAnchor.constraint(equalToConstant: 64)
         ])
     }
 
@@ -105,6 +105,21 @@ final class AIConsoleRootViewController: NSViewController {
             activityVC.view.isHidden = !isCollapsed
             splitView.layoutSubtreeIfNeeded()
         }
+    }
+
+    // MARK: - Key Shortcuts
+
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        if flags == .command {
+            if let chars = event.charactersIgnoringModifiers,
+               let firstChar = chars.first,
+               let num = Int(String(firstChar)), num >= 1 && num <= 6 {
+                navVC.selectTab(at: num - 1)
+                return true
+            }
+        }
+        return super.performKeyEquivalent(with: event)
     }
 }
 
