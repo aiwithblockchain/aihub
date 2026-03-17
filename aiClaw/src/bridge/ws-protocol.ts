@@ -50,6 +50,8 @@ export interface ClientHelloPayload {
   clientVersion: string;
   browser: 'chrome';
   capabilities: string[];
+  instanceId?: string;   // 新增：Profile 级别的稳定唯一 ID
+  incognito?: boolean;   // 新增：是否无痕模式
 }
 
 export interface ServerHelloAckPayload {
