@@ -137,14 +137,20 @@ final class ConsoleChatViewController: NSViewController {
         stackView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.documentView = stackView
 
+        let stackWidth = stackView.widthAnchor.constraint(equalTo: scrollView.widthAnchor, constant: -32)
+        stackWidth.priority = .defaultHigh
+        
+        let scrollBottom = scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -68)
+        scrollBottom.priority = .defaultHigh
+
         NSLayoutConstraint.activate([
             scrollView.topAnchor.constraint(equalTo: view.topAnchor, constant: 61),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -68),
+            scrollBottom,
             stackView.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor),
             stackView.centerXAnchor.constraint(equalTo: scrollView.centerXAnchor),
-            stackView.widthAnchor.constraint(equalTo: scrollView.widthAnchor, constant: -32)
+            stackWidth
         ])
     }
 
@@ -207,7 +213,31 @@ final class ConsoleChatViewController: NSViewController {
         sendButton.target = self; sendButton.action = #selector(sendMessage); sendButton.translatesAutoresizingMaskIntoConstraints = false; inputArea.addSubview(sendButton)
         let hint = NSTextField(labelWithString: "在此输入可直接干预 \(agent.role.label) 的决策"); hint.font = .systemFont(ofSize: 10); hint.textColor = .consoleText3
         hint.translatesAutoresizingMaskIntoConstraints = false; inputArea.addSubview(hint)
-        NSLayoutConstraint.activate([inputArea.leadingAnchor.constraint(equalTo: view.leadingAnchor), inputArea.trailingAnchor.constraint(equalTo: view.trailingAnchor), inputArea.bottomAnchor.constraint(equalTo: view.bottomAnchor), inputArea.heightAnchor.constraint(equalToConstant: 68), border.topAnchor.constraint(equalTo: inputArea.topAnchor), border.leadingAnchor.constraint(equalTo: inputArea.leadingAnchor), border.trailingAnchor.constraint(equalTo: inputArea.trailingAnchor), border.heightAnchor.constraint(equalToConstant: 1), inputField.topAnchor.constraint(equalTo: inputArea.topAnchor, constant: 10), inputField.leadingAnchor.constraint(equalTo: inputArea.leadingAnchor, constant: 14), inputField.trailingAnchor.constraint(equalTo: sendButton.leadingAnchor, constant: -8), inputField.heightAnchor.constraint(equalToConstant: 30), sendButton.centerYAnchor.constraint(equalTo: inputField.centerYAnchor), sendButton.trailingAnchor.constraint(equalTo: inputArea.trailingAnchor, constant: -14), sendButton.widthAnchor.constraint(equalToConstant: 34), sendButton.heightAnchor.constraint(equalToConstant: 34), hint.topAnchor.constraint(equalTo: inputField.bottomAnchor, constant: 4), hint.centerXAnchor.constraint(equalTo: inputArea.centerXAnchor)])
+        let sendWidth = sendButton.widthAnchor.constraint(equalToConstant: 34)
+        sendWidth.priority = .defaultHigh
+        let sendTrailing = sendButton.trailingAnchor.constraint(equalTo: inputArea.trailingAnchor, constant: -14)
+        sendTrailing.priority = .defaultHigh
+
+        NSLayoutConstraint.activate([
+            inputArea.leadingAnchor.constraint(equalTo: view.leadingAnchor), 
+            inputArea.trailingAnchor.constraint(equalTo: view.trailingAnchor), 
+            inputArea.bottomAnchor.constraint(equalTo: view.bottomAnchor), 
+            inputArea.heightAnchor.constraint(equalToConstant: 68), 
+            border.topAnchor.constraint(equalTo: inputArea.topAnchor), 
+            border.leadingAnchor.constraint(equalTo: inputArea.leadingAnchor), 
+            border.trailingAnchor.constraint(equalTo: inputArea.trailingAnchor), 
+            border.heightAnchor.constraint(equalToConstant: 1), 
+            inputField.topAnchor.constraint(equalTo: inputArea.topAnchor, constant: 10), 
+            inputField.leadingAnchor.constraint(equalTo: inputArea.leadingAnchor, constant: 14), 
+            inputField.trailingAnchor.constraint(equalTo: sendButton.leadingAnchor, constant: -8), 
+            inputField.heightAnchor.constraint(equalToConstant: 30), 
+            sendButton.centerYAnchor.constraint(equalTo: inputField.centerYAnchor), 
+            sendTrailing,
+            sendWidth,
+            sendButton.heightAnchor.constraint(equalToConstant: 34), 
+            hint.topAnchor.constraint(equalTo: inputField.bottomAnchor, constant: 4), 
+            hint.centerXAnchor.constraint(equalTo: inputArea.centerXAnchor)
+        ])
     }
 
     @objc private func sendMessage() {

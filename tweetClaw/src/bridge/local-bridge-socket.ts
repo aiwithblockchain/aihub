@@ -16,6 +16,10 @@ export class LocalBridgeSocket {
   public closeTabHandler: ((payload: any) => Promise<any>) | null = null;
   public navigateTabHandler: ((payload: any) => Promise<any>) | null = null;
   public execActionHandler: ((payload: any) => Promise<any>) | null = null;
+  public queryHomeTimelineHandler: ((payload: any) => Promise<any>) | null = null;
+  public queryTweetDetailHandler: ((payload: any) => Promise<any>) | null = null;
+  public queryUserProfileHandler: ((payload: any) => Promise<any>) | null = null;
+  public querySearchTimelineHandler: ((payload: any) => Promise<any>) | null = null;
   
   private WS_URL = 'ws://127.0.0.1:10086/ws'; // Default
   
@@ -174,6 +178,18 @@ export class LocalBridgeSocket {
           break;
         case MESSAGE_TYPES.REQUEST_EXEC_ACTION:
           this.handleExecAction(msg);
+          break;
+        case MESSAGE_TYPES.REQUEST_QUERY_HOME_TIMELINE:
+          this.handleGenericQuery(msg, this.queryHomeTimelineHandler, MESSAGE_TYPES.RESPONSE_QUERY_HOME_TIMELINE);
+          break;
+        case MESSAGE_TYPES.REQUEST_QUERY_TWEET_DETAIL:
+          this.handleGenericQuery(msg, this.queryTweetDetailHandler, MESSAGE_TYPES.RESPONSE_QUERY_TWEET_DETAIL);
+          break;
+        case MESSAGE_TYPES.REQUEST_QUERY_USER_PROFILE:
+          this.handleGenericQuery(msg, this.queryUserProfileHandler, MESSAGE_TYPES.RESPONSE_QUERY_USER_PROFILE);
+          break;
+        case MESSAGE_TYPES.REQUEST_QUERY_SEARCH_TIMELINE:
+          this.handleGenericQuery(msg, this.querySearchTimelineHandler, MESSAGE_TYPES.RESPONSE_QUERY_SEARCH_TIMELINE);
           break;
         default:
           console.warn(`[tweetClaw] unknown message type: ${msg.type}`);
@@ -400,6 +416,45 @@ export class LocalBridgeSocket {
       this.send(errResp);
     }
   }
+
+  private async handleGenericQuery(
+      req: BaseMessage,
+      handler: ((payload: any) => Promise<any>) | null,
+      responseType: string
+  ): Promise<void> {
+      if (!handler) {
+          console.error(`[tweetClaw] no handler for ${responseType}`);
+          this.send({
+              id: req.id,
+              type: MESSAGE_TYPES.RESPONSE_ERROR,
+              source: 'tweetClaw',
+              target: 'LocalBridgeMac',
+              timestamp: Date.now(),
+              payload: { code: 'INTERNAL_ERROR', message: 'Handler not registered', details: null }
+          });
+          return;
+      }
+      try {
+          const result = await handler(req.payload);
+          this.send({
+              id: req.id,
+              type: responseType,
+              source: 'tweetClaw',
+              target: 'LocalBridgeMac',
+              timestamp: Date.now(),
+              payload: result
+          });
+      } catch (e: any) {
+          this.send({
+              id: req.id,
+              type: MESSAGE_TYPES.RESPONSE_ERROR,
+              source: 'tweetClaw',
+              target: 'LocalBridgeMac',
+              timestamp: Date.now(),
+              payload: { code: 'INTERNAL_ERROR', message: e.message, details: null }
+          });
+      }
+  }
   
   private startHeartbeat(interval: number) {
     this.stopHeartbeat();
@@ -446,3 +501,4 @@ export class LocalBridgeSocket {
     }
   }
 }
+
