@@ -132,7 +132,7 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		2BB7653A2F6864AE00309F77 /* Console */ = {
+		2BB7653A2F6864AE00309F77 /* AIConsole */ = {
 			isa = PBXGroup;
 			children = (
 				2BB7652F2F6864AE00309F77 /* AIConsoleMockData.swift */,
