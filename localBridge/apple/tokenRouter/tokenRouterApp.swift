@@ -5,22 +5,14 @@
 //  Created by wesley on 2026/3/17.
 //
 
-import SwiftUI
-import SwiftData
-
-@main
-struct tokenRouterApp: App {
-    @NSApplicationDelegateAdaptor(TokenRouterAppDelegate.self) var appDelegate
-    
-    var body: some Scene {
-        // 使用 Settings 场景来占位，这样不会自动打开主窗口（由 AIConsoleWindowController 负责）
-        Settings {
-            EmptyView()
-        }
-    }
-}
+import AppKit
 
 class TokenRouterAppDelegate: NSObject, NSApplicationDelegate {
+    func applicationWillFinishLaunching(_ notification: Notification) {
+        // 在启动完成前设置激活策略，此时系统无需向前台进程发 Apple Event
+        NSApp.setActivationPolicy(.regular)
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         print("TokenRouterAppDelegate: applicationDidFinishLaunching")
         
@@ -82,6 +74,10 @@ class TokenRouterAppDelegate: NSObject, NSApplicationDelegate {
     
     func applicationSupportsSecureRestorableState(_ app: NSApplication) -> Bool {
         return true
+    }
+    
+    func application(_ app: NSApplication, willEncodeRestorableState coder: NSCoder) {
+        // 彻底禁用状态编码，防止系统尝试恢复不存在的窗口状态
     }
     
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
