@@ -1064,3 +1064,168 @@ func makeTabBar(containing control: NSSegmentedControl) -> NSView {
     ])
     return bar
 }
+
+// MARK: - Settings Modal Panel
+
+final class ConsoleSettingsViewController: NSViewController {
+    private let categories = ["常规", "模型配置", "通知", "账户", "关于"]
+    private let splitView = NSSplitView()
+    private let sidebar = NSStackView()
+    private let contentArea = NSView()
+
+    override func loadView() {
+        view = NSView()
+        view.wantsLayer = true
+        view.layer?.backgroundColor = NSColor.white.cgColor
+        view.setFrameSize(NSSize(width: 720, height: 500))
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        setupUI()
+    }
+
+    private func setupUI() {
+        let title = NSTextField(labelWithString: "设置")
+        title.font = .systemFont(ofSize: 14, weight: .semibold)
+        title.textColor = .consoleText
+        title.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(title)
+
+        let closeBtn = NSButton()
+        closeBtn.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "关闭")
+        closeBtn.isBordered = false
+        closeBtn.target = self
+        closeBtn.action = #selector(dismissSettings)
+        closeBtn.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(closeBtn)
+
+        splitView.isVertical = true
+        splitView.dividerStyle = .thin
+        splitView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(splitView)
+
+        sidebar.orientation = .vertical
+        sidebar.spacing = 2
+        sidebar.edgeInsets = NSEdgeInsets(top: 20, left: 12, bottom: 20, right: 12)
+        
+        for (i, cat) in categories.enumerated() {
+            let container = NSView()
+            container.translatesAutoresizingMaskIntoConstraints = false
+            container.heightAnchor.constraint(equalToConstant: 30).isActive = true
+            
+            let btn = NSButton()
+            btn.title = cat
+            btn.isBordered = false
+            btn.alignment = .left
+            btn.contentTintColor = i == 1 ? .consoleBlue : .consoleText
+            btn.font = .systemFont(ofSize: 12, weight: i == 1 ? .semibold : .regular)
+            btn.translatesAutoresizingMaskIntoConstraints = false
+            container.addSubview(btn)
+            
+            if i == 1 {
+                container.wantsLayer = true
+                container.layer?.backgroundColor = NSColor.consoleBlue.withAlphaComponent(0.1).cgColor
+                container.layer?.cornerRadius = 4
+            }
+
+            NSLayoutConstraint.activate([
+                btn.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+                btn.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 8),
+                btn.trailingAnchor.constraint(equalTo: container.trailingAnchor)
+            ])
+            sidebar.addArrangedSubview(container)
+        }
+        
+        let sidebarWrapper = NSView()
+        sidebarWrapper.wantsLayer = true
+        sidebarWrapper.layer?.backgroundColor = NSColor.consoleZ950.cgColor
+        sidebarWrapper.addSubview(sidebar)
+        sidebar.translatesAutoresizingMaskIntoConstraints = false
+        NSLayoutConstraint.activate([
+            sidebar.topAnchor.constraint(equalTo: sidebarWrapper.topAnchor),
+            sidebar.leadingAnchor.constraint(equalTo: sidebarWrapper.leadingAnchor),
+            sidebar.trailingAnchor.constraint(equalTo: sidebarWrapper.trailingAnchor)
+        ])
+
+        splitView.addArrangedSubview(sidebarWrapper)
+        splitView.addArrangedSubview(contentArea)
+
+        NSLayoutConstraint.activate([
+            title.topAnchor.constraint(equalTo: view.topAnchor, constant: 14),
+            title.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            
+            closeBtn.centerYAnchor.constraint(equalTo: title.centerYAnchor),
+            closeBtn.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            
+            splitView.topAnchor.constraint(equalTo: view.topAnchor, constant: 44),
+            splitView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            splitView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            splitView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+        ])
+
+        setupModelSettings()
+
+        DispatchQueue.main.async { [weak self] in
+            self?.splitView.setPosition(180, ofDividerAt: 0)
+        }
+    }
+
+    private func setupModelSettings() {
+        let sectionTitle = NSTextField(labelWithString: "模型额度 (Model Credits)")
+        sectionTitle.font = .systemFont(ofSize: 13, weight: .bold)
+        sectionTitle.textColor = .consoleText
+        sectionTitle.translatesAutoresizingMaskIntoConstraints = false
+        contentArea.addSubview(sectionTitle)
+
+        let card = NSView()
+        card.wantsLayer = true
+        card.layer?.backgroundColor = NSColor.consoleZ900.cgColor
+        card.layer?.cornerRadius = 6
+        card.layer?.borderWidth = 1
+        card.layer?.borderColor = NSColor.consoleZ800.cgColor
+        card.translatesAutoresizingMaskIntoConstraints = false
+        contentArea.addSubview(card)
+
+        let cardMain = NSTextField(labelWithString: "启用 AI 额度超额提醒")
+        cardMain.font = .systemFont(ofSize: 12, weight: .semibold)
+        cardMain.textColor = .consoleText
+        cardMain.translatesAutoresizingMaskIntoConstraints = false
+        card.addSubview(cardMain)
+
+        let cardSub = NSTextField(labelWithString: "当您的额度快用完时，Antigravity 会使用您的 AI 额度来履行模型请求。")
+        cardSub.font = .systemFont(ofSize: 11)
+        cardSub.textColor = .consoleText2
+        cardSub.translatesAutoresizingMaskIntoConstraints = false
+        card.addSubview(cardSub)
+
+        let toggle = NSSwitch()
+        toggle.state = .on
+        toggle.translatesAutoresizingMaskIntoConstraints = false
+        card.addSubview(toggle)
+
+        NSLayoutConstraint.activate([
+            sectionTitle.topAnchor.constraint(equalTo: contentArea.topAnchor, constant: 30),
+            sectionTitle.leadingAnchor.constraint(equalTo: contentArea.leadingAnchor, constant: 30),
+            
+            card.topAnchor.constraint(equalTo: sectionTitle.bottomAnchor, constant: 16),
+            card.leadingAnchor.constraint(equalTo: contentArea.leadingAnchor, constant: 24),
+            card.trailingAnchor.constraint(equalTo: contentArea.trailingAnchor, constant: -24),
+            card.heightAnchor.constraint(equalToConstant: 80),
+
+            cardMain.topAnchor.constraint(equalTo: card.topAnchor, constant: 16),
+            cardMain.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 16),
+            
+            cardSub.topAnchor.constraint(equalTo: cardMain.bottomAnchor, constant: 4),
+            cardSub.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 16),
+            cardSub.trailingAnchor.constraint(equalTo: toggle.leadingAnchor, constant: -16),
+            
+            toggle.centerYAnchor.constraint(equalTo: card.centerYAnchor),
+            toggle.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -16)
+        ])
+    }
+
+    @objc private func dismissSettings() {
+        self.dismiss(nil)
+    }
+}

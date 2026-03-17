@@ -23,8 +23,7 @@ final class ConsoleNavViewController: NSViewController {
         NavItem(icon: "chevron.left.forwardslash.chevron.right", label: "开发团队"),
         NavItem(icon: "checkmark.circle",                        label: "验收团队"),
         NavItem(icon: "message",                                 label: "消息流"),
-        NavItem(icon: "network",                                 label: "AI 配置"),
-        NavItem(icon: "gearshape",                               label: "设置")
+        NavItem(icon: "network",                                 label: "AI 配置")
     ]
 
     // MARK: - View Lifecycle

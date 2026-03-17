@@ -116,3 +116,39 @@ final class SettingsPlaceholderViewController: NSViewController {
         ])
     }
 }
+
+// MARK: - Terminal Panel
+
+final class ConsoleTerminalViewController: NSViewController {
+    override func loadView() {
+        view = NSView()
+        view.wantsLayer = true
+        view.layer?.backgroundColor = NSColor.consoleZ900.cgColor
+    }
+
+    override func viewDidLoad() {
+        super.viewDidLoad()
+        
+        let border = NSView()
+        border.wantsLayer = true
+        border.layer?.backgroundColor = NSColor.consoleZ800.cgColor
+        border.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(border)
+
+        let terminalLabel = NSTextField(labelWithString: "➜  aihub git:(main) ✗")
+        terminalLabel.font = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
+        terminalLabel.textColor = .consoleText
+        terminalLabel.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(terminalLabel)
+
+        NSLayoutConstraint.activate([
+            border.topAnchor.constraint(equalTo: view.topAnchor),
+            border.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            border.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            border.heightAnchor.constraint(equalToConstant: 1),
+
+            terminalLabel.topAnchor.constraint(equalTo: view.topAnchor, constant: 12),
+            terminalLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16)
+        ])
+    }
+}
