@@ -965,7 +965,7 @@ class LocalBridgeWebSocketServer {
     }
     
     private func receiveHttpRequest(from connection: NWConnection) {
-        connection.receive(minimumIncompleteLength: 1, maximumLength: 1024) { data, context, isComplete, error in
+        connection.receive(minimumIncompleteLength: 1, maximumLength: 8192) { data, context, isComplete, error in
             if let data = data, let request = String(data: data, encoding: .utf8) {
                 if request.contains("GET /api/v1/x/status") {
                     self.handleXStatusHttpRequest(connection)
@@ -1095,7 +1095,7 @@ class LocalBridgeWebSocketServer {
     }
     
     private func sendHttpResponse(_ connection: NWConnection, status: String, body: String) {
-        let response = "HTTP/1.1 \(status)\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: \(body.count)\r\n\r\n\(body)"
+        let response = "HTTP/1.1 \(status)\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: \(body.utf8.count)\r\n\r\n\(body)"
         connection.send(content: response.data(using: .utf8), completion: .contentProcessed({ _ in
             connection.cancel()
         }))

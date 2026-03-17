@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """
+python3 test_api.py
 LocalBridge REST API Test Suite
 前提：LocalBridgeMac 已启动，tweetClaw 扩展已连接，X.com 已打开并登录
 运行：python3 test_api.py
