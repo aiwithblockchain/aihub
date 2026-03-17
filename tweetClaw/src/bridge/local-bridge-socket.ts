@@ -15,7 +15,7 @@ export class LocalBridgeSocket {
   public navigateTabHandler: ((payload: any) => Promise<any>) | null = null;
   public execActionHandler: ((payload: any) => Promise<any>) | null = null;
   
-  private WS_URL = 'ws://127.0.0.1:8765/ws'; // Default
+  private WS_URL = 'ws://127.0.0.1:10086/ws'; // Default
   
   constructor() {
     this.connect();

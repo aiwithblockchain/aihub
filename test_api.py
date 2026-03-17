@@ -12,7 +12,7 @@ import urllib.request
 import urllib.error
 from typing import Any, Dict, List, Optional
 
-BASE_URL = "http://127.0.0.1:8769"
+BASE_URL = "http://127.0.0.1:10088"
 TIMEOUT = 15  # 秒
 
 def http_get(path: str) -> Optional[Any]:

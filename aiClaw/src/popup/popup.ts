@@ -8,7 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (res.wsPort) {
             portInput.value = String(res.wsPort);
         } else {
-            portInput.value = '8766'; // default for aiClaw
+            portInput.value = '10087'; // default for aiClaw
         }
     });
 

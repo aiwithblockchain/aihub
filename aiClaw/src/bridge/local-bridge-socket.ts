@@ -18,7 +18,7 @@ export class LocalBridgeSocket {
   public queryAITabsHandler: (() => Promise<any>) | null = null;
   public executeTaskHandler: ((task: any) => Promise<any>) | null = null;
 
-  private WS_URL = 'ws://127.0.0.1:8766/ws'; // Default
+  private WS_URL = 'ws://127.0.0.1:10087/ws'; // Default
 
   constructor() {
     this.connect();

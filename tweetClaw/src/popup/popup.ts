@@ -9,7 +9,7 @@ document.addEventListener('DOMContentLoaded', () => {
         if (res.wsPort) {
             portInput.value = String(res.wsPort);
         } else {
-            portInput.value = '8765'; // default for tweetClaw
+            portInput.value = '10086'; // default for tweetClaw
         }
     });
 

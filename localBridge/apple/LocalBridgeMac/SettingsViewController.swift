@@ -9,6 +9,8 @@ final class SettingsViewController: NSViewController {
     private let tweetClawPortField = NSTextField()
     private let aiClawPortLabel = NSTextField(labelWithString: "aiClaw WebSocket 端口:")
     private let aiClawPortField = NSTextField()
+    private let restPortLabel = NSTextField(labelWithString: "REST API 端口:")
+    private let restPortField = NSTextField()
     
     // Actions
     private let saveButton = NSButton(title: "保存配置并重启服务", target: nil, action: #selector(saveClicked))
@@ -47,6 +49,10 @@ final class SettingsViewController: NSViewController {
         aiClawPortField.translatesAutoresizingMaskIntoConstraints = false
         aiClawPortField.widthAnchor.constraint(equalToConstant: 80).isActive = true
         
+        restPortLabel.translatesAutoresizingMaskIntoConstraints = false
+        restPortField.translatesAutoresizingMaskIntoConstraints = false
+        restPortField.widthAnchor.constraint(equalToConstant: 80).isActive = true
+        
         saveButton.translatesAutoresizingMaskIntoConstraints = false
         saveButton.target = self
         saveButton.bezelStyle = .rounded
@@ -63,6 +69,10 @@ final class SettingsViewController: NSViewController {
         aiClawStack.orientation = .horizontal
         aiClawStack.alignment = .centerY
         
+        let restStack = NSStackView(views: [restPortLabel, restPortField])
+        restStack.orientation = .horizontal
+        restStack.alignment = .centerY
+        
         let spacerRow = NSView()
         spacerRow.heightAnchor.constraint(equalToConstant: 10).isActive = true
         
@@ -75,6 +85,7 @@ final class SettingsViewController: NSViewController {
             spacerRow,
             tweetClawStack,
             aiClawStack,
+            restStack,
             saveButton,
             bottomSpacerRow,
             quitButton
@@ -98,9 +109,11 @@ final class SettingsViewController: NSViewController {
         let defaults = UserDefaults.standard
         let ttPort = defaults.integer(forKey: "tweetClawPort")
         let aiPort = defaults.integer(forKey: "aiClawPort")
+        let restPort = defaults.integer(forKey: "restApiPort")
         
-        tweetClawPortField.stringValue = ttPort != 0 ? "\(ttPort)" : "8765"
-        aiClawPortField.stringValue = aiPort != 0 ? "\(aiPort)" : "8766"
+        tweetClawPortField.stringValue = ttPort != 0 ? "\(ttPort)" : "10086"
+        aiClawPortField.stringValue = aiPort != 0 ? "\(aiPort)" : "10087"
+        restPortField.stringValue = restPort != 0 ? "\(restPort)" : "10088"
     }
 
     private func updateCheckboxState() {
@@ -121,6 +134,9 @@ final class SettingsViewController: NSViewController {
         if let aiPortStr = Int(aiClawPortField.stringValue), aiPortStr > 0 {
             defaults.set(aiPortStr, forKey: "aiClawPort")
         }
+        if let restPortStr = Int(restPortField.stringValue), restPortStr > 0 {
+            defaults.set(restPortStr, forKey: "restApiPort")
+        }
         defaults.synchronize()
         
         // Notify app delegate to restart the websocket server
@@ -128,7 +144,7 @@ final class SettingsViewController: NSViewController {
         
         let alert = NSAlert()
         alert.messageText = "保存成功"
-        alert.informativeText = "WebSocket 服务器端口设置已保存，服务已在后台重启。"
+        alert.informativeText = "服务器端口设置已保存，服务已在后台重启。"
         alert.alertStyle = .informational
         alert.addButton(withTitle: "确定")
         alert.runModal()

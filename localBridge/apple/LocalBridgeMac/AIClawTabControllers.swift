@@ -258,11 +258,11 @@ final class AIClawBotViewController: NSViewController {
         apiDocLabel.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
         apiDocLabel.stringValue = """
         Usage:
-        curl -X GET http://127.0.0.1:8769/api/v1/ai/status
+        curl -X GET http://127.0.0.1:10088/api/v1/ai/status
         
         ---
         
-        Endpoint: POST http://127.0.0.1:8769/api/v1/ai/message
+        Endpoint: POST http://127.0.0.1:10088/api/v1/ai/message
         Description: Sends a message to a specific AI platform.
         
         Body (JSON):
@@ -283,13 +283,13 @@ final class AIClawBotViewController: NSViewController {
         }
         
         Usage:
-        curl -X POST http://127.0.0.1:8769/api/v1/ai/message \\
+        curl -X POST http://127.0.0.1:10088/api/v1/ai/message \\
              -H "Content-Type: application/json" \\
              -d '{"platform":"chatgpt", "prompt":"Hello"}'
         
         ---
 
-        Endpoint: POST http://127.0.0.1:8769/api/v1/ai/new_conversation
+        Endpoint: POST http://127.0.0.1:10088/api/v1/ai/new_conversation
         Description: Creates a new AI conversation. Currently intended for ChatGPT.
 
         Body (JSON):
@@ -299,7 +299,7 @@ final class AIClawBotViewController: NSViewController {
         }
 
         Usage:
-        curl -X POST http://127.0.0.1:8769/api/v1/ai/new_conversation \\
+        curl -X POST http://127.0.0.1:10088/api/v1/ai/new_conversation \\
              -H "Content-Type: application/json" \\
              -d '{"platform":"chatgpt"}'
 

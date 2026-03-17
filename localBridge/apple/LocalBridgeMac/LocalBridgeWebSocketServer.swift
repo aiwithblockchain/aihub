@@ -27,17 +27,16 @@ class LocalBridgeWebSocketServer {
     func start() {
         let defaults = UserDefaults.standard
         let ttPortInt = defaults.integer(forKey: "tweetClawPort")
-        let tcpPortTT = ttPortInt > 0 ? UInt16(ttPortInt) : 8765
+        let tcpPortTT = ttPortInt > 0 ? UInt16(ttPortInt) : 10086
         
         let aiPortInt = defaults.integer(forKey: "aiClawPort")
-        let tcpPortAI = aiPortInt > 0 ? UInt16(aiPortInt) : 8766
+        let tcpPortAI = aiPortInt > 0 ? UInt16(aiPortInt) : 10087
         
-        let portsToListen: [(String, NWEndpoint.Port)] = [
-            ("tweetClaw", NWEndpoint.Port(rawValue: tcpPortTT)!),
-            ("aiClaw", NWEndpoint.Port(rawValue: tcpPortAI)!)
-        ]
-        
-        for (appName, port) in portsToListen {
+        var uniquePorts: Set<NWEndpoint.Port> = []
+        if let ttP = NWEndpoint.Port(rawValue: tcpPortTT) { uniquePorts.insert(ttP) }
+        if let aiP = NWEndpoint.Port(rawValue: tcpPortAI) { uniquePorts.insert(aiP) }
+
+        for port in uniquePorts {
             do {
                 let parameters = NWParameters.tcp
                 let webSocketOptions = NWProtocolWebSocket.Options()
@@ -50,10 +49,10 @@ class LocalBridgeWebSocketServer {
                 listener.stateUpdateHandler = { state in
                     switch state {
                     case .ready:
-                        print("[LocalBridgeMac] \(appName) listener started on port \(port)")
+                        print("[LocalBridgeMac] WebSocket listener started on port \(port)")
                         self.isRunning = true
                     case .failed(let error):
-                        print("[LocalBridgeMac] \(appName) listener failed with error: \(error)")
+                        print("[LocalBridgeMac] WebSocket listener failed with error: \(error)")
                     default:
                         break
                     }
@@ -66,14 +65,14 @@ class LocalBridgeWebSocketServer {
                 listener.start(queue: .main)
                 self.listeners.append(listener)
             } catch {
-                print("[LocalBridgeMac] failed to start \(appName) listener on \(port): \(error)")
+                print("[LocalBridgeMac] failed to start WebSocket listener on \(port): \(error)")
             }
         }
         
         // Start heartbeat timeout checker
         self.startHeartbeatTimer()
         
-        // Start REST API server on 8769
+        // Start REST API server on 10088
         self.startHttpServer()
     }
     
@@ -941,7 +940,15 @@ class LocalBridgeWebSocketServer {
     // MARK: - HTTP Server (REST API)
     
     private func startHttpServer() {
-        let port: NWEndpoint.Port = 8769
+        let defaults = UserDefaults.standard
+        let restPortInt = defaults.integer(forKey: "restApiPort")
+        let tcpPortRest = restPortInt > 0 ? UInt16(restPortInt) : 10088
+        
+        guard let port = NWEndpoint.Port(rawValue: tcpPortRest) else {
+            print("[LocalBridgeMac] invalid REST API port: \(tcpPortRest)")
+            return
+        }
+        
         do {
             let parameters = NWParameters.tcp
             httpListener = try NWListener(using: parameters, on: port)
