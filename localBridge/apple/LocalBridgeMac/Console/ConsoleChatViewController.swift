@@ -4,18 +4,20 @@ import AppKit
 
 final class ConsoleChatViewController: NSViewController {
     private let agent: AIAgent
+    private let viewModel: ConsoleChatViewModel
     private let stackView  = NSStackView()
     private let scrollView = NSScrollView()
     private let inputField = ConsoleTextField()
+    private let sendButton = ConsoleSendButton()
 
     init(agent: AIAgent) {
         self.agent = agent
+        self.viewModel = ConsoleChatViewModel(initialMessages: agent.messages)
         super.init(nibName: nil, bundle: nil)
     }
     required init?(coder: NSCoder) { fatalError() }
 
     override func loadView() {
-        // ⚠️ 不设置 translatesAutoresizingMaskIntoConstraints = false
         view = NSView()
         view.wantsLayer = true
         view.layer?.backgroundColor = NSColor.consoleZ950.cgColor
@@ -26,6 +28,18 @@ final class ConsoleChatViewController: NSViewController {
         setupHeader()
         setupMessages()
         setupInput()
+        
+        // Task 6.2: Bind viewModel callbacks
+        viewModel.onMessagesUpdated = { [weak self] in
+            guard let self = self else { return }
+            self.refreshMessages()
+        }
+        
+        viewModel.onStreamingStateChanged = { [weak self] isStreaming in
+            guard let self = self else { return }
+            self.inputField.isEnabled = !isStreaming
+            self.sendButton.isEnabled = !isStreaming
+        }
     }
 
     // MARK: - Header
@@ -155,7 +169,27 @@ final class ConsoleChatViewController: NSViewController {
             stackView.centerXAnchor.constraint(equalTo: scrollView.centerXAnchor),
             stackWidth
         ])
-        for m in agent.messages { addMessageBubble(m) }
+        refreshMessages()
+    }
+
+    private func refreshMessages() {
+        let currentCount = stackView.arrangedSubviews.count
+        let messagesCount = viewModel.messages.count
+        
+        if messagesCount > currentCount {
+            for i in currentCount..<messagesCount {
+                addMessageBubble(viewModel.messages[i])
+            }
+        } else if messagesCount > 0 && messagesCount == currentCount {
+            let lastIdx = messagesCount - 1
+            if viewModel.messages[lastIdx].sender == .ai {
+                updateMessageBubble(at: lastIdx, message: viewModel.messages[lastIdx])
+            }
+        }
+        
+        DispatchQueue.main.async {
+            self.scrollView.contentView.scrollToVisible(CGRect(x: 0, y: self.stackView.frame.height - self.scrollView.contentSize.height, width: self.scrollView.contentSize.width, height: self.scrollView.contentSize.height))
+        }
     }
 
     private func addMessageBubble(_ m: AIMessage) {
@@ -168,6 +202,7 @@ final class ConsoleChatViewController: NSViewController {
         bubble.wantsLayer = true
         bubble.layer?.cornerRadius = 10
         bubble.translatesAutoresizingMaskIntoConstraints = false
+        bubble.identifier = NSUserInterfaceItemIdentifier("bubble")
         container.addSubview(bubble)
 
         let content = NSTextField(labelWithString: m.content)
@@ -175,6 +210,7 @@ final class ConsoleChatViewController: NSViewController {
         content.textColor            = .consoleText
         content.maximumNumberOfLines = 0
         content.translatesAutoresizingMaskIntoConstraints = false
+        content.identifier = NSUserInterfaceItemIdentifier("content")
         bubble.addSubview(content)
 
         if isAI {
@@ -206,6 +242,16 @@ final class ConsoleChatViewController: NSViewController {
         ])
     }
 
+    private func updateMessageBubble(at index: Int, message: AIMessage) {
+        guard index < stackView.arrangedSubviews.count else { return }
+        let container = stackView.arrangedSubviews[index]
+        guard let bubble = container.subviews.first(where: { $0.identifier?.rawValue == "bubble" }),
+              let content = bubble.subviews.first(where: { $0.identifier?.rawValue == "content" }) as? NSTextField else {
+            return
+        }
+        content.stringValue = message.content
+    }
+
     // MARK: - Input
 
     private func setupInput() {
@@ -225,11 +271,10 @@ final class ConsoleChatViewController: NSViewController {
         inputField.translatesAutoresizingMaskIntoConstraints = false
         inputArea.addSubview(inputField)
 
-        let btn = ConsoleSendButton()
-        btn.target = self
-        btn.action = #selector(sendMessage)
-        btn.translatesAutoresizingMaskIntoConstraints = false
-        inputArea.addSubview(btn)
+        sendButton.target = self
+        sendButton.action = #selector(sendMessage)
+        sendButton.translatesAutoresizingMaskIntoConstraints = false
+        inputArea.addSubview(sendButton)
 
         let hint = NSTextField(labelWithString: "在此输入可直接干预 \(agent.role.label) 的决策")
         hint.font      = .systemFont(ofSize: 10)
@@ -240,7 +285,7 @@ final class ConsoleChatViewController: NSViewController {
         let inputAreaTrailing = inputArea.trailingAnchor.constraint(equalTo: view.trailingAnchor)
         inputAreaTrailing.priority = NSLayoutConstraint.Priority(999)
 
-        let inputFieldTrailing = inputField.trailingAnchor.constraint(equalTo: btn.leadingAnchor, constant: -8)
+        let inputFieldTrailing = inputField.trailingAnchor.constraint(equalTo: sendButton.leadingAnchor, constant: -8)
         inputFieldTrailing.priority = NSLayoutConstraint.Priority(999)
 
         NSLayoutConstraint.activate([
@@ -256,13 +301,13 @@ final class ConsoleChatViewController: NSViewController {
 
             inputField.topAnchor.constraint(equalTo: inputArea.topAnchor, constant: 10),
             inputField.leadingAnchor.constraint(equalTo: inputArea.leadingAnchor, constant: 14),
-            inputField.trailingAnchor.constraint(equalTo: btn.leadingAnchor, constant: -8),
+            inputField.trailingAnchor.constraint(equalTo: sendButton.leadingAnchor, constant: -8),
             inputField.heightAnchor.constraint(equalToConstant: 30),
 
-            btn.centerYAnchor.constraint(equalTo: inputField.centerYAnchor),
-            btn.trailingAnchor.constraint(equalTo: inputArea.trailingAnchor, constant: -14),
-            btn.widthAnchor.constraint(equalToConstant: 34),
-            btn.heightAnchor.constraint(equalToConstant: 34),
+            sendButton.centerYAnchor.constraint(equalTo: inputField.centerYAnchor),
+            sendButton.trailingAnchor.constraint(equalTo: inputArea.trailingAnchor, constant: -14),
+            sendButton.widthAnchor.constraint(equalToConstant: 34),
+            sendButton.heightAnchor.constraint(equalToConstant: 34),
 
             hint.topAnchor.constraint(equalTo: inputField.bottomAnchor, constant: 4),
             hint.centerXAnchor.constraint(equalTo: inputArea.centerXAnchor)
@@ -274,19 +319,32 @@ final class ConsoleChatViewController: NSViewController {
     @objc private func sendMessage() {
         let text = inputField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        addMessageBubble(AIMessage(sender: .human, content: text, timestamp: Date(), role: nil))
+        
+        let provider: AIProviderProtocol
+        switch agent.type {
+        case .api:
+            provider = AnthropicHTTPProvider(
+                model: agent.model ?? "claude-sonnet-4-20250514"
+            )
+        case .cli:
+            // Task 8/9 Integration
+            if agent.name.lowercased().contains("gemini") {
+                provider = GeminiCLIProvider()
+            } else {
+                provider = CodexAppServerProvider()
+            }
+        case .web:
+            addMessageBubble(AIMessage(sender: .human, content: text, timestamp: Date(), role: nil))
+            inputField.stringValue = ""
+            let reply = "明白了。我在 Web 端关注此决策的变化。"
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
+                guard let self = self else { return }
+                self.addMessageBubble(AIMessage(sender: .ai, content: reply, timestamp: Date(), role: self.agent.role))
+            }
+            return
+        }
+        
         inputField.stringValue = ""
-
-        let reply: String
-        switch agent.role {
-        case .pm:        reply = "收到您的建议。我将重新评估项目优先顺序并通知开发团队进行调整。"
-        case .developer: reply = "明白。我正在检查相关代码模块，完成后会提交预览供您检查。"
-        case .qa:        reply = "好的。我将针对这部分功能增加额外的边界条件测试。"
-        }
-
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
-            guard let self = self else { return }
-            self.addMessageBubble(AIMessage(sender: .ai, content: reply, timestamp: Date(), role: self.agent.role))
-        }
+        viewModel.sendMessage(text, provider: provider, agent: agent)
     }
 }
