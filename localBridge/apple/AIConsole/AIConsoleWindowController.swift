@@ -11,23 +11,36 @@ final class AIConsoleWindowController: NSWindowController {
     // MARK: - Show
 
     static func show() {
+        print("AIConsoleWindowController: show() called")
+        // 1. 确保激活策略为 regular (显示 Dock 图标和菜单栏)
+        if NSApp.activationPolicy() != .regular {
+            print("AIConsoleWindowController: setting activation policy to .regular")
+            NSApp.setActivationPolicy(.regular)
+        }
+
         if instance == nil {
+            print("AIConsoleWindowController: creating new instance")
             instance = AIConsoleWindowController()
         }
         
-        // 1. 设置激活策略
-        NSApp.setActivationPolicy(.regular)
+        // 2. 显示并置顶窗口
+        guard let window = instance?.window else { 
+            print("AIConsoleWindowController: error - no window")
+            return 
+        }
         
-        // 2. 显示窗口
-        guard let window = instance?.window else { return }
+        print("AIConsoleWindowController: ordering front")
         instance?.showWindow(nil)
         window.makeKeyAndOrderFront(nil)
         window.orderFrontRegardless()
         
-        // 3. 强力激活到最前
+        // 3. 强力激活应用
+        print("AIConsoleWindowController: activating app")
         NSApp.activate(ignoringOtherApps: true)
         
+        // 4. 再次确保主窗口状态
         DispatchQueue.main.async {
+            print("AIConsoleWindowController: final async window activation")
             window.makeMain()
             window.makeKey()
         }
@@ -59,7 +72,6 @@ final class AIConsoleWindowController: NSWindowController {
         window.title = "AI 融合器" // 窗口标题，虽然 hidden 但在 Mission Control 可见
         window.isReleasedWhenClosed = false
         window.backgroundColor = .consoleZ950
-        window.setFrameAutosaveName("AIConsoleMainWindow")
         
         // 沉浸式标题栏配置
         window.titlebarAppearsTransparent = true
