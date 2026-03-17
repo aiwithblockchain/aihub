@@ -13,6 +13,7 @@ final class DetailViewController: NSViewController {
     
     private let placeholderLabel = NSTextField(labelWithString: "选择左侧会话查看内容")
     private let instancesPanelView = InstancesPanelViewController()
+    private let bridgeLogsVC = BridgeLogsViewController()
 
     override func loadView() {
         view = NSView()
@@ -29,22 +30,32 @@ final class DetailViewController: NSViewController {
             tweetClawTabView.isHidden = false
             aiClawTabView.isHidden = true
             instancesPanelView.view.isHidden = true
+            bridgeLogsVC.view.isHidden = true
         } else if conversation.title == "AIClaw" {
             placeholderLabel.isHidden = true
             tweetClawTabView.isHidden = true
             aiClawTabView.isHidden = false
             instancesPanelView.view.isHidden = true
+            bridgeLogsVC.view.isHidden = true
         } else if conversation.title == "已连接实例" {
             placeholderLabel.isHidden = true
             tweetClawTabView.isHidden = true
             aiClawTabView.isHidden = true
             instancesPanelView.view.isHidden = false
+            bridgeLogsVC.view.isHidden = true
             instancesPanelView.refresh()
+        } else if conversation.title == "Bridge Logs" {
+            placeholderLabel.isHidden = true
+            tweetClawTabView.isHidden = true
+            aiClawTabView.isHidden = true
+            instancesPanelView.view.isHidden = true
+            bridgeLogsVC.view.isHidden = false
         } else {
             placeholderLabel.isHidden = false
             tweetClawTabView.isHidden = true
             aiClawTabView.isHidden = true
             instancesPanelView.view.isHidden = true
+            bridgeLogsVC.view.isHidden = true
             placeholderLabel.stringValue = "\(conversation.title): \(conversation.preview)"
         }
     }
@@ -96,6 +107,12 @@ private extension DetailViewController {
         view.addSubview(instancesPanelView.view)
         instancesPanelView.view.isHidden = true
 
+        // Bridge Logs
+        addChild(bridgeLogsVC)
+        bridgeLogsVC.view.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(bridgeLogsVC.view)
+        bridgeLogsVC.view.isHidden = true
+
         NSLayoutConstraint.activate([
             placeholderLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             placeholderLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor),
@@ -113,7 +130,12 @@ private extension DetailViewController {
             instancesPanelView.view.topAnchor.constraint(equalTo: view.topAnchor, constant: 10),
             instancesPanelView.view.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
             instancesPanelView.view.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
-            instancesPanelView.view.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -10)
+            instancesPanelView.view.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -10),
+
+            bridgeLogsVC.view.topAnchor.constraint(equalTo: view.topAnchor, constant: 10),
+            bridgeLogsVC.view.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
+            bridgeLogsVC.view.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
+            bridgeLogsVC.view.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -10)
         ])
     }
 }

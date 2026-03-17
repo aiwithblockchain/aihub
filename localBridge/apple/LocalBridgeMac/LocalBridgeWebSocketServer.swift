@@ -115,7 +115,9 @@ class LocalBridgeWebSocketServer {
                 listener.stateUpdateHandler = { state in
                     switch state {
                     case .ready:
-                        print("[LocalBridgeMac] WebSocket listener started on port \(port)")
+                        let msg = "[LocalBridgeMac] WebSocket listener started on port \(port)"
+                        print(msg)
+                        BridgeLogger.shared.log(msg)
                         self.isRunning = true
                     case .failed(let error):
                         print("[LocalBridgeMac] WebSocket listener failed with error: \(error)")
@@ -173,7 +175,9 @@ class LocalBridgeWebSocketServer {
         }
         
         if allListeners.isEmpty {
-            print("[LocalBridgeMac] Server stopped and cleaned up.")
+            let msg = "[LocalBridgeMac] Server stopped and cleaned up."
+            print(msg)
+            BridgeLogger.shared.log(msg)
             completion?()
             return
         }
@@ -188,7 +192,9 @@ class LocalBridgeWebSocketServer {
                     if cancelledCount >= totalCount {
                         // Add a small safety delay for OS to fully release ports
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            print("[LocalBridgeMac] Server stopped and cleaned up.")
+                            let msg = "[LocalBridgeMac] Server stopped and cleaned up."
+                            print(msg)
+                            BridgeLogger.shared.log(msg)
                             completion?()
                         }
                     }
@@ -211,20 +217,28 @@ class LocalBridgeWebSocketServer {
     
     private func handleNewConnection(_ connection: NWConnection) {
         let connId = ObjectIdentifier(connection)
-        print("[LocalBridgeMac] client connecting... [connId: \(connId)]")
+        let msg = "[LocalBridgeMac] client connecting... [connId: \(connId)]"
+        print(msg)
+        BridgeLogger.shared.log(msg)
         
         anonymousClients[connId] = connection
         
         connection.stateUpdateHandler = { state in
             switch state {
             case .ready:
-                print("[LocalBridgeMac] client connected [connId: \(connId)]")
+                let msg = "[LocalBridgeMac] client connected [connId: \(connId)]"
+                print(msg)
+                BridgeLogger.shared.log(msg)
                 self.receiveMessage(from: connection)
             case .failed(let error):
-                print("[LocalBridgeMac] connection failed: \(error) [connId: \(connId)]")
+                let msg = "[LocalBridgeMac] connection failed: \(error) [connId: \(connId)]"
+                print(msg)
+                BridgeLogger.shared.log(msg)
                 self.removeConnection(connection)
             case .cancelled:
-                print("[LocalBridgeMac] client disconnected [connId: \(connId)]")
+                let msg = "[LocalBridgeMac] client disconnected [connId: \(connId)]"
+                print(msg)
+                BridgeLogger.shared.log(msg)
                 self.removeConnection(connection)
             default:
                 break
@@ -249,7 +263,9 @@ class LocalBridgeWebSocketServer {
             connIdToKey.removeValue(forKey: connId)
             lastPingReceived.removeValue(forKey: "\(key.clientName)/\(key.instanceId)")
 
-            print("[LocalBridgeMac] removed instance: \(key.clientName)/\(key.instanceId)")
+            let msg = "[LocalBridgeMac] removed instance: \(key.clientName)/\(key.instanceId)"
+            print(msg)
+            BridgeLogger.shared.log(msg)
         }
     }
 
@@ -285,7 +301,9 @@ class LocalBridgeWebSocketServer {
             guard let self = self else { return }
             
             if let error = error {
-                print("[LocalBridgeMac] receive error: \(error)")
+                let msg = "[LocalBridgeMac] receive error: \(error)"
+                print(msg)
+                BridgeLogger.shared.log(msg)
                 return
             }
             
@@ -308,7 +326,9 @@ class LocalBridgeWebSocketServer {
             
             switch peekMsg.type {
             case .clientHello:
-                print("[LocalBridgeMac] received client.hello")
+                let msg = "[LocalBridgeMac] received client.hello"
+                print(msg)
+                BridgeLogger.shared.log(msg)
                 if let helloMsg = try? decoder.decode(BaseMessage<ClientHelloPayload>.self, from: data) {
                     let clientName = helloMsg.payload.clientName
 
@@ -316,14 +336,18 @@ class LocalBridgeWebSocketServer {
                     // 临时 ID 带 "tmp-" 前缀，便于日志识别
                     let instanceId = helloMsg.payload.instanceId ?? "tmp-\(UUID().uuidString)"
 
-                    print("[LocalBridgeMac] client identified: \(clientName), instanceId: \(instanceId)")
+                    let msg = "[LocalBridgeMac] client identified: \(clientName), instanceId: \(instanceId)"
+                    print(msg)
+                    BridgeLogger.shared.log(msg)
 
                     let connId = ObjectIdentifier(connection)
 
                     // 只替换「同一个实例」的旧连接（同 clientName + 同 instanceId）
                     // 不同 instanceId 的连接互不影响
                     if let oldSession = sessions[clientName]?[instanceId] {
-                        print("[LocalBridgeMac] same instance reconnected, replacing old connection: \(clientName)/\(instanceId)")
+                        let msg = "[LocalBridgeMac] same instance reconnected, replacing old connection: \(clientName)/\(instanceId)"
+                        print(msg)
+                        BridgeLogger.shared.log(msg)
                         oldSession.connection.cancel()
                     }
 
@@ -356,7 +380,9 @@ class LocalBridgeWebSocketServer {
 
                 
             case .ping:
-                print("[LocalBridgeMac] received ping")
+                let msg = "[LocalBridgeMac] received ping"
+                print(msg)
+                BridgeLogger.shared.log(msg)
                 let connId = ObjectIdentifier(connection)
                 if let key = connIdToKey[connId] {
                     let pingKey = "\(key.clientName)/\(key.instanceId)"
@@ -500,7 +526,9 @@ class LocalBridgeWebSocketServer {
         
         if let data = try? JSONEncoder().encode(ack),
            let jsonString = String(data: data, encoding: .utf8) {
-            print("[LocalBridgeMac] sent server.hello_ack to \(target)")
+            let msg = "[LocalBridgeMac] sent server.hello_ack to \(target)"
+            print(msg)
+            BridgeLogger.shared.log(msg)    
             self.sendMessage(connection, jsonString)
         }
     }
@@ -517,13 +545,15 @@ class LocalBridgeWebSocketServer {
         
         if let data = try? JSONEncoder().encode(ack),
            let jsonString = String(data: data, encoding: .utf8) {
-            print("[LocalBridgeMac] sent pong to \(target)")
+            let msg = "[LocalBridgeMac] sent pong to \(target)"
+            print(msg)
+            BridgeLogger.shared.log(msg)
             self.sendMessage(connection, jsonString)
         }
     }
     
-    func sendQueryXTabsStatus() {
-        let resolveResult = resolveConnection(clientName: "tweetClaw")
+    func sendQueryXTabsStatus(instanceId: String? = nil) {
+        let resolveResult = resolveConnection(clientName: "tweetClaw", instanceId: instanceId)
         guard case .success(let connection) = resolveResult else {
             if case .failure(let err) = resolveResult {
                 let errMsg = err.messageText
@@ -547,7 +577,9 @@ class LocalBridgeWebSocketServer {
         do {
             let data = try JSONEncoder().encode(req)
             if let jsonString = String(data: data, encoding: .utf8) {
-                print("[LocalBridgeMac] sending request.query_x_tabs_status, id: \(reqId)")
+                let msg = "[LocalBridgeMac] sending request.query_x_tabs_status, id: \(reqId)"
+                print(msg)
+                BridgeLogger.shared.log(msg)
                 self.sendMessage(connection, jsonString)
                 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
@@ -619,8 +651,8 @@ class LocalBridgeWebSocketServer {
     }
     
     
-    func sendQueryAITabsStatus() {
-        let resolveResult = resolveConnection(clientName: "aiClaw")
+    func sendQueryAITabsStatus(instanceId: String? = nil) {
+        let resolveResult = resolveConnection(clientName: "aiClaw", instanceId: instanceId)
         guard case .success(let connection) = resolveResult else {
             if case .failure(let err) = resolveResult {
                 let errMsg = err.messageText
@@ -644,7 +676,9 @@ class LocalBridgeWebSocketServer {
         do {
             let data = try JSONEncoder().encode(req)
             if let jsonString = String(data: data, encoding: .utf8) {
-                print("[LocalBridgeMac] sending request.query_ai_tabs_status, id: \(reqId)")
+                let msg = "[LocalBridgeMac] sending request.query_ai_tabs_status, id: \(reqId)"
+                print(msg)
+                BridgeLogger.shared.log(msg)
                 self.sendMessage(connection, jsonString)
                 
                 DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
@@ -660,8 +694,8 @@ class LocalBridgeWebSocketServer {
         }
     }
     
-    func sendSendMessage(platform: String, prompt: String) {
-        let resolveResult = resolveConnection(clientName: "aiClaw")
+    func sendSendMessage(platform: String, prompt: String, instanceId: String? = nil) {
+        let resolveResult = resolveConnection(clientName: "aiClaw", instanceId: instanceId)
         guard case .success(let connection) = resolveResult else {
             if case .failure(let err) = resolveResult {
                 let errMsg = err.messageText
@@ -699,7 +733,9 @@ class LocalBridgeWebSocketServer {
         do {
             let data = try JSONEncoder().encode(req)
             if let jsonString = String(data: data, encoding: .utf8) {
-                print("[LocalBridgeMac] sending request.execute_task, id: \(reqId), taskId: \(taskId), timeoutMs: \(timeoutMs)")
+                let msg = "[LocalBridgeMac] sending request.execute_task, id: \(reqId), taskId: \(taskId), timeoutMs: \(timeoutMs)"
+                print(msg)
+                BridgeLogger.shared.log(msg)
                 self.sendMessage(connection, jsonString)
                 
                 DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(timeoutMs)) {
@@ -721,7 +757,7 @@ class LocalBridgeWebSocketServer {
         }
     }
 
-    func sendNewConversation(platform: String) {
+    func sendNewConversation(platform: String, instanceId: String? = nil) {
         guard platform == "chatgpt" else {
             NotificationCenter.default.post(name: NSNotification.Name("SendMessageReceived"), object: nil, userInfo: [
                 "dataString": "Error: New conversation is currently supported only for chatgpt",
@@ -730,7 +766,7 @@ class LocalBridgeWebSocketServer {
             return
         }
 
-        let resolveResult = resolveConnection(clientName: "aiClaw")
+        let resolveResult = resolveConnection(clientName: "aiClaw", instanceId: instanceId)
         guard case .success(let connection) = resolveResult else {
             if case .failure(let err) = resolveResult {
                 let errMsg = err.messageText
@@ -768,7 +804,9 @@ class LocalBridgeWebSocketServer {
         do {
             let data = try JSONEncoder().encode(req)
             if let jsonString = String(data: data, encoding: .utf8) {
-                print("[LocalBridgeMac] sending request.execute_task(new_conversation), id: \(reqId), taskId: \(taskId), timeoutMs: \(timeoutMs)")
+                let msg = "[LocalBridgeMac] sending request.execute_task(new_conversation), id: \(reqId), taskId: \(taskId), timeoutMs: \(timeoutMs)"
+                print(msg)
+                BridgeLogger.shared.log(msg)
                 self.sendMessage(connection, jsonString)
 
                 DispatchQueue.main.asyncAfter(deadline: .now() + .milliseconds(timeoutMs)) {
@@ -819,8 +857,8 @@ class LocalBridgeWebSocketServer {
         }
     }
     
-    func sendQueryXBasicInfo() {
-        let resolveResult = resolveConnection(clientName: "tweetClaw")
+    func sendQueryXBasicInfo(instanceId: String? = nil) {
+        let resolveResult = resolveConnection(clientName: "tweetClaw", instanceId: instanceId)
         guard case .success(let connection) = resolveResult else {
             if case .failure(let err) = resolveResult {
                 let errMsg = err.messageText
@@ -884,8 +922,8 @@ class LocalBridgeWebSocketServer {
         }
     }
     
-    func sendOpenTab(path: String) {
-        let resolveResult = resolveConnection(clientName: "tweetClaw")
+    func sendOpenTab(path: String, instanceId: String? = nil) {
+        let resolveResult = resolveConnection(clientName: "tweetClaw", instanceId: instanceId)
         guard case .success(let connection) = resolveResult else {
             if case .failure(let err) = resolveResult {
                 let errMsg = err.messageText
@@ -930,8 +968,8 @@ class LocalBridgeWebSocketServer {
         }
     }
 
-    func sendCloseTab(tabId: Int) {
-        let resolveResult = resolveConnection(clientName: "tweetClaw")
+    func sendCloseTab(tabId: Int, instanceId: String? = nil) {
+        let resolveResult = resolveConnection(clientName: "tweetClaw", instanceId: instanceId)
         guard case .success(let connection) = resolveResult else {
             if case .failure(let err) = resolveResult {
                 let errMsg = err.messageText
@@ -976,8 +1014,8 @@ class LocalBridgeWebSocketServer {
         }
     }
     
-    func sendNavigateTab(tabId: Int?, path: String) {
-        let resolveResult = resolveConnection(clientName: "tweetClaw")
+    func sendNavigateTab(tabId: Int?, path: String, instanceId: String? = nil) {
+        let resolveResult = resolveConnection(clientName: "tweetClaw", instanceId: instanceId)
         guard case .success(let connection) = resolveResult else {
             if case .failure(let err) = resolveResult {
                 let errMsg = err.messageText
@@ -1005,8 +1043,8 @@ class LocalBridgeWebSocketServer {
         }
     }
     
-    func sendExecAction(action: String, tweetId: String?, userId: String?, tabId: Int?) {
-        let resolveResult = resolveConnection(clientName: "tweetClaw")
+    func sendExecAction(action: String, tweetId: String?, userId: String?, tabId: Int?, instanceId: String? = nil) {
+        let resolveResult = resolveConnection(clientName: "tweetClaw", instanceId: instanceId)
         guard case .success(let connection) = resolveResult else {
             if case .failure(let err) = resolveResult {
                 let errMsg = err.messageText
@@ -1035,7 +1073,9 @@ class LocalBridgeWebSocketServer {
         self.pendingUiRequests.insert(reqId)
         
         if let data = try? JSONEncoder().encode(req), let jsonString = String(data: data, encoding: .utf8) {
-            print("[LocalBridgeMac] sending request.exec_action via UI, action: \(action), id: \(reqId)")
+            let msg = "[LocalBridgeMac] sending request.exec_action via UI, action: \(action), id: \(reqId)"
+            print(msg)
+            BridgeLogger.shared.log(msg)
             self.sendMessage(connection, jsonString)
         }
         
@@ -1082,7 +1122,9 @@ class LocalBridgeWebSocketServer {
                     let pingKey = "\(clientName)/\(instanceId)"
                     if let lastPing = self.lastPingReceived[pingKey] {
                         if now.timeIntervalSince(lastPing) > 60.0 {
-                            print("[LocalBridgeMac] heartbeat timeout: \(clientName)/\(instanceId), disconnecting")
+                            let msg = "[LocalBridgeMac] heartbeat timeout: \(clientName)/\(instanceId), disconnecting"
+                            print(msg)
+                            BridgeLogger.shared.log(msg)
                             session.connection.cancel()
                         }
                     }
@@ -1129,7 +1171,9 @@ class LocalBridgeWebSocketServer {
                 self.handleHttpConnection(connection)
             }
             httpListener?.start(queue: .main)
-            print("[LocalBridgeMac] HTTP REST server started on port \(port)")
+            let msg = "[LocalBridgeMac] HTTP REST server started on port \(port)"
+            print(msg)
+            BridgeLogger.shared.log(msg)
         } catch {
             print("[LocalBridgeMac] failed to start HTTP listener: \(error)")
         }
@@ -1415,7 +1459,9 @@ class LocalBridgeWebSocketServer {
             )
             
             if let data = try? JSONEncoder().encode(req), let jsonString = String(data: data, encoding: .utf8) {
-                print("[LocalBridgeMac] sending request.execute_task via REST, id: \(reqId), taskId: \(taskId), timeoutMs: \(timeoutMs)")
+                let msg = "[LocalBridgeMac] sending request.execute_task via REST, id: \(reqId), taskId: \(taskId), timeoutMs: \(timeoutMs)"
+                print(msg)
+                BridgeLogger.shared.log(msg)
                 self.sendMessage(wsClient, jsonString)
             }
             
@@ -1501,7 +1547,9 @@ class LocalBridgeWebSocketServer {
             )
 
             if let data = try? JSONEncoder().encode(wsReq), let jsonString = String(data: data, encoding: .utf8) {
-                print("[LocalBridgeMac] sending request.execute_task(new_conversation) via REST, id: \(reqId), taskId: \(taskId), timeoutMs: \(timeoutMs)")
+                let msg = "[LocalBridgeMac] sending request.execute_task(new_conversation) via REST, id: \(reqId), taskId: \(taskId), timeoutMs: \(timeoutMs)"
+                print(msg)
+                BridgeLogger.shared.log(msg)
                 self.sendMessage(wsClient, jsonString)
             }
 
