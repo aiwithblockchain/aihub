@@ -135,7 +135,7 @@ final class PMTaskListViewController: NSViewController {
         let card = NSView()
         card.wantsLayer = true
         card.layer?.cornerRadius    = 8
-        card.layer?.backgroundColor = NSColor.consoleZ900.withAlphaComponent(0.5).cgColor
+        card.layer?.backgroundColor = NSColor.white.cgColor
         card.layer?.borderColor     = NSColor.consoleZ800.cgColor
         card.layer?.borderWidth     = 1
         card.translatesAutoresizingMaskIntoConstraints = false
@@ -282,7 +282,9 @@ final class DevCodePreviewController: NSViewController {
         let editor = NSView()
         editor.wantsLayer = true
         editor.layer?.cornerRadius    = 8
-        editor.layer?.backgroundColor = NSColor(hex: "#0D0D0F").cgColor
+        editor.layer?.backgroundColor = NSColor(hex: "#F8F8F8").cgColor
+        editor.layer?.borderColor     = NSColor.consoleZ700.cgColor
+        editor.layer?.borderWidth     = 1
         editor.translatesAutoresizingMaskIntoConstraints = false
         v.addSubview(editor)
 
@@ -294,7 +296,7 @@ final class DevCodePreviewController: NSViewController {
 
         let code = NSTextField(labelWithString: "import AppKit\n\nclass LoginForm: NSView {\n    override init(frame: NSRect) {\n        super.init(frame: frame)\n        setupUI()\n    }\n    \n    func setupUI() {\n        let btn = NSButton()\n        btn.title = \"Login\"\n        addSubview(btn)\n    }\n}")
         code.font      = NSFont.monospacedSystemFont(ofSize: 13, weight: .regular)
-        code.textColor = NSColor(hex: "#D4D4D8")
+        code.textColor = .consoleText
         code.translatesAutoresizingMaskIntoConstraints = false
         editor.addSubview(code)
 
@@ -1040,7 +1042,7 @@ func makeRoleHeader(emoji: String, name: String, subtitle: String, gradColors: [
 func makeTabBar(containing control: NSSegmentedControl) -> NSView {
     let bar = NSView()
     bar.wantsLayer = true
-    bar.layer?.backgroundColor = NSColor.consoleZ900.withAlphaComponent(0.8).cgColor
+    bar.layer?.backgroundColor = NSColor.consoleZ900.cgColor
     bar.translatesAutoresizingMaskIntoConstraints = false
 
     let border = NSView()

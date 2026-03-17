@@ -28,31 +28,48 @@ final class AIConsoleWindowController: NSWindowController {
     // MARK: - Init
 
     init() {
-        let vc = AIConsoleRootViewController()
-        let window = NSWindow(contentViewController: vc)
-        window.title = "AI 融合器"
-
-        // 尽可能撑满屏幕可用区域，四边留 20pt 边距
+        // 1. 获取屏幕和可见区域信息
         let screen = NSScreen.main ?? NSScreen.screens[0]
-        let sf = screen.visibleFrame
-        let margin: CGFloat = 20
+        let fullFrame = screen.frame
+        let visibleFrame = screen.visibleFrame
+
+        // 2. 精确计算 Menu Bar 和 Dock 占用的高度（不使用猜测值）
+        let menuBarHeight = fullFrame.maxY - visibleFrame.maxY
+        let dockHeight = visibleFrame.minY
+        let finalHeight = fullFrame.height - menuBarHeight - dockHeight
+        let hMargin: CGFloat = 20
+
         let winFrame = NSRect(
-            x: sf.minX + margin,
-            y: sf.minY + margin,
-            width:  sf.width  - margin * 2,
-            height: sf.height - margin * 2
+            x: visibleFrame.minX + hMargin,
+            y: visibleFrame.minY,
+            width:  visibleFrame.width  - hMargin * 2,
+            height: finalHeight
         )
-        window.setFrame(winFrame, display: false)
+
+        // 3. 使用指定的全尺寸样式直接初始化窗口，确保布局引擎一开始就处于正确模式
+        let window = NSWindow(
+            contentRect: winFrame,
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
+            backing: .buffered,
+            defer: false
+        )
+        
+        window.title = "AI 融合器"
+        window.isReleasedWhenClosed = false
+        window.backgroundColor = .consoleZ950
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .hidden
         window.minSize = NSSize(width: 900, height: 580)
 
-        window.styleMask = [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView]
-        window.isReleasedWhenClosed  = false
-        window.backgroundColor       = .consoleZ950
-        window.titlebarAppearsTransparent = true
-        window.titleVisibility       = .hidden
+        // 4. 挂载根视图控制器
+        let vc = AIConsoleRootViewController()
+        window.contentViewController = vc
 
         super.init(window: window)
         window.delegate = self
+        
+        // 5. 最后确认一次 Frame，display 设为 true 强制刷新
+        window.setFrame(winFrame, display: true)
     }
 
     required init?(coder: NSCoder) { fatalError() }

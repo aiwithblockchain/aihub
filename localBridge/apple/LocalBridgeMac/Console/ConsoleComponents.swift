@@ -14,10 +14,8 @@ final class ConsoleTextField: NSTextField {
     private func applyStyle() {
         wantsLayer = true
         layer?.cornerRadius = 6
-        layer?.backgroundColor = NSColor.consoleZ900.cgColor
-        layer?.borderColor    = NSColor.consoleZ700.cgColor
-        layer?.borderWidth    = 1
-        textColor    = .white
+        textColor    = .consoleText
+        layer?.backgroundColor = NSColor.white.cgColor // 输入框背景设为纯白
         isBezeled    = false
         focusRingType = .none
     }
@@ -106,7 +104,7 @@ final class ConsoleProgressBar: NSView {
         addSubview(fill)
 
         let grad = CAGradientLayer()
-        grad.colors      = [NSColor.consoleBlue.cgColor, NSColor(hex: "#06B6D4").cgColor]
+        grad.colors      = [NSColor.consoleBlue.cgColor, NSColor.consoleBlueDark.cgColor]
         grad.startPoint  = CGPoint(x: 0, y: 0.5)
         grad.endPoint    = CGPoint(x: 1, y: 0.5)
         grad.cornerRadius = 4
@@ -196,7 +194,7 @@ final class ConsoleAICard: NSView {
 
         let icon = NSImageView()
         icon.image = NSImage(systemSymbolName: "brain", accessibilityDescription: nil)
-        icon.contentTintColor = NSColor(hex: "#60A5FA")
+        icon.contentTintColor = .consoleBlue
         icon.translatesAutoresizingMaskIntoConstraints = false
         iconBox.addSubview(icon)
 

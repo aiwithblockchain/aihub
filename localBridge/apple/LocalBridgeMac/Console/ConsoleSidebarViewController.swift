@@ -14,7 +14,7 @@ final class ConsoleSidebarViewController: NSViewController {
         // ⚠️ 不设置 translatesAutoresizingMaskIntoConstraints = false
         view = NSView()
         view.wantsLayer = true
-        view.layer?.backgroundColor = NSColor.consoleZ900.withAlphaComponent(0.6).cgColor
+        view.layer?.backgroundColor = NSColor.consoleZ900.cgColor
     }
 
     override func viewDidLoad() {

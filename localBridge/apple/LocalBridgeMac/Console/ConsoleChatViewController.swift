@@ -178,16 +178,16 @@ final class ConsoleChatViewController: NSViewController {
         bubble.addSubview(content)
 
         if isAI {
-            bubble.layer?.backgroundColor = agent.role.color.withAlphaComponent(0.15).cgColor
-            bubble.layer?.borderColor     = agent.role.color.withAlphaComponent(0.25).cgColor
+            bubble.layer?.backgroundColor = agent.role.color.withAlphaComponent(0.08).cgColor
+            bubble.layer?.borderColor     = agent.role.color.withAlphaComponent(0.15).cgColor
             bubble.layer?.borderWidth     = 1
             NSLayoutConstraint.activate([
                 bubble.leadingAnchor.constraint(equalTo: container.leadingAnchor),
                 bubble.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor, constant: -60)
             ])
         } else {
-            bubble.layer?.backgroundColor = NSColor.consoleBlue.withAlphaComponent(0.2).cgColor
-            bubble.layer?.borderColor     = NSColor.consoleBlue.withAlphaComponent(0.3).cgColor
+            bubble.layer?.backgroundColor = NSColor.consoleBlue.withAlphaComponent(0.08).cgColor
+            bubble.layer?.borderColor     = NSColor.consoleBlue.withAlphaComponent(0.15).cgColor
             bubble.layer?.borderWidth     = 1
             NSLayoutConstraint.activate([
                 bubble.trailingAnchor.constraint(equalTo: container.trailingAnchor),

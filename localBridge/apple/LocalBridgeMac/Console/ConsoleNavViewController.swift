@@ -76,7 +76,7 @@ final class ConsoleNavViewController: NSViewController {
         view.addSubview(logo)
 
         let grad = CAGradientLayer()
-        grad.colors       = [NSColor(hex: "#3B82F6").cgColor, NSColor(hex: "#9333EA").cgColor]
+        grad.colors       = [NSColor.consoleBlue.cgColor, NSColor.consoleBlueDark.cgColor]
         grad.startPoint   = CGPoint(x: 0, y: 0)
         grad.endPoint     = CGPoint(x: 1, y: 1)
         grad.frame        = CGRect(x: 0, y: 0, width: 32, height: 32)
@@ -155,7 +155,7 @@ final class ConsoleNavViewController: NSViewController {
     private func updateSelection() {
         for (i, btn) in navButtons.enumerated() {
             let sel = i == selectedIndex
-            btn.contentTintColor = sel ? NSColor(hex: "#60A5FA") : .consoleText3
+            btn.contentTintColor = sel ? .consoleBlue : .consoleText3
             btn.wantsLayer = true
             btn.layer?.backgroundColor = sel ? NSColor.consoleZ800.cgColor : NSColor.clear.cgColor
             if sel {

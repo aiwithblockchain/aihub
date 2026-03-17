@@ -57,7 +57,7 @@ final class ConsoleActivityViewController: NSViewController {
         // ⚠️ 不设置 translatesAutoresizingMaskIntoConstraints = false
         view = NSView()
         view.wantsLayer = true
-        view.layer?.backgroundColor = NSColor.consoleZ900.withAlphaComponent(0.5).cgColor
+        view.layer?.backgroundColor = NSColor.consoleZ900.cgColor
     }
 
     override func viewDidLoad() {
