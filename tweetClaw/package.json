@@ -1,6 +1,6 @@
 {
   "name": "TweetClaw",
-  "version": "0.4.16",
+  "version": "0.4.17",
   "description": "Powerful agentic tool for X web session binding.",
   "private": true,
   "scripts": {
