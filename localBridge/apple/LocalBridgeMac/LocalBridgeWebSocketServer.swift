@@ -297,6 +297,14 @@ class LocalBridgeWebSocketServer {
                 }
                 self.pendingUiRequests.remove(peekMsg.id)
                 
+            case .responseExecAction:
+                print("[LocalBridgeMac] received response.exec_action")
+                if let callback = self.pendingHttpCallbacks[peekMsg.id] {
+                    callback(data)
+                    self.pendingHttpCallbacks.removeValue(forKey: peekMsg.id)
+                }
+                self.pendingUiRequests.remove(peekMsg.id)
+                
             case .responseError:
                 print("[LocalBridgeMac] received response.error")
                 if self.pendingUiRequests.contains(peekMsg.id) {
@@ -917,6 +925,16 @@ class LocalBridgeWebSocketServer {
                     self.handleCloseTabHttpRequest(connection, requestData: data)
                 } else if request.contains("POST /tweetclaw/navigate-tab") {
                     self.handleNavigateTabHttpRequest(connection, requestData: data)
+                } else if request.contains("POST /api/v1/x/likes") {
+                    self.handleExecActionHttpRequest(connection, requestData: data, action: "like")
+                } else if request.contains("POST /api/v1/x/retweets") {
+                    self.handleExecActionHttpRequest(connection, requestData: data, action: "retweet")
+                } else if request.contains("POST /api/v1/x/bookmarks") {
+                    self.handleExecActionHttpRequest(connection, requestData: data, action: "bookmark")
+                } else if request.contains("POST /api/v1/x/follows") {
+                    self.handleExecActionHttpRequest(connection, requestData: data, action: "follow")
+                } else if request.contains("POST /api/v1/x/unfollows") {
+                    self.handleExecActionHttpRequest(connection, requestData: data, action: "unfollow")
                 } else {
                     self.sendHttpResponse(connection, status: "404 Not Found", body: "{\"error\":\"not_found\"}")
                 }
@@ -1403,6 +1421,79 @@ class LocalBridgeWebSocketServer {
             }
             
             DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+                if self.pendingHttpCallbacks[reqId] != nil {
+                    self.pendingHttpCallbacks.removeValue(forKey: reqId)
+                    self.sendHttpResponse(connection, status: "504 Gateway Timeout", body: "{\"error\":\"timeout\"}")
+                }
+            }
+        } catch {
+            sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":\"invalid_json\", \"details\": \"\(error.localizedDescription)\"}")
+        }
+    }
+    
+    private func handleExecActionHttpRequest(_ connection: NWConnection, requestData: Data, action: String) {
+        guard let wsClient = activeClients["tweetClaw"], wsClient.state == .ready else {
+            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"tweetclaw_offline\"}")
+            return
+        }
+        
+        let requestString = String(data: requestData, encoding: .utf8) ?? ""
+        let parts = requestString.components(separatedBy: "\r\n\r\n")
+        guard parts.count > 1 else {
+            sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":\"missing_body\"}")
+            return
+        }
+        
+        let bodyString = parts[1]
+        guard let bodyData = bodyString.data(using: .utf8) else {
+            sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":\"invalid_body_encoding\"}")
+            return
+        }
+        
+        do {
+            struct ActionRequest: Codable {
+                let tweetId: String?
+                let userId: String?
+                let tabId: Int?
+            }
+            
+            let actionReq = try JSONDecoder().decode(ActionRequest.self, from: bodyData)
+            let reqId = "http_req_exec_\(Int(Date().timeIntervalSince1970))"
+            
+            self.pendingHttpCallbacks[reqId] = { responseData in
+                let decoder = JSONDecoder()
+                if let resp = try? decoder.decode(BaseMessage<ExecActionResponsePayload>.self, from: responseData) {
+                    if let resBodyData = try? JSONEncoder().encode(resp.payload),
+                       let resBody = String(data: resBodyData, encoding: .utf8) {
+                        self.sendHttpResponse(connection, status: "200 OK", body: resBody)
+                        return
+                    }
+                }
+                self.sendHttpResponse(connection, status: "500 Internal Server Error", body: "{\"error\":\"decode_failed\"}")
+            }
+            
+            let payload = ExecActionRequestPayload(
+                action: action,
+                tweetId: actionReq.tweetId,
+                userId: actionReq.userId,
+                tabId: actionReq.tabId
+            )
+            
+            let req = BaseMessage(
+                id: reqId,
+                type: .requestExecAction,
+                source: "LocalBridgeMac",
+                target: "tweetClaw",
+                timestamp: Int64(Date().timeIntervalSince1970 * 1000),
+                payload: payload
+            )
+            
+            if let data = try? JSONEncoder().encode(req), let jsonString = String(data: data, encoding: .utf8) {
+                print("[LocalBridgeMac] sending request.exec_action via REST, action: \(action), id: \(reqId)")
+                self.sendMessage(wsClient, jsonString)
+            }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 10.0) {
                 if self.pendingHttpCallbacks[reqId] != nil {
                     self.pendingHttpCallbacks.removeValue(forKey: reqId)
                     self.sendHttpResponse(connection, status: "504 Gateway Timeout", body: "{\"error\":\"timeout\"}")

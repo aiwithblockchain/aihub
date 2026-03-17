@@ -22,6 +22,8 @@ enum MessageType: String, Codable {
     case responseCloseTab = "response.close_tab"
     case requestNavigateTab = "request.navigate_tab"
     case responseNavigateTab = "response.navigate_tab"
+    case requestExecAction = "request.exec_action"
+    case responseExecAction = "response.exec_action"
     case responseError = "response.error"
 }
 
@@ -195,6 +197,19 @@ struct NavigateTabResponsePayload: Codable {
     let success: Bool
     let tabId: Int
     let url: String
+    let error: String?
+}
+
+struct ExecActionRequestPayload: Codable {
+    let action: String
+    let tweetId: String?
+    let userId: String?
+    let tabId: Int?
+}
+
+struct ExecActionResponsePayload: Codable {
+    let ok: Bool
+    let data: AnyCodable?
     let error: String?
 }
 
