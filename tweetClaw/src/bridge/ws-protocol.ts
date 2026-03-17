@@ -59,13 +59,16 @@ export interface BaseMessage<T = any> {
 }
 
 export interface ClientHelloPayload {
-  protocolName: typeof PROTOCOL_NAME;
-  protocolVersion: typeof PROTOCOL_VERSION;
-  clientName: 'tweetClaw';
-  clientVersion: string;
-  browser: 'chrome';
-  capabilities: string[];
+    protocolName: typeof PROTOCOL_NAME;
+    protocolVersion: typeof PROTOCOL_VERSION;
+    clientName: 'tweetClaw';
+    clientVersion: string;
+    browser: 'chrome';
+    capabilities: string[];
+    instanceId?: string;   // 新增：Profile 级别的稳定唯一 ID
+    incognito?: boolean;   // 新增：是否无痕模式
 }
+
 
 export interface ServerHelloAckPayload {
   protocolName: typeof PROTOCOL_NAME;

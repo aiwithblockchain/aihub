@@ -12,6 +12,7 @@ final class DetailViewController: NSViewController {
     private let aiClawVC = AIClawBotViewController()
     
     private let placeholderLabel = NSTextField(labelWithString: "选择左侧会话查看内容")
+    private let instancesPanelView = InstancesPanelViewController()
 
     override func loadView() {
         view = NSView()
@@ -27,14 +28,23 @@ final class DetailViewController: NSViewController {
             placeholderLabel.isHidden = true
             tweetClawTabView.isHidden = false
             aiClawTabView.isHidden = true
+            instancesPanelView.view.isHidden = true
         } else if conversation.title == "AIClaw" {
             placeholderLabel.isHidden = true
             tweetClawTabView.isHidden = true
             aiClawTabView.isHidden = false
+            instancesPanelView.view.isHidden = true
+        } else if conversation.title == "已连接实例" {
+            placeholderLabel.isHidden = true
+            tweetClawTabView.isHidden = true
+            aiClawTabView.isHidden = true
+            instancesPanelView.view.isHidden = false
+            instancesPanelView.refresh()
         } else {
             placeholderLabel.isHidden = false
             tweetClawTabView.isHidden = true
             aiClawTabView.isHidden = true
+            instancesPanelView.view.isHidden = true
             placeholderLabel.stringValue = "\(conversation.title): \(conversation.preview)"
         }
     }
@@ -80,6 +90,12 @@ private extension DetailViewController {
         view.addSubview(aiClawTabView)
         aiClawTabView.isHidden = true
 
+        // Instances Panel
+        addChild(instancesPanelView)
+        instancesPanelView.view.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(instancesPanelView.view)
+        instancesPanelView.view.isHidden = true
+
         NSLayoutConstraint.activate([
             placeholderLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             placeholderLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor),
@@ -92,7 +108,12 @@ private extension DetailViewController {
             aiClawTabView.topAnchor.constraint(equalTo: view.topAnchor, constant: 10),
             aiClawTabView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
             aiClawTabView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
-            aiClawTabView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -10)
+            aiClawTabView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -10),
+            
+            instancesPanelView.view.topAnchor.constraint(equalTo: view.topAnchor, constant: 10),
+            instancesPanelView.view.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
+            instancesPanelView.view.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
+            instancesPanelView.view.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -10)
         ])
     }
 }

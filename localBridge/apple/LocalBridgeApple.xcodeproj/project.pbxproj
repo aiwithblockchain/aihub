@@ -19,6 +19,7 @@
 		2BB765442F6864AE00309F77 /* ConsoleNavViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB765352F6864AE00309F77 /* ConsoleNavViewController.swift */; };
 		2BB765452F6864AE00309F77 /* AIConsoleMockData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB7652F2F6864AE00309F77 /* AIConsoleMockData.swift */; };
 		69B055D12F680B9C0076AC1D /* api_docs.json in Resources */ = {isa = PBXBuildFile; fileRef = 69B055D02F680B9C0076AC1D /* api_docs.json */; };
+		69B055D32F691DC20076AC1D /* InstancesPanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69B055D22F691DC20076AC1D /* InstancesPanelViewController.swift */; };
 		A10000000000000000000030 /* LocalBridgeiOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000022 /* LocalBridgeiOSApp.swift */; };
 		A10000000000000000000031 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000023 /* ContentView.swift */; };
 		A10000000000000000000032 /* LocalBridgeMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000024 /* LocalBridgeMacApp.swift */; };
@@ -50,6 +51,7 @@
 		2BB765382F6864AE00309F77 /* ConsoleWorkspaceViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsoleWorkspaceViewController.swift; sourceTree = "<group>"; };
 		2BB765392F6864AE00309F77 /* NSColor+Console.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSColor+Console.swift"; sourceTree = "<group>"; };
 		69B055D02F680B9C0076AC1D /* api_docs.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = api_docs.json; sourceTree = "<group>"; };
+		69B055D22F691DC20076AC1D /* InstancesPanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstancesPanelViewController.swift; sourceTree = "<group>"; };
 		A10000000000000000000020 /* LocalBridgeiOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LocalBridgeiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000021 /* LocalBridgeMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LocalBridgeMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000022 /* LocalBridgeiOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBridgeiOSApp.swift; sourceTree = "<group>"; };
@@ -137,6 +139,7 @@
 		A10000000000000000000005 /* LocalBridgeMac */ = {
 			isa = PBXGroup;
 			children = (
+				69B055D22F691DC20076AC1D /* InstancesPanelViewController.swift */,
 				69B055D02F680B9C0076AC1D /* api_docs.json */,
 				A1000000000000000000002C /* Assets.xcassets */,
 				A10000000000000000000024 /* LocalBridgeMacApp.swift */,
@@ -268,6 +271,7 @@
 				A10000000000000000000033 /* AppDelegate.swift in Sources */,
 				A10000000000000000000034 /* MainWindowController.swift in Sources */,
 				A10000000000000000000035 /* ConversationsSplitViewController.swift in Sources */,
+				69B055D32F691DC20076AC1D /* InstancesPanelViewController.swift in Sources */,
 				A10000000000000000000036 /* SidebarViewController.swift in Sources */,
 				A10000000000000000000037 /* DetailViewController.swift in Sources */,
 				A10000000000000000000038 /* Conversation.swift in Sources */,

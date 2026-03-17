@@ -67,6 +67,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - WebSocket forwarding
 
+    func getConnectedInstances() -> [LocalBridgeWebSocketServer.InstanceSnapshot] {
+        return wsServer.getConnectedInstances()
+    }
+
     func sendQueryXTabsStatus() {
         wsServer.sendQueryXTabsStatus()
     }

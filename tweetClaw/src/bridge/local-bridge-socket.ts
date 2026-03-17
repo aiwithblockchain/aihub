@@ -1,4 +1,5 @@
 import { BaseMessage, ClientHelloPayload, MESSAGE_TYPES, PROTOCOL_NAME, PROTOCOL_VERSION, ServerHelloAckPayload } from './ws-protocol';
+import { getOrCreateInstanceId } from './instance-id';
 
 export class LocalBridgeSocket {
   private ws: WebSocket | null = null;
@@ -7,6 +8,7 @@ export class LocalBridgeSocket {
   private heartbeatInterval: any = null;
   private serverInfo: ServerHelloAckPayload | null = null;
   private lastPongTimestamp = 0;
+  private instanceId: string = '';
   
   public queryXTabsHandler: (() => Promise<any>) | null = null;
   public queryXBasicInfoHandler: (() => Promise<any>) | null = null;
@@ -64,11 +66,15 @@ export class LocalBridgeSocket {
     try {
       this.ws = new WebSocket(this.WS_URL);
       
-      this.ws.onopen = () => {
+      this.ws.onopen = async () => {
         console.log('[tweetClaw] websocket open');
         this.isConnecting = false;
         this.reconnectAttempts = 0;
         this.lastPongTimestamp = Date.now();
+        // 确保 instanceId 已加载（同一 Profile 内多次重连复用同一个值）
+        if (!this.instanceId) {
+            this.instanceId = await getOrCreateInstanceId();
+        }
         this.sendHello();
       };
       
@@ -130,7 +136,9 @@ export class LocalBridgeSocket {
         clientName: 'tweetClaw',
         clientVersion: '0.3.17',
         browser: 'chrome',
-        capabilities: ['query_x_tabs_status', 'query_x_basic_info']
+        capabilities: ['query_x_tabs_status', 'query_x_basic_info'],
+        instanceId: this.instanceId || undefined,           // 新增
+        incognito: chrome.extension.inIncognitoContext      // 新增
       }
     };
     this.send(hello);

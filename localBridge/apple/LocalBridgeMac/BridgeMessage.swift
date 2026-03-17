@@ -68,7 +68,11 @@ struct ClientHelloPayload: Codable {
     let clientVersion: String
     let browser: String
     let capabilities: [String]
+    // 新增（可选）：
+    let instanceId: String?   // 扩展侧生成的稳定 UUID，区分不同 Profile
+    let incognito: Bool?      // 是否是无痕模式
 }
+
 
 struct ServerHelloAckPayload: Codable {
     let protocolName: String

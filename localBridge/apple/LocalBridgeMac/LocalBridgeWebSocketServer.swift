@@ -1,7 +1,9 @@
 import Foundation
 import Network
 
+
 class LocalBridgeWebSocketServer {
+
     private static let defaultExecuteTaskTimeoutMs = 210_000
 
     private var listeners: [NWListener] = []
@@ -9,9 +11,49 @@ class LocalBridgeWebSocketServer {
     
     // Manage multiple connections
     private var anonymousClients: [ObjectIdentifier: NWConnection] = [:]
-    private var activeClients: [String: NWConnection] = [:]
-    private var connectionNames: [ObjectIdentifier: String] = [:]
+
+    enum BridgeError: Error {
+        case message(String)
+        var messageText: String {
+            switch self {
+            case .message(let s): return s
+            }
+        }
+    }
+    
+    // 单个客户端 Session 的元数据
+    private struct ClientSession {
+        let clientName: String
+        let instanceId: String
+        let connection: NWConnection
+        let connectedAt: Date
+        var lastSeenAt: Date
+        var capabilities: [String]
+        var clientVersion: String
+        var xScreenName: String?   // 后续通过 query_x_basic_info 填充，暂时为 nil
+    }
+
+    /// 对外暴露的实例快照，不含内部 NWConnection 引用
+    struct InstanceSnapshot {
+        let clientName: String
+        let instanceId: String
+        let clientVersion: String
+        let capabilities: [String]
+        let connectedAt: Date
+        let lastSeenAt: Date
+        let xScreenName: String?
+        let isTemporary: Bool   // instanceId 是否以 "tmp-" 开头（旧版扩展）
+    }
+
+    // 主索引：[clientName: [instanceId: ClientSession]]
+    // 例如：["tweetClaw": ["uuid-aaa": session1, "uuid-bbb": session2]]
+    private var sessions: [String: [String: ClientSession]] = [:]
+
+    // 反向索引：连接对象 ID → (clientName, instanceId)，用于断线时快速清理
+    private var connIdToKey: [ObjectIdentifier: (clientName: String, instanceId: String)] = [:]
+    
     private var lastPingReceived: [String: Date] = [:]
+
     
     // HTTP handling
     private var pendingHttpCallbacks: [String: (Data) -> Void] = [:]
@@ -22,8 +64,32 @@ class LocalBridgeWebSocketServer {
     private var heartbeatTimer: Timer?
     
     // Server status
+    // Server status
     var isRunning: Bool = false
     
+    /// 返回当前所有在线实例的快照列表，按 clientName + connectedAt 排序
+    func getConnectedInstances() -> [InstanceSnapshot] {
+        var result: [InstanceSnapshot] = []
+        for (clientName, clientSessions) in sessions {
+            for (instanceId, session) in clientSessions {
+                result.append(InstanceSnapshot(
+                    clientName: clientName,
+                    instanceId: instanceId,
+                    clientVersion: session.clientVersion,
+                    capabilities: session.capabilities,
+                    connectedAt: session.connectedAt,
+                    lastSeenAt: session.lastSeenAt,
+                    xScreenName: session.xScreenName,
+                    isTemporary: instanceId.hasPrefix("tmp-")
+                ))
+            }
+        }
+        return result.sorted {
+            if $0.clientName != $1.clientName { return $0.clientName < $1.clientName }
+            return $0.connectedAt < $1.connectedAt
+        }
+    }
+
     func start() {
         let defaults = UserDefaults.standard
         let ttPortInt = defaults.integer(forKey: "tweetClawPort")
@@ -80,16 +146,19 @@ class LocalBridgeWebSocketServer {
         heartbeatTimer?.invalidate()
         heartbeatTimer = nil
         
-        for (_, conn) in activeClients {
-            conn.cancel()
+        for (_, clientSessions) in sessions {
+            for (_, session) in clientSessions {
+                session.connection.cancel()
+            }
         }
         for (_, conn) in anonymousClients {
             conn.cancel()
         }
         
-        activeClients.removeAll()
+        sessions.removeAll()
         anonymousClients.removeAll()
-        connectionNames.removeAll()
+        connIdToKey.removeAll()
+
         lastPingReceived.removeAll()
         pendingHttpCallbacks.removeAll()
         pendingUiRequests.removeAll()
@@ -167,14 +236,49 @@ class LocalBridgeWebSocketServer {
     private func removeConnection(_ connection: NWConnection) {
         let connId = ObjectIdentifier(connection)
         anonymousClients.removeValue(forKey: connId)
-        
-        if let name = connectionNames[connId] {
-            activeClients.removeValue(forKey: name)
-            connectionNames.removeValue(forKey: connId)
-            lastPingReceived.removeValue(forKey: name)
-            print("[LocalBridgeMac] removed registered client: \(name) [connId: \(connId)]")
+
+        if let key = connIdToKey[connId] {
+            // 只清理这一个实例，不影响同 clientName 下的其他 Profile
+            sessions[key.clientName]?.removeValue(forKey: key.instanceId)
+
+            // 如果该 clientName 下已无任何实例，清空外层 key
+            if sessions[key.clientName]?.isEmpty == true {
+                sessions.removeValue(forKey: key.clientName)
+            }
+
+            connIdToKey.removeValue(forKey: connId)
+            lastPingReceived.removeValue(forKey: "\(key.clientName)/\(key.instanceId)")
+
+            print("[LocalBridgeMac] removed instance: \(key.clientName)/\(key.instanceId)")
         }
     }
+
+    /// 根据 clientName（和可选的 instanceId）找到对应连接
+    /// 返回 .success(connection) 或 .failure(BridgeError)
+    private func resolveConnection(clientName: String, instanceId: String? = nil) -> Result<NWConnection, BridgeError> {
+        guard let clientSessions = sessions[clientName], !clientSessions.isEmpty else {
+            return .failure(.message("\(clientName) extension is not connected or installed"))
+        }
+
+        // 1. 如果指定了 instanceId，精确匹配
+        if let iid = instanceId {
+            if let session = clientSessions[iid], session.connection.state == .ready {
+                return .success(session.connection)
+            } else {
+                return .failure(.message("\(clientName) instance \(iid) not found or not ready"))
+            }
+        }
+
+        // 2. 只有一个实例，直接用（保持原有单 Profile 行为）
+        if clientSessions.count == 1, let session = clientSessions.values.first, session.connection.state == .ready {
+            return .success(session.connection)
+        }
+
+        // 3. 多个实例且没有指定 → 报错，让调用方知道需要指定 instanceId
+        let ids = clientSessions.keys.joined(separator: ", ")
+        return .failure(.message("ambiguous_target: multiple \(clientName) instances connected [\(ids)]. Specify instanceId."))
+    }
+
     
     private func receiveMessage(from connection: NWConnection) {
         connection.receiveMessage { [weak self] (content, context, isComplete, error) in
@@ -207,30 +311,59 @@ class LocalBridgeWebSocketServer {
                 print("[LocalBridgeMac] received client.hello")
                 if let helloMsg = try? decoder.decode(BaseMessage<ClientHelloPayload>.self, from: data) {
                     let clientName = helloMsg.payload.clientName
-                    print("[LocalBridgeMac] client identified as: \(clientName)")
-                    
+
+                    // 如果扩展没有传 instanceId（旧版），自动生成一个临时 ID
+                    // 临时 ID 带 "tmp-" 前缀，便于日志识别
+                    let instanceId = helloMsg.payload.instanceId ?? "tmp-\(UUID().uuidString)"
+
+                    print("[LocalBridgeMac] client identified: \(clientName), instanceId: \(instanceId)")
+
                     let connId = ObjectIdentifier(connection)
-                    
-                    if let oldConnection = self.activeClients[clientName] {
-                        print("[LocalBridgeMac] replacing old connection for \(clientName)")
-                        oldConnection.cancel()
+
+                    // 只替换「同一个实例」的旧连接（同 clientName + 同 instanceId）
+                    // 不同 instanceId 的连接互不影响
+                    if let oldSession = sessions[clientName]?[instanceId] {
+                        print("[LocalBridgeMac] same instance reconnected, replacing old connection: \(clientName)/\(instanceId)")
+                        oldSession.connection.cancel()
                     }
-                    
-                    self.activeClients[clientName] = connection
-                    self.connectionNames[connId] = clientName
-                    self.anonymousClients.removeValue(forKey: connId)
-                    self.lastPingReceived[clientName] = Date()
-                    
+
+                    // 构建新 Session
+                    let newSession = ClientSession(
+                        clientName: clientName,
+                        instanceId: instanceId,
+                        connection: connection,
+                        connectedAt: Date(),
+                        lastSeenAt: Date(),
+                        capabilities: helloMsg.payload.capabilities,
+                        clientVersion: helloMsg.payload.clientVersion
+                    )
+
+                    // 写入主索引
+                    if sessions[clientName] == nil { sessions[clientName] = [:] }
+                    sessions[clientName]![instanceId] = newSession
+
+                    // 写入反向索引
+                    connIdToKey[connId] = (clientName: clientName, instanceId: instanceId)
+
+                    // 从匿名连接池移除
+                    anonymousClients.removeValue(forKey: connId)
+
+                    // 更新心跳时间（用复合 key）
+                    lastPingReceived["\(clientName)/\(instanceId)"] = Date()
+
                     self.sendHelloAck(connection, replyToId: peekMsg.id, target: clientName)
                 }
+
                 
             case .ping:
                 print("[LocalBridgeMac] received ping")
                 let connId = ObjectIdentifier(connection)
-                if let clientName = self.connectionNames[connId] {
-                    self.lastPingReceived[clientName] = Date()
-                    self.sendPong(connection, replyToId: peekMsg.id, target: clientName)
+                if let key = connIdToKey[connId] {
+                    let pingKey = "\(key.clientName)/\(key.instanceId)"
+                    self.lastPingReceived[pingKey] = Date()
+                    self.sendPong(connection, replyToId: peekMsg.id, target: key.clientName)
                 }
+
                 
             case .responseQueryXTabsStatus:
                 print("[LocalBridgeMac] received response.query_x_tabs_status")
@@ -390,8 +523,12 @@ class LocalBridgeWebSocketServer {
     }
     
     func sendQueryXTabsStatus() {
-        guard let connection = activeClients["tweetClaw"], connection.state == .ready else {
-            NotificationCenter.default.post(name: NSNotification.Name("QueryXTabsStatusReceived"), object: nil, userInfo: ["dataString": "Error: tweetClaw extension is not connected or installed"])
+        let resolveResult = resolveConnection(clientName: "tweetClaw")
+        guard case .success(let connection) = resolveResult else {
+            if case .failure(let err) = resolveResult {
+                let errMsg = err.messageText
+                NotificationCenter.default.post(name: NSNotification.Name("QueryXTabsStatusReceived"), object: nil, userInfo: ["dataString": "Error: \(errMsg)"])
+            }
             return
         }
 
@@ -483,8 +620,12 @@ class LocalBridgeWebSocketServer {
     
     
     func sendQueryAITabsStatus() {
-        guard let connection = activeClients["aiClaw"], connection.state == .ready else {
-            NotificationCenter.default.post(name: NSNotification.Name("QueryAITabsStatusReceived"), object: nil, userInfo: ["dataString": "Error: aiClaw extension is not connected or installed"])
+        let resolveResult = resolveConnection(clientName: "aiClaw")
+        guard case .success(let connection) = resolveResult else {
+            if case .failure(let err) = resolveResult {
+                let errMsg = err.messageText
+                NotificationCenter.default.post(name: NSNotification.Name("QueryAITabsStatusReceived"), object: nil, userInfo: ["dataString": "Error: \(errMsg)"])
+            }
             return
         }
 
@@ -520,11 +661,15 @@ class LocalBridgeWebSocketServer {
     }
     
     func sendSendMessage(platform: String, prompt: String) {
-        guard let connection = activeClients["aiClaw"], connection.state == .ready else {
-            NotificationCenter.default.post(name: NSNotification.Name("SendMessageReceived"), object: nil, userInfo: [
-                "dataString": "Error: aiClaw extension is not connected or installed",
-                "resultTitle": "Send Message Result"
-            ])
+        let resolveResult = resolveConnection(clientName: "aiClaw")
+        guard case .success(let connection) = resolveResult else {
+            if case .failure(let err) = resolveResult {
+                let errMsg = err.messageText
+                NotificationCenter.default.post(name: NSNotification.Name("SendMessageReceived"), object: nil, userInfo: [
+                    "dataString": "Error: \(errMsg)",
+                    "resultTitle": "Send Message Result"
+                ])
+            }
             return
         }
 
@@ -585,11 +730,15 @@ class LocalBridgeWebSocketServer {
             return
         }
 
-        guard let connection = activeClients["aiClaw"], connection.state == .ready else {
-            NotificationCenter.default.post(name: NSNotification.Name("SendMessageReceived"), object: nil, userInfo: [
-                "dataString": "Error: aiClaw extension is not connected or installed",
-                "resultTitle": "New Conversation Result"
-            ])
+        let resolveResult = resolveConnection(clientName: "aiClaw")
+        guard case .success(let connection) = resolveResult else {
+            if case .failure(let err) = resolveResult {
+                let errMsg = err.messageText
+                NotificationCenter.default.post(name: NSNotification.Name("SendMessageReceived"), object: nil, userInfo: [
+                    "dataString": "Error: \(errMsg)",
+                    "resultTitle": "New Conversation Result"
+                ])
+            }
             return
         }
 
@@ -671,8 +820,12 @@ class LocalBridgeWebSocketServer {
     }
     
     func sendQueryXBasicInfo() {
-        guard let connection = activeClients["tweetClaw"], connection.state == .ready else {
-            NotificationCenter.default.post(name: NSNotification.Name("QueryXBasicInfoReceived"), object: nil, userInfo: ["dataString": "Error: tweetClaw extension is not connected or installed"])
+        let resolveResult = resolveConnection(clientName: "tweetClaw")
+        guard case .success(let connection) = resolveResult else {
+            if case .failure(let err) = resolveResult {
+                let errMsg = err.messageText
+                NotificationCenter.default.post(name: NSNotification.Name("QueryXBasicInfoReceived"), object: nil, userInfo: ["dataString": "Error: \(errMsg)"])
+            }
             return
         }
 
@@ -732,8 +885,12 @@ class LocalBridgeWebSocketServer {
     }
     
     func sendOpenTab(path: String) {
-        guard let connection = activeClients["tweetClaw"], connection.state == .ready else {
-            NotificationCenter.default.post(name: NSNotification.Name("OpenTabReceived"), object: nil, userInfo: ["dataString": "Error: tweetClaw extension is not connected"])
+        let resolveResult = resolveConnection(clientName: "tweetClaw")
+        guard case .success(let connection) = resolveResult else {
+            if case .failure(let err) = resolveResult {
+                let errMsg = err.messageText
+                NotificationCenter.default.post(name: NSNotification.Name("OpenTabReceived"), object: nil, userInfo: ["dataString": "Error: \(errMsg)"])
+            }
             return
         }
 
@@ -774,8 +931,12 @@ class LocalBridgeWebSocketServer {
     }
 
     func sendCloseTab(tabId: Int) {
-        guard let connection = activeClients["tweetClaw"], connection.state == .ready else {
-            NotificationCenter.default.post(name: NSNotification.Name("CloseTabReceived"), object: nil, userInfo: ["dataString": "Error: tweetClaw extension is not connected"])
+        let resolveResult = resolveConnection(clientName: "tweetClaw")
+        guard case .success(let connection) = resolveResult else {
+            if case .failure(let err) = resolveResult {
+                let errMsg = err.messageText
+                NotificationCenter.default.post(name: NSNotification.Name("CloseTabReceived"), object: nil, userInfo: ["dataString": "Error: \(errMsg)"])
+            }
             return
         }
 
@@ -816,8 +977,12 @@ class LocalBridgeWebSocketServer {
     }
     
     func sendNavigateTab(tabId: Int?, path: String) {
-        guard let connection = activeClients["tweetClaw"], connection.state == .ready else {
-            NotificationCenter.default.post(name: NSNotification.Name("NavigateTabReceived"), object: nil, userInfo: ["dataString": "Error: tweetClaw extension is not connected"])
+        let resolveResult = resolveConnection(clientName: "tweetClaw")
+        guard case .success(let connection) = resolveResult else {
+            if case .failure(let err) = resolveResult {
+                let errMsg = err.messageText
+                NotificationCenter.default.post(name: NSNotification.Name("NavigateTabReceived"), object: nil, userInfo: ["dataString": "Error: \(errMsg)"])
+            }
             return
         }
 
@@ -841,8 +1006,12 @@ class LocalBridgeWebSocketServer {
     }
     
     func sendExecAction(action: String, tweetId: String?, userId: String?, tabId: Int?) {
-        guard let connection = activeClients["tweetClaw"], connection.state == .ready else {
-            NotificationCenter.default.post(name: NSNotification.Name("ExecActionReceived"), object: nil, userInfo: ["dataString": "Error: tweetClaw extension is not connected"])
+        let resolveResult = resolveConnection(clientName: "tweetClaw")
+        guard case .success(let connection) = resolveResult else {
+            if case .failure(let err) = resolveResult {
+                let errMsg = err.messageText
+                NotificationCenter.default.post(name: NSNotification.Name("ExecActionReceived"), object: nil, userInfo: ["dataString": "Error: \(errMsg)"])
+            }
             return
         }
         
@@ -905,17 +1074,22 @@ class LocalBridgeWebSocketServer {
         heartbeatTimer?.invalidate()
         heartbeatTimer = Timer.scheduledTimer(withTimeInterval: 10.0, repeats: true) { [weak self] _ in
             guard let self = self else { return }
-            
             let now = Date()
-            for (name, connection) in self.activeClients {
-                if let lastPing = self.lastPingReceived[name] {
-                    if now.timeIntervalSince(lastPing) > 60.0 {
-                        print("[LocalBridgeMac] heartbeat timeout for \(name), client considered offline")
-                        connection.cancel()
+
+            // 遍历所有 clientName 下的所有实例
+            for (clientName, clientSessions) in self.sessions {
+                for (instanceId, session) in clientSessions {
+                    let pingKey = "\(clientName)/\(instanceId)"
+                    if let lastPing = self.lastPingReceived[pingKey] {
+                        if now.timeIntervalSince(lastPing) > 60.0 {
+                            print("[LocalBridgeMac] heartbeat timeout: \(clientName)/\(instanceId), disconnecting")
+                            session.connection.cancel()
+                        }
                     }
                 }
             }
         }
+
     }
     
     // Core message sender
@@ -940,9 +1114,8 @@ class LocalBridgeWebSocketServer {
     // MARK: - HTTP Server (REST API)
     
     private func startHttpServer() {
-        let defaults = UserDefaults.standard
-        let restPortInt = defaults.integer(forKey: "restApiPort")
-        let tcpPortRest = restPortInt > 0 ? UInt16(restPortInt) : 10088
+        let tcpPortRest: UInt16 = 10088
+
         
         guard let port = NWEndpoint.Port(rawValue: tcpPortRest) else {
             print("[LocalBridgeMac] invalid REST API port: \(tcpPortRest)")
@@ -1000,6 +1173,8 @@ class LocalBridgeWebSocketServer {
                     self.handleExecActionHttpRequest(connection, requestData: data, action: "follow")
                 } else if request.contains("POST /api/v1/x/unfollows") {
                     self.handleExecActionHttpRequest(connection, requestData: data, action: "unfollow")
+                } else if request.contains("GET /api/v1/x/instances") {
+                    self.handleInstancesHttpRequest(connection)
                 } else if request.contains("GET /api/v1/docs") {
                     self.handleApiDocsHttpRequest(connection)
                 } else {
@@ -1012,10 +1187,14 @@ class LocalBridgeWebSocketServer {
     }
     
     private func handleXStatusHttpRequest(_ connection: NWConnection) {
-        guard let wsClient = activeClients["tweetClaw"], wsClient.state == .ready else {
-            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"tweetclaw_offline\"}")
+        let resolveResult = resolveConnection(clientName: "tweetClaw")
+        guard case .success(let wsClient) = resolveResult else {
+            var errorDetail = "tweetclaw_offline"
+            if case .failure(let err) = resolveResult { errorDetail = err.messageText }
+            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"\(errorDetail)\"}")
             return
         }
+
         
         let reqId = "http_req_\(Int(Date().timeIntervalSince1970))"
         
@@ -1057,10 +1236,15 @@ class LocalBridgeWebSocketServer {
     }
     
     private func handleXBasicInfoHttpRequest(_ connection: NWConnection) {
-        guard let wsClient = activeClients["tweetClaw"], wsClient.state == .ready else {
-            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"tweetclaw_offline\"}")
+        let resolveResult = resolveConnection(clientName: "tweetClaw")
+        guard case .success(let wsClient) = resolveResult else {
+            var errorDetail = "tweetclaw_offline"
+            if case .failure(let err) = resolveResult { errorDetail = err.messageText }
+            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"\(errorDetail)\"}")
             return
         }
+
+
         
         let reqId = "http_req_basic_\(Int(Date().timeIntervalSince1970))"
         
@@ -1109,10 +1293,14 @@ class LocalBridgeWebSocketServer {
     }
     
     private func handleAIStatusHttpRequest(_ connection: NWConnection) {
-        guard let wsClient = activeClients["aiClaw"], wsClient.state == .ready else {
-            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"aiclaw_offline\"}")
+        let resolveResult = resolveConnection(clientName: "aiClaw")
+        guard case .success(let wsClient) = resolveResult else {
+            var errorDetail = "aiclaw_offline"
+            if case .failure(let err) = resolveResult { errorDetail = err.messageText }
+            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"\(errorDetail)\"}")
             return
         }
+
         
         let reqId = "http_req_ai_\(Int(Date().timeIntervalSince1970))"
         
@@ -1150,10 +1338,14 @@ class LocalBridgeWebSocketServer {
     }
     
     private func handleSendMessageHttpRequest(_ connection: NWConnection, requestData: Data) {
-        guard let wsClient = activeClients["aiClaw"], wsClient.state == .ready else {
-            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"aiclaw_offline\"}")
+        let resolveResult = resolveConnection(clientName: "aiClaw")
+        guard case .success(let wsClient) = resolveResult else {
+            var errorDetail = "aiclaw_offline"
+            if case .failure(let err) = resolveResult { errorDetail = err.messageText }
+            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"\(errorDetail)\"}")
             return
         }
+
         
         // Basic body parsing: look for platform and prompt in the raw data
         // Since the current HTTP server is very minimal, we'll try to decode the whole request data as JSON if it's just the body,
@@ -1241,10 +1433,14 @@ class LocalBridgeWebSocketServer {
     }
 
     private func handleNewConversationHttpRequest(_ connection: NWConnection, requestData: Data) {
-        guard let wsClient = activeClients["aiClaw"], wsClient.state == .ready else {
-            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"aiclaw_offline\"}")
+        let resolveResult = resolveConnection(clientName: "aiClaw")
+        guard case .success(let wsClient) = resolveResult else {
+            var errorDetail = "aiclaw_offline"
+            if case .failure(let err) = resolveResult { errorDetail = err.messageText }
+            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"\(errorDetail)\"}")
             return
         }
+
 
         let requestString = String(data: requestData, encoding: .utf8) ?? ""
         let parts = requestString.components(separatedBy: "\r\n\r\n")
@@ -1322,10 +1518,14 @@ class LocalBridgeWebSocketServer {
     }
 
     private func handleOpenTabHttpRequest(_ connection: NWConnection, requestData: Data) {
-        guard let wsClient = activeClients["tweetClaw"], wsClient.state == .ready else {
-            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"tweetclaw_offline\"}")
+        let resolveResult = resolveConnection(clientName: "tweetClaw")
+        guard case .success(let wsClient) = resolveResult else {
+            var errorDetail = "tweetclaw_offline"
+            if case .failure(let err) = resolveResult { errorDetail = err.messageText }
+            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"\(errorDetail)\"}")
             return
         }
+
         
         let requestString = String(data: requestData, encoding: .utf8) ?? ""
         let parts = requestString.components(separatedBy: "\r\n\r\n")
@@ -1381,10 +1581,14 @@ class LocalBridgeWebSocketServer {
     }
 
     private func handleCloseTabHttpRequest(_ connection: NWConnection, requestData: Data) {
-        guard let wsClient = activeClients["tweetClaw"], wsClient.state == .ready else {
-            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"tweetclaw_offline\"}")
+        let resolveResult = resolveConnection(clientName: "tweetClaw")
+        guard case .success(let wsClient) = resolveResult else {
+            var errorDetail = "tweetclaw_offline"
+            if case .failure(let err) = resolveResult { errorDetail = err.messageText }
+            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"\(errorDetail)\"}")
             return
         }
+
         
         let requestString = String(data: requestData, encoding: .utf8) ?? ""
         let parts = requestString.components(separatedBy: "\r\n\r\n")
@@ -1440,10 +1644,14 @@ class LocalBridgeWebSocketServer {
     }
     
     private func handleNavigateTabHttpRequest(_ connection: NWConnection, requestData: Data) {
-        guard let wsClient = activeClients["tweetClaw"], wsClient.state == .ready else {
-            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"tweetclaw_offline\"}")
+        let resolveResult = resolveConnection(clientName: "tweetClaw")
+        guard case .success(let wsClient) = resolveResult else {
+            var errorDetail = "tweetclaw_offline"
+            if case .failure(let err) = resolveResult { errorDetail = err.messageText }
+            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"\(errorDetail)\"}")
             return
         }
+
         
         let requestString = String(data: requestData, encoding: .utf8) ?? ""
         let parts = requestString.components(separatedBy: "\r\n\r\n")
@@ -1499,10 +1707,14 @@ class LocalBridgeWebSocketServer {
     }
     
     private func handleExecActionHttpRequest(_ connection: NWConnection, requestData: Data, action: String) {
-        guard let wsClient = activeClients["tweetClaw"], wsClient.state == .ready else {
-            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"tweetclaw_offline\"}")
+        let resolveResult = resolveConnection(clientName: "tweetClaw")
+        guard case .success(let wsClient) = resolveResult else {
+            var errorDetail = "tweetclaw_offline"
+            if case .failure(let err) = resolveResult { errorDetail = err.messageText }
+            sendHttpResponse(connection, status: "503 Service Unavailable", body: "{\"error\":\"\(errorDetail)\"}")
             return
         }
+
         
         let requestString = String(data: requestData, encoding: .utf8) ?? ""
         let parts = requestString.components(separatedBy: "\r\n\r\n")
@@ -1568,6 +1780,35 @@ class LocalBridgeWebSocketServer {
             }
         } catch {
             sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":\"invalid_json\", \"details\": \"\(error.localizedDescription)\"}")
+        }
+    }
+
+    private func handleInstancesHttpRequest(_ connection: NWConnection) {
+        var result: [[String: Any]] = []
+        let formatter = ISO8601DateFormatter()
+
+        for (clientName, clientSessions) in sessions {
+            for (instanceId, session) in clientSessions {
+                var item: [String: Any] = [
+                    "clientName": clientName,
+                    "instanceId": instanceId,
+                    "connectedAt": formatter.string(from: session.connectedAt),
+                    "lastSeenAt": formatter.string(from: session.lastSeenAt),
+                    "clientVersion": session.clientVersion,
+                    "capabilities": session.capabilities
+                ]
+                if let screenName = session.xScreenName {
+                    item["xScreenName"] = screenName
+                }
+                result.append(item)
+            }
+        }
+
+        if let data = try? JSONSerialization.data(withJSONObject: result),
+           let body = String(data: data, encoding: .utf8) {
+            sendHttpResponse(connection, status: "200 OK", body: body)
+        } else {
+            sendHttpResponse(connection, status: "500 Internal Server Error", body: "{\"error\":\"encode_failed\"}")
         }
     }
 

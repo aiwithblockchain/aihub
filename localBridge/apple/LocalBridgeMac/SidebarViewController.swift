@@ -33,6 +33,12 @@ final class SidebarViewController: NSViewController {
             subtitle: "System",
             preview: "Waiting for local service connection...",
             timestamp: "周四"
+        ),
+        Conversation(
+            title: "已连接实例",
+            subtitle: "Multi-Profile",
+            preview: "查看所有在线的浏览器扩展实例",
+            timestamp: "Now"
         )
     ]
 
