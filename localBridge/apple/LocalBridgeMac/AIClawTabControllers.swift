@@ -13,6 +13,12 @@ final class AIClawHumanViewController: NSViewController {
     private let sendMessageButton = NSButton(title: "发送消息", target: nil, action: #selector(sendMessageClicked))
     private let newConversationButton = NSButton(title: "新建对话", target: nil, action: #selector(newConversationClicked))
     private let aiConsoleButton = NSButton(title: "AI 控制台", target: nil, action: #selector(aiConsoleClicked))
+
+    // 实例选择器
+    private let instanceLabel = NSTextField(labelWithString: "目标实例:")
+    private let instancePopupLabel = NSPopUpButton(frame: .zero, pullsDown: false) // Rename to avoid conflict with existing platformPopup
+    private let refreshInstancesButton = NSButton(title: "↻", target: nil, action: #selector(refreshInstancesClicked))
+    private var instanceSnapshots: [LocalBridgeWebSocketServer.InstanceSnapshot] = []
     
     private var resultTextView: NSTextView!
     private var resultScrollView: NSScrollView!
@@ -27,10 +33,41 @@ final class AIClawHumanViewController: NSViewController {
         
         NotificationCenter.default.addObserver(self, selector: #selector(handleQueryResult(_:)), name: NSNotification.Name("QueryAITabsStatusReceived"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleSendMessageResult(_:)), name: NSNotification.Name("SendMessageReceived"), object: nil)
+
+        loadInstances()
     }
     
     deinit {
         NotificationCenter.default.removeObserver(self)
+    }
+
+    private func loadInstances() {
+        let all = AppDelegate.shared?.getConnectedInstances() ?? []
+        instanceSnapshots = all.filter { $0.clientName == "aiClaw" }
+
+        instancePopupLabel.removeAllItems()
+        if instanceSnapshots.isEmpty {
+            instancePopupLabel.addItem(withTitle: "无可用实例（自动选择）")
+        } else {
+            for snap in instanceSnapshots {
+                let idShort = String(snap.instanceId.prefix(8))
+                let label = snap.isTemporary
+                    ? "[\(idShort)...] (旧版)"
+                    : "[\(idShort)...]"
+                instancePopupLabel.addItem(withTitle: label)
+            }
+        }
+    }
+
+    private func selectedInstanceId() -> String? {
+        guard !instanceSnapshots.isEmpty else { return nil }
+        let idx = instancePopupLabel.indexOfSelectedItem
+        guard instanceSnapshots.indices.contains(idx) else { return nil }
+        return instanceSnapshots[idx].instanceId
+    }
+
+    @objc private func refreshInstancesClicked() {
+        loadInstances()
     }
     
     private func setupUI() {
@@ -93,8 +130,21 @@ final class AIClawHumanViewController: NSViewController {
         let separator2 = NSBox()
         separator2.boxType = .separator
         
+        // 实例选择器 UI
+        instancePopupLabel.translatesAutoresizingMaskIntoConstraints = false
+        refreshInstancesButton.bezelStyle = .rounded
+        refreshInstancesButton.target = self
+        refreshInstancesButton.translatesAutoresizingMaskIntoConstraints = false
+        refreshInstancesButton.widthAnchor.constraint(equalToConstant: 28).isActive = true
+
+        let instanceRow = NSStackView(views: [instanceLabel, instancePopupLabel, refreshInstancesButton])
+        instanceRow.orientation = .horizontal
+        instanceRow.alignment = .centerY
+        instanceRow.spacing = 6
+
         let leftStack = NSStackView(views: [
             titleLabel,
+            instanceRow,
             statusLabel,
             platformRow,
             queryButton,
@@ -138,8 +188,9 @@ final class AIClawHumanViewController: NSViewController {
             self.resultTextView.string = "Querying \(platformNames[selectedPlatform]) status...\n"
         }
         
+        
         UserDefaults.standard.set(selectedPlatform, forKey: "aiClawQueryPlatformFilter")
-        AppDelegate.shared?.sendQueryAITabsStatus()
+        AppDelegate.shared?.sendQueryAITabsStatus(instanceId: selectedInstanceId())
     }
     
     @objc private func sendMessageClicked() {
@@ -155,7 +206,7 @@ final class AIClawHumanViewController: NSViewController {
             self.resultTextView.string = "Sending message to \(platform)...\n"
         }
         
-        AppDelegate.shared?.sendSendMessage(platform: platform, prompt: prompt)
+        AppDelegate.shared?.sendSendMessage(platform: platform, prompt: prompt, instanceId: selectedInstanceId())
     }
 
     @objc private func newConversationClicked() {
@@ -170,7 +221,7 @@ final class AIClawHumanViewController: NSViewController {
             self.resultTextView.string = "Creating new conversation on \(platform)...\n"
         }
 
-        AppDelegate.shared?.sendNewConversation(platform: platform)
+        AppDelegate.shared?.sendNewConversation(platform: platform, instanceId: selectedInstanceId())
     }
     
     @objc private func aiConsoleClicked() {

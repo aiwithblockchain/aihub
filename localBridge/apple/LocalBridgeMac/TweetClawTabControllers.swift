@@ -30,6 +30,12 @@ final class TweetClawHumanViewController: NSViewController {
     
     private let unfollowUserIdTextField = NSTextField()
     private let unfollowButton = NSButton(title: "取消关注", target: nil, action: #selector(unfollowClicked))
+
+    // 实例选择器
+    private let instanceLabel = NSTextField(labelWithString: "目标实例:")
+    private let instancePopup = NSPopUpButton(frame: .zero, pullsDown: false)
+    private let refreshInstancesButton = NSButton(title: "↻", target: nil, action: #selector(refreshInstancesClicked))
+    private var instanceSnapshots: [LocalBridgeWebSocketServer.InstanceSnapshot] = []
     
     private var resultTextView: NSTextView!
     private var resultScrollView: NSScrollView!
@@ -48,10 +54,43 @@ final class TweetClawHumanViewController: NSViewController {
         NotificationCenter.default.addObserver(self, selector: #selector(handleCloseTabResult(_:)), name: NSNotification.Name("CloseTabReceived"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleNavigateTabResult(_:)), name: NSNotification.Name("NavigateTabReceived"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleExecActionResult(_:)), name: NSNotification.Name("ExecActionReceived"), object: nil)
+
+        loadInstances()
     }
-    
+
     deinit {
         NotificationCenter.default.removeObserver(self)
+    }
+
+    /// 从 AppDelegate 加载 tweetClaw 实例列表，更新下拉框
+    private func loadInstances() {
+        let all = AppDelegate.shared?.getConnectedInstances() ?? []
+        instanceSnapshots = all.filter { $0.clientName == "tweetClaw" }
+
+        instancePopup.removeAllItems()
+        if instanceSnapshots.isEmpty {
+            instancePopup.addItem(withTitle: "无可用实例（自动选择）")
+        } else {
+            for snap in instanceSnapshots {
+                let idShort = String(snap.instanceId.prefix(8))
+                let label = snap.isTemporary
+                    ? "[\(idShort)...] (旧版)"
+                    : "[\(idShort)...]"
+                instancePopup.addItem(withTitle: label)
+            }
+        }
+    }
+
+    /// 获取当前选中的 instanceId（nil 表示不指定，由 resolveConnection 自动处理）
+    private func selectedInstanceId() -> String? {
+        guard !instanceSnapshots.isEmpty else { return nil }
+        let idx = instancePopup.indexOfSelectedItem
+        guard instanceSnapshots.indices.contains(idx) else { return nil }
+        return instanceSnapshots[idx].instanceId
+    }
+
+    @objc private func refreshInstancesClicked() {
+        loadInstances()
     }
     
     private func setupUI() {
@@ -147,8 +186,22 @@ final class TweetClawHumanViewController: NSViewController {
         unfollowStack.orientation = .horizontal
         unfollowStack.spacing = 8
         
+        // 实例选择器
+        instancePopup.translatesAutoresizingMaskIntoConstraints = false
+        refreshInstancesButton.bezelStyle = .rounded
+        refreshInstancesButton.target = self
+        refreshInstancesButton.translatesAutoresizingMaskIntoConstraints = false
+        refreshInstancesButton.widthAnchor.constraint(equalToConstant: 28).isActive = true
+
+        let instanceRow = NSStackView(views: [instanceLabel, instancePopup, refreshInstancesButton])
+        instanceRow.orientation = .horizontal
+        instanceRow.alignment = .centerY
+        instanceRow.spacing = 6
+
         let leftStack = NSStackView(views: [
-            titleLabel, statusLabel, queryButton, queryBasicInfoButton,
+            titleLabel,
+            instanceRow,
+            statusLabel, queryButton, queryBasicInfoButton,
             openTabStack, closeTabStack, navigateStack,
             likeStack, retweetStack, bookmarkStack, followStack, unfollowStack
         ])
@@ -177,7 +230,7 @@ final class TweetClawHumanViewController: NSViewController {
         DispatchQueue.main.async {
             self.resultTextView.string = "Querying...\n"
         }
-        AppDelegate.shared?.sendQueryXTabsStatus()
+        AppDelegate.shared?.sendQueryXTabsStatus(instanceId: selectedInstanceId())
     }
     
     @objc private func handleQueryResult(_ notification: Notification) {
@@ -193,7 +246,7 @@ final class TweetClawHumanViewController: NSViewController {
         DispatchQueue.main.async {
             self.resultTextView.string = "Querying Basic Info...\n"
         }
-        AppDelegate.shared?.sendQueryXBasicInfo()
+        AppDelegate.shared?.sendQueryXBasicInfo(instanceId: selectedInstanceId())
     }
     
     @objc private func handleBasicInfoResult(_ notification: Notification) {
@@ -210,7 +263,7 @@ final class TweetClawHumanViewController: NSViewController {
         DispatchQueue.main.async {
             self.resultTextView.string = "Opening Tab: \(path)...\n"
         }
-        AppDelegate.shared?.sendOpenTab(path: path)
+        AppDelegate.shared?.sendOpenTab(path: path, instanceId: selectedInstanceId())
     }
     
     @objc private func handleOpenTabResult(_ notification: Notification) {
@@ -233,7 +286,7 @@ final class TweetClawHumanViewController: NSViewController {
         DispatchQueue.main.async {
             self.resultTextView.string = "Closing Tab: \(tabId)...\n"
         }
-        AppDelegate.shared?.sendCloseTab(tabId: tabId)
+        AppDelegate.shared?.sendCloseTab(tabId: tabId, instanceId: selectedInstanceId())
     }
     
     @objc private func handleCloseTabResult(_ notification: Notification) {
@@ -253,7 +306,7 @@ final class TweetClawHumanViewController: NSViewController {
         DispatchQueue.main.async {
             self.resultTextView.string = "Navigating...\n"
         }
-        AppDelegate.shared?.sendNavigateTab(tabId: tabId, path: path)
+        AppDelegate.shared?.sendNavigateTab(tabId: tabId, path: path, instanceId: selectedInstanceId())
     }
     
     @objc private func handleNavigateTabResult(_ notification: Notification) {
@@ -274,7 +327,7 @@ final class TweetClawHumanViewController: NSViewController {
             return
         }
         resultTextView.string = "Liking tweet: \(tweetId)...\n"
-        AppDelegate.shared?.sendExecAction(action: "like", tweetId: tweetId, userId: nil, tabId: nil)
+        AppDelegate.shared?.sendExecAction(action: "like", tweetId: tweetId, userId: nil, tabId: nil, instanceId: selectedInstanceId())
     }
     
     @objc private func retweetClicked() {
@@ -284,7 +337,7 @@ final class TweetClawHumanViewController: NSViewController {
             return
         }
         resultTextView.string = "Retweeting: \(tweetId)...\n"
-        AppDelegate.shared?.sendExecAction(action: "retweet", tweetId: tweetId, userId: nil, tabId: nil)
+        AppDelegate.shared?.sendExecAction(action: "retweet", tweetId: tweetId, userId: nil, tabId: nil, instanceId: selectedInstanceId())
     }
     
     @objc private func bookmarkClicked() {
@@ -294,7 +347,7 @@ final class TweetClawHumanViewController: NSViewController {
             return
         }
         resultTextView.string = "Bookmarking: \(tweetId)...\n"
-        AppDelegate.shared?.sendExecAction(action: "bookmark", tweetId: tweetId, userId: nil, tabId: nil)
+        AppDelegate.shared?.sendExecAction(action: "bookmark", tweetId: tweetId, userId: nil, tabId: nil, instanceId: selectedInstanceId())
     }
     
     @objc private func followClicked() {
@@ -304,7 +357,7 @@ final class TweetClawHumanViewController: NSViewController {
             return
         }
         resultTextView.string = "Following user: \(userId)...\n"
-        AppDelegate.shared?.sendExecAction(action: "follow", tweetId: nil, userId: userId, tabId: nil)
+        AppDelegate.shared?.sendExecAction(action: "follow", tweetId: nil, userId: userId, tabId: nil, instanceId: selectedInstanceId())
     }
     
     @objc private func unfollowClicked() {
@@ -314,7 +367,7 @@ final class TweetClawHumanViewController: NSViewController {
             return
         }
         resultTextView.string = "Unfollowing user: \(userId)...\n"
-        AppDelegate.shared?.sendExecAction(action: "unfollow", tweetId: nil, userId: userId, tabId: nil)
+        AppDelegate.shared?.sendExecAction(action: "unfollow", tweetId: nil, userId: userId, tabId: nil, instanceId: selectedInstanceId())
     }
     
     @objc private func handleExecActionResult(_ notification: Notification) {

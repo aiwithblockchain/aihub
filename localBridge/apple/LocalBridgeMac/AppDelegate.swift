@@ -71,40 +71,40 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return wsServer.getConnectedInstances()
     }
 
-    func sendQueryXTabsStatus() {
-        wsServer.sendQueryXTabsStatus()
-    }
-    
-    func sendQueryXBasicInfo() {
-        wsServer.sendQueryXBasicInfo()
-    }
-    
-    func sendOpenTab(path: String) {
-        wsServer.sendOpenTab(path: path)
-    }
-    
-    func sendCloseTab(tabId: Int) {
-        wsServer.sendCloseTab(tabId: tabId)
-    }
-    
-    func sendNavigateTab(tabId: Int?, path: String) {
-        wsServer.sendNavigateTab(tabId: tabId, path: path)
-    }
-    
-    func sendExecAction(action: String, tweetId: String?, userId: String?, tabId: Int?) {
-        wsServer.sendExecAction(action: action, tweetId: tweetId, userId: userId, tabId: tabId)
-    }
-    
-    func sendQueryAITabsStatus() {
-        wsServer.sendQueryAITabsStatus()
-    }
-    
-    func sendSendMessage(platform: String, prompt: String) {
-        wsServer.sendSendMessage(platform: platform, prompt: prompt)
+    func sendQueryXTabsStatus(instanceId: String? = nil) {
+        wsServer.sendQueryXTabsStatus(instanceId: instanceId)
     }
 
-    func sendNewConversation(platform: String) {
-        wsServer.sendNewConversation(platform: platform)
+    func sendQueryXBasicInfo(instanceId: String? = nil) {
+        wsServer.sendQueryXBasicInfo(instanceId: instanceId)
+    }
+
+    func sendOpenTab(path: String, instanceId: String? = nil) {
+        wsServer.sendOpenTab(path: path, instanceId: instanceId)
+    }
+
+    func sendCloseTab(tabId: Int, instanceId: String? = nil) {
+        wsServer.sendCloseTab(tabId: tabId, instanceId: instanceId)
+    }
+
+    func sendNavigateTab(tabId: Int?, path: String, instanceId: String? = nil) {
+        wsServer.sendNavigateTab(tabId: tabId, path: path, instanceId: instanceId)
+    }
+
+    func sendExecAction(action: String, tweetId: String?, userId: String?, tabId: Int?, instanceId: String? = nil) {
+        wsServer.sendExecAction(action: action, tweetId: tweetId, userId: userId, tabId: tabId, instanceId: instanceId)
+    }
+
+    func sendQueryAITabsStatus(instanceId: String? = nil) {
+        wsServer.sendQueryAITabsStatus(instanceId: instanceId)
+    }
+
+    func sendSendMessage(platform: String, prompt: String, instanceId: String? = nil) {
+        wsServer.sendSendMessage(platform: platform, prompt: prompt, instanceId: instanceId)
+    }
+
+    func sendNewConversation(platform: String, instanceId: String? = nil) {
+        wsServer.sendNewConversation(platform: platform, instanceId: instanceId)
     }
 
     @objc private func restartWebSocketServer() {
