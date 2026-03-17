@@ -6,6 +6,7 @@ import {
   PROTOCOL_VERSION,
   ServerHelloAckPayload,
 } from './ws-protocol';
+import { getOrCreateInstanceId } from './instance-id';
 
 export class LocalBridgeSocket {
   private ws: WebSocket | null = null;
@@ -14,6 +15,7 @@ export class LocalBridgeSocket {
   private heartbeatInterval: any = null;
   private serverInfo: ServerHelloAckPayload | null = null;
   private lastPongTimestamp = 0;
+  private instanceId: string = '';
 
   public queryAITabsHandler: (() => Promise<any>) | null = null;
   public executeTaskHandler: ((task: any) => Promise<any>) | null = null;
@@ -71,11 +73,16 @@ export class LocalBridgeSocket {
     try {
       this.ws = new WebSocket(this.WS_URL);
 
-      this.ws.onopen = () => {
+      this.ws.onopen = async () => {
         console.log('[aiClaw] websocket open');
         this.isConnecting = false;
         this.reconnectAttempts = 0;
         this.lastPongTimestamp = Date.now();
+
+        // 确保 instanceId 已加载（同一 Profile 内多次重连复用同一个值）
+        if (!this.instanceId) {
+          this.instanceId = await getOrCreateInstanceId();
+        }
         this.sendHello();
       };
 
@@ -135,9 +142,11 @@ export class LocalBridgeSocket {
         protocolName: PROTOCOL_NAME,
         protocolVersion: PROTOCOL_VERSION,
         clientName: 'aiClaw',
-        clientVersion: '0.1.0',
+        clientVersion: '0.2.2',
         browser: 'chrome',
-        capabilities: ['query_ai_tabs_status'],
+        capabilities: ['query_ai_tabs_status', 'execute_task'],
+        instanceId: this.instanceId || undefined,           // 新增
+        incognito: (typeof chrome !== 'undefined' && chrome.extension) ? chrome.extension.inIncognitoContext : false // 新增
       },
     };
     this.send(hello);
