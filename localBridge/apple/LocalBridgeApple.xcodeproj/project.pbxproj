@@ -148,8 +148,9 @@
 				2BB765392F6864AE00309F77 /* NSColor+Console.swift */,
 				2CB700082F6864AE00309F77 /* StandaloneAppDelegate.swift */,
 				2CB711002F69A01000309F77 /* AIKeySettingsViewController.swift */,
+				2CB7000E2F6864AE00309F77 /* Providers */,
 			);
-			path = Console;
+			path = AIConsole;
 			sourceTree = "<group>";
 		};
 		A10000000000000000000002 = {
@@ -157,6 +158,7 @@
 			children = (
 				A10000000000000000000004 /* LocalBridgeiOS */,
 				A10000000000000000000005 /* LocalBridgeMac */,
+				2BB7653A2F6864AE00309F77 /* Console */,
 				A10000000000000000000003 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -201,8 +203,6 @@
 				A1000000000000000000002F /* SettingsViewController.swift */,
 				A10000000000000000000046 /* TweetClawTabControllers.swift */,
 				A10000000000000000000048 /* AIClawTabControllers.swift */,
-				2BB7653A2F6864AE00309F77 /* Console */,
-				2CB7000E2F6864AE00309F77 /* Providers */,
 			);
 			path = LocalBridgeMac;
 			sourceTree = "<group>";
