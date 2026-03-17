@@ -58,7 +58,7 @@
 		2CB710182F69A01000309F77 /* ConsoleWorkspaceDetailViewControllers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB765372F6864AE00309F77 /* ConsoleWorkspaceDetailViewControllers.swift */; };
 		2CB710192F69A01000309F77 /* ConsoleWorkspaceViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB765382F6864AE00309F77 /* ConsoleWorkspaceViewController.swift */; };
 		2CB7101A2F69A01000309F77 /* NSColor+Console.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB765392F6864AE00309F77 /* NSColor+Console.swift */; };
-		2CB7101B2F69A01000309F77 /* ConsoleSettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CB711002F69A01000309F77 /* ConsoleSettingsViewController.swift */; };
+		2CB7101B2F69A01000309F77 /* AIKeySettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CB711002F69A01000309F77 /* AIKeySettingsViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -103,7 +103,7 @@
 		2CB700062F6864AE00309F77 /* KeychainTokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainTokenStore.swift; sourceTree = "<group>"; };
 		2CB700072F6864AE00309F77 /* SSEParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSEParser.swift; sourceTree = "<group>"; };
 		2CB700082F6864AE00309F77 /* StandaloneAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneAppDelegate.swift; sourceTree = "<group>"; };
-		2CB711002F69A01000309F77 /* ConsoleSettingsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsoleSettingsViewController.swift; sourceTree = "<group>"; };
+		2CB711002F69A01000309F77 /* AIKeySettingsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIKeySettingsViewController.swift; sourceTree = "<group>"; };
 		2CB700092F6864AE00309F77 /* AIConsole.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AIConsole.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -147,7 +147,7 @@
 				2BB765382F6864AE00309F77 /* ConsoleWorkspaceViewController.swift */,
 				2BB765392F6864AE00309F77 /* NSColor+Console.swift */,
 				2CB700082F6864AE00309F77 /* StandaloneAppDelegate.swift */,
-				2CB711002F69A01000309F77 /* ConsoleSettingsViewController.swift */,
+				2CB711002F69A01000309F77 /* AIKeySettingsViewController.swift */,
 			);
 			path = Console;
 			sourceTree = "<group>";
@@ -399,7 +399,7 @@
 				2CB710052F69A00000000001 /* HTTPProvider.swift in Sources */,
 				2CB710062F69A00000000001 /* KeychainTokenStore.swift in Sources */,
 				2CB710072F69A00000000001 /* SSEParser.swift in Sources */,
-				2CB7101B2F69A01000309F77 /* ConsoleSettingsViewController.swift in Sources */,
+				2CB7101B2F69A01000309F77 /* AIKeySettingsViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

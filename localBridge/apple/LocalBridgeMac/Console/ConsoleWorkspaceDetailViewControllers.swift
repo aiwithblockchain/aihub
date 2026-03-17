@@ -1067,7 +1067,7 @@ func makeTabBar(containing control: NSSegmentedControl) -> NSView {
 
 // MARK: - Settings Modal Panel
 
-final class ConsoleSettingsViewController: NSViewController {
+final class GeneralSettingsViewController: NSViewController {
     private let categories = ["常规", "模型配置", "通知", "账户", "关于"]
     private let splitView = NSSplitView()
     private let sidebar = NSStackView()

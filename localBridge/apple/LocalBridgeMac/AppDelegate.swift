@@ -11,8 +11,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         AppDelegate.shared = self
 
         // Run as a menu-bar-only app by default (no Dock icon).
-        // AIConsoleWindowController.show() will switch to .regular when the
-        // AI Console window opens, and switch back to .accessory when it closes.
+        // It lives in the menu bar and provides WebSocket/REST services.
         NSApp.setActivationPolicy(.accessory)
 
         wsServer.start()

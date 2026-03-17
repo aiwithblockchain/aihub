@@ -12,7 +12,6 @@ final class AIClawHumanViewController: NSViewController {
     private let messageTextView = NSTextField()
     private let sendMessageButton = NSButton(title: "发送消息", target: nil, action: #selector(sendMessageClicked))
     private let newConversationButton = NSButton(title: "新建对话", target: nil, action: #selector(newConversationClicked))
-    private let aiConsoleButton = NSButton(title: "AI 控制台", target: nil, action: #selector(aiConsoleClicked))
 
     // 实例选择器
     private let instanceLabel = NSTextField(labelWithString: "目标实例:")
@@ -111,13 +110,6 @@ final class AIClawHumanViewController: NSViewController {
         newConversationButton.bezelStyle = .rounded
         newConversationButton.target = self
         
-        // AI Console button - prominent styling
-        aiConsoleButton.bezelStyle = .rounded
-        aiConsoleButton.target = self
-        if #available(macOS 11.0, *) {
-            aiConsoleButton.image = NSImage(systemSymbolName: "rectangle.3.group", accessibilityDescription: "AI 控制台")
-            aiConsoleButton.imagePosition = .imageLeading
-        }
         
         let msgPlatformLabel = NSTextField(labelWithString: "平台:")
         let msgPlatformRow = NSStackView(views: [msgPlatformLabel, messagePlatformPopup])
@@ -154,8 +146,7 @@ final class AIClawHumanViewController: NSViewController {
             messageTextView,
             sendMessageButton,
             newConversationButton,
-            separator2,
-            aiConsoleButton
+            separator2
         ])
         leftStack.orientation = .vertical
         leftStack.alignment = .leading
@@ -224,12 +215,6 @@ final class AIClawHumanViewController: NSViewController {
         AppDelegate.shared?.sendNewConversation(platform: platform, instanceId: selectedInstanceId())
     }
     
-    @objc private func aiConsoleClicked() {
-        // 全新方案：通过 URL Scheme 唤起独立的 AI 融合器程序
-        if let url = URL(string: "aiconsole://open") {
-            NSWorkspace.shared.open(url)
-        }
-    }
     
     @objc private func handleSendMessageResult(_ notification: Notification) {
         guard let userInfo = notification.userInfo,
