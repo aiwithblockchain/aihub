@@ -142,7 +142,7 @@ final class AIConsoleRootViewController: NSViewController {
     }
 
     @objc private func openSettings() {
-        let settingsVC = ConsoleSettingsViewController()
+        let settingsVC = AIKeySettingsViewController()
         self.presentAsSheet(settingsVC)
     }
 

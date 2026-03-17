@@ -12,14 +12,6 @@ final class SettingsViewController: NSViewController {
     private let restPortLabel = NSTextField(labelWithString: "REST API 端口:")
     private let restPortField = NSTextField()
     
-    // Task 7: API Key Management UI
-    private let apiKeyTitleLabel = NSTextField(labelWithString: "API Key 管理")
-    private let anthropicKeyLabel = NSTextField(labelWithString: "Anthropic API Key:")
-    private let anthropicKeyField = NSSecureTextField()
-    private let openaiKeyLabel = NSTextField(labelWithString: "OpenAI API Key:")
-    private let openaiKeyField = NSSecureTextField()
-    private let geminiKeyLabel = NSTextField(labelWithString: "Gemini API Key:")
-    private let geminiKeyField = NSSecureTextField()
     
     // Actions
     private let saveButton = NSButton(title: "保存配置并重启服务", target: nil, action: #selector(saveClicked))
@@ -36,7 +28,6 @@ final class SettingsViewController: NSViewController {
         super.viewDidLoad()
         setupUI()
         loadCurrentSettings()
-        loadAPIKeys()
     }
     
     override func viewWillAppear() {
@@ -98,7 +89,6 @@ final class SettingsViewController: NSViewController {
             restStack
         ])
         
-        setupAPIKeyUI(to: stackView)
         
         stackView.addArrangedSubview(saveButton)
         stackView.addArrangedSubview(bottomSpacerRow)
@@ -119,36 +109,6 @@ final class SettingsViewController: NSViewController {
         ])
     }
     
-    private func setupAPIKeyUI(to stackView: NSStackView) {
-        apiKeyTitleLabel.font = .systemFont(ofSize: 18, weight: .semibold)
-        apiKeyTitleLabel.translatesAutoresizingMaskIntoConstraints = false
-        
-        func makeKeyRow(label: NSTextField, field: NSSecureTextField) -> NSStackView {
-            label.translatesAutoresizingMaskIntoConstraints = false
-            field.translatesAutoresizingMaskIntoConstraints = false
-            field.widthAnchor.constraint(equalToConstant: 250).isActive = true
-            let row = NSStackView(views: [label, field])
-            row.orientation = .horizontal
-            row.alignment = .centerY
-            return row
-        }
-        
-        let anthropicRow = makeKeyRow(label: anthropicKeyLabel, field: anthropicKeyField)
-        let openaiRow = makeKeyRow(label: openaiKeyLabel, field: openaiKeyField)
-        let geminiRow = makeKeyRow(label: geminiKeyLabel, field: geminiKeyField)
-        
-        let gap = NSView()
-        gap.heightAnchor.constraint(equalToConstant: 10).isActive = true
-        stackView.addArrangedSubview(gap)
-        stackView.addArrangedSubview(apiKeyTitleLabel)
-        stackView.addArrangedSubview(anthropicRow)
-        stackView.addArrangedSubview(openaiRow)
-        stackView.addArrangedSubview(geminiRow)
-        
-        let bottomGap = NSView()
-        bottomGap.heightAnchor.constraint(equalToConstant: 10).isActive = true
-        stackView.addArrangedSubview(bottomGap)
-    }
     
     private func loadCurrentSettings() {
         let defaults = UserDefaults.standard
@@ -161,26 +121,6 @@ final class SettingsViewController: NSViewController {
         restPortField.stringValue = restPort != 0 ? "\(restPort)" : "10088"
     }
     
-    private func loadAPIKeys() {
-        let keychain = KeychainTokenStore()
-        if (try? keychain.load(key: KeychainTokenStore.anthropicAPIKey)) != nil {
-            anthropicKeyField.placeholderString = "••••••••"
-        } else {
-            anthropicKeyField.placeholderString = "输入 Anthropic Key"
-        }
-        
-        if (try? keychain.load(key: KeychainTokenStore.openAIAPIKey)) != nil {
-            openaiKeyField.placeholderString = "••••••••"
-        } else {
-            openaiKeyField.placeholderString = "输入 OpenAI Key"
-        }
-        
-        if (try? keychain.load(key: KeychainTokenStore.geminiAPIKey)) != nil {
-            geminiKeyField.placeholderString = "••••••••"
-        } else {
-            geminiKeyField.placeholderString = "输入 Gemini Key"
-        }
-    }
 
     private func updateCheckboxState() {
         guard let window = view.window else { return }
@@ -205,34 +145,16 @@ final class SettingsViewController: NSViewController {
         }
         defaults.synchronize()
         
-        // Task 7.3: Save API Keys to Keychain
-        let keychain = KeychainTokenStore()
-        let anthropicKey = anthropicKeyField.stringValue
-        let openaiKey = openaiKeyField.stringValue
-        let geminiKey = geminiKeyField.stringValue
-        
-        if !anthropicKey.isEmpty && anthropicKey != "••••••••" {
-            try? keychain.save(key: KeychainTokenStore.anthropicAPIKey, value: anthropicKey)
-        }
-        if !openaiKey.isEmpty && openaiKey != "••••••••" {
-            try? keychain.save(key: KeychainTokenStore.openAIAPIKey, value: openaiKey)
-        }
-        if !geminiKey.isEmpty && geminiKey != "••••••••" {
-            try? keychain.save(key: KeychainTokenStore.geminiAPIKey, value: geminiKey)
-        }
         
         // Notify app delegate to restart the websocket server
         NotificationCenter.default.post(name: NSNotification.Name("RestartWebSocketServer"), object: nil)
         
         let alert = NSAlert()
         alert.messageText = "保存成功"
-        alert.informativeText = "服务器端口与 API Key 设置已保存，服务已在后台重启。"
+        alert.informativeText = "服务器端口设置已保存，服务已在后台重启。"
         alert.alertStyle = .informational
         alert.addButton(withTitle: "确定")
         alert.runModal()
-        
-        // Refresh placeholders after save
-        loadAPIKeys()
     }
     
     @objc private func quitClicked() {

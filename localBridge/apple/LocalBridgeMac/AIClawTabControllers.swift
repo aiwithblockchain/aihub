@@ -225,7 +225,10 @@ final class AIClawHumanViewController: NSViewController {
     }
     
     @objc private func aiConsoleClicked() {
-        AIConsoleWindowController.show()
+        // 全新方案：通过 URL Scheme 唤起独立的 AI 融合器程序
+        if let url = URL(string: "aiconsole://open") {
+            NSWorkspace.shared.open(url)
+        }
     }
     
     @objc private func handleSendMessageResult(_ notification: Notification) {

@@ -4,6 +4,9 @@ import AppKit
 
 final class AIConsoleWindowController: NSWindowController {
     private static var instance: AIConsoleWindowController?
+    
+    /// 是否处于独立 App 模式（而非嵌入在主应用中）
+    static var isStandaloneMode: Bool = false
 
     // MARK: - Show
 
@@ -11,7 +14,7 @@ final class AIConsoleWindowController: NSWindowController {
         if instance == nil {
             instance = AIConsoleWindowController()
         }
-        if NSApp.activationPolicy() != .regular {
+        if !isStandaloneMode && NSApp.activationPolicy() != .regular {
             NSApp.setActivationPolicy(.regular)
         }
         guard let window = instance?.window else { return }
@@ -79,7 +82,9 @@ final class AIConsoleWindowController: NSWindowController {
 
 extension AIConsoleWindowController: NSWindowDelegate {
     func windowWillClose(_ notification: Notification) {
-        NSApp.setActivationPolicy(.accessory)
+        if !AIConsoleWindowController.isStandaloneMode {
+            NSApp.setActivationPolicy(.accessory)
+        }
         AIConsoleWindowController.instance = nil
     }
 }
