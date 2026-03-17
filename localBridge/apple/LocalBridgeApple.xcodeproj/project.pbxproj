@@ -7,27 +7,6 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		2CB710002F69A00000000001 /* StandaloneAppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CB700082F6864AE00309F77 /* StandaloneAppDelegate.swift */; };
-		2CB710012F69A00000000001 /* AIProviderProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CB700012F6864AE00309F77 /* AIProviderProtocol.swift */; };
-		2CB710022F69A00000000001 /* AnthropicHTTPProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CB700022F6864AE00309F77 /* AnthropicHTTPProvider.swift */; };
-		2CB710032F69A00000000001 /* CodexAppServerProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CB700032F6864AE00309F77 /* CodexAppServerProvider.swift */; };
-		2CB710042F69A00000000001 /* GeminiCLIProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CB700042F6864AE00309F77 /* GeminiCLIProvider.swift */; };
-		2CB710052F69A00000000001 /* HTTPProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CB700052F6864AE00309F77 /* HTTPProvider.swift */; };
-		2CB710062F69A00000000001 /* KeychainTokenStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CB700062F6864AE00309F77 /* KeychainTokenStore.swift */; };
-		2CB710072F69A00000000001 /* SSEParser.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CB700072F6864AE00309F77 /* SSEParser.swift */; };
-		2CB710102F69A01000309F77 /* AIConsoleMockData.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB7652F2F6864AE00309F77 /* AIConsoleMockData.swift */; };
-		2CB710112F69A01000309F77 /* AIConsoleModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB765302F6864AE00309F77 /* AIConsoleModels.swift */; };
-		2CB710122F69A01000309F77 /* AIConsoleRootViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB765312F6864AE00309F77 /* AIConsoleRootViewController.swift */; };
-		2CB710132F69A01000309F77 /* AIConsoleWindowController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB765322F6864AE00309F77 /* AIConsoleWindowController.swift */; };
-		2CB710142F69A01000309F77 /* ConsoleChatViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB765332F6864AE00309F77 /* ConsoleChatViewController.swift */; };
-		2CB710152F69A01000309F77 /* ConsoleComponents.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB765342F6864AE00309F77 /* ConsoleComponents.swift */; };
-		2CB710162F69A01000309F77 /* ConsoleNavViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB765352F6864AE00309F77 /* ConsoleNavViewController.swift */; };
-		2CB710172F69A01000309F77 /* ConsoleSidebarViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB765362F6864AE00309F77 /* ConsoleSidebarViewController.swift */; };
-		2CB710182F69A01000309F77 /* ConsoleWorkspaceDetailViewControllers.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB765372F6864AE00309F77 /* ConsoleWorkspaceDetailViewControllers.swift */; };
-		2CB710192F69A01000309F77 /* ConsoleWorkspaceViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB765382F6864AE00309F77 /* ConsoleWorkspaceViewController.swift */; };
-		2CB7101A2F69A01000309F77 /* NSColor+Console.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB765392F6864AE00309F77 /* NSColor+Console.swift */; };
-		2CB7101B2F69A01000309F77 /* AIKeySettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2CB711002F69A01000309F77 /* AIKeySettingsViewController.swift */; };
-		2CB710202F69A00000000001 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002C /* Assets.xcassets */; };
 		69B055D12F680B9C0076AC1D /* api_docs.json in Resources */ = {isa = PBXBuildFile; fileRef = 69B055D02F680B9C0076AC1D /* api_docs.json */; };
 		69B055D32F691DC20076AC1D /* InstancesPanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69B055D22F691DC20076AC1D /* InstancesPanelViewController.swift */; };
 		69B055D62F692B160076AC1D /* BridgeLogsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69B055D52F692B160076AC1D /* BridgeLogsViewController.swift */; };
@@ -52,27 +31,6 @@
 
 /* Begin PBXFileReference section */
 		2B8FB1B82F69AECA0005B31B /* tokenRouter.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = tokenRouter.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		2BB7652F2F6864AE00309F77 /* AIConsoleMockData.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConsoleMockData.swift; sourceTree = "<group>"; };
-		2BB765302F6864AE00309F77 /* AIConsoleModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConsoleModels.swift; sourceTree = "<group>"; };
-		2BB765312F6864AE00309F77 /* AIConsoleRootViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConsoleRootViewController.swift; sourceTree = "<group>"; };
-		2BB765322F6864AE00309F77 /* AIConsoleWindowController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIConsoleWindowController.swift; sourceTree = "<group>"; };
-		2BB765332F6864AE00309F77 /* ConsoleChatViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsoleChatViewController.swift; sourceTree = "<group>"; };
-		2BB765342F6864AE00309F77 /* ConsoleComponents.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsoleComponents.swift; sourceTree = "<group>"; };
-		2BB765352F6864AE00309F77 /* ConsoleNavViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsoleNavViewController.swift; sourceTree = "<group>"; };
-		2BB765362F6864AE00309F77 /* ConsoleSidebarViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsoleSidebarViewController.swift; sourceTree = "<group>"; };
-		2BB765372F6864AE00309F77 /* ConsoleWorkspaceDetailViewControllers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsoleWorkspaceDetailViewControllers.swift; sourceTree = "<group>"; };
-		2BB765382F6864AE00309F77 /* ConsoleWorkspaceViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ConsoleWorkspaceViewController.swift; sourceTree = "<group>"; };
-		2BB765392F6864AE00309F77 /* NSColor+Console.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = "NSColor+Console.swift"; sourceTree = "<group>"; };
-		2CB700012F6864AE00309F77 /* AIProviderProtocol.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIProviderProtocol.swift; sourceTree = "<group>"; };
-		2CB700022F6864AE00309F77 /* AnthropicHTTPProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AnthropicHTTPProvider.swift; sourceTree = "<group>"; };
-		2CB700032F6864AE00309F77 /* CodexAppServerProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CodexAppServerProvider.swift; sourceTree = "<group>"; };
-		2CB700042F6864AE00309F77 /* GeminiCLIProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GeminiCLIProvider.swift; sourceTree = "<group>"; };
-		2CB700052F6864AE00309F77 /* HTTPProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HTTPProvider.swift; sourceTree = "<group>"; };
-		2CB700062F6864AE00309F77 /* KeychainTokenStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = KeychainTokenStore.swift; sourceTree = "<group>"; };
-		2CB700072F6864AE00309F77 /* SSEParser.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SSEParser.swift; sourceTree = "<group>"; };
-		2CB700082F6864AE00309F77 /* StandaloneAppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StandaloneAppDelegate.swift; sourceTree = "<group>"; };
-		2CB700092F6864AE00309F77 /* AIConsole.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = AIConsole.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		2CB711002F69A01000309F77 /* AIKeySettingsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIKeySettingsViewController.swift; sourceTree = "<group>"; };
 		69B055D02F680B9C0076AC1D /* api_docs.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = api_docs.json; sourceTree = "<group>"; };
 		69B055D22F691DC20076AC1D /* InstancesPanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstancesPanelViewController.swift; sourceTree = "<group>"; };
 		69B055D42F692B160076AC1D /* BridgeLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeLogger.swift; sourceTree = "<group>"; };
@@ -109,13 +67,6 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		2CB7000C2F6864AE00309F77 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		A10000000000000000000041 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -133,47 +84,11 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		2BB7653A2F6864AE00309F77 /* AIConsole */ = {
-			isa = PBXGroup;
-			children = (
-				2BB7652F2F6864AE00309F77 /* AIConsoleMockData.swift */,
-				2BB765302F6864AE00309F77 /* AIConsoleModels.swift */,
-				2BB765312F6864AE00309F77 /* AIConsoleRootViewController.swift */,
-				2BB765322F6864AE00309F77 /* AIConsoleWindowController.swift */,
-				2BB765332F6864AE00309F77 /* ConsoleChatViewController.swift */,
-				2BB765342F6864AE00309F77 /* ConsoleComponents.swift */,
-				2BB765352F6864AE00309F77 /* ConsoleNavViewController.swift */,
-				2BB765362F6864AE00309F77 /* ConsoleSidebarViewController.swift */,
-				2BB765372F6864AE00309F77 /* ConsoleWorkspaceDetailViewControllers.swift */,
-				2BB765382F6864AE00309F77 /* ConsoleWorkspaceViewController.swift */,
-				2BB765392F6864AE00309F77 /* NSColor+Console.swift */,
-				2CB700082F6864AE00309F77 /* StandaloneAppDelegate.swift */,
-				2CB711002F69A01000309F77 /* AIKeySettingsViewController.swift */,
-				2CB7000E2F6864AE00309F77 /* Providers */,
-			);
-			path = AIConsole;
-			sourceTree = "<group>";
-		};
-		2CB7000E2F6864AE00309F77 /* Providers */ = {
-			isa = PBXGroup;
-			children = (
-				2CB700012F6864AE00309F77 /* AIProviderProtocol.swift */,
-				2CB700022F6864AE00309F77 /* AnthropicHTTPProvider.swift */,
-				2CB700032F6864AE00309F77 /* CodexAppServerProvider.swift */,
-				2CB700042F6864AE00309F77 /* GeminiCLIProvider.swift */,
-				2CB700052F6864AE00309F77 /* HTTPProvider.swift */,
-				2CB700062F6864AE00309F77 /* KeychainTokenStore.swift */,
-				2CB700072F6864AE00309F77 /* SSEParser.swift */,
-			);
-			path = Providers;
-			sourceTree = "<group>";
-		};
 		A10000000000000000000002 = {
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000004 /* LocalBridgeiOS */,
 				A10000000000000000000005 /* LocalBridgeMac */,
-				2BB7653A2F6864AE00309F77 /* AIConsole */,
 				2B8FB1B92F69AECA0005B31B /* tokenRouter */,
 				A10000000000000000000003 /* Products */,
 			);
@@ -184,7 +99,6 @@
 			children = (
 				A10000000000000000000020 /* LocalBridgeiOS.app */,
 				A10000000000000000000021 /* LocalBridgeMac.app */,
-				2CB700092F6864AE00309F77 /* AIConsole.app */,
 				2B8FB1B82F69AECA0005B31B /* tokenRouter.app */,
 			);
 			name = Products;
@@ -249,23 +163,6 @@
 			productReference = 2B8FB1B82F69AECA0005B31B /* tokenRouter.app */;
 			productType = "com.apple.product-type.application";
 		};
-		2CB7000A2F6864AE00309F77 /* AIConsole */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 2CB7000F2F6864AE00309F77 /* Build configuration list for PBXNativeTarget "AIConsole" */;
-			buildPhases = (
-				2CB7000B2F6864AE00309F77 /* Sources */,
-				2CB7000C2F6864AE00309F77 /* Frameworks */,
-				2CB7000D2F6864AE00309F77 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = AIConsole;
-			productName = AIConsole;
-			productReference = 2CB700092F6864AE00309F77 /* AIConsole.app */;
-			productType = "com.apple.product-type.application";
-		};
 		A10000000000000000000010 /* LocalBridgeiOS */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = A10000000000000000000051 /* Build configuration list for PBXNativeTarget "LocalBridgeiOS" */;
@@ -313,9 +210,6 @@
 					2B8FB1B72F69AECA0005B31B = {
 						CreatedOnToolsVersion = 26.3;
 					};
-					2CB7000A2F6864AE00309F77 = {
-						CreatedOnToolsVersion = 26.3;
-					};
 					A10000000000000000000010 = {
 						CreatedOnToolsVersion = 26.3;
 					};
@@ -339,7 +233,6 @@
 			targets = (
 				A10000000000000000000010 /* LocalBridgeiOS */,
 				A10000000000000000000011 /* LocalBridgeMac */,
-				2CB7000A2F6864AE00309F77 /* AIConsole */,
 				2B8FB1B72F69AECA0005B31B /* tokenRouter */,
 			);
 		};
@@ -350,14 +243,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		2CB7000D2F6864AE00309F77 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				2CB710202F69A00000000001 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -385,33 +270,6 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		2CB7000B2F6864AE00309F77 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				2CB710002F69A00000000001 /* StandaloneAppDelegate.swift in Sources */,
-				2CB710102F69A01000309F77 /* AIConsoleMockData.swift in Sources */,
-				2CB710112F69A01000309F77 /* AIConsoleModels.swift in Sources */,
-				2CB710122F69A01000309F77 /* AIConsoleRootViewController.swift in Sources */,
-				2CB710132F69A01000309F77 /* AIConsoleWindowController.swift in Sources */,
-				2CB710142F69A01000309F77 /* ConsoleChatViewController.swift in Sources */,
-				2CB710152F69A01000309F77 /* ConsoleComponents.swift in Sources */,
-				2CB710162F69A01000309F77 /* ConsoleNavViewController.swift in Sources */,
-				2CB710172F69A01000309F77 /* ConsoleSidebarViewController.swift in Sources */,
-				2CB710182F69A01000309F77 /* ConsoleWorkspaceDetailViewControllers.swift in Sources */,
-				2CB710192F69A01000309F77 /* ConsoleWorkspaceViewController.swift in Sources */,
-				2CB7101A2F69A01000309F77 /* NSColor+Console.swift in Sources */,
-				2CB710012F69A00000000001 /* AIProviderProtocol.swift in Sources */,
-				2CB710022F69A00000000001 /* AnthropicHTTPProvider.swift in Sources */,
-				2CB710032F69A00000000001 /* CodexAppServerProvider.swift in Sources */,
-				2CB710042F69A00000000001 /* GeminiCLIProvider.swift in Sources */,
-				2CB710052F69A00000000001 /* HTTPProvider.swift in Sources */,
-				2CB710062F69A00000000001 /* KeychainTokenStore.swift in Sources */,
-				2CB710072F69A00000000001 /* SSEParser.swift in Sources */,
-				2CB7101B2F69A01000309F77 /* AIKeySettingsViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -513,7 +371,7 @@
 					"@executable_path/../Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MACOSX_DEPLOYMENT_TARGET = 13.5;
 				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
@@ -590,7 +448,7 @@
 					"@executable_path/../Frameworks",
 				);
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MACOSX_DEPLOYMENT_TARGET = 26.2;
+				MACOSX_DEPLOYMENT_TARGET = 13.5;
 				MARKETING_VERSION = 1.0;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
@@ -604,42 +462,6 @@
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_UPCOMING_FEATURE_MEMBER_IMPORT_VISIBILITY = YES;
 				SWIFT_VERSION = 5.0;
-			};
-			name = Release;
-		};
-		2CB700102F6864AE00309F77 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_STYLE = Automatic;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleURLTypes = "{\n    CFBundleURLSchemes =     (\n        aiconsole\n    );\n}";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 13.5;
-				PRODUCT_BUNDLE_IDENTIFIER = com.aihub.aiconsole;
-				SDKROOT = macosx;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-			};
-			name = Debug;
-		};
-		2CB700112F6864AE00309F77 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_STYLE = Automatic;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleURLTypes = "{\n    CFBundleURLSchemes =     (\n        aiconsole\n    );\n}";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 13.5;
-				PRODUCT_BUNDLE_IDENTIFIER = com.aihub.aiconsole;
-				SDKROOT = macosx;
-				SWIFT_EMIT_LOC_STRINGS = NO;
 			};
 			name = Release;
 		};
@@ -771,15 +593,6 @@
 			buildConfigurations = (
 				2B8FB1C22F69AECB0005B31B /* Debug */,
 				2B8FB1C32F69AECB0005B31B /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		2CB7000F2F6864AE00309F77 /* Build configuration list for PBXNativeTarget "AIConsole" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				2CB700102F6864AE00309F77 /* Debug */,
-				2CB700112F6864AE00309F77 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
