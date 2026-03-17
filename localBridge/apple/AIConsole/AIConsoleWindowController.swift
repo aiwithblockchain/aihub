@@ -14,14 +14,19 @@ final class AIConsoleWindowController: NSWindowController {
         if instance == nil {
             instance = AIConsoleWindowController()
         }
-        if !isStandaloneMode && NSApp.activationPolicy() != .regular {
-            NSApp.setActivationPolicy(.regular)
-        }
+        
+        // 1. 设置激活策略
+        NSApp.setActivationPolicy(.regular)
+        
+        // 2. 显示窗口
         guard let window = instance?.window else { return }
         instance?.showWindow(nil)
         window.makeKeyAndOrderFront(nil)
         window.orderFrontRegardless()
-        NSRunningApplication.current.activate(options: .activateIgnoringOtherApps)
+        
+        // 3. 强力激活到最前
+        NSApp.activate(ignoringOtherApps: true)
+        
         DispatchQueue.main.async {
             window.makeMain()
             window.makeKey()
@@ -43,10 +48,10 @@ final class AIConsoleWindowController: NSWindowController {
         let hMargin: CGFloat = 20
 
         let winFrame = NSRect(
-            x: visibleFrame.minX + hMargin,
-            y: visibleFrame.minY,
-            width:  visibleFrame.width  - hMargin * 2,
-            height: finalHeight
+            x: visibleFrame.midX - 600,
+            y: visibleFrame.midY - 400,
+            width: 1200,
+            height: 800
         )
 
         // 3. 使用指定的全尺寸样式直接初始化窗口，确保布局引擎一开始就处于正确模式

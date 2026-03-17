@@ -2,25 +2,25 @@ import AppKit
 
 // MARK: - Color Constants
 extension NSColor {
-    static let consoleZ950 = NSColor(hex: "#FFFFFF")  // 最浅背景 (Editor/Main)
-    static let consoleZ900 = NSColor(hex: "#F3F3F3")  // 主背景 (Sidebar/Bars)
-    static let consoleZ800 = NSColor(hex: "#E5E5E5")  // 次级背景/选中
-    static let consoleZ700 = NSColor(hex: "#D4D4D4")  // 边框/分割线
+    static let consoleZ950 = NSColor(hex: "#0D0B10")  // 最深背景 (Main Surface)
+    static let consoleZ900 = NSColor(hex: "#16161E")  // 侧边栏背景
+    static let consoleZ800 = NSColor(hex: "#1F1F2E")  // 选中状态/悬停
+    static let consoleZ700 = NSColor(hex: "#2D2D3D")  // 边框/分割线
 
-    static let consoleText  = NSColor(hex: "#1E1E1E")  // 主文字 (深灰)
-    static let consoleText2 = NSColor(hex: "#616161")  // 次级文字
-    static let consoleText3 = NSColor(hex: "#767676")  // 第三级文字
+    static let consoleText  = NSColor(hex: "#E0E0E6")  // 主文字
+    static let consoleText2 = NSColor(hex: "#9E9EAF")  // 次级文字
+    static let consoleText3 = NSColor(hex: "#6E6E80")  // 第三级文字
 
-    static let consolePM    = NSColor(hex: "#005FB8")  // VS Blue Accent
-    static let consoleDev   = NSColor(hex: "#0550AE")  // Darker Blue
-    static let consoleQA    = NSColor(hex: "#22863A")  // VS Green
-    static let consoleHuman = NSColor(hex: "#E51400")  // VS Red/Human
+    static let consolePM    = NSColor(hex: "#7AA2F7")  // Blue Accent
+    static let consoleDev   = NSColor(hex: "#BB9AF7")  // Purple Accent
+    static let consoleQA    = NSColor(hex: "#9ECE6A")  // Green Accent
+    static let consoleHuman = NSColor(hex: "#F7768E")  // Red Accent
 
-    static let consoleBlue      = NSColor(hex: "#007ACC")  // VS Signature Blue
-    static let consoleBlueDark  = NSColor(hex: "#005FB8")
-    static let consoleGreen     = NSColor(hex: "#22863A")
-    static let consoleYellow    = NSColor(hex: "#AD5D00")
-    static let consoleRed       = NSColor(hex: "#E51400")
+    static let consoleBlue      = NSColor(hex: "#7AA2F7")  // Primary Blue
+    static let consoleBlueDark  = NSColor(hex: "#3D59A1")
+    static let consoleGreen     = NSColor(hex: "#9ECE6A")
+    static let consoleYellow    = NSColor(hex: "#E0AF68")
+    static let consoleRed       = NSColor(hex: "#F7768E")
 
     convenience init(hex: String) {
         var hexSanitized = hex.trimmingCharacters(in: .whitespacesAndNewlines).uppercased()
