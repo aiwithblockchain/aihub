@@ -1,10 +1,26 @@
 document.addEventListener('DOMContentLoaded', () => {
+    const mainView = document.getElementById('mainView') as HTMLDivElement;
+    const xSettingsView = document.getElementById('xSettingsView') as HTMLDivElement;
+    const btnX = document.getElementById('btnX') as HTMLElement;
+    const btnBack = document.getElementById('btnBack') as HTMLButtonElement;
+
     const portInput = document.getElementById('portInput') as HTMLInputElement;
     const saveBtn = document.getElementById('saveBtn') as HTMLButtonElement;
     const statusDot = document.getElementById('statusDot') as HTMLElement;
     const statusText = document.getElementById('statusText') as HTMLElement;
     const statusUrl = document.getElementById('statusUrl') as HTMLElement;
     const statusMsg = document.getElementById('statusMsg') as HTMLDivElement;
+
+    // ── View Switching ───────────────────────────────────────────
+    btnX.addEventListener('click', () => {
+        mainView.classList.add('hidden');
+        xSettingsView.classList.remove('hidden');
+    });
+
+    btnBack.addEventListener('click', () => {
+        xSettingsView.classList.add('hidden');
+        mainView.classList.remove('hidden');
+    });
 
     // ── Load saved port ──────────────────────────────────────────
     chrome.storage.local.get('wsPort').then(res => {
@@ -13,6 +29,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── Query live connection status from background ─────────────
     function refreshStatus() {
+        // Only refresh status if we are on the X settings view
+        if (xSettingsView.classList.contains('hidden')) return;
+
         chrome.runtime.sendMessage({ type: 'GET_BRIDGE_STATUS' }).then((res: any) => {
             if (!res) return;
             if (res.connected) {
