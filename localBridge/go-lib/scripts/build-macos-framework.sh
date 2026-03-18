@@ -6,6 +6,9 @@ ROOT_DIR="$(dirname "$SCRIPT_DIR")"
 OUT_DIR="$ROOT_DIR/lib"
 FW_NAME="LocalBridge"
 FW_DIR="$OUT_DIR/$FW_NAME.framework"
+APPLE_PROJECT_FRAMEWORKS_DIR="$ROOT_DIR/../apple/LocalBridgeApple/Frameworks"
+APPLE_PROJECT_FW_DIR="$APPLE_PROJECT_FRAMEWORKS_DIR/$FW_NAME.framework"
+MACOS_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET:-13.5}"
 
 echo "🔨 Building Go c-archive..."
 mkdir -p "$OUT_DIR"
@@ -15,9 +18,14 @@ cd "$ROOT_DIR"
 # 编译为静态 C 库（同时生成 .h 头文件）
 # 导出 arm64 架构供真机/新款 Mac 调试
 CGO_ENABLED=1 GOOS=darwin GOARCH=arm64 \
+  MACOSX_DEPLOYMENT_TARGET="$MACOS_DEPLOYMENT_TARGET" \
+  CGO_CFLAGS="-mmacosx-version-min=$MACOS_DEPLOYMENT_TARGET" \
+  CGO_LDFLAGS="-mmacosx-version-min=$MACOS_DEPLOYMENT_TARGET" \
   go build -buildmode=c-archive \
   -o "$OUT_DIR/${FW_NAME}.a" \
   ./cmd/localbridge
+
+echo "🎯 macOS deployment target: $MACOS_DEPLOYMENT_TARGET"
 
 echo "📦 Assembling macOS Framework..."
 rm -rf "$FW_DIR"
@@ -31,6 +39,17 @@ cp "$OUT_DIR/${FW_NAME}.h" "$FW_DIR/Versions/A/Headers/${FW_NAME}.h"
 ln -sf Versions/A/Headers "$FW_DIR/Headers"
 ln -sf Versions/A/${FW_NAME} "$FW_DIR/${FW_NAME}"
 ln -sf A "$FW_DIR/Versions/Current"
+
+# 写入 module.modulemap，供 Swift 直接 import LocalBridge
+mkdir -p "$FW_DIR/Versions/A/Modules"
+cat > "$FW_DIR/Versions/A/Modules/module.modulemap" << 'MODULEMAP'
+framework module LocalBridge {
+  umbrella header "LocalBridge.h"
+  export *
+  module * { export * }
+}
+MODULEMAP
+ln -sf Versions/A/Modules "$FW_DIR/Modules"
 
 # 写入 Info.plist
 mkdir -p "$FW_DIR/Versions/A/Resources"
@@ -48,3 +67,10 @@ ln -sf Versions/A/Resources "$FW_DIR/Resources"
 
 echo "✅ Framework built: $FW_DIR"
 ls -lh "$FW_DIR/"
+
+echo "📁 Syncing framework into apple project..."
+mkdir -p "$APPLE_PROJECT_FRAMEWORKS_DIR"
+rm -rf "$APPLE_PROJECT_FW_DIR"
+cp -R "$FW_DIR" "$APPLE_PROJECT_FW_DIR"
+
+echo "✅ Synced framework: $APPLE_PROJECT_FW_DIR"

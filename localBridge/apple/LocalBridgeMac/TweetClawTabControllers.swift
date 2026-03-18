@@ -35,7 +35,7 @@ final class TweetClawHumanViewController: NSViewController {
     private let instanceLabel = NSTextField(labelWithString: "目标实例:")
     private let instancePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let refreshInstancesButton = NSButton(title: "↻", target: nil, action: #selector(refreshInstancesClicked))
-    private var instanceSnapshots: [LocalBridgeWebSocketServer.InstanceSnapshot] = []
+    private var instanceSnapshots: [LocalBridgeGoManager.InstanceSnapshot] = []
     
     private var resultTextView: NSTextView!
     private var resultScrollView: NSScrollView!

@@ -48,3 +48,4 @@ localBridge/apple/LocalBridgeApple.xcodeproj/xcuserdata/
 task_*.md
 localBridge/go-lib/go.sum
 localBridge/go-lib/lib
+localBridge/apple/LocalBridgeApple/Frameworks/LocalBridge.framework

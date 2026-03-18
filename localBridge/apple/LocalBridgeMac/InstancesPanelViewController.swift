@@ -13,7 +13,7 @@ final class InstancesPanelViewController: NSViewController {
 
     // MARK: - Data
 
-    private var instances: [LocalBridgeWebSocketServer.InstanceSnapshot] = []
+    private var instances: [LocalBridgeGoManager.InstanceSnapshot] = []
 
     // MARK: - Lifecycle
 

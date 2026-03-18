@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2B8FB38E2F6A8D040005B31B /* LocalBridgeGoManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B8FB38D2F6A8D040005B31B /* LocalBridgeGoManager.swift */; };
+		2B8FB3912F6A91180005B31B /* LocalBridge.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2B8FB3902F6A91180005B31B /* LocalBridge.framework */; };
 		69B055D12F680B9C0076AC1D /* api_docs.json in Resources */ = {isa = PBXBuildFile; fileRef = 69B055D02F680B9C0076AC1D /* api_docs.json */; };
 		69B055D32F691DC20076AC1D /* InstancesPanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69B055D22F691DC20076AC1D /* InstancesPanelViewController.swift */; };
 		69B055D62F692B160076AC1D /* BridgeLogsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69B055D52F692B160076AC1D /* BridgeLogsViewController.swift */; };
@@ -31,6 +33,8 @@
 
 /* Begin PBXFileReference section */
 		2B8FB1B82F69AECA0005B31B /* tokenRouter.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = tokenRouter.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2B8FB38D2F6A8D040005B31B /* LocalBridgeGoManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBridgeGoManager.swift; sourceTree = "<group>"; };
+		2B8FB3902F6A91180005B31B /* LocalBridge.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = LocalBridge.framework; path = LocalBridgeApple/Frameworks/LocalBridge.framework; sourceTree = "<group>"; };
 		69B055D02F680B9C0076AC1D /* api_docs.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = api_docs.json; sourceTree = "<group>"; };
 		69B055D22F691DC20076AC1D /* InstancesPanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstancesPanelViewController.swift; sourceTree = "<group>"; };
 		69B055D42F692B160076AC1D /* BridgeLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeLogger.swift; sourceTree = "<group>"; };
@@ -78,18 +82,28 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2B8FB3912F6A91180005B31B /* LocalBridge.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		2B8FB38F2F6A91180005B31B /* Frameworks */ = {
+			isa = PBXGroup;
+			children = (
+				2B8FB3902F6A91180005B31B /* LocalBridge.framework */,
+			);
+			name = Frameworks;
+			sourceTree = "<group>";
+		};
 		A10000000000000000000002 = {
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000004 /* LocalBridgeiOS */,
 				A10000000000000000000005 /* LocalBridgeMac */,
 				2B8FB1B92F69AECA0005B31B /* tokenRouter */,
+				2B8FB38F2F6A91180005B31B /* Frameworks */,
 				A10000000000000000000003 /* Products */,
 			);
 			sourceTree = "<group>";
@@ -134,6 +148,7 @@
 				A1000000000000000000002F /* SettingsViewController.swift */,
 				A10000000000000000000046 /* TweetClawTabControllers.swift */,
 				A10000000000000000000048 /* AIClawTabControllers.swift */,
+				2B8FB38D2F6A8D040005B31B /* LocalBridgeGoManager.swift */,
 			);
 			path = LocalBridgeMac;
 			sourceTree = "<group>";
@@ -300,6 +315,7 @@
 				A1000000000000000000003C /* LocalBridgeWebSocketServer.swift in Sources */,
 				A1000000000000000000003E /* SettingsViewController.swift in Sources */,
 				A1000000000000000000003F /* TweetClawTabControllers.swift in Sources */,
+				2B8FB38E2F6A8D040005B31B /* LocalBridgeGoManager.swift in Sources */,
 				A10000000000000000000047 /* AIClawTabControllers.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -560,11 +576,20 @@
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/LocalBridgeApple/Frameworks",
+				);
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.5;
+				OTHER_LDFLAGS = (
+					"-lresolv",
+					"-lc++",
+				);
+
 				PRODUCT_BUNDLE_IDENTIFIER = com.aihub.localbridge.mac;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -578,11 +603,20 @@
 				CODE_SIGN_STYLE = Automatic;
 				GENERATE_INFOPLIST_FILE = YES;
 				INFOPLIST_KEY_LSUIElement = YES;
+				FRAMEWORK_SEARCH_PATHS = (
+					"$(inherited)",
+					"$(PROJECT_DIR)/LocalBridgeApple/Frameworks",
+				);
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.5;
+				OTHER_LDFLAGS = (
+					"-lresolv",
+					"-lc++",
+				);
+
 				PRODUCT_BUNDLE_IDENTIFIER = com.aihub.localbridge.mac;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = NO;

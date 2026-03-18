@@ -17,7 +17,7 @@ final class AIClawHumanViewController: NSViewController {
     private let instanceLabel = NSTextField(labelWithString: "目标实例:")
     private let instancePopupLabel = NSPopUpButton(frame: .zero, pullsDown: false) // Rename to avoid conflict with existing platformPopup
     private let refreshInstancesButton = NSButton(title: "↻", target: nil, action: #selector(refreshInstancesClicked))
-    private var instanceSnapshots: [LocalBridgeWebSocketServer.InstanceSnapshot] = []
+    private var instanceSnapshots: [LocalBridgeGoManager.InstanceSnapshot] = []
     
     private var resultTextView: NSTextView!
     private var resultScrollView: NSScrollView!

@@ -5,7 +5,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     
     private var statusItem: NSStatusItem?
     private lazy var mainWindowController = MainWindowController()
-    private let wsServer = LocalBridgeWebSocketServer()
+    private let goServer = LocalBridgeGoManager()
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         AppDelegate.shared = self
@@ -14,7 +14,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // It lives in the menu bar and provides WebSocket/REST services.
         NSApp.setActivationPolicy(.accessory)
 
-        wsServer.start()
+        goServer.start()
         
         NotificationCenter.default.addObserver(self, selector: #selector(restartWebSocketServer), name: NSNotification.Name("RestartWebSocketServer"), object: nil)
         
@@ -66,51 +66,51 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     // MARK: - WebSocket forwarding
 
-    func getConnectedInstances() -> [LocalBridgeWebSocketServer.InstanceSnapshot] {
-        return wsServer.getConnectedInstances()
+    func getConnectedInstances() -> [LocalBridgeGoManager.InstanceSnapshot] {
+        return goServer.getConnectedInstances()
     }
 
     func sendQueryXTabsStatus(instanceId: String? = nil) {
-        wsServer.sendQueryXTabsStatus(instanceId: instanceId)
+        goServer.sendQueryXTabsStatus(instanceId: instanceId)
     }
 
     func sendQueryXBasicInfo(instanceId: String? = nil) {
-        wsServer.sendQueryXBasicInfo(instanceId: instanceId)
+        goServer.sendQueryXBasicInfo(instanceId: instanceId)
     }
 
     func sendOpenTab(path: String, instanceId: String? = nil) {
-        wsServer.sendOpenTab(path: path, instanceId: instanceId)
+        goServer.sendOpenTab(path: path, instanceId: instanceId)
     }
 
     func sendCloseTab(tabId: Int, instanceId: String? = nil) {
-        wsServer.sendCloseTab(tabId: tabId, instanceId: instanceId)
+        goServer.sendCloseTab(tabId: tabId, instanceId: instanceId)
     }
 
     func sendNavigateTab(tabId: Int?, path: String, instanceId: String? = nil) {
-        wsServer.sendNavigateTab(tabId: tabId, path: path, instanceId: instanceId)
+        goServer.sendNavigateTab(tabId: tabId, path: path, instanceId: instanceId)
     }
 
     func sendExecAction(action: String, tweetId: String?, userId: String?, tabId: Int?, text: String? = nil, instanceId: String? = nil) {
-        wsServer.sendExecAction(action: action, tweetId: tweetId, userId: userId, tabId: tabId, text: text, instanceId: instanceId)
+        goServer.sendExecAction(action: action, tweetId: tweetId, userId: userId, tabId: tabId, text: text, instanceId: instanceId)
     }
 
     func sendQueryAITabsStatus(instanceId: String? = nil) {
-        wsServer.sendQueryAITabsStatus(instanceId: instanceId)
+        goServer.sendQueryAITabsStatus(instanceId: instanceId)
     }
 
     func sendSendMessage(platform: String, prompt: String, instanceId: String? = nil) {
-        wsServer.sendSendMessage(platform: platform, prompt: prompt, instanceId: instanceId)
+        goServer.sendSendMessage(platform: platform, prompt: prompt, instanceId: instanceId)
     }
 
     func sendNewConversation(platform: String, instanceId: String? = nil) {
-        wsServer.sendNewConversation(platform: platform, instanceId: instanceId)
+        goServer.sendNewConversation(platform: platform, instanceId: instanceId)
     }
 
     @objc private func restartWebSocketServer() {
         print("[LocalBridgeMac] Restarting WebSocket Service...")
-        wsServer.stop { [weak self] in
+        goServer.stop { [weak self] in
             print("[LocalBridgeMac] Old listeners released, starting new ones...")
-            self?.wsServer.start()
+            self?.goServer.start()
         }
     }
 }
