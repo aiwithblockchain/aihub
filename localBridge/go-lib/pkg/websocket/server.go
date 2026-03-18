@@ -99,15 +99,19 @@ func (s *Server) Start(ports []int) error {
 }
 
 func (s *Server) Stop() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	
 	select {
 	case <-s.stopCh:
 	default:
 		close(s.stopCh)
 	}
+	
 	for _, srv := range s.httpServers {
 		_ = srv.Close()
 	}
-	s.mu.Lock()
+	
 	for _, sessions := range s.sessions {
 		for _, sess := range sessions {
 			_ = sess.Conn.Close()
@@ -115,7 +119,6 @@ func (s *Server) Stop() {
 	}
 	s.sessions = make(map[string]map[string]*ClientSession)
 	s.pendingCallbacks = make(map[string]func([]byte))
-	s.mu.Unlock()
 }
 
 // handleConn 每个 WS 连接的读循环（单独 goroutine）
