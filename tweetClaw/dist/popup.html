@@ -14,6 +14,9 @@
       color: #e2e8f0;
     }
 
+    /* ── Utilities ── */
+    .hidden { display: none !important; }
+
     /* ── Header ── */
     .header {
       display: flex;
@@ -27,6 +30,28 @@
     .header-text h1 { font-size: 16px; font-weight: 700; color: #fff; line-height: 1.2; letter-spacing: -0.01em; }
     .header-text p  { font-size: 11px; color: #64748b; margin-top: 2px; }
 
+    .header-with-back {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 12px 16px;
+      border-bottom: 1px solid #1e2433;
+    }
+    .back-btn {
+      background: none;
+      border: none;
+      color: #94a3b8;
+      cursor: pointer;
+      padding: 4px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 6px;
+      transition: all 0.2s;
+    }
+    .back-btn:hover { background: #1e2433; color: #fff; }
+    .header-with-back h2 { font-size: 14px; font-weight: 700; color: #fff; }
+
     /* ── Sections ── */
     .section { padding: 14px 16px; border-bottom: 1px solid #1e2433; }
     .section:last-child { border-bottom: none; }
@@ -38,6 +63,32 @@
       color: #475569;
       margin-bottom: 10px;
     }
+
+    /* ── Platform List ── */
+    .platform-list { padding: 8px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .platform-card {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 12px;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .platform-card:hover { border-color: #475569; transform: translateY(-1px); background: #1c2128; }
+    .platform-card.disabled { opacity: 0.5; cursor: not-allowed; }
+    .platform-card.disabled:hover { transform: none; border-color: #30363d; background: #161b22; }
+    
+    .platform-info { display: flex; align-items: center; gap: 12px; }
+    .platform-icon { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 20px; border-radius: 8px; background: #0f1117; border: 1px solid #1e2433; }
+    .platform-name h3 { font-size: 14px; font-weight: 600; color: #e2e8f0; }
+    .platform-name p { font-size: 11px; color: #64748b; }
+
+    .platform-badge { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; }
+    .badge-active { background: #22c55e22; color: #22c55e; border: 1px solid #22c55e44; }
+    .badge-coming { background: #334155; color: #94a3b8; }
 
     /* ── Status ── */
     .status-row { display: flex; align-items: center; gap: 8px; }
@@ -140,67 +191,124 @@
 </head>
 <body>
 
-  <!-- Header -->
-  <div class="header">
-    <img src="images/logo_48.png" alt="TweetClaw">
-    <div class="header-text">
-      <h1>TweetClaw</h1>
-      <p>X Session Bridge for AI Agents</p>
-    </div>
-  </div>
-
-  <!-- Connection Status -->
-  <div class="section">
-    <div class="section-label">Bridge Status</div>
-    <div class="status-row">
-      <span class="dot disconnected" id="statusDot"></span>
-      <span id="statusText">Checking…</span>
-    </div>
-    <div id="statusUrl"></div>
-  </div>
-
-  <!-- What this extension does -->
-  <div class="section">
-    <div class="section-label">Capabilities</div>
-    <ul class="features">
-      <li><span class="icon">🔗</span> Bind X browser session to local AI agents</li>
-      <li><span class="icon">📖</span> Read home timeline, tweet details &amp; search results</li>
-      <li><span class="icon">👤</span> Fetch user profile information</li>
-      <li><span class="icon">⚡</span> Execute actions — like, retweet, follow, post, reply</li>
-      <li><span class="icon">🌐</span> Open, close and navigate X tabs on demand</li>
-      <li><span class="icon">💎</span> Saves AI token costs vs. direct API scraping</li>
-    </ul>
-  </div>
-
-  <!-- Port Configuration -->
-  <div class="section">
-    <div class="section-label">WebSocket Port</div>
-    <div class="port-row">
-      <input type="number" id="portInput" placeholder="10086" min="1024" max="65535">
-      <button id="saveBtn">Save &amp; Reconnect</button>
-    </div>
-    <div id="statusMsg"></div>
-  </div>
-
-  <!-- Download LocalBridgeMac -->
-  <div class="section">
-    <div class="section-label">Companion App Required</div>
-    <div class="download-banner">
-      <div class="desc">
-        Visit our <strong>official website</strong> to download the required companion app.
+  <!-- View 1: Main Platform List -->
+  <div id="mainView">
+    <!-- Header -->
+    <div class="header">
+      <img src="images/logo_48.png" alt="TweetClaw">
+      <div class="header-text">
+        <h1>TweetClaw</h1>
+        <p>Omni-Bridge for AI Agents</p>
       </div>
-      <a class="dl-btn"
-         href="https://aiwithblockchain.github.io/"
-         target="_blank"
-         rel="noopener">
-        Visit Site
-      </a>
+    </div>
+
+    <div class="section-label" style="padding: 14px 16px 0;">Supported Platforms</div>
+    <div class="platform-list">
+      <!-- X (Twitter) -->
+      <div class="platform-card" id="btnX">
+        <div class="platform-info">
+          <div class="platform-icon">𝕏</div>
+          <div class="platform-name">
+            <h3>X (Twitter)</h3>
+            <p>Active Bridge</p>
+          </div>
+        </div>
+        <div class="platform-badge badge-active">Active</div>
+      </div>
+
+      <!-- Reddit -->
+      <div class="platform-card disabled">
+        <div class="platform-info">
+          <div class="platform-icon">🤖</div>
+          <div class="platform-name">
+            <h3>Reddit</h3>
+            <p>Coming Soon</p>
+          </div>
+        </div>
+        <div class="platform-badge badge-coming">Pending</div>
+      </div>
+
+      <!-- Discord -->
+      <div class="platform-card disabled">
+        <div class="platform-info">
+          <div class="platform-icon">💬</div>
+          <div class="platform-name">
+            <h3>Discord</h3>
+            <p>Coming Soon</p>
+          </div>
+        </div>
+        <div class="platform-badge badge-coming">Pending</div>
+      </div>
+
+      <!-- Xiaohongshu -->
+      <div class="platform-card disabled">
+        <div class="platform-info">
+          <div class="platform-icon">📕</div>
+          <div class="platform-name">
+            <h3>Xiaohongshu</h3>
+            <p>Coming Soon</p>
+          </div>
+        </div>
+        <div class="platform-badge badge-coming">Pending</div>
+      </div>
+    </div>
+
+    <!-- Companion Banner -->
+    <div class="section">
+      <div class="download-banner">
+        <div class="desc">
+          Visit <strong>official website</strong> for companion app.
+        </div>
+        <a class="dl-btn" href="https://aiwithblockchain.github.io/" target="_blank" rel="noopener">Visit</a>
+      </div>
+    </div>
+
+    <div class="footer">
+      <a href="#" id="debugLink">Open Debug Interface</a>
     </div>
   </div>
 
-  <!-- Footer: debug link -->
-  <div class="footer">
-    <a href="#" id="debugLink">Open Debug Interface</a>
+  <!-- View 2: X (Twitter) Settings -->
+  <div id="xSettingsView" class="hidden">
+    <div class="header-with-back">
+      <button class="back-btn" id="btnBack">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
+      </button>
+      <h2>X (Twitter) Configuration</h2>
+    </div>
+
+    <!-- Connection Status -->
+    <div class="section">
+      <div class="section-label">Bridge Status</div>
+      <div class="status-row">
+        <span class="dot disconnected" id="statusDot"></span>
+        <span id="statusText">Checking…</span>
+      </div>
+      <div id="statusUrl"></div>
+    </div>
+
+    <!-- Capabilities -->
+    <div class="section">
+      <div class="section-label">Capabilities</div>
+      <ul class="features">
+        <li><span class="icon">🔗</span> Bind X browser session to local AI agents</li>
+        <li><span class="icon">📖</span> Read home timeline &amp; search results</li>
+        <li><span class="icon">👤</span> Fetch user profile information</li>
+        <li><span class="icon">⚡</span> Execute actions (like, retweet, follow, post)</li>
+        <li><span class="icon">🌐</span> Open and navigate X tabs on demand</li>
+        <li><span class="icon">💎</span> Saves AI token costs via local bridging</li>
+      </ul>
+    </div>
+
+    <!-- Port Configuration -->
+    <div class="section">
+      <div class="section-label">WebSocket Port</div>
+      <div class="port-row">
+        <input type="number" id="portInput" placeholder="10086" min="1024" max="65535">
+        <button id="saveBtn">Save &amp; Reconnect</button>
+      </div>
+      <div id="statusMsg"></div>
+    </div>
   </div>
 
   <script src="js/popup.js"></script>
