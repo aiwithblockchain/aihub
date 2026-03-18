@@ -26,6 +26,19 @@ export class LocalBridgeSocket {
   constructor() {
     this.connect();
   }
+
+  // ── Public status accessors (used by popup) ──────────────────────
+  public isConnected(): boolean {
+    return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
+  }
+
+  public getServerInfo(): ServerHelloAckPayload | null {
+    return this.serverInfo;
+  }
+
+  public getCurrentUrl(): string {
+    return this.WS_URL;
+  }
   
   public reconnectWithNewPort(port: number) {
     console.log(`[tweetClaw] reconnecting to new port: ${port}`);
@@ -85,6 +98,7 @@ export class LocalBridgeSocket {
       this.ws.onclose = () => {
         console.log('[tweetClaw] websocket closed');
         this.isConnecting = false;
+        this.serverInfo = null;
         this.stopHeartbeat();
         this.scheduleReconnect();
       };

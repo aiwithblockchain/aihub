@@ -227,6 +227,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return;
     }
 
+    // ── GET_BRIDGE_STATUS: popup queries live connection state ────────
+    if (message.type === 'GET_BRIDGE_STATUS') {
+        const connected = localBridge.isConnected();
+        const serverInfo = localBridge.getServerInfo();
+        const wsUrl = localBridge.getCurrentUrl();
+        if (sendResponse) sendResponse({ connected, serverInfo, wsUrl });
+        return true;
+    }
+
     // ── 来自 content script 的 API 拦截数据 ────────────────────────
     if (message.type === 'CAPTURED_DATA') {
         const tabId = sender.tab?.id;

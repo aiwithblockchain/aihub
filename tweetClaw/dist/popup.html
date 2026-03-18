@@ -2,41 +2,207 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>TweetClaw Settings</title>
+  <title>TweetClaw</title>
   <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
     body {
-      width: 250px;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-      padding: 15px;
-      margin: 0;
-      color: #333;
+      width: 320px;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      font-size: 13px;
+      background: #0f1117;
+      color: #e2e8f0;
     }
-    h3 { margin-top: 0; margin-bottom: 15px; font-size: 16px; color: #1DA1F2; }
-    label { display: block; margin-bottom: 5px; font-size: 14px; font-weight: bold; }
-    input { width: 100%; box-sizing: border-box; padding: 6px; margin-bottom: 15px; border: 1px solid #ccc; border-radius: 4px; font-size: 14px; }
-    button {
-      width: 100%; box-sizing: border-box; padding: 8px; border: none; border-radius: 4px;
-      background-color: #1DA1F2; color: #fff; font-size: 14px; font-weight: bold; cursor: pointer;
+
+    /* ── Header ── */
+    .header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      padding: 16px 16px 14px;
+      border-bottom: 1px solid #1e2433;
+      background: linear-gradient(180deg, #161b22 0%, #0f1117 100%);
     }
-    button:hover { background-color: #1a91da; }
-    #debugBtn { background-color: #4ade80; margin-top: 15px; color: #1f2937; }
-    #debugBtn:hover { background-color: #3db866; }
-    #statusMsg { font-size: 13px; color: #10b981; margin-top: 5px; text-align: center; }
+    .header img { width: 32px; height: 32px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
+    .header-text h1 { font-size: 16px; font-weight: 700; color: #fff; line-height: 1.2; letter-spacing: -0.01em; }
+    .header-text p  { font-size: 11px; color: #64748b; margin-top: 2px; }
+
+    /* ── Sections ── */
+    .section { padding: 14px 16px; border-bottom: 1px solid #1e2433; }
+    .section:last-child { border-bottom: none; }
+    .section-label {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: .08em;
+      text-transform: uppercase;
+      color: #475569;
+      margin-bottom: 10px;
+    }
+
+    /* ── Status ── */
+    .status-row { display: flex; align-items: center; gap: 8px; }
+    .dot {
+      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
+      box-shadow: 0 0 0 2px rgba(0,0,0,.4);
+    }
+    .dot.connected    { background: #22c55e; box-shadow: 0 0 8px rgba(34, 197, 94, 0.6); }
+    .dot.disconnected { background: #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.4); }
+    #statusText { font-size: 13px; font-weight: 600; color: #f8fafc; }
+    #statusUrl  { font-size: 11px; color: #64748b; margin-top: 5px; padding-left: 18px; font-family: 'SFMono-Regular', Consolas, monospace; }
+
+    /* ── Feature list ── */
+    .features { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .features li {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      line-height: 1.4;
+      color: #94a3b8;
+      transition: color 0.2s, transform 0.2s;
+    }
+    .features li:hover { color: #e2e8f0; transform: translateX(2px); }
+    .features li .icon { font-size: 14px; flex-shrink: 0; margin-top: 0px; }
+
+    /* ── Port input ── */
+    .port-row { display: flex; gap: 8px; align-items: center; }
+    .port-row input {
+      flex: 1;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      color: #e2e8f0;
+      padding: 8px 12px;
+      font-size: 13px;
+      outline: none;
+      transition: all 0.2s;
+    }
+    .port-row input:focus { border-color: #3b82f6; background: #1c2128; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
+    .port-row button {
+      background: #1d9bf0;
+      border: none;
+      border-radius: 8px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      padding: 8px 16px;
+      cursor: pointer;
+      transition: all 0.2s;
+      white-space: nowrap;
+      box-shadow: 0 2px 4px rgba(29, 155, 240, 0.2);
+    }
+    .port-row button:hover { background: #1a8cd8; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(29, 155, 240, 0.3); }
+    .port-row button:active { transform: translateY(0); }
+    #statusMsg { font-size: 11px; color: #22c55e; margin-top: 8px; min-height: 14px; font-weight: 500; }
+
+    /* ── Download banner ── */
+    .download-banner {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      background: linear-gradient(135deg, #1e2433 0%, #161b22 100%);
+      border: 1px solid #30363d;
+      border-radius: 12px;
+      padding: 12px 14px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
+    }
+    .download-banner .desc { font-size: 12px; color: #94a3b8; line-height: 1.5; }
+    .download-banner .desc strong { color: #f8fafc; }
+    .download-banner a.dl-btn {
+      flex-shrink: 0;
+      background: #22c55e;
+      color: #0d1117;
+      font-size: 11px;
+      font-weight: 800;
+      text-decoration: none;
+      border-radius: 8px;
+      padding: 8px 12px;
+      transition: all 0.2s;
+      text-transform: uppercase;
+      letter-spacing: 0.02em;
+    }
+    .download-banner a.dl-btn:hover { background: #2bd46c; transform: scale(1.05); }
+
+    /* ── Footer ── */
+    .footer {
+      padding: 12px 16px 14px;
+      text-align: center;
+    }
+    .footer a {
+      font-size: 11px;
+      color: #475569;
+      text-decoration: none;
+      transition: color 0.2s;
+      font-weight: 500;
+    }
+    .footer a:hover { color: #94a3b8; text-decoration: underline; }
   </style>
 </head>
 <body>
-  <h3>🚀 TweetClaw Settings</h3>
-  
-  <label>WebSocket Port</label>
-  <input type="number" id="portInput" value="8765">
-  
-  <button id="saveBtn">Save & Reconnect</button>
-  <div id="statusMsg"></div>
-  
-  <hr style="margin-top: 15px; margin-bottom: 0; border: 0; border-top: 1px solid #eee;">
-  
-  <button id="debugBtn">Open Debug Interface</button>
-  
+
+  <!-- Header -->
+  <div class="header">
+    <img src="images/logo_48.png" alt="TweetClaw">
+    <div class="header-text">
+      <h1>TweetClaw</h1>
+      <p>X Session Bridge for AI Agents</p>
+    </div>
+  </div>
+
+  <!-- Connection Status -->
+  <div class="section">
+    <div class="section-label">Bridge Status</div>
+    <div class="status-row">
+      <span class="dot disconnected" id="statusDot"></span>
+      <span id="statusText">Checking…</span>
+    </div>
+    <div id="statusUrl"></div>
+  </div>
+
+  <!-- What this extension does -->
+  <div class="section">
+    <div class="section-label">Capabilities</div>
+    <ul class="features">
+      <li><span class="icon">🔗</span> Bind X browser session to local AI agents</li>
+      <li><span class="icon">📖</span> Read home timeline, tweet details &amp; search results</li>
+      <li><span class="icon">👤</span> Fetch user profile information</li>
+      <li><span class="icon">⚡</span> Execute actions — like, retweet, follow, post, reply</li>
+      <li><span class="icon">🌐</span> Open, close and navigate X tabs on demand</li>
+      <li><span class="icon">💎</span> Saves AI token costs vs. direct API scraping</li>
+    </ul>
+  </div>
+
+  <!-- Port Configuration -->
+  <div class="section">
+    <div class="section-label">WebSocket Port</div>
+    <div class="port-row">
+      <input type="number" id="portInput" placeholder="10086" min="1024" max="65535">
+      <button id="saveBtn">Save &amp; Reconnect</button>
+    </div>
+    <div id="statusMsg"></div>
+  </div>
+
+  <!-- Download LocalBridgeMac -->
+  <div class="section">
+    <div class="section-label">Companion App Required</div>
+    <div class="download-banner">
+      <div class="desc">
+        Visit our <strong>official website</strong> to download the required companion app.
+      </div>
+      <a class="dl-btn"
+         href="https://aiwithblockchain.github.io/"
+         target="_blank"
+         rel="noopener">
+        Visit Site
+      </a>
+    </div>
+  </div>
+
+  <!-- Footer: debug link -->
+  <div class="footer">
+    <a href="#" id="debugLink">Open Debug Interface</a>
+  </div>
+
   <script src="js/popup.js"></script>
 </body>
 </html>
