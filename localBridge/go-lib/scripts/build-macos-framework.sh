@@ -10,7 +10,7 @@ APPLE_PROJECT_FRAMEWORKS_DIR="$ROOT_DIR/../apple/LocalBridgeApple/Frameworks"
 APPLE_PROJECT_FW_DIR="$APPLE_PROJECT_FRAMEWORKS_DIR/$FW_NAME.framework"
 MACOS_DEPLOYMENT_TARGET="${MACOS_DEPLOYMENT_TARGET:-13.5}"
 ARM64_ARCHIVE="$OUT_DIR/${FW_NAME}-arm64.a"
-X86_64_ARCHIVE="$OUT_DIR/${FW_NAME}-x86_64.a"
+AMD64_ARCHIVE="$OUT_DIR/${FW_NAME}-amd64.a"
 UNIVERSAL_ARCHIVE="$OUT_DIR/${FW_NAME}.a"
 
 echo "🔨 Building Go c-archive..."
@@ -36,10 +36,10 @@ build_archive() {
 
 # 生成两套静态库，再合并成通用 archive。
 build_archive arm64 "$ARM64_ARCHIVE"
-build_archive x86_64 "$X86_64_ARCHIVE"
+build_archive amd64 "$AMD64_ARCHIVE"
 
 echo "🧩 Creating universal archive..."
-lipo -create -output "$UNIVERSAL_ARCHIVE" "$ARM64_ARCHIVE" "$X86_64_ARCHIVE"
+lipo -create -output "$UNIVERSAL_ARCHIVE" "$ARM64_ARCHIVE" "$AMD64_ARCHIVE"
 
 echo "📦 Assembling macOS Framework..."
 rm -rf "$FW_DIR"
