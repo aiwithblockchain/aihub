@@ -695,9 +695,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         // Explicitly set the attributed string to the text storage
         textView.textStorage?.setAttributedString(attrStr)
         
-        // Force layout and display update
-        textView.needsLayout = true
-        textView.layoutManager?.ensureLayout(for: textView.textContainer!)
+        // Avoid forcing layout during AppKit's own layout pass.
         textView.needsDisplay = true
         
         // Scroll to top
