@@ -207,8 +207,7 @@ final class AIConsoleRootViewController: NSViewController {
     }
 
     @objc private func openSettings() {
-        let settingsVC = AIKeySettingsViewController()
-        self.presentAsSheet(settingsVC)
+        AISettingsWindowController.show()
     }
 
     private func animateToggle(view: NSView, split: NSSplitView) {
