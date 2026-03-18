@@ -229,7 +229,7 @@
     "summary": "获取 LocalBridge 所有已实现 REST API 的完整说明文档，供 ClawBot 自动发现接口。",
     "method": "GET",
     "path": "/api/v1/docs",
-    "description": "此接口直接返回 api_docs.json 文件的完整内容（JSON 数组），包含所有已注册的 REST API 的 id、name、summary、method、path、description、request_body、curl 示例和 response 示例。ClawBot 在初始化时调用此接口即可自动获知所有可用能力，无需硬编码 API 列表。该接口无需任何参数，无需 WebSocket 连接，直接响应。",
+    "description": "此接口直接返回 api_docs.json 文件的完整内容（JSON 数组），包含所有已注册的 REST API 的 id、name、summary、method、path、description、request_body、curl 示例和 response 示例。ClawBot 在初始化时调用此接口即可自动获知所有可用能力，无需硬编码 API 列表。该接口无需任何参数，无需 WebSocket 连接，直接响应。文档中的 curl 示例默认使用 10088 端口；如果用户在设置页修改了 REST API 端口，应以当前配置端口为准。",
     "curl": "curl -X GET http://127.0.0.1:10088/api/v1/docs",
     "response": "[{\"id\":\"query_x_status\", ...}, ...]"
   }

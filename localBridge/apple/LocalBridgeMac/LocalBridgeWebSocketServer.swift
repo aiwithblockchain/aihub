@@ -1164,7 +1164,9 @@ class LocalBridgeWebSocketServer {
     // MARK: - HTTP Server (REST API)
     
     private func startHttpServer() {
-        let tcpPortRest: UInt16 = 10088
+        let defaults = UserDefaults.standard
+        let restPortInt = defaults.integer(forKey: "restApiPort")
+        let tcpPortRest = restPortInt > 0 ? UInt16(restPortInt) : 10088
 
         
         guard let port = NWEndpoint.Port(rawValue: tcpPortRest) else {
