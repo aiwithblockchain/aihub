@@ -10,6 +10,7 @@ import AppKit
 class TokenRouterAppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         // 在启动完成前设置激活策略，此时系统无需向前台进程发 Apple Event
+        ThemeManager.shared.applyAppearancePreference()
         NSApp.setActivationPolicy(.regular)
     }
 

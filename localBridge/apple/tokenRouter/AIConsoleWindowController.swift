@@ -7,6 +7,7 @@ final class AIConsoleWindowController: NSWindowController {
     
     /// 是否处于独立 App 模式（而非嵌入在主应用中）
     static var isStandaloneMode: Bool = false
+    private var themeObserver: NSObjectProtocol?
 
     // MARK: - Show
 
@@ -83,11 +84,37 @@ final class AIConsoleWindowController: NSWindowController {
 
         super.init(window: window)
         window.delegate = self
+        applyWindowTheme(rebuildContent: false)
+        themeObserver = NotificationCenter.default.addObserver(
+            forName: ThemeManager.didChangeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            self?.applyWindowTheme(rebuildContent: true)
+        }
         
         // 我们已经通过 winFrame 手动居中了，不需要额外的 window.center()
     }
 
     required init?(coder: NSCoder) { fatalError() }
+
+    deinit {
+        if let themeObserver {
+            NotificationCenter.default.removeObserver(themeObserver)
+        }
+    }
+
+    private func applyWindowTheme(rebuildContent: Bool) {
+        window?.backgroundColor = .consoleZ950
+        guard rebuildContent, let window else { return }
+
+        let selectedIndex = (window.contentViewController as? AIConsoleRootViewController)?.currentSelectedIndex ?? 0
+        let frame = window.frame
+        let minSize = window.minSize
+        window.contentViewController = AIConsoleRootViewController(selectedIndex: selectedIndex)
+        window.minSize = minSize
+        window.setFrame(frame, display: true)
+    }
 }
 
 // MARK: - NSWindowDelegate

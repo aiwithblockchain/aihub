@@ -3,6 +3,7 @@ import AppKit
 // MARK: - Root View Controller
 
 final class AIConsoleRootViewController: NSViewController {
+    private let initialSelectedIndex: Int
     private let navVC      = ConsoleNavViewController()
     private let parentSplitView = NSSplitView() // Vertical: main area vs terminal
     private let mainSplitView   = NSSplitView() // Horizontal: sidebar vs work vs activity
@@ -13,22 +14,42 @@ final class AIConsoleRootViewController: NSViewController {
     private let terminalVC = ConsoleTerminalViewController()
 
     private var didSetInitialDividers = false
+    private var lastAppearanceMatch: NSAppearance.Name?
+    private(set) var currentSelectedIndex: Int
+
+    init(selectedIndex: Int = 0) {
+        self.initialSelectedIndex = selectedIndex
+        self.currentSelectedIndex = selectedIndex
+        super.init(nibName: nil, bundle: nil)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError()
+    }
 
     // MARK: - View Lifecycle
 
     override func loadView() {
         print("RootVC: loadView")
-        view = NSView()
-        view.wantsLayer = true
-        view.layer?.backgroundColor = NSColor.consoleZ950.cgColor
+        let rootView = ThemeAwareView()
+        rootView.wantsLayer = true
+        rootView.layer?.backgroundColor = NSColor.consoleZ950.cgColor
+        rootView.onEffectiveAppearanceChange = { [weak self] in
+            self?.handleEffectiveAppearanceChange()
+        }
+        view = rootView
     }
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        lastAppearanceMatch = effectiveAppearanceName()
         setupNav()
         setupTopToolbar()
         setupSplitViews()
         navVC.delegate = self
+        if initialSelectedIndex != 0 {
+            navVC.selectTab(at: initialSelectedIndex)
+        }
     }
 
     override func viewDidLayout() {
@@ -36,6 +57,13 @@ final class AIConsoleRootViewController: NSViewController {
         guard !didSetInitialDividers, mainSplitView.frame.width > 0 else { return }
         didSetInitialDividers = true
         applyInitialDividers()
+    }
+
+    private func handleEffectiveAppearanceChange() {
+        let currentMatch = effectiveAppearanceName()
+        guard currentMatch != lastAppearanceMatch else { return }
+        lastAppearanceMatch = currentMatch
+        ThemeManager.shared.notifySystemAppearanceChangedIfNeeded()
     }
 
     // MARK: - 初始分割线
@@ -51,6 +79,10 @@ final class AIConsoleRootViewController: NSViewController {
         
         // 初始隐藏终端
         terminalVC.view.isHidden = true
+    }
+
+    private func effectiveAppearanceName() -> NSAppearance.Name? {
+        view.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua])
     }
 
     // MARK: - Setup
@@ -222,6 +254,7 @@ extension AIConsoleRootViewController: NSSplitViewDelegate {
 // MARK: - ConsoleNavDelegate
 extension AIConsoleRootViewController: ConsoleNavDelegate {
     func didSelectNavItem(at index: Int) {
+        currentSelectedIndex = index
         sidebarVC.update(for: index)
         workVC.switchTo(index: index)
     }
