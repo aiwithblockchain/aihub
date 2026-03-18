@@ -47,3 +47,4 @@ localBridge/apple/LocalBridgeApple.xcodeproj/xcuserdata/
 1.html
 task_*.md
 localBridge/go-lib/go.sum
+localBridge/go-lib/lib
