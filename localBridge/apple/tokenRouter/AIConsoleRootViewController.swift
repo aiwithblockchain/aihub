@@ -18,7 +18,7 @@ final class AIConsoleRootViewController: NSViewController {
 
     override func loadView() {
         print("RootVC: loadView")
-        view = NSView(frame: NSRect(x: 0, y: 0, width: 1280, height: 850))
+        view = NSView()
         view.wantsLayer = true
         view.layer?.backgroundColor = NSColor.consoleZ950.cgColor
     }

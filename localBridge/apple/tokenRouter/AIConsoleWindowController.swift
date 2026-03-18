@@ -41,12 +41,16 @@ final class AIConsoleWindowController: NSWindowController {
         let screen = NSScreen.main ?? NSScreen.screens[0]
         let visibleFrame = screen.visibleFrame
         
-        // IDE-standard size: 1280x850
-        let width: CGFloat = 1280
-        let height: CGFloat = 850
+        // 动态计算窗口大小：极致占屏比例
+        // 宽度占 99.5% (左右边距极其小且均等)
+        // 高度设置为 100% 的 visibleFrame (底部贴合 Dock，顶部对齐菜单栏)
+        let margin: CGFloat = 8 // 定义侧边页边距
+        let width: CGFloat = visibleFrame.width - (margin * 2)
+        let height: CGFloat = visibleFrame.height
+        
         let winFrame = NSRect(
-            x: visibleFrame.midX - width/2,
-            y: visibleFrame.midY - height/2,
+            x: visibleFrame.origin.x + margin,
+            y: visibleFrame.origin.y,
             width: width,
             height: height
         )
@@ -73,11 +77,14 @@ final class AIConsoleWindowController: NSWindowController {
         // 挂载根视图控制器
         let vc = AIConsoleRootViewController()
         window.contentViewController = vc
+        
+        // 关键：在设置完 contentViewController 后再次强制确认 Frame，防止尺寸塌陷
+        window.setFrame(winFrame, display: true)
 
         super.init(window: window)
         window.delegate = self
         
-        window.center()
+        // 我们已经通过 winFrame 手动居中了，不需要额外的 window.center()
     }
 
     required init?(coder: NSCoder) { fatalError() }
