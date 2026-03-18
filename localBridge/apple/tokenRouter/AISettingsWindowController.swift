@@ -20,7 +20,7 @@ final class AISettingsWindowController: NSWindowController {
         let frame = NSRect(x: 0, y: 0, width: 900, height: 600)
         let window = NSWindow(
             contentRect: frame,
-            styleMask: [.titled, .closable, .miniaturizable, .resizable],
+            styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
@@ -29,7 +29,13 @@ final class AISettingsWindowController: NSWindowController {
         window.isReleasedWhenClosed = false
         window.level = .floating
         window.minSize = NSSize(width: 700, height: 500)
+        window.titleVisibility = .hidden
+        window.titlebarAppearsTransparent = true
+        window.isMovableByWindowBackground = true
         window.center()
+        window.standardWindowButton(.closeButton)?.isHidden = true
+        window.standardWindowButton(.miniaturizeButton)?.isHidden = true
+        window.standardWindowButton(.zoomButton)?.isHidden = true
         window.contentViewController = AISettingsViewController()
 
         super.init(window: window)

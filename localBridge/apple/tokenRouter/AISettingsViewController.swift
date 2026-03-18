@@ -21,12 +21,143 @@ private protocol ThemeApplicable: AnyObject {
     func applyTheme()
 }
 
+private final class SettingsTitlebarCloseButton: NSButton {
+    private var trackingAreaRef: NSTrackingArea?
+    private var isHovering = false
+    private var cachedPalette: ConsoleThemePalette?
+
+    override var isHighlighted: Bool {
+        didSet {
+            updateAppearance()
+        }
+    }
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "关闭")
+        isBordered = false
+        wantsLayer = true
+        layer?.cornerRadius = 6
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError()
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+
+        if let trackingAreaRef {
+            removeTrackingArea(trackingAreaRef)
+        }
+
+        let options: NSTrackingArea.Options = [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect]
+        let trackingArea = NSTrackingArea(rect: .zero, options: options, owner: self, userInfo: nil)
+        addTrackingArea(trackingArea)
+        trackingAreaRef = trackingArea
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        isHovering = true
+        updateAppearance()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovering = false
+        updateAppearance()
+    }
+
+    func applyTheme(with palette: ConsoleThemePalette) {
+        cachedPalette = palette
+        updateAppearance()
+    }
+
+    private func updateAppearance() {
+        guard let palette = cachedPalette else { return }
+
+        contentTintColor = isHighlighted ? palette.textPrimary : palette.textSecondary
+
+        if isHighlighted {
+            layer?.backgroundColor = palette.elevatedBackground.withAlphaComponent(0.95).cgColor
+        } else if isHovering {
+            layer?.backgroundColor = palette.elevatedBackground.withAlphaComponent(0.65).cgColor
+        } else {
+            layer?.backgroundColor = NSColor.clear.cgColor
+        }
+    }
+}
+
+private final class SettingsSidebarButton: NSButton {
+    private var trackingAreaRef: NSTrackingArea?
+    private var isHovering = false
+    private var isSelectedState = false
+    private var cachedPalette: ConsoleThemePalette?
+
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        isBordered = false
+        alignment = .left
+        wantsLayer = true
+        layer?.cornerRadius = 8
+        imagePosition = .noImage
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError()
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+
+        if let trackingAreaRef {
+            removeTrackingArea(trackingAreaRef)
+        }
+
+        let options: NSTrackingArea.Options = [.mouseEnteredAndExited, .activeInKeyWindow, .inVisibleRect]
+        let trackingArea = NSTrackingArea(rect: .zero, options: options, owner: self, userInfo: nil)
+        addTrackingArea(trackingArea)
+        trackingAreaRef = trackingArea
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        isHovering = true
+        updateAppearance()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovering = false
+        updateAppearance()
+    }
+
+    func applyTheme(with palette: ConsoleThemePalette, isSelected: Bool) {
+        cachedPalette = palette
+        isSelectedState = isSelected
+        font = .systemFont(ofSize: 14, weight: isSelected ? .medium : .regular)
+        updateAppearance()
+    }
+
+    private func updateAppearance() {
+        guard let palette = cachedPalette else { return }
+
+        if isSelectedState {
+            contentTintColor = palette.textPrimary
+            layer?.backgroundColor = palette.elevatedBackground.cgColor
+        } else if isHovering {
+            contentTintColor = palette.textPrimary
+            layer?.backgroundColor = palette.elevatedBackground.withAlphaComponent(0.45).cgColor
+        } else {
+            contentTintColor = palette.textTertiary
+            layer?.backgroundColor = NSColor.clear.cgColor
+        }
+    }
+}
+
 final class AISettingsViewController: NSViewController {
     private let titleLabel = NSTextField(labelWithString: "设置")
-    private let closeButton = NSButton()
+    private let closeButton = SettingsTitlebarCloseButton()
     private let sidebarView = NSView()
     private let detailContainer = NSView()
-    private var sidebarButtons: [SettingsSection: NSButton] = [:]
+    private var sidebarButtons: [SettingsSection: SettingsSidebarButton] = [:]
     private var currentDetailViewController: (NSViewController & ThemeApplicable)?
     private var selectedSection: SettingsSection = .model
     private var themeObserver: NSObjectProtocol?
@@ -71,12 +202,8 @@ final class AISettingsViewController: NSViewController {
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         headerView.addSubview(titleLabel)
 
-        closeButton.image = NSImage(systemSymbolName: "xmark", accessibilityDescription: "关闭")
-        closeButton.isBordered = false
         closeButton.target = self
         closeButton.action = #selector(closeSettings)
-        closeButton.wantsLayer = true
-        closeButton.layer?.cornerRadius = 6
         closeButton.translatesAutoresizingMaskIntoConstraints = false
         headerView.addSubview(closeButton)
 
@@ -152,13 +279,11 @@ final class AISettingsViewController: NSViewController {
         ])
 
         for section in SettingsSection.allCases {
-            let button = NSButton(title: section.title, target: self, action: #selector(sidebarButtonTapped(_:)))
+            let button = SettingsSidebarButton()
+            button.title = section.title
+            button.target = self
+            button.action = #selector(sidebarButtonTapped(_:))
             button.tag = SettingsSection.allCases.firstIndex(of: section) ?? 0
-            button.isBordered = false
-            button.alignment = .left
-            button.font = .systemFont(ofSize: 14)
-            button.wantsLayer = true
-            button.layer?.cornerRadius = 8
             button.translatesAutoresizingMaskIntoConstraints = false
             button.heightAnchor.constraint(equalToConstant: 32).isActive = true
             button.widthAnchor.constraint(equalToConstant: 184).isActive = true
@@ -202,9 +327,7 @@ final class AISettingsViewController: NSViewController {
         for section in SettingsSection.allCases {
             guard let button = sidebarButtons[section] else { continue }
             let isSelected = section == selectedSection
-            button.font = .systemFont(ofSize: 14, weight: isSelected ? .medium : .regular)
-            button.contentTintColor = isSelected ? palette.textPrimary : palette.textTertiary
-            button.layer?.backgroundColor = isSelected ? palette.elevatedBackground.cgColor : NSColor.clear.cgColor
+            button.applyTheme(with: palette, isSelected: isSelected)
         }
     }
 
@@ -214,8 +337,7 @@ final class AISettingsViewController: NSViewController {
         sidebarView.layer?.backgroundColor = palette.sidebarBackground.cgColor
         detailContainer.layer?.backgroundColor = palette.windowBackground.cgColor
         titleLabel.textColor = palette.textPrimary
-        closeButton.contentTintColor = palette.textSecondary
-        closeButton.layer?.backgroundColor = NSColor.clear.cgColor
+        closeButton.applyTheme(with: palette)
 
         view.subviews
             .filter { $0.identifier?.rawValue == "settingsSidebarDivider" }
