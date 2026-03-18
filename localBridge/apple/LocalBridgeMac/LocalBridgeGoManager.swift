@@ -15,6 +15,8 @@ final class LocalBridgeGoManager {
 
     private static let defaultExecuteTaskTimeoutMs = 210_000
     private let session = URLSession(configuration: .default)
+    private var logPollTimer: Timer?
+    private var lastLogCount: Int = 0
 
     func start() {
         let defaults = UserDefaults.standard
@@ -27,9 +29,12 @@ final class LocalBridgeGoManager {
         if code != 0 {
             BridgeLogger.shared.log("[LocalBridgeMac] LocalBridgeStart failed with code \(code)")
         }
+
+        startLogPolling()
     }
 
     func stop(completion: (() -> Void)? = nil) {
+        stopLogPolling()
         LocalBridgeStop()
         DispatchQueue.main.async {
             completion?()
@@ -56,6 +61,36 @@ final class LocalBridgeGoManager {
         } catch {
             BridgeLogger.shared.log("[LocalBridgeMac] Failed to decode instances JSON: \(error.localizedDescription)")
             return []
+        }
+    }
+
+    // MARK: - Go Log Polling
+
+    func startLogPolling() {
+        logPollTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+            self?.pollGoLogs()
+        }
+    }
+
+    func stopLogPolling() {
+        logPollTimer?.invalidate()
+        logPollTimer = nil
+    }
+
+    private func pollGoLogs() {
+        guard let ptr = LocalBridgeGetLogsJSON() else { return }
+        defer { LocalBridgeFreeString(ptr) }
+
+        let data = Data(bytes: ptr, count: Int(strlen(ptr)))
+        guard let lines = try? JSONDecoder().decode([String].self, from: data) else { return }
+
+        // 增量处理：只把新增的行写入 BridgeLogger
+        guard lines.count > lastLogCount else { return }
+        let newLines = Array(lines.dropFirst(lastLogCount))
+        lastLogCount = lines.count
+
+        for line in newLines {
+            BridgeLogger.shared.log("[Go] \(line)")
         }
     }
 
