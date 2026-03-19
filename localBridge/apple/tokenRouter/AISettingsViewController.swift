@@ -364,9 +364,13 @@ final class AISettingsViewController: NSViewController {
 }
 
 private final class SettingsModelViewController: NSViewController, ThemeApplicable {
-    private let titleLabel = NSTextField(labelWithString: "Models")
-    private let subtitleLabel = NSTextField(labelWithString: "管理您的模型配置")
+    private let titleLabel = NSTextField(labelWithString: "Provider 配置")
+    private let subtitleLabel = NSTextField(labelWithString: "管理 AI Provider 的 API 配置")
     private let addButton = NSButton(title: "新增", target: nil, action: nil)
+    private let scrollView = NSScrollView()
+    private let stackView = NSStackView()
+    private let keychain = KeychainTokenStore()
+    private var providerConfigs: [ProviderConfig] = []
 
     override func loadView() {
         let rootView = ThemeAwareView()
@@ -379,12 +383,20 @@ private final class SettingsModelViewController: NSViewController, ThemeApplicab
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        setupUI()
+        loadProviderConfigs()
+        applyTheme()
+    }
+
+    private func setupUI() {
         titleLabel.font = .systemFont(ofSize: 17, weight: .semibold)
         subtitleLabel.font = .systemFont(ofSize: 13)
         addButton.bezelStyle = .regularSquare
         addButton.isBordered = false
         addButton.wantsLayer = true
         addButton.layer?.cornerRadius = 8
+        addButton.target = self
+        addButton.action = #selector(addProviderTapped)
 
         let headerStack = NSStackView(views: [titleLabel, subtitleLabel])
         headerStack.orientation = .vertical
@@ -396,6 +408,17 @@ private final class SettingsModelViewController: NSViewController, ThemeApplicab
         addButton.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(addButton)
 
+        // 配置列表
+        scrollView.drawsBackground = false
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(scrollView)
+
+        stackView.orientation = .vertical
+        stackView.spacing = 12
+        stackView.alignment = .leading
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.documentView = stackView
+
         NSLayoutConstraint.activate([
             headerStack.topAnchor.constraint(equalTo: view.topAnchor, constant: 24),
             headerStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
@@ -403,10 +426,80 @@ private final class SettingsModelViewController: NSViewController, ThemeApplicab
             addButton.topAnchor.constraint(equalTo: view.topAnchor, constant: 24),
             addButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
             addButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 88),
-            addButton.heightAnchor.constraint(equalToConstant: 36)
-        ])
+            addButton.heightAnchor.constraint(equalToConstant: 36),
 
-        applyTheme()
+            scrollView.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: 24),
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 24),
+            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -24),
+            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -24),
+
+            stackView.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor),
+            stackView.leadingAnchor.constraint(equalTo: scrollView.contentView.leadingAnchor),
+            stackView.trailingAnchor.constraint(equalTo: scrollView.contentView.trailingAnchor),
+            stackView.widthAnchor.constraint(equalTo: scrollView.widthAnchor)
+        ])
+    }
+
+    private func loadProviderConfigs() {
+        print("📋 [Settings] 开始加载 Provider 配置...")
+        do {
+            providerConfigs = try keychain.loadAllProviderConfigs()
+            print("✅ [Settings] 成功加载 \(providerConfigs.count) 个 Provider 配置")
+            for (index, config) in providerConfigs.enumerated() {
+                print("   \(index + 1). \(config.name) - \(config.providerType.displayName)")
+                print("      Base URL: \(config.baseURL)")
+                print("      代理模式: \(config.isProxyMode ? "是" : "否")")
+            }
+            refreshProviderList()
+        } catch {
+            print("❌ [Settings] 加载 Provider 配置失败: \(error)")
+            providerConfigs = []
+        }
+    }
+
+    private func refreshProviderList() {
+        stackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
+
+        if providerConfigs.isEmpty {
+            let emptyLabel = NSTextField(labelWithString: "暂无配置，点击「新增」添加 Provider")
+            emptyLabel.font = .systemFont(ofSize: 13)
+            emptyLabel.textColor = .secondaryLabelColor
+            emptyLabel.translatesAutoresizingMaskIntoConstraints = false
+            stackView.addArrangedSubview(emptyLabel)
+        } else {
+            for config in providerConfigs {
+                let card = ProviderConfigCard(config: config, delegate: self)
+                card.translatesAutoresizingMaskIntoConstraints = false
+                card.widthAnchor.constraint(equalTo: stackView.widthAnchor).isActive = true
+                stackView.addArrangedSubview(card)
+            }
+        }
+    }
+
+    @objc private func addProviderTapped() {
+        showProviderEditSheet(config: nil)
+    }
+
+    private func showProviderEditSheet(config: ProviderConfig?) {
+        let sheet = ProviderEditSheet(config: config) { [weak self] newConfig in
+            guard let self = self else { return }
+            do {
+                try self.keychain.saveProviderConfig(newConfig)
+                self.loadProviderConfigs()
+            } catch {
+                self.showAlert("保存失败", message: error.localizedDescription)
+            }
+        }
+        presentAsSheet(sheet)
+    }
+
+    private func showAlert(_ title: String, message: String) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "确定")
+        alert.runModal()
     }
 
     func applyTheme() {
@@ -416,6 +509,32 @@ private final class SettingsModelViewController: NSViewController, ThemeApplicab
         subtitleLabel.textColor = palette.textSecondary
         addButton.layer?.backgroundColor = palette.primary.cgColor
         addButton.contentTintColor = .white
+    }
+}
+
+// MARK: - ProviderConfigCardDelegate
+
+extension SettingsModelViewController: ProviderConfigCardDelegate {
+    func didRequestEdit(_ config: ProviderConfig) {
+        showProviderEditSheet(config: config)
+    }
+
+    func didRequestDelete(_ config: ProviderConfig) {
+        let alert = NSAlert()
+        alert.messageText = "删除 Provider"
+        alert.informativeText = "确定要删除「\(config.name)」吗？"
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "删除")
+        alert.addButton(withTitle: "取消")
+
+        if alert.runModal() == .alertFirstButtonReturn {
+            do {
+                try keychain.deleteProviderConfig(id: config.id)
+                loadProviderConfigs()
+            } catch {
+                showAlert("删除失败", message: error.localizedDescription)
+            }
+        }
     }
 }
 

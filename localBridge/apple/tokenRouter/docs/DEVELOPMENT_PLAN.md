@@ -126,10 +126,18 @@
 
 ## 当前状态
 
-**当前阶段**：阶段 1 - Provider 配置系统 + Keychain 存储
-**进度**：0% → 开始实施
+**当前阶段**：阶段 1 完成 ✅ + 阶段 3 部分完成 ✅
+**进度**：60% → 已完成核心配置系统和设置界面
+
+**已完成**：
+1. ✅ Provider 配置系统（ProviderConfig 模型）
+2. ✅ Keychain 存储逻辑（完整的 CRUD 操作）
+3. ✅ AnthropicHTTPProvider 重构（支持配置化 base_url）
+4. ✅ 设置界面 Provider 配置管理
+5. ✅ Provider 列表展示
+6. ✅ 添加/编辑/删除 Provider 功能
+7. ✅ Provider 配置卡片组件
+8. ✅ Provider 编辑表单
 
 **下一步行动**：
-1. 创建 `ProviderConfig.swift` 模型
-2. 实现 `KeychainTokenStore` 的存储逻辑
-3. 重构 `AnthropicHTTPProvider`
+现在可以在 Xcode 中打开项目，运行应用，通过设置界面添加 Provider 配置，然后进入阶段 2 进行 API 调用验证。

@@ -92,16 +92,20 @@ extension KeychainTokenStore {
 
     /// 保存 Provider 配置
     func saveProviderConfig(_ config: ProviderConfig) throws {
+        print("💾 [Keychain] 开始保存 Provider 配置: \(config.name)")
         var configs = try loadAllProviderConfigs()
 
         // 如果已存在相同 ID 的配置，则更新；否则添加
         if let index = configs.firstIndex(where: { $0.id == config.id }) {
+            print("   ↻ 更新现有配置 (ID: \(config.id))")
             configs[index] = config
         } else {
+            print("   + 添加新配置 (ID: \(config.id))")
             configs.append(config)
         }
 
         try saveAllProviderConfigs(configs)
+        print("✅ [Keychain] 保存成功，当前共 \(configs.count) 个配置")
     }
 
     /// 加载所有 Provider 配置
