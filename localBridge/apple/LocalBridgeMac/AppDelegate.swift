@@ -55,13 +55,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             statusItem?.menu = nil
             return
         }
-        
+
+        // 先激活应用
+        NSApp.activate(ignoringOtherApps: true)
+
+        // 显示窗口
+        mainWindowController.showWindow(nil)
+
+        // 确保窗口在最前面
         if let window = mainWindowController.window {
             window.makeKeyAndOrderFront(nil)
             window.orderFrontRegardless()
+            // 如果设置了保持在最前面，确保 level 正确
+            if window.level == .floating {
+                window.level = .floating
+            }
         }
-        mainWindowController.showWindow(nil)
-        NSApp.activate(ignoringOtherApps: true)
     }
 
     // MARK: - WebSocket forwarding
