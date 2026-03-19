@@ -6,7 +6,6 @@ final class BridgeLogsViewController: NSViewController {
     private var scrollView: NSScrollView!
     private let clearButton = NSButton(title: "", target: nil, action: #selector(clearClicked))
     private let copyButton = NSButton(title: "", target: nil, action: #selector(copyClicked))
-    private let refreshButton = NSButton(title: "", target: nil, action: #selector(refreshClicked))
     private let autoScrollCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: #selector(toggleAutoScroll))
     private let logCountLabel = NSTextField(labelWithString: "0 ENTRIES")
     private var autoScroll = true
@@ -74,7 +73,6 @@ final class BridgeLogsViewController: NSViewController {
 
         // Action buttons
         setupActionButton(copyButton, icon: "doc.on.doc", tooltip: "Copy")
-        setupActionButton(refreshButton, icon: "arrow.clockwise", tooltip: "Refresh")
         setupActionButton(clearButton, icon: "trash", tooltip: "Clear", isDestructive: true)
 
         // Layout
@@ -94,7 +92,7 @@ final class BridgeLogsViewController: NSViewController {
         divider.translatesAutoresizingMaskIntoConstraints = false
         divider.widthAnchor.constraint(equalToConstant: 1).isActive = true
 
-        let buttonRow = NSStackView(views: [copyButton, refreshButton, clearButton])
+        let buttonRow = NSStackView(views: [copyButton, clearButton])
         buttonRow.orientation = .horizontal
         buttonRow.spacing = DSV2.spacing2
 
@@ -280,10 +278,6 @@ final class BridgeLogsViewController: NSViewController {
         let text = lines.joined(separator: "\n")
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
-    }
-
-    @objc private func refreshClicked() {
-        reloadLogs()
     }
 
     @objc private func toggleAutoScroll() {
