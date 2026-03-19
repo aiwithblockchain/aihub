@@ -32,6 +32,37 @@ final class TweetClawHumanViewController: NSViewController {
     private let unfollowUserIdTextField = NSTextField()
     private let unfollowButton = NSButton(title: "取消关注", target: nil, action: #selector(unfollowClicked))
 
+    private let unlikeTweetIdTextField = NSTextField()
+    private let unlikeButton = NSButton(title: "取消点赞", target: nil, action: #selector(unlikeTweetClicked))
+
+    private let unretweetTweetIdTextField = NSTextField()
+    private let unretweetButton = NSButton(title: "取消转推", target: nil, action: #selector(unretweetClicked))
+
+    private let unbookmarkTweetIdTextField = NSTextField()
+    private let unbookmarkButton = NSButton(title: "取消收藏", target: nil, action: #selector(unbookmarkClicked))
+
+    private let createTweetTextView = NSTextView()
+    private let createTweetScrollView = NSScrollView()
+    private let createTweetButton = NSButton(title: "发布推文", target: nil, action: #selector(createTweetClicked))
+
+    private let replyTweetIdTextField = NSTextField()
+    private let replyTextView = NSTextView()
+    private let replyScrollView = NSScrollView()
+    private let createReplyButton = NSButton(title: "发布回复", target: nil, action: #selector(createReplyClicked))
+
+    private let deleteTweetIdTextField = NSTextField()
+    private let deleteTweetButton = NSButton(title: "删除推文", target: nil, action: #selector(deleteTweetClicked))
+
+    private let getTimelineButton = NSButton(title: "获取主页时间线", target: nil, action: #selector(getTimelineClicked))
+
+    private let getTweetIdTextField = NSTextField()
+    private let getTweetButton = NSButton(title: "获取推文详情", target: nil, action: #selector(getTweetClicked))
+
+    private let getUserScreenNameTextField = NSTextField()
+    private let getUserButton = NSButton(title: "获取用户资料", target: nil, action: #selector(getUserClicked))
+
+    private let searchButton = NSButton(title: "搜索推文", target: nil, action: #selector(searchClicked))
+
     // 实例选择器
     private let instanceLabel = NSTextField(labelWithString: "目标实例:")
     private let instancePopup = NSPopUpButton(frame: .zero, pullsDown: false)
@@ -215,7 +246,97 @@ final class TweetClawHumanViewController: NSViewController {
         let unfollowStack = NSStackView(views: [unfollowUserIdTextField, unfollowButton])
         unfollowStack.orientation = .horizontal
         unfollowStack.spacing = 8
-        
+
+        unlikeTweetIdTextField.placeholderString = "Tweet ID"
+        unlikeTweetIdTextField.bezelStyle = .roundedBezel
+        unlikeButton.bezelStyle = .rounded
+        unlikeButton.target = self
+        let unlikeStack = NSStackView(views: [unlikeTweetIdTextField, unlikeButton])
+        unlikeStack.orientation = .horizontal
+        unlikeStack.spacing = 8
+
+        unretweetTweetIdTextField.placeholderString = "Tweet ID"
+        unretweetTweetIdTextField.bezelStyle = .roundedBezel
+        unretweetButton.bezelStyle = .rounded
+        unretweetButton.target = self
+        let unretweetStack = NSStackView(views: [unretweetTweetIdTextField, unretweetButton])
+        unretweetStack.orientation = .horizontal
+        unretweetStack.spacing = 8
+
+        unbookmarkTweetIdTextField.placeholderString = "Tweet ID"
+        unbookmarkTweetIdTextField.bezelStyle = .roundedBezel
+        unbookmarkButton.bezelStyle = .rounded
+        unbookmarkButton.target = self
+        let unbookmarkStack = NSStackView(views: [unbookmarkTweetIdTextField, unbookmarkButton])
+        unbookmarkStack.orientation = .horizontal
+        unbookmarkStack.spacing = 8
+
+        // Create Tweet
+        createTweetScrollView.documentView = createTweetTextView
+        createTweetScrollView.hasVerticalScroller = true
+        createTweetScrollView.borderType = .bezelBorder
+        createTweetScrollView.translatesAutoresizingMaskIntoConstraints = false
+        createTweetScrollView.heightAnchor.constraint(equalToConstant: 60).isActive = true
+        createTweetTextView.font = NSFont.systemFont(ofSize: 13)
+        createTweetTextView.isRichText = false
+        createTweetButton.bezelStyle = .rounded
+        createTweetButton.target = self
+
+        // Create Reply
+        replyTweetIdTextField.placeholderString = "Tweet ID"
+        replyTweetIdTextField.bezelStyle = .roundedBezel
+        replyScrollView.documentView = replyTextView
+        replyScrollView.hasVerticalScroller = true
+        replyScrollView.borderType = .bezelBorder
+        replyScrollView.translatesAutoresizingMaskIntoConstraints = false
+        replyScrollView.heightAnchor.constraint(equalToConstant: 60).isActive = true
+        replyTextView.font = NSFont.systemFont(ofSize: 13)
+        replyTextView.isRichText = false
+        let replyTopStack = NSStackView(views: [replyTweetIdTextField, createReplyButton])
+        replyTopStack.orientation = .horizontal
+        replyTopStack.spacing = 8
+        createReplyButton.bezelStyle = .rounded
+        createReplyButton.target = self
+
+        // Delete Tweet
+        deleteTweetIdTextField.placeholderString = "Tweet ID"
+        deleteTweetIdTextField.bezelStyle = .roundedBezel
+        deleteTweetButton.bezelStyle = .rounded
+        deleteTweetButton.target = self
+        deleteTweetButton.attributedTitle = NSAttributedString(
+            string: "删除推文",
+            attributes: [.foregroundColor: DS.colorDanger]
+        )
+        let deleteStack = NSStackView(views: [deleteTweetIdTextField, deleteTweetButton])
+        deleteStack.orientation = .horizontal
+        deleteStack.spacing = 8
+
+        // Get Timeline
+        getTimelineButton.bezelStyle = .rounded
+        getTimelineButton.target = self
+
+        // Get Tweet Detail
+        getTweetIdTextField.placeholderString = "Tweet ID"
+        getTweetIdTextField.bezelStyle = .roundedBezel
+        getTweetButton.bezelStyle = .rounded
+        getTweetButton.target = self
+        let getTweetStack = NSStackView(views: [getTweetIdTextField, getTweetButton])
+        getTweetStack.orientation = .horizontal
+        getTweetStack.spacing = 8
+
+        // Get User Profile
+        getUserScreenNameTextField.placeholderString = "Screen Name"
+        getUserScreenNameTextField.bezelStyle = .roundedBezel
+        getUserButton.bezelStyle = .rounded
+        getUserButton.target = self
+        let getUserStack = NSStackView(views: [getUserScreenNameTextField, getUserButton])
+        getUserStack.orientation = .horizontal
+        getUserStack.spacing = 8
+
+        // Search Tweets
+        searchButton.bezelStyle = .rounded
+        searchButton.target = self
+
         // 实例选择器
         instancePopup.translatesAutoresizingMaskIntoConstraints = false
         refreshInstancesButton.bezelStyle = .rounded
@@ -244,28 +365,45 @@ final class TweetClawHumanViewController: NSViewController {
             DS.makeSectionHeader("Tab 管理"),
             openTabStack, closeTabStack, navigateStack,
             DS.makeSectionHeader("交互操作"),
-            likeStack, retweetStack, bookmarkStack, followStack, unfollowStack
+            likeStack, retweetStack, bookmarkStack, followStack, unfollowStack,
+            unlikeStack, unretweetStack, unbookmarkStack,
+            DS.makeSectionHeader("推文管理"),
+            createTweetScrollView, createTweetButton,
+            replyTopStack, replyScrollView,
+            deleteStack,
+            DS.makeSectionHeader("数据读取"),
+            getTimelineButton, getTweetStack, getUserStack, searchButton
         ])
         leftStack.orientation = .vertical
         leftStack.alignment = .leading
         leftStack.spacing = 15
         leftStack.translatesAutoresizingMaskIntoConstraints = false
-        
+
+        // 将 leftStack 包装在 ScrollView 中
+        let leftScrollView = NSScrollView()
+        leftScrollView.documentView = leftStack
+        leftScrollView.hasVerticalScroller = true
+        leftScrollView.hasHorizontalScroller = false
+        leftScrollView.autohidesScrollers = true
+        leftScrollView.borderType = .noBorder
+        leftScrollView.translatesAutoresizingMaskIntoConstraints = false
+
         view.addSubview(pageHeader)
-        view.addSubview(leftStack)
+        view.addSubview(leftScrollView)
         view.addSubview(resultScrollView)
         
         NSLayoutConstraint.activate([
             pageHeader.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
             pageHeader.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
             pageHeader.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-            
-            leftStack.topAnchor.constraint(equalTo: pageHeader.bottomAnchor, constant: 24),
-            leftStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            leftStack.widthAnchor.constraint(equalToConstant: 260),
-            
-            resultScrollView.topAnchor.constraint(equalTo: leftStack.topAnchor),
-            resultScrollView.leadingAnchor.constraint(equalTo: leftStack.trailingAnchor, constant: 20),
+
+            leftScrollView.topAnchor.constraint(equalTo: pageHeader.bottomAnchor, constant: 24),
+            leftScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            leftScrollView.widthAnchor.constraint(equalToConstant: 320),
+            leftScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
+
+            resultScrollView.topAnchor.constraint(equalTo: leftScrollView.topAnchor),
+            resultScrollView.leadingAnchor.constraint(equalTo: leftScrollView.trailingAnchor, constant: 20),
             resultScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
             resultScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20)
         ])
@@ -415,7 +553,102 @@ final class TweetClawHumanViewController: NSViewController {
         resultTextView.string = "Unfollowing user: \(userId)...\n"
         AppDelegate.shared?.sendExecAction(action: "unfollow", tweetId: nil, userId: userId, tabId: nil, instanceId: selectedInstanceId())
     }
-    
+
+    @objc private func unlikeTweetClicked() {
+        let tweetId = unlikeTweetIdTextField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !tweetId.isEmpty else {
+            resultTextView.string = "Error: Tweet ID is required"
+            return
+        }
+        resultTextView.string = "Unliking tweet: \(tweetId)...\n"
+        AppDelegate.shared?.sendExecAction(action: "unlike", tweetId: tweetId, userId: nil, tabId: nil, instanceId: selectedInstanceId())
+    }
+
+    @objc private func unretweetClicked() {
+        let tweetId = unretweetTweetIdTextField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !tweetId.isEmpty else {
+            resultTextView.string = "Error: Tweet ID is required"
+            return
+        }
+        resultTextView.string = "Unretweeting: \(tweetId)...\n"
+        AppDelegate.shared?.sendExecAction(action: "unretweet", tweetId: tweetId, userId: nil, tabId: nil, instanceId: selectedInstanceId())
+    }
+
+    @objc private func unbookmarkClicked() {
+        let tweetId = unbookmarkTweetIdTextField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !tweetId.isEmpty else {
+            resultTextView.string = "Error: Tweet ID is required"
+            return
+        }
+        resultTextView.string = "Unbookmarking: \(tweetId)...\n"
+        AppDelegate.shared?.sendExecAction(action: "unbookmark", tweetId: tweetId, userId: nil, tabId: nil, instanceId: selectedInstanceId())
+    }
+
+    @objc private func createTweetClicked() {
+        let text = createTweetTextView.string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !text.isEmpty else {
+            resultTextView.string = "Error: Tweet text is required"
+            return
+        }
+        resultTextView.string = "Creating tweet...\n"
+        AppDelegate.shared?.sendExecAction(action: "createTweet", tweetId: nil, userId: nil, tabId: nil, text: text, instanceId: selectedInstanceId())
+    }
+
+    @objc private func createReplyClicked() {
+        let tweetId = replyTweetIdTextField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        let text = replyTextView.string.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !tweetId.isEmpty else {
+            resultTextView.string = "Error: Tweet ID is required"
+            return
+        }
+        guard !text.isEmpty else {
+            resultTextView.string = "Error: Reply text is required"
+            return
+        }
+        resultTextView.string = "Creating reply to \(tweetId)...\n"
+        AppDelegate.shared?.sendExecAction(action: "createReply", tweetId: tweetId, userId: nil, tabId: nil, text: text, instanceId: selectedInstanceId())
+    }
+
+    @objc private func deleteTweetClicked() {
+        let tweetId = deleteTweetIdTextField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !tweetId.isEmpty else {
+            resultTextView.string = "Error: Tweet ID is required"
+            return
+        }
+        resultTextView.string = "Deleting tweet: \(tweetId)...\n"
+        AppDelegate.shared?.sendExecAction(action: "deleteTweet", tweetId: tweetId, userId: nil, tabId: nil, instanceId: selectedInstanceId())
+    }
+
+    @objc private func getTimelineClicked() {
+        resultTextView.string = "Getting home timeline...\n"
+        AppDelegate.shared?.sendExecAction(action: "getTimeline", tweetId: nil, userId: nil, tabId: nil, instanceId: selectedInstanceId())
+    }
+
+    @objc private func getTweetClicked() {
+        let tweetId = getTweetIdTextField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !tweetId.isEmpty else {
+            resultTextView.string = "Error: Tweet ID is required"
+            return
+        }
+        resultTextView.string = "Getting tweet detail: \(tweetId)...\n"
+        AppDelegate.shared?.sendExecAction(action: "getTweet", tweetId: tweetId, userId: nil, tabId: nil, instanceId: selectedInstanceId())
+    }
+
+    @objc private func getUserClicked() {
+        let screenName = getUserScreenNameTextField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !screenName.isEmpty else {
+            resultTextView.string = "Error: Screen Name is required"
+            return
+        }
+        resultTextView.string = "Getting user profile: \(screenName)...\n"
+        AppDelegate.shared?.sendExecAction(action: "getUser", tweetId: nil, userId: screenName, tabId: nil, instanceId: selectedInstanceId())
+    }
+
+    @objc private func searchClicked() {
+        resultTextView.string = "Searching tweets (requires navigate to search page first)...\n"
+        AppDelegate.shared?.sendExecAction(action: "search", tweetId: nil, userId: nil, tabId: nil, instanceId: selectedInstanceId())
+    }
+
     @objc private func handleExecActionResult(_ notification: Notification) {
         guard let userInfo = notification.userInfo,
               let jsonString = userInfo["dataString"] as? String else { return }
