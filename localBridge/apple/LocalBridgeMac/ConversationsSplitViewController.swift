@@ -13,8 +13,8 @@ final class ConversationsSplitViewController: NSSplitViewController {
         sidebarViewController.delegate = self
 
         let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarViewController)
-        sidebarItem.minimumThickness = 220
-        sidebarItem.maximumThickness = 280
+        sidebarItem.minimumThickness = DS.sidebarWidth
+        sidebarItem.maximumThickness = DS.sidebarWidth
 
         let detailItem = NSSplitViewItem(viewController: detailViewController)
         self.detailItem = detailItem
