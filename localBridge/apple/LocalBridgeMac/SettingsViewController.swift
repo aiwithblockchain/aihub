@@ -51,7 +51,8 @@ final class SettingsViewController: NSViewController {
         stayOnTopCheckbox.translatesAutoresizingMaskIntoConstraints = false
         stayOnTopCheckbox.target = self
         if #available(macOS 10.14, *) {
-            stayOnTopCheckbox.contentTintColor = DSV2.primary
+            // 使用更亮的蓝色
+            stayOnTopCheckbox.contentTintColor = NSColor(hex: "#4A9EFF")
         }
 
         // Port labels - 使用小号大写字体
@@ -107,8 +108,9 @@ final class SettingsViewController: NSViewController {
         ]
         saveButton.attributedTitle = NSAttributedString(string: "Save Configuration and Restart", attributes: attributes)
 
-        // 设置按钮高度
-        saveButton.heightAnchor.constraint(equalToConstant: 40).isActive = true
+        // 设置按钮尺寸 - 增加宽度和高度
+        saveButton.heightAnchor.constraint(equalToConstant: 44).isActive = true
+        saveButton.widthAnchor.constraint(greaterThanOrEqualToConstant: 280).isActive = true
 
         DispatchQueue.main.async { [weak self] in
             guard let self = self else { return }
