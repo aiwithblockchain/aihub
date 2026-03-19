@@ -954,7 +954,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         // Apply card-like styling with DSV2
         cell?.layer?.cornerRadius = DSV2.radiusCard
         if isSelected {
-            // 选中状态：更明显的背景色变化
+            // 选中状态：更明显的背景色变化
             cell?.layer?.backgroundColor = DSV2.surfaceContainerHighest.cgColor
             cell?.layer?.borderWidth = 2
             cell?.layer?.borderColor = DSV2.primary.withAlphaComponent(0.5).cgColor

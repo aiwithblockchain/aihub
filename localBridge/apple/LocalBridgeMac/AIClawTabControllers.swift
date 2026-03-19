@@ -3,22 +3,18 @@ import AppKit
 final class AIClawHumanViewController: NSViewController {
     private let headerImageView = NSImageView()
     private let headerTitleLabel = NSTextField(labelWithString: "AIClaw")
-    
-    private let platformPopup = NSPopUpButton(frame: .zero, pullsDown: false)
-    private let queryButton = NSButton(title: "查询状态", target: nil, action: #selector(queryClicked))
-    
-    private let messagePlatformPopup = NSPopUpButton(frame: .zero, pullsDown: false)
+
+    private var platformSegmented: SegmentedControl!
+
+    private var messagePlatformSegmented: SegmentedControl!
     private var messageInputView: NSTextView!
     private var messageInputScroll: NSScrollView!
-    private let sendMessageButton = NSButton(title: "发送消息", target: nil, action: #selector(sendMessageClicked))
-    private let newConversationButton = NSButton(title: "新建对话", target: nil, action: #selector(newConversationClicked))
 
     // 实例选择器
-    private let instanceLabel = NSTextField(labelWithString: "目标实例:")
-    private let instancePopupLabel = NSPopUpButton(frame: .zero, pullsDown: false) // Rename to avoid conflict with existing platformPopup
+    private var instanceSelector: InstanceSelector!
     private let refreshInstancesButton = NSButton(title: "↻", target: nil, action: #selector(refreshInstancesClicked))
     private var instanceSnapshots: [LocalBridgeGoManager.InstanceSnapshot] = []
-    
+
     private var resultTextView: NSTextView!
     private var resultScrollView: NSScrollView!
     
@@ -46,25 +42,16 @@ final class AIClawHumanViewController: NSViewController {
         let all = AppDelegate.shared?.getConnectedInstances() ?? []
         instanceSnapshots = all.filter { $0.clientName == "aiClaw" }
 
-        instancePopupLabel.removeAllItems()
-        if instanceSnapshots.isEmpty {
-            instancePopupLabel.addItem(withTitle: "无可用实例（自动选择）")
-        } else {
-            for snap in instanceSnapshots {
-                let idShort = String(snap.instanceId.prefix(8))
-                let label = snap.isTemporary
-                    ? "[\(idShort)...] (旧版)"
-                    : "[\(idShort)...]"
-                instancePopupLabel.addItem(withTitle: label)
-            }
-        }
+        updateInstanceLabel()
+    }
+
+    private func updateInstanceLabel() {
+        let instances = instanceSnapshots.map { (id: $0.instanceId, isTemporary: $0.isTemporary) }
+        instanceSelector.setInstances(instances)
     }
 
     private func selectedInstanceId() -> String? {
-        guard !instanceSnapshots.isEmpty else { return nil }
-        let idx = instancePopupLabel.indexOfSelectedItem
-        guard instanceSnapshots.indices.contains(idx) else { return nil }
-        return instanceSnapshots[idx].instanceId
+        return instanceSelector.getSelectedInstanceId()
     }
 
     @objc private func refreshInstancesClicked() {
@@ -72,138 +59,218 @@ final class AIClawHumanViewController: NSViewController {
     }
 
     private func setupUI() {
+        // Header Icon
         if #available(macOS 11.0, *) {
             headerImageView.image = NSImage(systemSymbolName: "cpu", accessibilityDescription: nil)
             headerImageView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 20, weight: .semibold)
-            headerImageView.contentTintColor = DS.colorPrimary
+            headerImageView.contentTintColor = DSV2.primary
         }
         headerImageView.translatesAutoresizingMaskIntoConstraints = false
-        
-        headerTitleLabel.font = NSFont.systemFont(ofSize: 18, weight: .semibold)
-        headerTitleLabel.textColor = DS.colorTextPrimary
-        
-        // Platform selector
-        platformPopup.addItems(withTitles: ["All Platforms", "ChatGPT", "Gemini", "Grok"])
-        platformPopup.translatesAutoresizingMaskIntoConstraints = false
-        
-        queryButton.bezelStyle = .rounded
-        queryButton.target = self
-        
-        // 使用 DSV2 终端视图工厂
+
+        // Header Title
+        headerTitleLabel.font = DSV2.fontTitleLg
+        headerTitleLabel.textColor = DSV2.onSurface
+
+        // Platform segmented control
+        platformSegmented = DSV2.makeSegmentedControl(items: ["All Platforms", "ChatGPT", "Gemini", "Grok"], target: self, action: #selector(platformChanged))
+        platformSegmented.translatesAutoresizingMaskIntoConstraints = false
+
+        // Query button - use gradient style
+        let queryButton = DSV2.makeGradientButton(title: "查询状态", target: self, action: #selector(queryClicked))
+
+        // Terminal view
         let terminal = DSV2.makeTerminalTextView()
         resultScrollView = terminal.scrollView
         resultTextView = terminal.textView
-        
-        resultScrollView.borderType = .noBorder
-        resultScrollView.wantsLayer = true
-        resultScrollView.layer?.cornerRadius = DS.radiusM
-        resultScrollView.layer?.backgroundColor = NSColor(white: 0.08, alpha: 1.0).cgColor
-        resultScrollView.translatesAutoresizingMaskIntoConstraints = false
-        
-        let platformLabel = NSTextField(labelWithString: "选择平台:")
-        let platformRow = NSStackView(views: [platformLabel, platformPopup])
-        platformRow.orientation = .horizontal
-        platformRow.alignment = .centerY
-        platformRow.spacing = 8
-        
-        // Send Message UI
-        messagePlatformPopup.addItems(withTitles: ["chatgpt", "gemini", "grok"])
-        messagePlatformPopup.translatesAutoresizingMaskIntoConstraints = false
-        
+
+        // 添加初始文本以便看到终端区域
+        resultTextView.string = "Terminal ready...\n"
+
+        // Message platform segmented control
+        messagePlatformSegmented = DSV2.makeSegmentedControl(items: ["chatgpt", "gemini", "grok"], target: self, action: #selector(messagePlatformChanged))
+        messagePlatformSegmented.translatesAutoresizingMaskIntoConstraints = false
+
+        // Message input with DSV2 styling
         messageInputScroll = NSTextView.scrollableTextView()
         messageInputView = messageInputScroll.documentView as? NSTextView
         messageInputView.isEditable = true
-        messageInputView.font = DS.fontBody
-        messageInputView.textContainerInset = NSSize(width: DS.spacingS, height: DS.spacingS)
-        messageInputScroll.borderType = .bezelBorder
+        messageInputView.font = DSV2.fontMonoMd
+        messageInputView.textColor = DSV2.onSurface
+        messageInputView.backgroundColor = DSV2.surfaceContainerLowest
+        messageInputView.textContainerInset = NSSize(width: DSV2.spacing4, height: DSV2.spacing4)
+        messageInputView.insertionPointColor = DSV2.primary
+
+        messageInputScroll.borderType = .noBorder
+        messageInputScroll.wantsLayer = true
+        messageInputScroll.layer?.cornerRadius = DSV2.radiusCard
+        messageInputScroll.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
+        messageInputScroll.layer?.borderWidth = 1
+        messageInputScroll.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
         messageInputScroll.translatesAutoresizingMaskIntoConstraints = false
-        messageInputScroll.heightAnchor.constraint(equalToConstant: 80).isActive = true
-        
-        sendMessageButton.bezelStyle = .rounded
-        sendMessageButton.target = self
-        newConversationButton.bezelStyle = .rounded
-        newConversationButton.target = self
-        
-        let msgPlatformLabel = NSTextField(labelWithString: "平台:")
-        let msgPlatformRow = NSStackView(views: [msgPlatformLabel, messagePlatformPopup])
-        msgPlatformRow.orientation = .horizontal
-        msgPlatformRow.spacing = 8
-        
-        // 实例选择器 UI
-        instancePopupLabel.translatesAutoresizingMaskIntoConstraints = false
+        messageInputScroll.heightAnchor.constraint(equalToConstant: 100).isActive = true
+
+        // Action buttons
+        let sendButton = DSV2.makeGradientButton(title: "发送消息", target: self, action: #selector(sendMessageClicked))
+        let newConvButton = DSV2.makeSecondaryButton(title: "新建对话", target: self, action: #selector(newConversationClicked))
+
+        // Instance selector
+        instanceSelector = DSV2.makeInstanceSelector(title: "Select Model Instance", target: self, action: #selector(instanceChanged))
+
         refreshInstancesButton.bezelStyle = .rounded
         refreshInstancesButton.target = self
-        refreshInstancesButton.translatesAutoresizingMaskIntoConstraints = false
-        refreshInstancesButton.widthAnchor.constraint(equalToConstant: 28).isActive = true
+        refreshInstancesButton.wantsLayer = true
+        refreshInstancesButton.isBordered = false
+        refreshInstancesButton.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
+        refreshInstancesButton.layer?.cornerRadius = DSV2.radiusButton
 
-        let instanceRow = NSStackView(views: [instanceLabel, instancePopupLabel, refreshInstancesButton])
+        // 设置按钮文字颜色
+        let refreshAttributes: [NSAttributedString.Key: Any] = [
+            .foregroundColor: DSV2.onSurfaceVariant,
+            .font: NSFont.systemFont(ofSize: 14, weight: .medium)
+        ]
+        refreshInstancesButton.attributedTitle = NSAttributedString(string: "↻", attributes: refreshAttributes)
+
+        refreshInstancesButton.translatesAutoresizingMaskIntoConstraints = false
+        refreshInstancesButton.widthAnchor.constraint(equalToConstant: 32).isActive = true
+        refreshInstancesButton.heightAnchor.constraint(equalToConstant: 32).isActive = true
+
+        // Labels with DSV2 typography
+        let platformLabel = NSTextField(labelWithString: "PLATFORM")
+        platformLabel.font = DSV2.fontLabelSm
+        platformLabel.textColor = DSV2.onSurfaceTertiary
+
+        let msgPlatformLabel = NSTextField(labelWithString: "PLATFORM")
+        msgPlatformLabel.font = DSV2.fontLabelSm
+        msgPlatformLabel.textColor = DSV2.onSurfaceTertiary
+
+        // Section headers
+        let queryHeader = makeSectionHeader("状态查询")
+        let messageHeader = makeSectionHeader("发送消息")
+
+        // Layout containers
+        let platformStack = NSStackView(views: [platformLabel, platformSegmented])
+        platformStack.orientation = .vertical
+        platformStack.alignment = .leading
+        platformStack.spacing = DSV2.spacing2
+
+        let msgPlatformStack = NSStackView(views: [msgPlatformLabel, messagePlatformSegmented])
+        msgPlatformStack.orientation = .vertical
+        msgPlatformStack.alignment = .leading
+        msgPlatformStack.spacing = DSV2.spacing2
+
+        let instanceRow = NSStackView(views: [instanceSelector, refreshInstancesButton])
         instanceRow.orientation = .horizontal
         instanceRow.alignment = .centerY
-        instanceRow.spacing = 6
+        instanceRow.spacing = DSV2.spacing2
 
         let headerLeft = NSStackView(views: [headerImageView, headerTitleLabel])
         headerLeft.orientation = .horizontal
-        headerLeft.spacing = 8
+        headerLeft.spacing = DSV2.spacing2
         headerLeft.alignment = .centerY
-        
+
         let pageHeader = NSStackView(views: [headerLeft, NSView(), instanceRow])
         pageHeader.orientation = .horizontal
         pageHeader.alignment = .centerY
         pageHeader.translatesAutoresizingMaskIntoConstraints = false
 
-        let actionButtonRow = NSStackView(views: [sendMessageButton, newConversationButton])
+        let actionButtonRow = NSStackView(views: [sendButton, newConvButton])
         actionButtonRow.orientation = .horizontal
-        actionButtonRow.spacing = 8
+        actionButtonRow.spacing = DSV2.spacing2
+        actionButtonRow.distribution = .fillEqually
+
+        // Left control panel with card background
+        let leftCard = NSView()
+        leftCard.wantsLayer = true
+        leftCard.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
+        leftCard.layer?.cornerRadius = DSV2.radiusCard
+        leftCard.translatesAutoresizingMaskIntoConstraints = false
 
         let leftStack = NSStackView(views: [
-            DS.makeSectionHeader("状态查询"),
-            platformRow,
+            queryHeader,
+            platformStack,
             queryButton,
-            DS.makeSectionHeader("发送消息"),
-            msgPlatformRow,
+            messageHeader,
+            msgPlatformStack,
             messageInputScroll,
             actionButtonRow
         ])
         leftStack.orientation = .vertical
         leftStack.alignment = .leading
-        leftStack.spacing = 15
+        leftStack.spacing = DSV2.spacing4
         leftStack.translatesAutoresizingMaskIntoConstraints = false
-        
+
+        leftCard.addSubview(leftStack)
+
         view.addSubview(pageHeader)
-        view.addSubview(leftStack)
+        view.addSubview(leftCard)
         view.addSubview(resultScrollView)
-        
+
+        // 确保终端视图在最上层
+        resultScrollView.wantsLayer = true
+
         NSLayoutConstraint.activate([
-            pageHeader.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
-            pageHeader.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            pageHeader.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-            
-            leftStack.topAnchor.constraint(equalTo: pageHeader.bottomAnchor, constant: 24),
-            leftStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            leftStack.widthAnchor.constraint(equalToConstant: 260),
-            
-            resultScrollView.topAnchor.constraint(equalTo: leftStack.topAnchor),
-            resultScrollView.leadingAnchor.constraint(equalTo: leftStack.trailingAnchor, constant: 20),
-            resultScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-            resultScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20)
+            pageHeader.topAnchor.constraint(equalTo: view.topAnchor, constant: DSV2.spacing6),
+            pageHeader.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
+            pageHeader.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
+
+            leftCard.topAnchor.constraint(equalTo: pageHeader.bottomAnchor, constant: DSV2.spacing6),
+            leftCard.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
+            leftCard.widthAnchor.constraint(equalToConstant: 320),
+            leftCard.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6),
+
+            leftStack.topAnchor.constraint(equalTo: leftCard.topAnchor, constant: DSV2.spacing4),
+            leftStack.leadingAnchor.constraint(equalTo: leftCard.leadingAnchor, constant: DSV2.spacing4),
+            leftStack.trailingAnchor.constraint(equalTo: leftCard.trailingAnchor, constant: -DSV2.spacing4),
+            leftStack.bottomAnchor.constraint(lessThanOrEqualTo: leftCard.bottomAnchor, constant: -DSV2.spacing4),
+
+            platformStack.widthAnchor.constraint(equalTo: leftStack.widthAnchor),
+            platformSegmented.widthAnchor.constraint(equalTo: platformStack.widthAnchor),
+            msgPlatformStack.widthAnchor.constraint(equalTo: leftStack.widthAnchor),
+            messagePlatformSegmented.widthAnchor.constraint(equalTo: msgPlatformStack.widthAnchor),
+            queryButton.widthAnchor.constraint(equalTo: leftStack.widthAnchor),
+            actionButtonRow.widthAnchor.constraint(equalTo: leftStack.widthAnchor),
+
+            resultScrollView.topAnchor.constraint(equalTo: pageHeader.bottomAnchor, constant: DSV2.spacing6),
+            resultScrollView.leadingAnchor.constraint(equalTo: leftCard.trailingAnchor, constant: DSV2.spacing4),
+            resultScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
+            resultScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6)
         ])
+    }
+
+    private func makeSectionHeader(_ text: String) -> NSTextField {
+        let label = NSTextField(labelWithString: text.uppercased())
+        label.font = DSV2.fontLabelSm
+        label.textColor = DSV2.onSurfaceTertiary
+        return label
+    }
+
+    @objc private func platformChanged() {
+        // 平台选择改变时的处理
+    }
+
+    @objc private func messagePlatformChanged() {
+        // 消息平台选择改变时的处理
+    }
+
+    @objc private func instanceChanged() {
+        // 实例选择改变时的处理
     }
     
     @objc private func queryClicked() {
-        let selectedPlatform = platformPopup.indexOfSelectedItem // 0=All, 1=ChatGPT, 2=Gemini, 3=Grok
-        
+        let selectedPlatform = platformSegmented.indexOfSelectedItem() // 0=All, 1=ChatGPT, 2=Gemini, 3=Grok
+
         DispatchQueue.main.async {
             let platformNames = ["All Platforms", "ChatGPT", "Gemini", "Grok"]
             self.resultTextView.string = "Querying \(platformNames[selectedPlatform]) status...\n"
         }
-        
-        
+
+
         UserDefaults.standard.set(selectedPlatform, forKey: "aiClawQueryPlatformFilter")
         AppDelegate.shared?.sendQueryAITabsStatus(instanceId: selectedInstanceId())
     }
     
     @objc private func sendMessageClicked() {
-        let platform = messagePlatformPopup.titleOfSelectedItem ?? "chatgpt"
+        let platform = messagePlatformSegmented.titleOfSelectedItem() ?? "chatgpt"
         let prompt = messageInputView.string.trimmingCharacters(in: .whitespacesAndNewlines)
         
         if prompt.isEmpty {
@@ -219,7 +286,7 @@ final class AIClawHumanViewController: NSViewController {
     }
 
     @objc private func newConversationClicked() {
-        let platform = messagePlatformPopup.titleOfSelectedItem ?? "chatgpt"
+        let platform = messagePlatformSegmented.titleOfSelectedItem() ?? "chatgpt"
 
         if platform != "chatgpt" {
             resultTextView.string = "Error: New conversation is currently supported only for chatgpt"
@@ -295,52 +362,84 @@ final class AIClawHumanViewController: NSViewController {
 }
 
 final class AIClawBotViewController: NSViewController {
-    private let titleLabel = NSTextField(labelWithString: "AIClaw - For Claw")
+    private let headerImageView = NSImageView()
+    private let titleLabel = NSTextField(labelWithString: "AIClaw")
+    private let subtitleLabel = NSTextField(labelWithString: "API ENDPOINTS")
     private let scrollView = NSScrollView()
     private let stackView = NSStackView()
-    
+
     override func loadView() {
         view = NSView()
         view.wantsLayer = true
         view.layer?.backgroundColor = DSV2.surface.cgColor
     }
-    
+
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
     }
-    
+
     private func setupUI() {
-        titleLabel.font = DS.fontTitle
+        // Header Icon
+        if #available(macOS 11.0, *) {
+            headerImageView.image = NSImage(systemSymbolName: "cpu", accessibilityDescription: nil)
+            headerImageView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 20, weight: .semibold)
+            headerImageView.contentTintColor = DSV2.primary
+        }
+        headerImageView.translatesAutoresizingMaskIntoConstraints = false
+
+        // Title
+        titleLabel.font = DSV2.fontTitleLg
+        titleLabel.textColor = DSV2.onSurface
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        
+
+        // Subtitle
+        subtitleLabel.font = DSV2.fontLabelSm
+        subtitleLabel.textColor = DSV2.onSurfaceTertiary
+        subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        // Header layout
+        let headerLeft = NSStackView(views: [headerImageView, titleLabel])
+        headerLeft.orientation = .horizontal
+        headerLeft.spacing = DSV2.spacing2
+        headerLeft.alignment = .centerY
+
+        let headerStack = NSStackView(views: [headerLeft, subtitleLabel])
+        headerStack.orientation = .vertical
+        headerStack.spacing = 4
+        headerStack.alignment = .leading
+        headerStack.translatesAutoresizingMaskIntoConstraints = false
+
+        // Stack view for cards
         stackView.orientation = .vertical
         stackView.alignment = .leading
-        stackView.spacing = DS.spacingM
+        stackView.spacing = DSV2.spacing4
         stackView.translatesAutoresizingMaskIntoConstraints = false
-        
+
+        // Scroll view
         scrollView.hasVerticalScroller = true
         scrollView.drawsBackground = false
         scrollView.documentView = stackView
         scrollView.translatesAutoresizingMaskIntoConstraints = false
-        
-        view.addSubview(titleLabel)
+
+        view.addSubview(headerStack)
         view.addSubview(scrollView)
-        
+
         NSLayoutConstraint.activate([
-            titleLabel.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
-            titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            
-            scrollView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 20),
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
-            
+            headerStack.topAnchor.constraint(equalTo: view.topAnchor, constant: DSV2.spacing6),
+            headerStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
+            headerStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
+
+            scrollView.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: DSV2.spacing6),
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
+            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
+            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6),
+
             stackView.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
             stackView.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
             stackView.topAnchor.constraint(equalTo: scrollView.topAnchor)
         ])
-        
+
         addEndpoints()
     }
     
@@ -386,83 +485,82 @@ final class AIClawBotViewController: NSViewController {
     private func makeEndpointCard(method: String, path: String, description: String, curl: String) -> NSView {
         let card = NSView()
         card.wantsLayer = true
-        card.layer?.cornerRadius = DS.radiusM
-        card.layer?.backgroundColor = DS.colorSurface.cgColor
-        card.layer?.borderColor     = DS.colorBorder.cgColor
-        card.layer?.borderWidth     = 1.0
+        card.layer?.cornerRadius = DSV2.radiusCard
+        card.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
+        card.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
+        card.layer?.borderWidth = 1.0
 
-        // method badge
-        let methodLabel = NSTextField(labelWithString: method)
-        methodLabel.font            = DS.fontSection
-        methodLabel.textColor       = .white
-        methodLabel.backgroundColor = method == "GET" ? NSColor.systemBlue : NSColor.systemGreen
-        methodLabel.drawsBackground = true
-        methodLabel.wantsLayer      = true
-        methodLabel.layer?.cornerRadius = DS.radiusS
-        methodLabel.alignment       = .center
-        methodLabel.translatesAutoresizingMaskIntoConstraints = false
+        // Method badge using DSV2
+        let methodBadge = DSV2.makeMethodTag(method: method)
 
-        // path
+        // Path label
         let pathLabel = NSTextField(labelWithString: path)
-        pathLabel.font      = DS.fontMono
-        pathLabel.textColor = DS.colorTextPrimary
+        pathLabel.font = DSV2.fontMonoMd
+        pathLabel.textColor = DSV2.onSurface
         pathLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        // description
+        // Description
         let descLabel = NSTextField(wrappingLabelWithString: description)
-        descLabel.font      = DS.fontBody
-        descLabel.textColor = DS.colorTextSecond
+        descLabel.font = DSV2.fontBodyMd
+        descLabel.textColor = DSV2.onSurfaceVariant
         descLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        // curl block
+        // Curl code block with terminal styling
+        let curlContainer = NSView()
+        curlContainer.wantsLayer = true
+        curlContainer.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
+        curlContainer.layer?.cornerRadius = DSV2.radiusInput
+        curlContainer.layer?.borderWidth = 1
+        curlContainer.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.1).cgColor
+        curlContainer.translatesAutoresizingMaskIntoConstraints = false
+
         let curlLabel = NSTextField(wrappingLabelWithString: curl)
-        curlLabel.font           = DS.fontMono
-        curlLabel.textColor      = DS.colorTextPrimary
-        curlLabel.backgroundColor = DS.colorBackground
-        curlLabel.drawsBackground = true
-        curlLabel.isSelectable    = true
+        curlLabel.font = DSV2.fontMonoSm
+        curlLabel.textColor = DSV2.tertiary
+        curlLabel.backgroundColor = .clear
+        curlLabel.drawsBackground = false
+        curlLabel.isSelectable = true
         curlLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        // copy button
-        let copyBtn = NSButton(title: "复制", target: nil, action: nil)
+        curlContainer.addSubview(curlLabel)
+
+        // Copy button with secondary style
+        let actionWrapper = TargetActionWrapper(text: curl)
+        let copyBtn = DSV2.makeSecondaryButton(title: "复制", target: actionWrapper, action: #selector(actionWrapper.performCopy))
         if #available(macOS 11.0, *) {
             copyBtn.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil)
         }
-        copyBtn.bezelStyle = NSButton.BezelStyle.rounded
-        copyBtn.translatesAutoresizingMaskIntoConstraints = false
 
-        // Associated data
-        let actionWrapper = TargetActionWrapper(text: curl)
-        copyBtn.target = actionWrapper
-        copyBtn.action = #selector(actionWrapper.performCopy)
-
-        let topRow = NSStackView(views: [methodLabel, pathLabel])
+        let topRow = NSStackView(views: [methodBadge, pathLabel])
         topRow.orientation = NSUserInterfaceLayoutOrientation.horizontal
-        topRow.spacing = 8
+        topRow.spacing = DSV2.spacing2
+        topRow.alignment = .centerY
 
         let bottomRow = NSStackView(views: [NSView(), copyBtn])
         bottomRow.orientation = NSUserInterfaceLayoutOrientation.horizontal
 
-        let cardStack = NSStackView(views: [topRow, descLabel, curlLabel, bottomRow])
+        let cardStack = NSStackView(views: [topRow, descLabel, curlContainer, bottomRow])
         cardStack.orientation = NSUserInterfaceLayoutOrientation.vertical
         cardStack.alignment = NSLayoutConstraint.Attribute.leading
-        cardStack.spacing = DS.spacingS
+        cardStack.spacing = DSV2.spacing4
         cardStack.translatesAutoresizingMaskIntoConstraints = false
-        
+
         card.addSubview(cardStack)
-        
+
         NSLayoutConstraint.activate([
-            methodLabel.widthAnchor.constraint(equalToConstant: 48),
-            methodLabel.heightAnchor.constraint(equalToConstant: 20),
-            
-            cardStack.topAnchor.constraint(equalTo: card.topAnchor, constant: DS.spacingM),
-            cardStack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: DS.spacingM),
-            cardStack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -DS.spacingM),
-            cardStack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -DS.spacingM),
-            
+            curlLabel.topAnchor.constraint(equalTo: curlContainer.topAnchor, constant: DSV2.spacing2),
+            curlLabel.leadingAnchor.constraint(equalTo: curlContainer.leadingAnchor, constant: DSV2.spacing2),
+            curlLabel.trailingAnchor.constraint(equalTo: curlContainer.trailingAnchor, constant: -DSV2.spacing2),
+            curlLabel.bottomAnchor.constraint(equalTo: curlContainer.bottomAnchor, constant: -DSV2.spacing2),
+
+            cardStack.topAnchor.constraint(equalTo: card.topAnchor, constant: DSV2.spacing4),
+            cardStack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: DSV2.spacing4),
+            cardStack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -DSV2.spacing4),
+            cardStack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -DSV2.spacing4),
+
             topRow.widthAnchor.constraint(equalTo: cardStack.widthAnchor),
             descLabel.widthAnchor.constraint(equalTo: cardStack.widthAnchor),
-            curlLabel.widthAnchor.constraint(equalTo: cardStack.widthAnchor),
+            curlContainer.widthAnchor.constraint(equalTo: cardStack.widthAnchor),
             bottomRow.widthAnchor.constraint(equalTo: cardStack.widthAnchor)
         ])
 

@@ -13,7 +13,7 @@ enum DSV2 {
     static let surface = NSColor(hex: "#131313")
 
     /// 侧边栏/导航区域 - 次要上下文
-    static let surfaceContainerLow = NSColor(hex: "#1B1B1C")
+    static let surfaceContainerLow = NSColor(hex: "#1E1E1E")
 
     /// 活动面板/可操作元素
     static let surfaceContainerHigh = NSColor(hex: "#2A2A2A")
@@ -119,6 +119,10 @@ enum DSV2 {
         button.isBordered = false
         button.bezelStyle = .rounded
 
+        // 设置按钮背景色和圆角
+        button.layer?.backgroundColor = primaryContainer.cgColor
+        button.layer?.cornerRadius = radiusButton
+
         // 创建渐变层
         let gradientLayer = CAGradientLayer()
         gradientLayer.colors = [
@@ -134,14 +138,18 @@ enum DSV2 {
 
         // 文本样式
         let attributes: [NSAttributedString.Key: Any] = [
-            .foregroundColor: onPrimaryContainer,
+            .foregroundColor: NSColor.white,
             .font: fontLabelMd
         ]
         button.attributedTitle = NSAttributedString(string: title, attributes: attributes)
 
         button.translatesAutoresizingMaskIntoConstraints = false
 
-        // 更新渐变层大小
+        // 设置固定高度
+        button.heightAnchor.constraint(equalToConstant: 36).isActive = true
+
+        // 更新渐变层大小 - 使用更可靠的方法
+        button.layer?.layoutSublayers()
         DispatchQueue.main.async {
             gradientLayer.frame = button.bounds
         }
@@ -158,7 +166,7 @@ enum DSV2 {
 
         // Ghost Border
         button.layer?.borderWidth = 1
-        button.layer?.borderColor = outlineVariant.withAlphaComponent(0.15).cgColor
+        button.layer?.borderColor = outlineVariant.withAlphaComponent(0.2).cgColor
         button.layer?.cornerRadius = radiusButton
         button.layer?.backgroundColor = NSColor.clear.cgColor
 
@@ -170,6 +178,9 @@ enum DSV2 {
         button.attributedTitle = NSAttributedString(string: title, attributes: attributes)
 
         button.translatesAutoresizingMaskIntoConstraints = false
+
+        // 设置固定高度
+        button.heightAnchor.constraint(equalToConstant: 36).isActive = true
 
         return button
     }
@@ -192,6 +203,8 @@ enum DSV2 {
         scrollView.wantsLayer = true
         scrollView.layer?.cornerRadius = radiusCard
         scrollView.layer?.backgroundColor = surfaceContainerLowest.cgColor
+        scrollView.layer?.borderWidth = 1
+        scrollView.layer?.borderColor = outlineVariant.withAlphaComponent(0.2).cgColor
         scrollView.translatesAutoresizingMaskIntoConstraints = false
 
         return (scrollView, textView)
@@ -313,5 +326,224 @@ enum DSV2 {
         ])
 
         return label
+    }
+
+    /// 创建分段控制器
+    static func makeSegmentedControl(items: [String], target: AnyObject?, action: Selector) -> SegmentedControl {
+        return SegmentedControl(items: items, target: target, action: action)
+    }
+
+    /// 创建实例选择器下拉菜单
+    static func makeInstanceSelector(title: String, target: AnyObject?, action: Selector) -> InstanceSelector {
+        return InstanceSelector(title: title, target: target, action: action)
+    }
+}
+
+/// 实例选择器下拉组件
+class InstanceSelector: NSView {
+    private let titleLabel = NSTextField(labelWithString: "")
+    private let idLabel = NSTextField(labelWithString: "")
+    private let dropdownButton = NSButton()
+    private var instances: [(id: String, isTemporary: Bool)] = []
+    private var selectedIndex: Int = 0
+    private let target: AnyObject?
+    private let action: Selector
+
+    init(title: String, target: AnyObject?, action: Selector) {
+        self.target = target
+        self.action = action
+        super.init(frame: .zero)
+        setupUI(title: title)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    private func setupUI(title: String) {
+        wantsLayer = true
+        translatesAutoresizingMaskIntoConstraints = false
+
+        titleLabel.stringValue = title.uppercased()
+        titleLabel.font = DSV2.fontLabelSm
+        titleLabel.textColor = DSV2.onSurfaceTertiary
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        idLabel.font = DSV2.fontMonoSm
+        idLabel.textColor = DSV2.onSurface
+        idLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        dropdownButton.title = ""
+        dropdownButton.bezelStyle = .rounded
+        dropdownButton.isBordered = false
+        dropdownButton.wantsLayer = true
+        dropdownButton.target = self
+        dropdownButton.action = #selector(showDropdown)
+        dropdownButton.layer?.backgroundColor = NSColor.clear.cgColor
+
+        if #available(macOS 11.0, *) {
+            dropdownButton.image = NSImage(systemSymbolName: "chevron.down", accessibilityDescription: nil)
+            dropdownButton.imagePosition = .imageOnly
+            dropdownButton.contentTintColor = DSV2.onSurfaceVariant
+        }
+
+        dropdownButton.translatesAutoresizingMaskIntoConstraints = false
+
+        addSubview(titleLabel)
+        addSubview(idLabel)
+        addSubview(dropdownButton)
+
+        NSLayoutConstraint.activate([
+            titleLabel.topAnchor.constraint(equalTo: topAnchor),
+            titleLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
+
+            dropdownButton.centerYAnchor.constraint(equalTo: titleLabel.centerYAnchor),
+            dropdownButton.leadingAnchor.constraint(equalTo: titleLabel.trailingAnchor, constant: 4),
+            dropdownButton.trailingAnchor.constraint(equalTo: trailingAnchor),
+            dropdownButton.widthAnchor.constraint(equalToConstant: 20),
+            dropdownButton.heightAnchor.constraint(equalToConstant: 20),
+
+            idLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 2),
+            idLabel.leadingAnchor.constraint(equalTo: leadingAnchor),
+            idLabel.trailingAnchor.constraint(equalTo: trailingAnchor),
+            idLabel.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
+    }
+
+    @objc private func showDropdown() {
+        guard !instances.isEmpty else { return }
+
+        let menu = NSMenu()
+        for (index, instance) in instances.enumerated() {
+            let title = instance.isTemporary ? "\(instance.id) (legacy)" : instance.id
+            let item = NSMenuItem(title: title, action: #selector(selectInstance(_:)), keyEquivalent: "")
+            item.target = self
+            item.tag = index
+            item.state = index == selectedIndex ? .on : .off
+            menu.addItem(item)
+        }
+
+        let location = NSPoint(x: 0, y: bounds.height)
+        menu.popUp(positioning: nil, at: location, in: self)
+    }
+
+    @objc private func selectInstance(_ sender: NSMenuItem) {
+        selectedIndex = sender.tag
+        updateDisplay()
+        _ = target?.perform(action, with: self)
+    }
+
+    func setInstances(_ instances: [(id: String, isTemporary: Bool)]) {
+        self.instances = instances
+        if !instances.isEmpty && selectedIndex >= instances.count {
+            selectedIndex = 0
+        }
+        updateDisplay()
+    }
+
+    func getSelectedInstanceId() -> String? {
+        guard !instances.isEmpty && selectedIndex < instances.count else { return nil }
+        return instances[selectedIndex].id
+    }
+
+    private func updateDisplay() {
+        if instances.isEmpty {
+            idLabel.stringValue = "No instance available"
+        } else {
+            let instance = instances[selectedIndex]
+            idLabel.stringValue = instance.isTemporary ? "\(instance.id) (legacy)" : instance.id
+        }
+    }
+}
+
+/// 自定义分段控制器
+class SegmentedControl: NSView {
+    private var buttons: [NSButton] = []
+    private var selectedIndex: Int = 0
+    private let target: AnyObject?
+    private let action: Selector
+
+    init(items: [String], target: AnyObject?, action: Selector) {
+        self.target = target
+        self.action = action
+        super.init(frame: .zero)
+        setupButtons(items: items)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    private func setupButtons(items: [String]) {
+        let stackView = NSStackView()
+        stackView.orientation = .horizontal
+        stackView.spacing = 0
+        stackView.distribution = .fillEqually
+        stackView.translatesAutoresizingMaskIntoConstraints = false
+
+        for (index, item) in items.enumerated() {
+            let button = NSButton(title: item, target: self, action: #selector(buttonClicked(_:)))
+            button.tag = index
+            button.wantsLayer = true
+            button.isBordered = false
+            button.bezelStyle = .rounded
+
+            let attributes: [NSAttributedString.Key: Any] = [
+                .foregroundColor: DSV2.onSurface,
+                .font: DSV2.fontLabelMd
+            ]
+            button.attributedTitle = NSAttributedString(string: item, attributes: attributes)
+
+            button.layer?.backgroundColor = NSColor.clear.cgColor
+            button.translatesAutoresizingMaskIntoConstraints = false
+            button.heightAnchor.constraint(equalToConstant: 32).isActive = true
+
+            buttons.append(button)
+            stackView.addArrangedSubview(button)
+        }
+
+        addSubview(stackView)
+
+        NSLayoutConstraint.activate([
+            stackView.topAnchor.constraint(equalTo: topAnchor),
+            stackView.leadingAnchor.constraint(equalTo: leadingAnchor),
+            stackView.trailingAnchor.constraint(equalTo: trailingAnchor),
+            stackView.bottomAnchor.constraint(equalTo: bottomAnchor)
+        ])
+
+        // 默认选中第一个
+        updateSelection(index: 0)
+    }
+
+    @objc private func buttonClicked(_ sender: NSButton) {
+        updateSelection(index: sender.tag)
+        _ = target?.perform(action, with: self)
+    }
+
+    private func updateSelection(index: Int) {
+        selectedIndex = index
+
+        for (i, button) in buttons.enumerated() {
+            if i == index {
+                button.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
+                button.layer?.cornerRadius = DSV2.radiusInput
+            } else {
+                button.layer?.backgroundColor = NSColor.clear.cgColor
+            }
+        }
+    }
+
+    func indexOfSelectedItem() -> Int {
+        return selectedIndex
+    }
+
+    func selectItem(at index: Int) {
+        guard index >= 0 && index < buttons.count else { return }
+        updateSelection(index: index)
+    }
+
+    func titleOfSelectedItem() -> String? {
+        guard selectedIndex >= 0 && selectedIndex < buttons.count else { return nil }
+        return buttons[selectedIndex].title
     }
 }

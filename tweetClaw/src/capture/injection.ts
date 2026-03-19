@@ -78,6 +78,14 @@ import { watchedOps, isGuestHandle } from './consts';
             } catch (e) {}
         }
 
+        // Extract features from request body for per-operation caching
+        let features: Record<string, boolean> | null = null;
+        try {
+            if (requestBody && typeof requestBody === 'object' && requestBody.features) {
+                features = requestBody.features;
+            }
+        } catch (e) {}
+
         lastSendTime = Date.now();
         window.postMessage({
             source: 'tweetclaw-injection',
@@ -88,6 +96,7 @@ import { watchedOps, isGuestHandle } from './consts';
             method,
             requestBody,
             bearerToken: bearerToken || null,
+            features: features,            // ← 提取的 features（如果有）
             data
         }, '*');
     }

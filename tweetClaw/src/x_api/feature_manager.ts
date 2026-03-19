@@ -1,8 +1,15 @@
 /**
  * Feature Manager for X GraphQL requests
- * Handles dynamic feature discovery from 400/403 errors.
+ * Handles dynamic feature discovery from 400/403/404 errors.
+ *
+ * Strategy:
+ * 1. Each operation has its own feature cache (per-operation features)
+ * 2. When a request fails, we capture features from successful browser requests
+ * 3. Features are merged: base + global dynamic + per-operation
  */
 import { __DBK_dynamic_features } from '../capture/consts';
+
+const __DBK_per_op_features = 'tc_per_op_features';
 
 export const baseFeatures = {
     responsive_web_graphql_timeline_navigation_enabled: true,
@@ -35,15 +42,46 @@ export async function extractMissingFeature(body: string): Promise<string | null
     const data = await chrome.storage.local.get(__DBK_dynamic_features);
     const current = (data[__DBK_dynamic_features] || {}) as Record<string, boolean>;
     if (!(feature in current)) {
-        current[feature] = true; 
+        current[feature] = true;
         await chrome.storage.local.set({ [__DBK_dynamic_features]: current });
         console.log("[TweetClaw-Feature] Auto-harvested new feature flag:", feature);
     }
     return feature;
 }
 
-export async function buildFeatures(): Promise<Record<string, boolean>> {
-    const data = await chrome.storage.local.get(__DBK_dynamic_features);
-    const dynamic = (data[__DBK_dynamic_features] || {}) as Record<string, boolean>;
-    return { ...baseFeatures, ...dynamic };
+/**
+ * Build features for a specific operation
+ * Priority: base < global dynamic < per-operation
+ */
+export async function buildFeatures(op?: string): Promise<Record<string, boolean>> {
+    const data = await chrome.storage.local.get([__DBK_dynamic_features, __DBK_per_op_features]);
+    const globalDynamic = (data[__DBK_dynamic_features] || {}) as Record<string, boolean>;
+    const perOpFeatures = (data[__DBK_per_op_features] || {}) as Record<string, Record<string, boolean>>;
+
+    const opSpecific = op ? (perOpFeatures[op] || {}) : {};
+
+    return { ...baseFeatures, ...globalDynamic, ...opSpecific };
+}
+
+/**
+ * Cache features for a specific operation (learned from successful browser requests)
+ */
+export async function cacheOperationFeatures(op: string, features: Record<string, boolean>): Promise<void> {
+    const data = await chrome.storage.local.get(__DBK_per_op_features);
+    const perOpFeatures = (data[__DBK_per_op_features] || {}) as Record<string, Record<string, boolean>>;
+
+    // Merge with existing features for this operation
+    perOpFeatures[op] = { ...(perOpFeatures[op] || {}), ...features };
+
+    await chrome.storage.local.set({ [__DBK_per_op_features]: perOpFeatures });
+    console.log(`[TweetClaw-Feature] Cached features for ${op}:`, Object.keys(features).length, 'flags');
+}
+
+/**
+ * Get cached features for a specific operation
+ */
+export async function getOperationFeatures(op: string): Promise<Record<string, boolean> | null> {
+    const data = await chrome.storage.local.get(__DBK_per_op_features);
+    const perOpFeatures = (data[__DBK_per_op_features] || {}) as Record<string, Record<string, boolean>>;
+    return perOpFeatures[op] || null;
 }

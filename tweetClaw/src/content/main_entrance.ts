@@ -41,6 +41,17 @@ window.addEventListener('message', (event) => {
         }
     }
 
+    // ── 捕获并缓存 per-operation features ──
+    if (event.data.type === 'SIGNAL_CAPTURED' && event.data.features) {
+        const op = event.data.op;
+        const features = event.data.features;
+
+        // 导入 cacheOperationFeatures 并缓存
+        import('../x_api/feature_manager').then(({ cacheOperationFeatures }) => {
+            cacheOperationFeatures(op, features).catch(() => {});
+        });
+    }
+
     if (event.data.type === 'SIGNAL_CAPTURED') {
         chrome.runtime.sendMessage({
             type: 'CAPTURED_DATA',
