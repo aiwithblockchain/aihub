@@ -45,9 +45,9 @@ echo "📦 Assembling macOS Framework..."
 rm -rf "$FW_DIR"
 mkdir -p "$FW_DIR/Versions/A/Headers"
 
-# 复制静态库和头文件
+# 复制静态库和头文件（使用 arm64 生成的头文件，因为它是最新的）
 cp "$UNIVERSAL_ARCHIVE" "$FW_DIR/Versions/A/${FW_NAME}"
-cp "$OUT_DIR/${FW_NAME}.h" "$FW_DIR/Versions/A/Headers/${FW_NAME}.h"
+cp "${ARM64_ARCHIVE%.a}.h" "$FW_DIR/Versions/A/Headers/${FW_NAME}.h"
 
 # 创建 Framework 符号链接（标准结构要求）
 ln -sf Versions/A/Headers "$FW_DIR/Headers"

@@ -1,0 +1,22 @@
+# Build outputs
+lib/
+
+# Go build artifacts
+*.a
+*.h
+*.so
+*.dylib
+
+# Test coverage
+coverage.out
+coverage.html
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
