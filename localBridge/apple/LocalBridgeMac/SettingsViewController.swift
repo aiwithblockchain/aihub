@@ -18,7 +18,7 @@ final class SettingsViewController: NSViewController {
     override func loadView() {
         let view = NSView()
         view.wantsLayer = true
-        view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        view.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
         self.view = view
     }
 
@@ -34,36 +34,68 @@ final class SettingsViewController: NSViewController {
     }
 
     private func setupUI() {
-        titleLabel.font = DS.fontTitle
+        titleLabel.font = DSV2.fontDisplaySm
+        titleLabel.textColor = DSV2.onSurface
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        
+
         stayOnTopCheckbox.translatesAutoresizingMaskIntoConstraints = false
         stayOnTopCheckbox.target = self
-        
-        tweetClawPortLabel.font = DS.fontBody
+        stayOnTopCheckbox.font = DSV2.fontBodyMd
+        stayOnTopCheckbox.contentTintColor = DSV2.onSurface
+
+        tweetClawPortLabel.font = DSV2.fontBodyMd
+        tweetClawPortLabel.textColor = DSV2.onSurfaceVariant
         tweetClawPortLabel.alignment = .right
         tweetClawPortLabel.translatesAutoresizingMaskIntoConstraints = false
-        tweetClawPortField.bezelStyle = .roundedBezel
-        tweetClawPortField.translatesAutoresizingMaskIntoConstraints = false
+
+        styleInputField(tweetClawPortField)
         tweetClawPortField.widthAnchor.constraint(equalToConstant: 80).isActive = true
-        
-        aiClawPortLabel.font = DS.fontBody
+
+        aiClawPortLabel.font = DSV2.fontBodyMd
+        aiClawPortLabel.textColor = DSV2.onSurfaceVariant
         aiClawPortLabel.alignment = .right
         aiClawPortLabel.translatesAutoresizingMaskIntoConstraints = false
-        aiClawPortField.bezelStyle = .roundedBezel
-        aiClawPortField.translatesAutoresizingMaskIntoConstraints = false
+
+        styleInputField(aiClawPortField)
         aiClawPortField.widthAnchor.constraint(equalToConstant: 80).isActive = true
-        
-        restPortLabel.font = DS.fontBody
+
+        restPortLabel.font = DSV2.fontBodyMd
+        restPortLabel.textColor = DSV2.onSurfaceVariant
         restPortLabel.alignment = .right
         restPortLabel.translatesAutoresizingMaskIntoConstraints = false
-        restPortField.bezelStyle = .roundedBezel
-        restPortField.translatesAutoresizingMaskIntoConstraints = false
+
+        styleInputField(restPortField)
         restPortField.widthAnchor.constraint(equalToConstant: 80).isActive = true
-        
+
         saveButton.translatesAutoresizingMaskIntoConstraints = false
         saveButton.target = self
+        saveButton.wantsLayer = true
+        saveButton.isBordered = false
         saveButton.bezelStyle = .rounded
+
+        // 使用渐变主按钮样式
+        let gradientLayer = CAGradientLayer()
+        gradientLayer.colors = [
+            DSV2.primary.cgColor,
+            DSV2.primaryContainer.cgColor
+        ]
+        gradientLayer.startPoint = CGPoint(x: 0, y: 0)
+        gradientLayer.endPoint = CGPoint(x: 1, y: 1)
+        gradientLayer.cornerRadius = DSV2.radiusButton
+
+        saveButton.layer?.insertSublayer(gradientLayer, at: 0)
+
+        let attributes: [NSAttributedString.Key: Any] = [
+            .foregroundColor: DSV2.onPrimaryContainer,
+            .font: DSV2.fontLabelMd
+        ]
+        saveButton.attributedTitle = NSAttributedString(string: "保存配置并重启服务", attributes: attributes)
+
+        // 更新渐变层大小
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            gradientLayer.frame = self.saveButton.bounds
+        }
 
         let generalCard = makeSettingsCard(title: "通用", views: [stayOnTopCheckbox])
 
@@ -74,8 +106,8 @@ final class SettingsViewController: NSViewController {
         ])
         portGrid.column(at: 0).xPlacement = .trailing
         portGrid.column(at: 1).xPlacement = .leading
-        portGrid.rowSpacing    = DS.spacingM
-        portGrid.columnSpacing = DS.spacingS
+        portGrid.rowSpacing    = DSV2.spacing4
+        portGrid.columnSpacing = DSV2.spacing2
 
         let networkCard = makeSettingsCard(title: "网络端口配置", views: [portGrid, saveButton])
 
@@ -87,51 +119,63 @@ final class SettingsViewController: NSViewController {
         ])
         mainStack.orientation = .vertical
         mainStack.alignment = .leading
-        mainStack.spacing = DS.spacingL
+        mainStack.spacing = DSV2.spacing6
         mainStack.translatesAutoresizingMaskIntoConstraints = false
 
         view.addSubview(mainStack)
 
         NSLayoutConstraint.activate([
-            mainStack.topAnchor.constraint(equalTo: view.topAnchor, constant: DS.spacingXL),
-            mainStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DS.spacingXL),
-            mainStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DS.spacingXL),
-            mainStack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DS.spacingXL),
+            mainStack.topAnchor.constraint(equalTo: view.topAnchor, constant: DSV2.spacing8),
+            mainStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing8),
+            mainStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing8),
+            mainStack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing8),
 
             generalCard.widthAnchor.constraint(equalTo: mainStack.widthAnchor),
             networkCard.widthAnchor.constraint(equalTo: mainStack.widthAnchor)
         ])
     }
-    
+
+    private func styleInputField(_ field: NSTextField) {
+        field.wantsLayer = true
+        field.isBordered = false
+        field.bezelStyle = .roundedBezel
+        field.drawsBackground = true
+        field.backgroundColor = DSV2.surface
+        field.textColor = DSV2.onSurface
+        field.font = DSV2.fontBodyMd
+        field.translatesAutoresizingMaskIntoConstraints = false
+
+        // Ghost Border (15% opacity)
+        field.layer?.borderWidth = 1
+        field.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
+        field.layer?.cornerRadius = DSV2.radiusInput
+
+        // Add padding
+        field.cell?.wraps = false
+        field.cell?.isScrollable = true
+    }
+
     private func makeSettingsCard(title: String, views: [NSView]) -> NSView {
-        let container = NSView()
-        container.wantsLayer = true
-        container.layer?.cornerRadius = DS.radiusM
-        container.layer?.backgroundColor = DS.colorSurface.cgColor
-        container.layer?.borderColor     = DS.colorBorder.cgColor
-        container.layer?.borderWidth     = 1.0
+        // 使用 DSV2 玻璃卡片（无边框）
+        let container = DSV2.makeGlassCard()
 
         let sectionTitle = NSTextField(labelWithString: title)
-        sectionTitle.font      = DS.fontSection
-        sectionTitle.textColor = DS.colorTextTertiary
+        sectionTitle.font = DSV2.fontTitleSm
+        sectionTitle.textColor = DSV2.onSurfaceVariant
 
-        let separator = NSBox()
-        separator.boxType = .separator
-
-        let contentStack = NSStackView(views: [sectionTitle, separator] + views)
+        // 使用间距替代分割线（遵循"无边框"原则）
+        let contentStack = NSStackView(views: [sectionTitle] + views)
         contentStack.orientation = .vertical
         contentStack.alignment   = .leading
-        contentStack.spacing     = DS.spacingM
+        contentStack.spacing     = DSV2.spacing6
         contentStack.translatesAutoresizingMaskIntoConstraints = false
         container.addSubview(contentStack)
 
         NSLayoutConstraint.activate([
-            contentStack.topAnchor.constraint(equalTo: container.topAnchor, constant: DS.spacingM),
-            contentStack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: DS.spacingM),
-            contentStack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -DS.spacingM),
-            contentStack.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -DS.spacingM),
-            
-            separator.widthAnchor.constraint(equalTo: contentStack.widthAnchor)
+            contentStack.topAnchor.constraint(equalTo: container.topAnchor, constant: DSV2.spacing4),
+            contentStack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: DSV2.spacing4),
+            contentStack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -DSV2.spacing4),
+            contentStack.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -DSV2.spacing4)
         ])
         return container
     }

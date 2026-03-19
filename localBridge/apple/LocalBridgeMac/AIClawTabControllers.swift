@@ -24,6 +24,8 @@ final class AIClawHumanViewController: NSViewController {
     
     override func loadView() {
         view = NSView()
+        view.wantsLayer = true
+        view.layer?.backgroundColor = DSV2.surface.cgColor
     }
     
     override func viewDidLoad() {
@@ -87,16 +89,10 @@ final class AIClawHumanViewController: NSViewController {
         queryButton.bezelStyle = .rounded
         queryButton.target = self
         
-        // Setup result text view (Terminal style)
-        resultScrollView = NSTextView.scrollableTextView()
-        resultTextView = resultScrollView.documentView as? NSTextView
-
-        resultTextView.isEditable = false
-        resultTextView.isSelectable = true
-        resultTextView.font = DS.fontMono
-        resultTextView.textColor = NSColor(calibratedRed: 0.0, green: 0.85, blue: 0.45, alpha: 1.0)
-        resultTextView.backgroundColor = DS.colorPreviewBg
-        resultTextView.textContainerInset = NSSize(width: DS.spacingM, height: DS.spacingM)
+        // 使用 DSV2 终端视图工厂
+        let terminal = DSV2.makeTerminalTextView()
+        resultScrollView = terminal.scrollView
+        resultTextView = terminal.textView
         
         resultScrollView.borderType = .noBorder
         resultScrollView.wantsLayer = true
@@ -305,6 +301,8 @@ final class AIClawBotViewController: NSViewController {
     
     override func loadView() {
         view = NSView()
+        view.wantsLayer = true
+        view.layer?.backgroundColor = DSV2.surface.cgColor
     }
     
     override func viewDidLoad() {

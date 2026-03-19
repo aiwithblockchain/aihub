@@ -16,7 +16,7 @@ enum DSV2 {
     static let surfaceContainerLow = NSColor(hex: "#1B1B1C")
 
     /// 活动面板/可操作元素
-    static let surfaceContainerHigh = NSColor(hex: "#2A2A2A")
+    static let surfaceContainerHigh = NSColor(hex: "#2A2A2A")
 
     /// Hover 状态的最高层
     static let surfaceContainerHighest = NSColor(hex: "#323232")
