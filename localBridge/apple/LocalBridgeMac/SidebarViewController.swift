@@ -44,6 +44,7 @@ final class SidebarViewController: NSViewController {
 
     private let tableView = NSTableView(frame: .zero)
     private let settingsButton = NSButton()
+    private let quitButton = NSButton()
 
     override func loadView() {
         view = NSView()
@@ -54,6 +55,7 @@ final class SidebarViewController: NSViewController {
         configureView()
         configureTableView()
         configureSettingsButton()
+        configureQuitButton()
         configureLayout()
     }
 
@@ -90,10 +92,11 @@ extension SidebarViewController: NSTableViewDataSource, NSTableViewDelegate {
         }
 
         cellView.configure(with: conversations[row])
-        
+
+        // 确保每次都应用正确的选中状态
         let isSelected = tableView.selectedRow == row
         cellView.applySelectionStyle(isSelected: isSelected)
-        
+
         return cellView
     }
 
@@ -104,7 +107,14 @@ extension SidebarViewController: NSTableViewDataSource, NSTableViewDelegate {
         }
 
         delegate?.sidebarViewController(self, didSelect: conversations[selectedRow])
-        tableView.reloadData()
+
+        // 只刷新可见的行，而不是整个表格
+        let visibleRows = tableView.rows(in: tableView.visibleRect)
+        for row in visibleRows.location..<(visibleRows.location + visibleRows.length) {
+            if let cellView = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? ConversationCellView {
+                cellView.applySelectionStyle(isSelected: row == selectedRow)
+            }
+        }
     }
 }
 
@@ -121,11 +131,10 @@ private extension SidebarViewController {
         tableView.addTableColumn(column)
         tableView.headerView = nil
         tableView.rowSizeStyle = .default
-        if #available(macOS 11.0, *) {
-            tableView.style = .sourceList
-        } else {
-            tableView.selectionHighlightStyle = .sourceList
-        }
+
+        // 禁用系统的选中高亮样式，使用我们自定义的
+        tableView.selectionHighlightStyle = .none
+
         tableView.allowsEmptySelection = true
         tableView.backgroundColor = .clear
         tableView.focusRingType = .none
@@ -143,39 +152,65 @@ private extension SidebarViewController {
 
         view.addSubview(scrollView)
         view.addSubview(settingsButton)
+        view.addSubview(quitButton)
 
         NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
             scrollView.topAnchor.constraint(equalTo: view.topAnchor),
             scrollView.bottomAnchor.constraint(equalTo: settingsButton.topAnchor, constant: -10),
-            
+
             settingsButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
-            settingsButton.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -14),
-            settingsButton.heightAnchor.constraint(equalToConstant: 32)
+            settingsButton.bottomAnchor.constraint(equalTo: quitButton.topAnchor, constant: -8),
+            settingsButton.heightAnchor.constraint(equalToConstant: 32),
+
+            quitButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
+            quitButton.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -14),
+            quitButton.heightAnchor.constraint(equalToConstant: 32)
         ])
     }
-    
+
     func configureSettingsButton() {
         if #available(macOS 11.0, *) {
             settingsButton.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")
         }
-        
+
         settingsButton.title = "Settings"
         settingsButton.bezelStyle = .regularSquare
         settingsButton.isBordered = false
         settingsButton.imagePosition = .imageLeading
         settingsButton.font = NSFont.systemFont(ofSize: 12)
         settingsButton.contentTintColor = DS.colorTextSecond
-        
+
         settingsButton.target = self
         settingsButton.action = #selector(showSettingsMenu)
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
     }
-    
+
+    func configureQuitButton() {
+        if #available(macOS 11.0, *) {
+            quitButton.image = NSImage(systemSymbolName: "power", accessibilityDescription: "Quit")
+        }
+
+        quitButton.title = "退出"
+        quitButton.bezelStyle = .regularSquare
+        quitButton.isBordered = false
+        quitButton.imagePosition = .imageLeading
+        quitButton.font = NSFont.systemFont(ofSize: 12)
+        quitButton.contentTintColor = DS.colorDanger
+
+        quitButton.target = self
+        quitButton.action = #selector(quitApplication)
+        quitButton.translatesAutoresizingMaskIntoConstraints = false
+    }
+
     @objc func showSettingsMenu(_ sender: NSButton) {
         tableView.deselectAll(nil)
         delegate?.sidebarViewControllerDidSelectSettings(self)
+    }
+
+    @objc func quitApplication(_ sender: NSButton) {
+        NSApplication.shared.terminate(nil)
     }
 }
 
@@ -194,6 +229,12 @@ private final class ConversationCellView: NSTableCellView {
     @available(*, unavailable)
     required init?(coder: NSCoder) {
         fatalError("init(coder:) has not been implemented")
+    }
+
+    // 重写这个方法来阻止系统改变背景色
+    override var backgroundStyle: NSView.BackgroundStyle {
+        get { return .normal }
+        set { /* 忽略系统设置 */ }
     }
 
     func configure(with conversation: Conversation) {
@@ -229,14 +270,18 @@ private final class ConversationCellView: NSTableCellView {
     func applySelectionStyle(isSelected: Bool) {
         wantsLayer = true
         layer?.cornerRadius = DS.radiusM
+
         if isSelected {
-            layer?.backgroundColor = DS.colorPrimary.withAlphaComponent(0.15).cgColor
-            titleLabel.textColor    = DS.colorPrimary
-            iconView.contentTintColor = DS.colorPrimary
+            // 只改变背景和边框，保持文字颜色不变以确保可读性
+            layer?.backgroundColor = NSColor.systemBlue.withAlphaComponent(0.15).cgColor
+            layer?.borderWidth = 2.0
+            layer?.borderColor = NSColor.systemBlue.cgColor
+            titleLabel.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
+            // 不改变文字颜色，保持原有颜色
         } else {
             layer?.backgroundColor = NSColor.clear.cgColor
-            titleLabel.textColor    = DS.colorTextPrimary
-            iconView.contentTintColor = DS.colorTextSecond
+            layer?.borderWidth = 0
+            titleLabel.font = DS.fontBody.withSize(13)
         }
     }
 }

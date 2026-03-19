@@ -426,9 +426,11 @@ final class TweetClawHumanViewController: NSViewController {
 }
 
 final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, NSTableViewDataSource {
-    private let titleLabel = NSTextField(labelWithString: "TweetClaw - API for Bots")
+    private let headerImageView = NSImageView()
+    private let headerTitleLabel = NSTextField(labelWithString: "TweetClaw")
     private let tableView = NSTableView()
     private var detailTextView: NSTextView!
+    private var detailScrollView: NSScrollView!
     private let copyButton = NSButton(title: "复制 curl", target: nil, action: #selector(copyCurlClicked))
     private var currentCurlCommand: String = ""
     
@@ -484,77 +486,97 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     }
     
     private func setupUI() {
-        titleLabel.font = .systemFont(ofSize: 22, weight: .bold)
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(titleLabel)
-        
-        // Left Column: Navigation List
+        // Header with icon and title
+        if #available(macOS 11.0, *) {
+            headerImageView.image = NSImage(systemSymbolName: "network", accessibilityDescription: nil)
+            headerImageView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 20, weight: .semibold)
+            headerImageView.contentTintColor = DS.colorPrimary
+        }
+        headerImageView.translatesAutoresizingMaskIntoConstraints = false
+
+        headerTitleLabel.font = NSFont.systemFont(ofSize: 18, weight: .semibold)
+        headerTitleLabel.textColor = DS.colorTextPrimary
+
+        let headerStack = NSStackView(views: [headerImageView, headerTitleLabel])
+        headerStack.orientation = NSUserInterfaceLayoutOrientation.horizontal
+        headerStack.spacing = 8
+        headerStack.alignment = NSLayoutConstraint.Attribute.centerY
+        headerStack.translatesAutoresizingMaskIntoConstraints = false
+
+        view.addSubview(headerStack)
+
+        // Left Column: API Navigation List with modern styling
         let scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
         scrollView.drawsBackground = false
+        scrollView.borderType = .noBorder
         scrollView.translatesAutoresizingMaskIntoConstraints = false
-        
+
         tableView.delegate = self
         tableView.dataSource = self
-        tableView.rowHeight = 84 // Increased for multi-line summary
+        tableView.rowHeight = 84
         tableView.headerView = nil
         tableView.selectionHighlightStyle = .regular
-        
+        tableView.backgroundColor = .clear
+        tableView.gridStyleMask = []
+        tableView.intercellSpacing = NSSize(width: 0, height: 8)
+
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("ApiColumn"))
-        column.width = 280
+        column.resizingMask = .autoresizingMask
         tableView.addTableColumn(column)
-        
+
         scrollView.documentView = tableView
         view.addSubview(scrollView)
-        
-        // Right Column: Detail Documentation Canvas
-        let detailScroll = NSTextView.scrollableTextView()
-        detailScroll.borderType = .bezelBorder
-        detailScroll.translatesAutoresizingMaskIntoConstraints = false
-        
-        detailTextView = detailScroll.documentView as? NSTextView
+
+        // Right Column: Detail Documentation with terminal-style display
+        detailScrollView = NSTextView.scrollableTextView()
+        detailScrollView.borderType = .noBorder
+        detailScrollView.wantsLayer = true
+        detailScrollView.layer?.cornerRadius = DS.radiusM
+        detailScrollView.layer?.backgroundColor = NSColor(white: 0.08, alpha: 1.0).cgColor
+        detailScrollView.translatesAutoresizingMaskIntoConstraints = false
+
+        detailTextView = detailScrollView.documentView as? NSTextView
         detailTextView.isEditable = false
         detailTextView.isSelectable = true
-        detailTextView.isRichText = true  // Enable rich text support
+        detailTextView.isRichText = true
         detailTextView.importsGraphics = true
         detailTextView.drawsBackground = true
-        detailTextView.backgroundColor = .textBackgroundColor
+        detailTextView.backgroundColor = NSColor(white: 0.08, alpha: 1.0)
         detailTextView.textContainerInset = NSSize(width: DS.spacingL, height: DS.spacingL)
-        detailTextView.font = .systemFont(ofSize: 13)
-        detailTextView.textColor = .labelColor
-        
-        view.addSubview(detailScroll)
-        
-        NSLayoutConstraint.activate([
-            titleLabel.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
-            titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            
-            scrollView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 20),
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            scrollView.widthAnchor.constraint(equalToConstant: 300),
-            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
-            
-            detailScroll.topAnchor.constraint(equalTo: scrollView.topAnchor),
-            detailScroll.leadingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: 20),
-            detailScroll.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-            detailScroll.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20)
-        ])
-        
-        // Copy curl button — floats over the top-right of the detail panel
-        copyButton.bezelStyle = .rounded
+        detailTextView.font = DS.fontMono
+        detailTextView.textColor = NSColor(calibratedRed: 0.0, green: 0.85, blue: 0.45, alpha: 1.0)
+
+        view.addSubview(detailScrollView)
+
+        // Copy button with modern styling
+        copyButton.bezelStyle = NSButton.BezelStyle.rounded
         copyButton.target = self
         copyButton.translatesAutoresizingMaskIntoConstraints = false
         copyButton.isHidden = true
-        view.addSubview(copyButton)
-        NSLayoutConstraint.activate([
-            copyButton.topAnchor.constraint(equalTo: detailScroll.topAnchor, constant: 8),
-            copyButton.trailingAnchor.constraint(equalTo: detailScroll.trailingAnchor, constant: -8)
-        ])
-        
         if #available(macOS 11.0, *) {
             copyButton.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil)
             copyButton.imagePosition = .imageLeading
         }
+        view.addSubview(copyButton)
+
+        NSLayoutConstraint.activate([
+            headerStack.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
+            headerStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+
+            scrollView.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: 24),
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            scrollView.widthAnchor.constraint(equalToConstant: 280),
+            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
+
+            detailScrollView.topAnchor.constraint(equalTo: scrollView.topAnchor),
+            detailScrollView.leadingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: 20),
+            detailScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            detailScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
+
+            copyButton.topAnchor.constraint(equalTo: detailScrollView.topAnchor, constant: 12),
+            copyButton.trailingAnchor.constraint(equalTo: detailScrollView.trailingAnchor, constant: -12)
+        ])
 
         // Default selection
         if !docs.isEmpty {
@@ -581,53 +603,67 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
         let identifier = NSUserInterfaceItemIdentifier("ApiCell")
         var cell = tableView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView
-        
+
         if cell == nil {
             cell = NSTableCellView()
             cell?.identifier = identifier
-            
+            cell?.wantsLayer = true
+
             let nameLabel = NSTextField(labelWithString: "")
-            nameLabel.font = .systemFont(ofSize: 14, weight: .bold)
+            nameLabel.font = NSFont.systemFont(ofSize: 14, weight: .semibold)
             nameLabel.translatesAutoresizingMaskIntoConstraints = false
             nameLabel.tag = 101
-            
+
             let summaryLabel = NSTextField(wrappingLabelWithString: "")
-            summaryLabel.font = .systemFont(ofSize: 12)
-            summaryLabel.textColor = .secondaryLabelColor
+            summaryLabel.font = DS.fontCaption
+            summaryLabel.textColor = DS.colorTextSecond
             summaryLabel.translatesAutoresizingMaskIntoConstraints = false
             summaryLabel.tag = 102
-            
+
             let methodLabel = NSTextField(labelWithString: "")
-            methodLabel.font = .monospacedSystemFont(ofSize: 10, weight: .bold)
+            methodLabel.font = NSFont.monospacedSystemFont(ofSize: 10, weight: .bold)
             methodLabel.alignment = .center
             methodLabel.wantsLayer = true
-            methodLabel.layer?.cornerRadius = 5
+            methodLabel.layer?.cornerRadius = DS.radiusS
             methodLabel.translatesAutoresizingMaskIntoConstraints = false
             methodLabel.tag = 103
-            
+
             cell?.addSubview(nameLabel)
             cell?.addSubview(summaryLabel)
             cell?.addSubview(methodLabel)
-            
+
             NSLayoutConstraint.activate([
-                methodLabel.topAnchor.constraint(equalTo: cell!.topAnchor, constant: 10),
-                methodLabel.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 10),
+                methodLabel.topAnchor.constraint(equalTo: cell!.topAnchor, constant: 12),
+                methodLabel.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 12),
                 methodLabel.widthAnchor.constraint(equalToConstant: 48),
                 methodLabel.heightAnchor.constraint(equalToConstant: 18),
-                
+
                 nameLabel.centerYAnchor.constraint(equalTo: methodLabel.centerYAnchor),
-                nameLabel.leadingAnchor.constraint(equalTo: methodLabel.trailingAnchor, constant: 8),
-                nameLabel.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -10),
-                
-                summaryLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 4),
-                summaryLabel.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 10),
-                summaryLabel.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -10),
-                summaryLabel.bottomAnchor.constraint(lessThanOrEqualTo: cell!.bottomAnchor, constant: -8)
+                nameLabel.leadingAnchor.constraint(equalTo: methodLabel.trailingAnchor, constant: 10),
+                nameLabel.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -12),
+
+                summaryLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 6),
+                summaryLabel.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 12),
+                summaryLabel.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -12),
+                summaryLabel.bottomAnchor.constraint(lessThanOrEqualTo: cell!.bottomAnchor, constant: -12)
             ])
         }
-        
+
         let doc = docs[row]
-        
+        let isSelected = tableView.selectedRow == row
+
+        // Apply card-like styling
+        cell?.layer?.cornerRadius = DS.radiusM
+        if isSelected {
+            cell?.layer?.backgroundColor = DS.colorPrimary.withAlphaComponent(0.15).cgColor
+            cell?.layer?.borderWidth = 1.5
+            cell?.layer?.borderColor = DS.colorPrimary.withAlphaComponent(0.3).cgColor
+        } else {
+            cell?.layer?.backgroundColor = DS.colorSurface.cgColor
+            cell?.layer?.borderWidth = 1.0
+            cell?.layer?.borderColor = DS.colorBorder.cgColor
+        }
+
         if let methodLabel = cell?.viewWithTag(103) as? NSTextField {
             methodLabel.stringValue = doc.method.uppercased()
             let color = methodColor(doc.method)
@@ -635,15 +671,17 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             methodLabel.backgroundColor = color
             methodLabel.drawsBackground = true
         }
-        
+
         if let nameLabel = cell?.viewWithTag(101) as? NSTextField {
             nameLabel.stringValue = doc.name
+            nameLabel.textColor = isSelected ? DS.colorPrimary : DS.colorTextPrimary
         }
-        
+
         if let summaryLabel = cell?.viewWithTag(102) as? NSTextField {
             summaryLabel.stringValue = doc.summary
+            summaryLabel.textColor = isSelected ? DS.colorPrimary.withAlphaComponent(0.8) : DS.colorTextSecond
         }
-        
+
         return cell
     }
     

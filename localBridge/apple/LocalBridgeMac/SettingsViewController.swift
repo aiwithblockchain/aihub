@@ -3,7 +3,7 @@ import AppKit
 final class SettingsViewController: NSViewController {
     private let titleLabel = NSTextField(labelWithString: "设置")
     private let stayOnTopCheckbox = NSButton(checkboxWithTitle: "窗口保持在最前面", target: nil, action: #selector(toggleStayOnTop))
-    
+
     // WebSockets Ports Configuration
     private let tweetClawPortLabel = NSTextField(labelWithString: "tweetClaw WebSocket 端口:")
     private let tweetClawPortField = NSTextField()
@@ -11,11 +11,9 @@ final class SettingsViewController: NSViewController {
     private let aiClawPortField = NSTextField()
     private let restPortLabel = NSTextField(labelWithString: "REST API 端口:")
     private let restPortField = NSTextField()
-    
-    
+
     // Actions
     private let saveButton = NSButton(title: "保存配置并重启服务", target: nil, action: #selector(saveClicked))
-    private let quitButton = NSButton(title: "退出 LocalBridge 进程", target: nil, action: #selector(quitClicked))
 
     override func loadView() {
         let view = NSView()
@@ -66,17 +64,9 @@ final class SettingsViewController: NSViewController {
         saveButton.translatesAutoresizingMaskIntoConstraints = false
         saveButton.target = self
         saveButton.bezelStyle = .rounded
-        
-        quitButton.translatesAutoresizingMaskIntoConstraints = false
-        quitButton.target = self
-        quitButton.bezelStyle = .rounded
-        quitButton.attributedTitle = NSAttributedString(
-            string: "退出 LocalBridge 进程",
-            attributes: [.foregroundColor: DS.colorDanger]
-        )
-        
+
         let generalCard = makeSettingsCard(title: "通用", views: [stayOnTopCheckbox])
-        
+
         let portGrid = NSGridView(views: [
             [tweetClawPortLabel, tweetClawPortField],
             [aiClawPortLabel,    aiClawPortField   ],
@@ -86,32 +76,30 @@ final class SettingsViewController: NSViewController {
         portGrid.column(at: 1).xPlacement = .leading
         portGrid.rowSpacing    = DS.spacingM
         portGrid.columnSpacing = DS.spacingS
-        
+
         let networkCard = makeSettingsCard(title: "网络端口配置", views: [portGrid, saveButton])
-        
+
         let mainStack = NSStackView(views: [
             titleLabel,
             generalCard,
             networkCard,
-            NSView(), // Flexible spacer
-            quitButton
+            NSView() // Flexible spacer
         ])
         mainStack.orientation = .vertical
         mainStack.alignment = .leading
         mainStack.spacing = DS.spacingL
         mainStack.translatesAutoresizingMaskIntoConstraints = false
-        
+
         view.addSubview(mainStack)
-        
+
         NSLayoutConstraint.activate([
             mainStack.topAnchor.constraint(equalTo: view.topAnchor, constant: DS.spacingXL),
             mainStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DS.spacingXL),
             mainStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DS.spacingXL),
             mainStack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DS.spacingXL),
-            
+
             generalCard.widthAnchor.constraint(equalTo: mainStack.widthAnchor),
-            networkCard.widthAnchor.constraint(equalTo: mainStack.widthAnchor),
-            quitButton.centerXAnchor.constraint(equalTo: mainStack.centerXAnchor)
+            networkCard.widthAnchor.constraint(equalTo: mainStack.widthAnchor)
         ])
     }
     
@@ -183,20 +171,16 @@ final class SettingsViewController: NSViewController {
             defaults.set(restPortStr, forKey: "restApiPort")
         }
         defaults.synchronize()
-        
-        
+
+
         // Notify app delegate to restart the websocket server
         NotificationCenter.default.post(name: NSNotification.Name("RestartWebSocketServer"), object: nil)
-        
+
         let alert = NSAlert()
         alert.messageText = "保存成功"
         alert.informativeText = "服务器端口设置已保存，服务已在后台重启。"
         alert.alertStyle = .informational
         alert.addButton(withTitle: "确定")
         alert.runModal()
-    }
-    
-    @objc private func quitClicked() {
-        NSApplication.shared.terminate(nil)
     }
 }
