@@ -32,7 +32,11 @@ final class BridgeLogsViewController: NSViewController {
     // MARK: - Setup
 
     private func setupUI() {
-        // Toolbar
+        // 设置主视图背景为深色
+        view.wantsLayer = true
+        view.layer?.backgroundColor = DSV2.surface.cgColor
+
+        // Toolbar - 使用 DSV2 样式
         if #available(macOS 11.0, *) {
             clearButton.image = NSImage(systemSymbolName: "trash", accessibilityDescription: "清空")
             clearButton.imagePosition = .imageLeading
@@ -46,54 +50,49 @@ final class BridgeLogsViewController: NSViewController {
         autoScrollCheckbox.translatesAutoresizingMaskIntoConstraints = false
 
         let titleLabel = NSTextField(labelWithString: "Bridge Logs")
-        titleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
+        titleLabel.font = DSV2.fontTitleMd
+        titleLabel.textColor = DSV2.onSurface
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
-        
+
         let iconView = NSImageView()
         if #available(macOS 11.0, *) {
             iconView.image = NSImage(systemSymbolName: "doc.text.magnifyingglass", accessibilityDescription: nil)
-            iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
+            iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 16, weight: .semibold)
         }
+        iconView.contentTintColor = DSV2.onSurfaceVariant
         iconView.translatesAutoresizingMaskIntoConstraints = false
-        
-        logCountLabel.font = DS.fontCaption
-        logCountLabel.textColor = DS.colorTextTertiary
+
+        logCountLabel.font = DSV2.fontLabelSm
+        logCountLabel.textColor = DSV2.onSurfaceVariant
         logCountLabel.translatesAutoresizingMaskIntoConstraints = false
 
         let headerLeft = NSStackView(views: [iconView, titleLabel, logCountLabel])
         headerLeft.orientation = .horizontal
         headerLeft.alignment = .centerY
-        headerLeft.spacing = 8
+        headerLeft.spacing = DSV2.spacing2
 
         let toolbar = NSStackView(views: [headerLeft, NSView(), autoScrollCheckbox, clearButton])
         toolbar.orientation = .horizontal
         toolbar.alignment = .centerY
         toolbar.translatesAutoresizingMaskIntoConstraints = false
 
-        // Text view
-        scrollView = NSTextView.scrollableTextView()
-        textView = scrollView.documentView as? NSTextView
-        textView.isEditable = false
-        textView.isSelectable = true
-        textView.font = DS.fontMono
-        textView.textContainerInset = NSSize(width: 8, height: 8)
-        textView.backgroundColor = DS.colorPreviewBg  // 使用文档定义的深色背景 #1A1A1A
-        textView.textColor = NSColor(red: 0.0, green: 0.9, blue: 0.4, alpha: 1.0) // 绿色文字
-        scrollView.borderType = .noBorder
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        // 使用 DSV2 终端视图工厂
+        let terminal = DSV2.makeTerminalTextView()
+        scrollView = terminal.scrollView
+        textView = terminal.textView
 
         view.addSubview(toolbar)
         view.addSubview(scrollView)
 
         NSLayoutConstraint.activate([
-            toolbar.topAnchor.constraint(equalTo: view.topAnchor, constant: 12),
-            toolbar.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            toolbar.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
+            toolbar.topAnchor.constraint(equalTo: view.topAnchor, constant: DSV2.spacing4),
+            toolbar.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing4),
+            toolbar.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing4),
 
-            scrollView.topAnchor.constraint(equalTo: toolbar.bottomAnchor, constant: 8),
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -16),
-            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -16)
+            scrollView.topAnchor.constraint(equalTo: toolbar.bottomAnchor, constant: DSV2.spacing4),
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing4),
+            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing4),
+            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing4)
         ])
     }
 
