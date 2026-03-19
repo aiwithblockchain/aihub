@@ -12,6 +12,7 @@ final class ConsoleChatViewController: NSViewController {
     private let sendButton = ConsoleSendButton()
     private let providerPopup = NSPopUpButton()
     private var availableProviders: [ProviderConfig] = []
+    private var configUpdateObserver: NSObjectProtocol?
 
     init(agent: AIAgent) {
         self.agent = agent
@@ -43,6 +44,23 @@ final class ConsoleChatViewController: NSViewController {
             self.inputField.isEnabled = !isStreaming
             self.sendButton.isEnabled = !isStreaming
         }
+
+        // 监听配置更新通知
+        configUpdateObserver = NotificationCenter.default.addObserver(
+            forName: NSNotification.Name("ProviderConfigDidUpdate"),
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            print("🔄 [Chat] 收到配置更新通知，重新加载 Provider")
+            self?.loadAvailableProviders()
+            self?.updateProviderPopup()
+        }
+    }
+
+    deinit {
+        if let observer = configUpdateObserver {
+            NotificationCenter.default.removeObserver(observer)
+        }
     }
 
     private func loadAvailableProviders() {
@@ -57,6 +75,24 @@ final class ConsoleChatViewController: NSViewController {
         } catch {
             print("❌ [Chat] 加载 Provider 配置失败: \(error)")
             availableProviders = []
+        }
+    }
+
+    private func updateProviderPopup() {
+        let selectedIndex = providerPopup.indexOfSelectedItem
+        providerPopup.removeAllItems()
+
+        if availableProviders.isEmpty {
+            providerPopup.addItem(withTitle: "无可用 Provider")
+        } else {
+            for config in availableProviders {
+                let title = "\(config.name) (\(config.providerType.displayName))"
+                providerPopup.addItem(withTitle: title)
+            }
+            // 尝试保持之前的选择
+            if selectedIndex >= 0 && selectedIndex < availableProviders.count {
+                providerPopup.selectItem(at: selectedIndex)
+            }
         }
     }
 
@@ -298,12 +334,17 @@ final class ConsoleChatViewController: NSViewController {
         print("   模型: \(selectedConfig.model ?? "默认")")
         print("   代理模式: \(selectedConfig.isProxyMode ? "是" : "否")")
 
-        // 创建 Provider
+        // 创建 Provider（根据类型选择正确的实现）
         let provider: AIProviderProtocol
         switch selectedConfig.providerType {
-        case .anthropic, .openai, .custom:
+        case .anthropic:
+            // Anthropic 使用专用的 Provider
             provider = AnthropicHTTPProvider(config: selectedConfig)
-            print("✅ [Chat] 创建 HTTP Provider 成功")
+            print("✅ [Chat] 创建 Anthropic Provider 成功")
+        case .openai, .custom:
+            // OpenAI 和自定义类型使用 OpenAI 兼容 Provider
+            provider = OpenAICompatibleProvider(config: selectedConfig)
+            print("✅ [Chat] 创建 OpenAI 兼容 Provider 成功")
         default:
             print("❌ [Chat] 不支持的 Provider 类型: \(selectedConfig.providerType)")
             addMessageBubble(AIMessage(sender: .human, content: text, timestamp: Date(), role: nil))
@@ -335,26 +376,41 @@ final class ConsoleChatViewModel {
     func sendMessage(_ text: String, provider: AIProviderProtocol, agent: AIAgent) {
         messages.append(AIMessage(sender: AIMessage.Sender.human, content: text, timestamp: Date(), role: nil))
         onMessagesUpdated?(); streamingTask?.cancel(); isStreaming = true
+        print("📨 [ViewModel] 开始发送消息到 Provider")
         streamingTask = Task {
             let request = AIRequest(conversationID: UUID(), userText: text)
-            defer { isStreaming = false }
+            defer {
+                isStreaming = false
+                print("✅ [ViewModel] 流式请求结束")
+            }
             do {
                 let stream = provider.stream(request: request)
+                print("✅ [ViewModel] 获取到流式响应")
                 for try await event in stream {
-                    if Task.isCancelled { break }
+                    if Task.isCancelled {
+                        print("⚠️ [ViewModel] 任务被取消")
+                        break
+                    }
                     switch event {
                     case .start:
+                        print("✅ [ViewModel] 收到 start 事件")
                         messages.append(AIMessage(sender: AIMessage.Sender.ai, content: "", timestamp: Date(), role: agent.role))
                         onMessagesUpdated?(); lastFlushTime = Date().timeIntervalSince1970
                     case .delta(_, let text):
+                        print("✅ [ViewModel] 收到 delta: \(text.prefix(50))...")
                         pendingDeltaBuffer += text
                         if Date().timeIntervalSince1970 - lastFlushTime >= flushInterval { flushBuffer() }
-                    case .finish: flushBuffer(); onMessagesUpdated?()
-                    case .log(let m): print("AI Log: \(m)")
+                    case .finish:
+                        print("✅ [ViewModel] 收到 finish 事件")
+                        flushBuffer(); onMessagesUpdated?()
+                    case .log(let m): print("📝 [ViewModel] AI Log: \(m)")
                     }
                 }
             } catch {
-                messages.append(AIMessage(sender: AIMessage.Sender.ai, content: "Error: \(error.localizedDescription)", timestamp: Date(), role: agent.role))
+                print("❌ [ViewModel] 捕获错误: \(error)")
+                print("   错误类型: \(type(of: error))")
+                print("   错误描述: \(error.localizedDescription)")
+                messages.append(AIMessage(sender: AIMessage.Sender.ai, content: "错误: \(error.localizedDescription)", timestamp: Date(), role: agent.role))
                 onMessagesUpdated?()
             }
         }

@@ -139,6 +139,9 @@ final class ProviderEditSheet: NSViewController {
     private let typePopup = NSPopUpButton()
     private let baseURLField = NSTextField()
     private let apiKeyField = NSSecureTextField()
+    private let apiKeyPlainField = NSTextField()
+    private let toggleKeyVisibilityButton = NSButton()
+    private var isKeyVisible = false
     private let modelField = NSTextField()
     private let saveButton = NSButton(title: "保存", target: nil, action: nil)
     private let cancelButton = NSButton(title: "取消", target: nil, action: nil)
@@ -212,6 +215,20 @@ final class ProviderEditSheet: NSViewController {
         apiKeyField.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(apiKeyField)
 
+        // 明文输入框（初始隐藏）
+        apiKeyPlainField.placeholderString = "sk-ant-xxxxx"
+        apiKeyPlainField.translatesAutoresizingMaskIntoConstraints = false
+        apiKeyPlainField.isHidden = true
+        view.addSubview(apiKeyPlainField)
+
+        // 眼睛图标按钮
+        toggleKeyVisibilityButton.image = NSImage(systemSymbolName: "eye", accessibilityDescription: "显示/隐藏")
+        toggleKeyVisibilityButton.isBordered = false
+        toggleKeyVisibilityButton.target = self
+        toggleKeyVisibilityButton.action = #selector(toggleKeyVisibility)
+        toggleKeyVisibilityButton.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(toggleKeyVisibilityButton)
+
         let modelLabel = NSTextField(labelWithString: "模型:")
         modelLabel.font = .systemFont(ofSize: 13)
         modelLabel.alignment = .right
@@ -268,7 +285,16 @@ final class ProviderEditSheet: NSViewController {
 
             apiKeyField.centerYAnchor.constraint(equalTo: keyLabel.centerYAnchor),
             apiKeyField.leadingAnchor.constraint(equalTo: nameField.leadingAnchor),
-            apiKeyField.trailingAnchor.constraint(equalTo: nameField.trailingAnchor),
+            apiKeyField.trailingAnchor.constraint(equalTo: toggleKeyVisibilityButton.leadingAnchor, constant: -8),
+
+            apiKeyPlainField.centerYAnchor.constraint(equalTo: keyLabel.centerYAnchor),
+            apiKeyPlainField.leadingAnchor.constraint(equalTo: nameField.leadingAnchor),
+            apiKeyPlainField.trailingAnchor.constraint(equalTo: toggleKeyVisibilityButton.leadingAnchor, constant: -8),
+
+            toggleKeyVisibilityButton.centerYAnchor.constraint(equalTo: keyLabel.centerYAnchor),
+            toggleKeyVisibilityButton.trailingAnchor.constraint(equalTo: nameField.trailingAnchor),
+            toggleKeyVisibilityButton.widthAnchor.constraint(equalToConstant: 28),
+            toggleKeyVisibilityButton.heightAnchor.constraint(equalToConstant: 28),
 
             modelLabel.topAnchor.constraint(equalTo: keyLabel.bottomAnchor, constant: 16),
             modelLabel.leadingAnchor.constraint(equalTo: nameLabel.leadingAnchor),
@@ -296,9 +322,30 @@ final class ProviderEditSheet: NSViewController {
             }
             baseURLField.stringValue = config.baseURL
             apiKeyField.stringValue = config.apiKey
+            apiKeyPlainField.stringValue = config.apiKey
             modelField.stringValue = config.model ?? ""
         } else {
             typeChanged()
+        }
+    }
+
+    @objc private func toggleKeyVisibility() {
+        isKeyVisible.toggle()
+
+        if isKeyVisible {
+            // 显示明文
+            let currentKey = apiKeyField.stringValue
+            apiKeyPlainField.stringValue = currentKey
+            apiKeyField.isHidden = true
+            apiKeyPlainField.isHidden = false
+            toggleKeyVisibilityButton.image = NSImage(systemSymbolName: "eye.slash", accessibilityDescription: "隐藏")
+        } else {
+            // 显示密文
+            let currentKey = apiKeyPlainField.stringValue
+            apiKeyField.stringValue = currentKey
+            apiKeyPlainField.isHidden = true
+            apiKeyField.isHidden = false
+            toggleKeyVisibilityButton.image = NSImage(systemSymbolName: "eye", accessibilityDescription: "显示")
         }
     }
 
@@ -323,7 +370,8 @@ final class ProviderEditSheet: NSViewController {
         print("💾 [EditSheet] 保存按钮被点击")
         let name = nameField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         let baseURL = baseURLField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
-        let apiKey = apiKeyField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
+        // 从当前可见的输入框获取 API Key
+        let apiKey = (isKeyVisible ? apiKeyPlainField.stringValue : apiKeyField.stringValue).trimmingCharacters(in: .whitespacesAndNewlines)
         let model = modelField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
 
         print("   名称: \(name)")
@@ -373,6 +421,10 @@ final class ProviderEditSheet: NSViewController {
 
         print("✅ [EditSheet] 配置创建成功，调用保存回调")
         onSave(newConfig)
+
+        // 发送配置更新通知
+        NotificationCenter.default.post(name: NSNotification.Name("ProviderConfigDidUpdate"), object: nil)
+
         dismiss(nil)
     }
 
