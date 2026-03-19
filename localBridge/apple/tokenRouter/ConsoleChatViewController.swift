@@ -21,7 +21,7 @@ final class ConsoleChatViewController: NSViewController {
     override func loadView() {
         view = NSView(frame: NSRect(x: 0, y: 0, width: 1280, height: 850))
         view.wantsLayer = true
-        view.layer?.backgroundColor = NSColor.consoleZ950.cgColor
+        view.layer?.backgroundColor = NSColor(hex: "#1A1A1A").cgColor // 深黑色背景
     }
 
     override func viewDidLoad() {

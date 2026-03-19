@@ -2,13 +2,11 @@ import AppKit
 
 // MARK: - PM Workspace
 
-final class PMWorkspaceViewController: NSViewController, NSSplitViewDelegate {
-    private let splitView  = NSSplitView()
-    private let taskListVC = PMTaskListViewController()
+final class PMWorkspaceViewController: NSViewController {
     private var chatVC: ConsoleChatViewController?
 
     override func loadView() {
-        view = NSView()   // ⚠️ 不设置 translatesAutoresizingMaskIntoConstraints = false
+        view = NSView()
         view.wantsLayer = true
         view.layer?.backgroundColor = NSColor.consoleZ950.cgColor
     }
@@ -19,37 +17,16 @@ final class PMWorkspaceViewController: NSViewController, NSSplitViewDelegate {
         let pmAgent = MockData.agents.first(where: { $0.role == .pm }) ?? MockData.agents[0]
         chatVC = ConsoleChatViewController(agent: pmAgent)
 
-        splitView.isVertical   = true
-        splitView.dividerStyle = .thin
-        splitView.delegate     = self
-        splitView.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(splitView)
-
-        addChild(taskListVC)
         addChild(chatVC!)
-        // NSSplitView 内部子视图不设置 translatesAutoresizingMaskIntoConstraints
-        splitView.addArrangedSubview(taskListVC.view)
-        splitView.addArrangedSubview(chatVC!.view)
+        chatVC!.view.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(chatVC!.view)
 
         NSLayoutConstraint.activate([
-            splitView.topAnchor.constraint(equalTo: view.topAnchor),
-            splitView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            splitView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            splitView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            chatVC!.view.topAnchor.constraint(equalTo: view.topAnchor),
+            chatVC!.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            chatVC!.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            chatVC!.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
-
-        DispatchQueue.main.async { [weak self] in
-            self?.splitView.setPosition(240, ofDividerAt: 0)
-        }
-    }
-
-    // 任务列表拖动范围
-    func splitView(_ sv: NSSplitView, constrainMinCoordinate p: CGFloat, ofSubviewAt i: Int) -> CGFloat { 160 }
-    func splitView(_ sv: NSSplitView, constrainMaxCoordinate p: CGFloat, ofSubviewAt i: Int) -> CGFloat {
-        min(sv.frame.width * 0.45, 380)
-    }
-    func splitView(_ sv: NSSplitView, effectiveRect r: NSRect, forDrawnRect d: NSRect, ofDividerAt i: Int) -> NSRect {
-        r.insetBy(dx: -3, dy: 0)
     }
 }
 
@@ -64,111 +41,7 @@ final class PMTaskListViewController: NSViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-
-        let title = NSTextField(labelWithString: "任务总览")
-        title.font      = .systemFont(ofSize: 14, weight: .semibold)
-        title.textColor = .consoleText
-        title.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(title)
-
-        let subtitle = NSTextField(labelWithString: "共 \(MockData.tasks.count) 个任务")
-        subtitle.font      = .systemFont(ofSize: 12)
-        subtitle.textColor = .consoleText2
-        subtitle.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(subtitle)
-
-        let border = NSView()
-        border.wantsLayer = true
-        border.layer?.backgroundColor = NSColor.consoleZ800.cgColor
-        border.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(border)
-
-        let scroll = NSScrollView()
-        scroll.drawsBackground = false
-        scroll.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(scroll)
-
-        let stack = NSStackView()
-        stack.orientation = .vertical
-        stack.spacing     = 10
-        stack.edgeInsets  = NSEdgeInsets(top: 12, left: 12, bottom: 12, right: 12)
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        scroll.documentView = stack
-
-        let borderTrailing = border.trailingAnchor.constraint(equalTo: view.trailingAnchor)
-        borderTrailing.priority = NSLayoutConstraint.Priority(999)
-
-        let scrollTrailing = scroll.trailingAnchor.constraint(equalTo: view.trailingAnchor)
-        scrollTrailing.priority = NSLayoutConstraint.Priority(999)
-
-        let scrollBottom = scroll.bottomAnchor.constraint(equalTo: view.bottomAnchor)
-        scrollBottom.priority = NSLayoutConstraint.Priority(999)
-
-        let stackTrailing = stack.trailingAnchor.constraint(equalTo: scroll.contentView.trailingAnchor)
-        stackTrailing.priority = NSLayoutConstraint.Priority(999)
-
-        NSLayoutConstraint.activate([
-            title.topAnchor.constraint(equalTo: view.topAnchor, constant: 14),
-            title.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
-            subtitle.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 2),
-            subtitle.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
-            border.topAnchor.constraint(equalTo: view.topAnchor, constant: 56),
-            border.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            borderTrailing,
-            border.heightAnchor.constraint(equalToConstant: 1),
-            scroll.topAnchor.constraint(equalTo: border.bottomAnchor),
-            scroll.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            scrollTrailing,
-            scrollBottom,
-            stack.topAnchor.constraint(equalTo: scroll.contentView.topAnchor),
-            stack.leadingAnchor.constraint(equalTo: scroll.contentView.leadingAnchor),
-            stackTrailing
-        ])
-
-        for task in MockData.tasks {
-            let card = makeTaskCard(task)
-            stack.addArrangedSubview(card)
-        }
-    }
-
-    private func makeTaskCard(_ task: AITask) -> NSView {
-        let card = NSView()
-        card.wantsLayer = true
-        card.layer?.cornerRadius    = 8
-        card.layer?.backgroundColor = NSColor.consoleZ900.cgColor
-        card.layer?.borderColor     = NSColor.consoleZ800.cgColor
-        card.layer?.borderWidth     = 1
-        card.translatesAutoresizingMaskIntoConstraints = false
-        card.heightAnchor.constraint(equalToConstant: 88).isActive = true
-
-        let title = NSTextField(labelWithString: task.title)
-        title.font      = .systemFont(ofSize: 13, weight: .semibold)
-        title.textColor = .consoleText
-        title.translatesAutoresizingMaskIntoConstraints = false
-        card.addSubview(title)
-
-        let desc = NSTextField(labelWithString: task.description)
-        desc.font                 = .systemFont(ofSize: 11)
-        desc.textColor            = .consoleText2
-        desc.maximumNumberOfLines = 2
-        desc.translatesAutoresizingMaskIntoConstraints = false
-        card.addSubview(desc)
-
-        let titleTrailing = title.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -12)
-        titleTrailing.priority = NSLayoutConstraint.Priority(999)
-
-        let descTrailing = desc.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -12)
-        descTrailing.priority = NSLayoutConstraint.Priority(999)
-
-        NSLayoutConstraint.activate([
-            title.topAnchor.constraint(equalTo: card.topAnchor, constant: 10),
-            title.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 12),
-            titleTrailing,
-            desc.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 4),
-            desc.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 12),
-            descTrailing
-        ])
-        return card
+        // 占位元素已清空，等待实现任务管理功能
     }
 }
 

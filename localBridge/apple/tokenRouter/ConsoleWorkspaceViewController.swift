@@ -54,10 +54,9 @@ final class ConsoleWorkspaceViewController: NSViewController {
 
 final class ConsoleActivityViewController: NSViewController {
     override func loadView() {
-        // ⚠️ 不设置 translatesAutoresizingMaskIntoConstraints = false
         view = NSView()
         view.wantsLayer = true
-        view.layer?.backgroundColor = NSColor.consoleZ900.cgColor
+        view.layer?.backgroundColor = NSColor(hex: "#1E3A5F").cgColor // 深蓝色背景
     }
 
     override func viewDidLoad() {
@@ -69,17 +68,11 @@ final class ConsoleActivityViewController: NSViewController {
         border.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(border)
 
-        let title = NSTextField(labelWithString: "实时活动")
-        title.font      = .systemFont(ofSize: 14, weight: .semibold)
+        let title = NSTextField(labelWithString: "实时消息")
+        title.font      = .systemFont(ofSize: 13, weight: .semibold)
         title.textColor = .consoleText
         title.translatesAutoresizingMaskIntoConstraints = false
         view.addSubview(title)
-
-        let sub = NSTextField(labelWithString: "系统消息流")
-        sub.font      = .systemFont(ofSize: 12)
-        sub.textColor = .consoleText2
-        sub.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(sub)
 
         NSLayoutConstraint.activate([
             border.topAnchor.constraint(equalTo: view.topAnchor),
@@ -88,9 +81,7 @@ final class ConsoleActivityViewController: NSViewController {
             border.widthAnchor.constraint(equalToConstant: 1),
 
             title.topAnchor.constraint(equalTo: view.topAnchor, constant: 16),
-            title.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16),
-            sub.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 4),
-            sub.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16)
+            title.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 16)
         ])
     }
 }

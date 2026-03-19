@@ -39,7 +39,7 @@ final class ConsoleNavViewController: NSViewController {
         super.viewDidLoad()
         setupBorder()
         setupButtons()
-        setupBottomControls()
+        // 移除底部控件
     }
 
     // MARK: - Border
