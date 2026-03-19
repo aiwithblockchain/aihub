@@ -9,7 +9,7 @@ final class InstancesPanelViewController: NSViewController {
     private let refreshButton = NSButton(title: "刷新", target: nil, action: #selector(refreshClicked))
     private let tableView = NSTableView()
     private var scrollView: NSScrollView!
-    private let emptyLabel = NSTextField(labelWithString: "暂无已连接的实例\n请确保浏览器扩展已启动并连接到 LocalBridge")
+    private var emptyView: NSStackView!
 
     // MARK: - Data
 
@@ -58,13 +58,34 @@ final class InstancesPanelViewController: NSViewController {
         // Table
         setupTableView()
 
-        // Empty state label
-        emptyLabel.font = .systemFont(ofSize: 14)
-        emptyLabel.textColor = .secondaryLabelColor
-        emptyLabel.alignment = .center
-        emptyLabel.maximumNumberOfLines = 2
-        emptyLabel.translatesAutoresizingMaskIntoConstraints = false
-        emptyLabel.isHidden = true
+        // Empty state view
+        let emptyIcon = NSImageView(image: NSImage(systemSymbolName: "wifi.slash", accessibilityDescription: nil)!)
+        emptyIcon.contentTintColor = DS.colorTextTertiary
+        if #available(macOS 11.0, *) {
+            emptyIcon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 36, weight: .thin)
+        }
+        
+        let emptyText = NSTextField(labelWithString: "暂无已连接的实例")
+        emptyText.font      = DS.fontBody
+        emptyText.textColor = DS.colorTextSecond
+        emptyText.alignment = .center
+        emptyText.isEditable = false
+        emptyText.isBordered = false
+        emptyText.drawsBackground = false
+        
+        let emptyHint = NSTextField(wrappingLabelWithString: "请确保浏览器扩展已启动并连接到 LocalBridge")
+        emptyHint.font      = DS.fontCaption
+        emptyHint.textColor = DS.colorTextTertiary
+        emptyHint.alignment = .center
+        emptyHint.isEditable = false
+        emptyHint.isBordered = false
+        emptyHint.drawsBackground = false
+        
+        emptyView = NSStackView(views: [emptyIcon, emptyText, emptyHint])
+        emptyView.orientation = .vertical
+        emptyView.spacing = DS.spacingS
+        emptyView.translatesAutoresizingMaskIntoConstraints = false
+        emptyView.isHidden = true
 
         // Header row
         let headerStack = NSStackView(views: [titleLabel, NSView(), refreshButton])
@@ -75,7 +96,7 @@ final class InstancesPanelViewController: NSViewController {
         view.addSubview(headerStack)
         view.addSubview(subtitleLabel)
         view.addSubview(scrollView)
-        view.addSubview(emptyLabel)
+        view.addSubview(emptyView)
 
         NSLayoutConstraint.activate([
             headerStack.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
@@ -91,8 +112,9 @@ final class InstancesPanelViewController: NSViewController {
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
 
-            emptyLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            emptyLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: 40)
+            emptyView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            emptyView.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: 40),
+            emptyView.widthAnchor.constraint(lessThanOrEqualTo: view.widthAnchor, constant: -40)
         ])
     }
 
@@ -135,7 +157,7 @@ final class InstancesPanelViewController: NSViewController {
 
         tableView.delegate = self
         tableView.dataSource = self
-        tableView.rowHeight = 36
+        tableView.rowHeight = 44
         tableView.allowsEmptySelection = true
         tableView.usesAlternatingRowBackgroundColors = true
         tableView.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
@@ -151,7 +173,7 @@ final class InstancesPanelViewController: NSViewController {
     private func updateEmptyState() {
         let isEmpty = instances.isEmpty
         tableView.isHidden = isEmpty
-        emptyLabel.isHidden = !isEmpty
+        emptyView.isHidden = !isEmpty
     }
 
     // MARK: - Actions
@@ -211,8 +233,35 @@ extension InstancesPanelViewController: NSTableViewDelegate {
 
         switch identifier.rawValue {
         case "clientName":
+            let symbolName = instance.clientName == "tweetClaw" ? "network" : "cpu"
+            cell?.imageView?.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
             cell?.textField?.stringValue = instance.clientName
             cell?.textField?.font = .systemFont(ofSize: 13, weight: .medium)
+            
+            if cell?.imageView == nil {
+                let iv = NSImageView()
+                iv.translatesAutoresizingMaskIntoConstraints = false
+                cell?.addSubview(iv)
+                cell?.imageView = iv
+                
+                // Adjust layout for icon + text
+                if let tf = cell?.textField {
+                    NSLayoutConstraint.deactivate(tf.constraints)
+                    NSLayoutConstraint.activate([
+                        iv.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 8),
+                        iv.centerYAnchor.constraint(equalTo: cell!.centerYAnchor),
+                        iv.widthAnchor.constraint(equalToConstant: 18),
+                        iv.heightAnchor.constraint(equalToConstant: 18),
+                        
+                        tf.leadingAnchor.constraint(equalTo: iv.trailingAnchor, constant: 8),
+                        tf.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -4),
+                        tf.centerYAnchor.constraint(equalTo: cell!.centerYAnchor)
+                    ])
+                }
+            }
+            cell?.imageView?.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
+            cell?.imageView?.contentTintColor = DS.colorPrimary
+
 
         case "instanceId":
             // 临时 ID 用灰色斜体显示

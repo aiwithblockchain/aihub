@@ -75,7 +75,7 @@ extension SidebarViewController: NSTableViewDataSource, NSTableViewDelegate {
     }
 
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
-        68
+        56
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
@@ -90,6 +90,10 @@ extension SidebarViewController: NSTableViewDataSource, NSTableViewDelegate {
         }
 
         cellView.configure(with: conversations[row])
+        
+        let isSelected = tableView.selectedRow == row
+        cellView.applySelectionStyle(isSelected: isSelected)
+        
         return cellView
     }
 
@@ -100,6 +104,7 @@ extension SidebarViewController: NSTableViewDataSource, NSTableViewDelegate {
         }
 
         delegate?.sidebarViewController(self, didSelect: conversations[selectedRow])
+        tableView.reloadData()
     }
 }
 
@@ -140,26 +145,29 @@ private extension SidebarViewController {
         view.addSubview(settingsButton)
 
         NSLayoutConstraint.activate([
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
+            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
             scrollView.topAnchor.constraint(equalTo: view.topAnchor),
             scrollView.bottomAnchor.constraint(equalTo: settingsButton.topAnchor, constant: -10),
             
             settingsButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
             settingsButton.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -14),
-            settingsButton.widthAnchor.constraint(equalToConstant: 24),
-            settingsButton.heightAnchor.constraint(equalToConstant: 24)
+            settingsButton.heightAnchor.constraint(equalToConstant: 32)
         ])
     }
     
     func configureSettingsButton() {
         if #available(macOS 11.0, *) {
             settingsButton.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")
-        } else {
-            settingsButton.image = NSImage(systemSymbolName: "action", accessibilityDescription: "Settings")
         }
-        settingsButton.isBordered = false
+        
+        settingsButton.title = "Settings"
         settingsButton.bezelStyle = .regularSquare
+        settingsButton.isBordered = false
+        settingsButton.imagePosition = .imageLeading
+        settingsButton.font = NSFont.systemFont(ofSize: 12)
+        settingsButton.contentTintColor = DS.colorTextSecond
+        
         settingsButton.target = self
         settingsButton.action = #selector(showSettingsMenu)
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
@@ -172,8 +180,10 @@ private extension SidebarViewController {
 }
 
 private final class ConversationCellView: NSTableCellView {
+    private let iconView = NSImageView()
+    private let statusDot = NSView()
+    private let statusLabel = NSTextField(labelWithString: "")
     private let titleLabel = NSTextField(labelWithString: "")
-    private let timeLabel = NSTextField(labelWithString: "")
     private let previewLabel = NSTextField(labelWithString: "")
 
     override init(frame frameRect: NSRect) {
@@ -188,44 +198,104 @@ private final class ConversationCellView: NSTableCellView {
 
     func configure(with conversation: Conversation) {
         titleLabel.stringValue = conversation.title
-        timeLabel.stringValue = conversation.timestamp
         previewLabel.stringValue = conversation.preview
+        
+        // Icon selection
+        if #available(macOS 11.0, *) {
+            let symbolName: String
+            switch conversation.title {
+            case "TweetClaw": symbolName = "network"
+            case "AIClaw": symbolName = "cpu"
+            case "Bridge Logs": symbolName = "doc.text.magnifyingglass"
+            case "已连接实例": symbolName = "antenna.radiowaves.left.and.right"
+            default: symbolName = "gearshape.fill"
+            }
+            iconView.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
+        }
+        
+        // Status Dot logic
+        let status = conversation.timestamp
+        statusLabel.stringValue = status
+        
+        if status == "Connected" || status == "Now" {
+            statusDot.layer?.backgroundColor = DS.dotConnected.cgColor
+        } else if status == "Waiting..." {
+            statusDot.layer?.backgroundColor = DS.dotConnecting.cgColor
+        } else {
+            statusDot.layer?.backgroundColor = DS.dotOffline.cgColor
+        }
+    }
+    
+    func applySelectionStyle(isSelected: Bool) {
+        wantsLayer = true
+        layer?.cornerRadius = DS.radiusM
+        if isSelected {
+            layer?.backgroundColor = DS.colorPrimary.withAlphaComponent(0.15).cgColor
+            titleLabel.textColor    = DS.colorPrimary
+            iconView.contentTintColor = DS.colorPrimary
+        } else {
+            layer?.backgroundColor = NSColor.clear.cgColor
+            titleLabel.textColor    = DS.colorTextPrimary
+            iconView.contentTintColor = DS.colorTextSecond
+        }
     }
 }
 
 private extension ConversationCellView {
     func configureSubviews() {
         wantsLayer = true
-        layer?.cornerRadius = 10
-
-        titleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
+        
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        if #available(macOS 11.0, *) {
+            iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 18, weight: .medium)
+        }
+        iconView.contentTintColor = DS.colorTextSecond
+        
+        statusDot.translatesAutoresizingMaskIntoConstraints = false
+        statusDot.wantsLayer = true
+        statusDot.layer?.cornerRadius = 4
+        
+        statusLabel.font = DS.fontCaption
+        statusLabel.textColor = DS.colorTextTertiary
+        
+        titleLabel.font = DS.fontBody.withSize(13)
+        titleLabel.textColor = DS.colorTextPrimary
         titleLabel.lineBreakMode = .byTruncatingTail
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        timeLabel.font = .systemFont(ofSize: 11)
-        timeLabel.textColor = .secondaryLabelColor
-        timeLabel.alignment = .right
-
-        previewLabel.font = .systemFont(ofSize: 12)
-        previewLabel.textColor = .secondaryLabelColor
+        previewLabel.font = DS.fontCaption
+        previewLabel.textColor = DS.colorTextSecond
         previewLabel.lineBreakMode = .byTruncatingTail
+        previewLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        let titleRow = NSStackView(views: [titleLabel, timeLabel])
-        titleRow.orientation = .horizontal
-        titleRow.alignment = .centerY
-        titleRow.distribution = .fill
-        titleRow.spacing = 8
+        let topRow = NSStackView(views: [titleLabel, NSView(), statusDot, statusLabel])
+        topRow.orientation = .horizontal
+        topRow.alignment = .centerY
+        topRow.spacing = 4
+        
+        let textStack = NSStackView(views: [topRow, previewLabel])
+        textStack.orientation = .vertical
+        textStack.alignment = .leading
+        textStack.spacing = 2
+        textStack.translatesAutoresizingMaskIntoConstraints = false
 
-        let contentStack = NSStackView(views: [titleRow, previewLabel])
-        contentStack.translatesAutoresizingMaskIntoConstraints = false
-        contentStack.orientation = .vertical
-        contentStack.spacing = 6
-
-        addSubview(contentStack)
+        addSubview(iconView)
+        addSubview(textStack)
 
         NSLayoutConstraint.activate([
-            contentStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
-            contentStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14),
-            contentStack.centerYAnchor.constraint(equalTo: centerYAnchor),
+            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            iconView.widthAnchor.constraint(equalToConstant: 28),
+            iconView.heightAnchor.constraint(equalToConstant: 28),
+            
+            statusDot.widthAnchor.constraint(equalToConstant: 8),
+            statusDot.heightAnchor.constraint(equalToConstant: 8),
+            
+            textStack.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 10),
+            textStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
+            textStack.centerYAnchor.constraint(equalTo: centerYAnchor),
+            
+            topRow.widthAnchor.constraint(equalTo: textStack.widthAnchor)
         ])
     }
 }

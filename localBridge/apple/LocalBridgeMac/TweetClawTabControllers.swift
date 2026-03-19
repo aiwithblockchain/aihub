@@ -1,8 +1,9 @@
 import AppKit
 
 final class TweetClawHumanViewController: NSViewController {
-    private let titleLabel = NSTextField(labelWithString: "TweetClaw - For Human")
-    private let statusLabel = NSTextField(labelWithString: "交互式操作")
+    private let headerImageView = NSImageView()
+    private let headerTitleLabel = NSTextField(labelWithString: "TweetClaw")
+    
     private let queryButton = NSButton(title: "Query X Status (Immediate)", target: nil, action: #selector(queryXStatusClicked))
     private let queryBasicInfoButton = NSButton(title: "Query X Basic Info", target: nil, action: #selector(queryBasicInfoClicked))
     
@@ -94,7 +95,16 @@ final class TweetClawHumanViewController: NSViewController {
     }
     
     private func setupUI() {
-        titleLabel.font = .systemFont(ofSize: 20, weight: .bold)
+        if #available(macOS 11.0, *) {
+            headerImageView.image = NSImage(systemSymbolName: "network", accessibilityDescription: nil)
+            headerImageView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 20, weight: .semibold)
+            headerImageView.contentTintColor = DS.colorPrimary
+        }
+        headerImageView.translatesAutoresizingMaskIntoConstraints = false
+        
+        headerTitleLabel.font = NSFont.systemFont(ofSize: 18, weight: .semibold)
+        headerTitleLabel.textColor = DS.colorTextPrimary
+        
         queryButton.bezelStyle = .rounded
         queryButton.target = self
         
@@ -103,34 +113,49 @@ final class TweetClawHumanViewController: NSViewController {
         
         pathTextField.placeholderString = "输入路径，如 home"
         pathTextField.stringValue = "home"
+        pathTextField.bezelStyle = .roundedBezel
+        
         openTabButton.bezelStyle = .rounded
         openTabButton.target = self
         
         tabIdTextField.placeholderString = "输入 Tab ID"
+        tabIdTextField.bezelStyle = .roundedBezel
+        
         closeTabButton.bezelStyle = .rounded
         closeTabButton.target = self
+        closeTabButton.attributedTitle = NSAttributedString(
+            string: "关闭 Tab",
+            attributes: [.foregroundColor: DS.colorDanger]
+        )
         
         navTabIdTextField.placeholderString = "Tab ID"
+        navTabIdTextField.bezelStyle = .roundedBezel
         navTabIdTextField.translatesAutoresizingMaskIntoConstraints = false
         navTabIdTextField.widthAnchor.constraint(equalToConstant: 80).isActive = true
         
         navPathTextField.placeholderString = "路径 (如: home)"
         navPathTextField.stringValue = "home"
+        navPathTextField.bezelStyle = .roundedBezel
         
         navigateButton.title = "跳转到 ->"
         navigateButton.bezelStyle = .rounded
         navigateButton.target = self
         
-        // Setup result text view
+        // Setup result text view (Terminal style)
         resultScrollView = NSTextView.scrollableTextView()
         resultTextView = resultScrollView.documentView as? NSTextView
         
         resultTextView.isEditable = false
         resultTextView.isSelectable = true
-        resultTextView.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
-        resultTextView.textContainerInset = NSSize(width: 8, height: 8)
+        resultTextView.font = DS.fontMono
+        resultTextView.textColor = NSColor(calibratedRed: 0.0, green: 0.85, blue: 0.45, alpha: 1.0)
+        resultTextView.backgroundColor = NSColor(white: 0.08, alpha: 1.0)
+        resultTextView.textContainerInset = NSSize(width: DS.spacingM, height: DS.spacingM)
         
-        resultScrollView.borderType = .bezelBorder
+        resultScrollView.borderType = .noBorder
+        resultScrollView.wantsLayer = true
+        resultScrollView.layer?.cornerRadius = DS.radiusM
+        resultScrollView.layer?.backgroundColor = NSColor(white: 0.08, alpha: 1.0).cgColor
         resultScrollView.translatesAutoresizingMaskIntoConstraints = false
         
         let openTabStack = NSStackView(views: [pathTextField, openTabButton])
@@ -152,6 +177,7 @@ final class TweetClawHumanViewController: NSViewController {
         navigateStack.alignment = .centerY
         
         likeTweetIdTextField.placeholderString = "Tweet ID"
+        likeTweetIdTextField.bezelStyle = .roundedBezel
         likeButton.bezelStyle = .rounded
         likeButton.target = self
         let likeStack = NSStackView(views: [likeTweetIdTextField, likeButton])
@@ -159,6 +185,7 @@ final class TweetClawHumanViewController: NSViewController {
         likeStack.spacing = 8
         
         retweetTweetIdTextField.placeholderString = "Tweet ID"
+        retweetTweetIdTextField.bezelStyle = .roundedBezel
         retweetButton.bezelStyle = .rounded
         retweetButton.target = self
         let retweetStack = NSStackView(views: [retweetTweetIdTextField, retweetButton])
@@ -166,6 +193,7 @@ final class TweetClawHumanViewController: NSViewController {
         retweetStack.spacing = 8
         
         bookmarkTweetIdTextField.placeholderString = "Tweet ID"
+        bookmarkTweetIdTextField.bezelStyle = .roundedBezel
         bookmarkButton.bezelStyle = .rounded
         bookmarkButton.target = self
         let bookmarkStack = NSStackView(views: [bookmarkTweetIdTextField, bookmarkButton])
@@ -173,6 +201,7 @@ final class TweetClawHumanViewController: NSViewController {
         bookmarkStack.spacing = 8
         
         followUserIdTextField.placeholderString = "User ID"
+        followUserIdTextField.bezelStyle = .roundedBezel
         followButton.bezelStyle = .rounded
         followButton.target = self
         let followStack = NSStackView(views: [followUserIdTextField, followButton])
@@ -180,6 +209,7 @@ final class TweetClawHumanViewController: NSViewController {
         followStack.spacing = 8
         
         unfollowUserIdTextField.placeholderString = "User ID"
+        unfollowUserIdTextField.bezelStyle = .roundedBezel
         unfollowButton.bezelStyle = .rounded
         unfollowButton.target = self
         let unfollowStack = NSStackView(views: [unfollowUserIdTextField, unfollowButton])
@@ -198,11 +228,22 @@ final class TweetClawHumanViewController: NSViewController {
         instanceRow.alignment = .centerY
         instanceRow.spacing = 6
 
+        let headerLeft = NSStackView(views: [headerImageView, headerTitleLabel])
+        headerLeft.orientation = .horizontal
+        headerLeft.spacing = 8
+        headerLeft.alignment = .centerY
+        
+        let pageHeader = NSStackView(views: [headerLeft, NSView(), instanceRow])
+        pageHeader.orientation = .horizontal
+        pageHeader.alignment = .centerY
+        pageHeader.translatesAutoresizingMaskIntoConstraints = false
+
         let leftStack = NSStackView(views: [
-            titleLabel,
-            instanceRow,
-            statusLabel, queryButton, queryBasicInfoButton,
+            DS.makeSectionHeader("状态查询"),
+            queryButton, queryBasicInfoButton,
+            DS.makeSectionHeader("Tab 管理"),
             openTabStack, closeTabStack, navigateStack,
+            DS.makeSectionHeader("交互操作"),
             likeStack, retweetStack, bookmarkStack, followStack, unfollowStack
         ])
         leftStack.orientation = .vertical
@@ -210,15 +251,20 @@ final class TweetClawHumanViewController: NSViewController {
         leftStack.spacing = 15
         leftStack.translatesAutoresizingMaskIntoConstraints = false
         
+        view.addSubview(pageHeader)
         view.addSubview(leftStack)
         view.addSubview(resultScrollView)
         
         NSLayoutConstraint.activate([
-            leftStack.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
-            leftStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            leftStack.widthAnchor.constraint(equalToConstant: 250),
+            pageHeader.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
+            pageHeader.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            pageHeader.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
             
-            resultScrollView.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
+            leftStack.topAnchor.constraint(equalTo: pageHeader.bottomAnchor, constant: 24),
+            leftStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            leftStack.widthAnchor.constraint(equalToConstant: 260),
+            
+            resultScrollView.topAnchor.constraint(equalTo: leftStack.topAnchor),
             resultScrollView.leadingAnchor.constraint(equalTo: leftStack.trailingAnchor, constant: 20),
             resultScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
             resultScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20)
@@ -473,7 +519,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         detailTextView.importsGraphics = true
         detailTextView.drawsBackground = true
         detailTextView.backgroundColor = .textBackgroundColor
-        detailTextView.textContainerInset = NSSize(width: 24, height: 24)
+        detailTextView.textContainerInset = NSSize(width: DS.spacingL, height: DS.spacingL)
         detailTextView.font = .systemFont(ofSize: 13)
         detailTextView.textColor = .labelColor
         
@@ -504,6 +550,11 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             copyButton.topAnchor.constraint(equalTo: detailScroll.topAnchor, constant: 8),
             copyButton.trailingAnchor.constraint(equalTo: detailScroll.trailingAnchor, constant: -8)
         ])
+        
+        if #available(macOS 11.0, *) {
+            copyButton.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil)
+            copyButton.imagePosition = .imageLeading
+        }
 
         // Default selection
         if !docs.isEmpty {
@@ -547,10 +598,10 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             summaryLabel.tag = 102
             
             let methodLabel = NSTextField(labelWithString: "")
-            methodLabel.font = .monospacedSystemFont(ofSize: 9, weight: .bold)
+            methodLabel.font = .monospacedSystemFont(ofSize: 10, weight: .bold)
             methodLabel.alignment = .center
             methodLabel.wantsLayer = true
-            methodLabel.layer?.cornerRadius = 4
+            methodLabel.layer?.cornerRadius = 5
             methodLabel.translatesAutoresizingMaskIntoConstraints = false
             methodLabel.tag = 103
             
@@ -561,8 +612,8 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             NSLayoutConstraint.activate([
                 methodLabel.topAnchor.constraint(equalTo: cell!.topAnchor, constant: 10),
                 methodLabel.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 10),
-                methodLabel.widthAnchor.constraint(equalToConstant: 42),
-                methodLabel.heightAnchor.constraint(equalToConstant: 16),
+                methodLabel.widthAnchor.constraint(equalToConstant: 48),
+                methodLabel.heightAnchor.constraint(equalToConstant: 18),
                 
                 nameLabel.centerYAnchor.constraint(equalTo: methodLabel.centerYAnchor),
                 nameLabel.leadingAnchor.constraint(equalTo: methodLabel.trailingAnchor, constant: 8),

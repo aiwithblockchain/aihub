@@ -36,21 +36,30 @@ final class SettingsViewController: NSViewController {
     }
 
     private func setupUI() {
-        titleLabel.font = .systemFont(ofSize: 24, weight: .bold)
+        titleLabel.font = DS.fontTitle
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
         
         stayOnTopCheckbox.translatesAutoresizingMaskIntoConstraints = false
         stayOnTopCheckbox.target = self
         
+        tweetClawPortLabel.font = DS.fontBody
+        tweetClawPortLabel.alignment = .right
         tweetClawPortLabel.translatesAutoresizingMaskIntoConstraints = false
+        tweetClawPortField.bezelStyle = .roundedBezel
         tweetClawPortField.translatesAutoresizingMaskIntoConstraints = false
         tweetClawPortField.widthAnchor.constraint(equalToConstant: 80).isActive = true
         
+        aiClawPortLabel.font = DS.fontBody
+        aiClawPortLabel.alignment = .right
         aiClawPortLabel.translatesAutoresizingMaskIntoConstraints = false
+        aiClawPortField.bezelStyle = .roundedBezel
         aiClawPortField.translatesAutoresizingMaskIntoConstraints = false
         aiClawPortField.widthAnchor.constraint(equalToConstant: 80).isActive = true
         
+        restPortLabel.font = DS.fontBody
+        restPortLabel.alignment = .right
         restPortLabel.translatesAutoresizingMaskIntoConstraints = false
+        restPortField.bezelStyle = .roundedBezel
         restPortField.translatesAutoresizingMaskIntoConstraints = false
         restPortField.widthAnchor.constraint(equalToConstant: 80).isActive = true
         
@@ -61,52 +70,82 @@ final class SettingsViewController: NSViewController {
         quitButton.translatesAutoresizingMaskIntoConstraints = false
         quitButton.target = self
         quitButton.bezelStyle = .rounded
+        quitButton.attributedTitle = NSAttributedString(
+            string: "退出 LocalBridge 进程",
+            attributes: [.foregroundColor: DS.colorDanger]
+        )
         
-        let tweetClawStack = NSStackView(views: [tweetClawPortLabel, tweetClawPortField])
-        tweetClawStack.orientation = .horizontal
-        tweetClawStack.alignment = .centerY
+        let generalCard = makeSettingsCard(title: "通用", views: [stayOnTopCheckbox])
         
-        let aiClawStack = NSStackView(views: [aiClawPortLabel, aiClawPortField])
-        aiClawStack.orientation = .horizontal
-        aiClawStack.alignment = .centerY
-        
-        let restStack = NSStackView(views: [restPortLabel, restPortField])
-        restStack.orientation = .horizontal
-        restStack.alignment = .centerY
-        
-        let spacerRow = NSView()
-        spacerRow.heightAnchor.constraint(equalToConstant: 10).isActive = true
-        
-        let bottomSpacerRow = NSView()
-        bottomSpacerRow.heightAnchor.constraint(equalToConstant: 20).isActive = true
-        
-        let stackView = NSStackView(views: [
-            titleLabel,
-            stayOnTopCheckbox,
-            spacerRow,
-            tweetClawStack,
-            aiClawStack,
-            restStack
+        let portGrid = NSGridView(views: [
+            [tweetClawPortLabel, tweetClawPortField],
+            [aiClawPortLabel,    aiClawPortField   ],
+            [restPortLabel,      restPortField     ],
         ])
+        portGrid.column(at: 0).xPlacement = .trailing
+        portGrid.column(at: 1).xPlacement = .leading
+        portGrid.rowSpacing    = DS.spacingM
+        portGrid.columnSpacing = DS.spacingS
         
+        let networkCard = makeSettingsCard(title: "网络端口配置", views: [portGrid, saveButton])
         
-        stackView.addArrangedSubview(saveButton)
-        stackView.addArrangedSubview(bottomSpacerRow)
-        stackView.addArrangedSubview(quitButton)
+        let mainStack = NSStackView(views: [
+            titleLabel,
+            generalCard,
+            networkCard,
+            NSView(), // Flexible spacer
+            quitButton
+        ])
+        mainStack.orientation = .vertical
+        mainStack.alignment = .leading
+        mainStack.spacing = DS.spacingL
+        mainStack.translatesAutoresizingMaskIntoConstraints = false
         
-        stackView.orientation = .vertical
-        stackView.alignment = .leading
-        stackView.spacing = 15
-        stackView.translatesAutoresizingMaskIntoConstraints = false
-        
-        view.addSubview(stackView)
+        view.addSubview(mainStack)
         
         NSLayoutConstraint.activate([
-            stackView.topAnchor.constraint(equalTo: view.topAnchor, constant: 40),
-            stackView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 40),
-            stackView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -40),
-            stackView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -40)
+            mainStack.topAnchor.constraint(equalTo: view.topAnchor, constant: DS.spacingXL),
+            mainStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DS.spacingXL),
+            mainStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DS.spacingXL),
+            mainStack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DS.spacingXL),
+            
+            generalCard.widthAnchor.constraint(equalTo: mainStack.widthAnchor),
+            networkCard.widthAnchor.constraint(equalTo: mainStack.widthAnchor),
+            quitButton.centerXAnchor.constraint(equalTo: mainStack.centerXAnchor)
         ])
+    }
+    
+    private func makeSettingsCard(title: String, views: [NSView]) -> NSView {
+        let container = NSView()
+        container.wantsLayer = true
+        container.layer?.cornerRadius = DS.radiusM
+        container.layer?.backgroundColor = DS.colorSurface.cgColor
+        container.layer?.borderColor     = DS.colorBorder.cgColor
+        container.layer?.borderWidth     = 1.0
+
+        let sectionTitle = NSTextField(labelWithString: title)
+        sectionTitle.font      = DS.fontSection
+        sectionTitle.textColor = DS.colorTextTertiary
+
+        let separator = NSBox()
+        separator.boxType = .separator
+
+        let contentStack = NSStackView(views: [sectionTitle, separator] + views)
+        contentStack.orientation = .vertical
+        contentStack.alignment   = .leading
+        contentStack.spacing     = DS.spacingM
+        contentStack.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(contentStack)
+
+        NSLayoutConstraint.activate([
+            contentStack.topAnchor.constraint(equalTo: container.topAnchor, constant: DS.spacingM),
+            contentStack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: DS.spacingM),
+            contentStack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -DS.spacingM),
+            contentStack.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -DS.spacingM),
+            
+            separator.widthAnchor.constraint(equalTo: contentStack.widthAnchor)
+        ])
+        return container
     }
     
     

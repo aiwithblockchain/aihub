@@ -6,6 +6,7 @@ final class BridgeLogsViewController: NSViewController {
     private var scrollView: NSScrollView!
     private let clearButton = NSButton(title: "清空", target: nil, action: #selector(clearClicked))
     private let autoScrollCheckbox = NSButton(checkboxWithTitle: "自动滚动到底部", target: nil, action: #selector(toggleAutoScroll))
+    private let logCountLabel = NSTextField(labelWithString: "0 条")
     private var autoScroll = true
 
     override func loadView() {
@@ -32,6 +33,10 @@ final class BridgeLogsViewController: NSViewController {
 
     private func setupUI() {
         // Toolbar
+        if #available(macOS 11.0, *) {
+            clearButton.image = NSImage(systemSymbolName: "trash", accessibilityDescription: "清空")
+            clearButton.imagePosition = .imageLeading
+        }
         clearButton.bezelStyle = .rounded
         clearButton.target = self
         clearButton.translatesAutoresizingMaskIntoConstraints = false
@@ -41,10 +46,26 @@ final class BridgeLogsViewController: NSViewController {
         autoScrollCheckbox.translatesAutoresizingMaskIntoConstraints = false
 
         let titleLabel = NSTextField(labelWithString: "Bridge Logs")
-        titleLabel.font = .systemFont(ofSize: 18, weight: .semibold)
+        titleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        
+        let iconView = NSImageView()
+        if #available(macOS 11.0, *) {
+            iconView.image = NSImage(systemSymbolName: "doc.text.magnifyingglass", accessibilityDescription: nil)
+            iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 14, weight: .semibold)
+        }
+        iconView.translatesAutoresizingMaskIntoConstraints = false
+        
+        logCountLabel.font = DS.fontCaption
+        logCountLabel.textColor = DS.colorTextTertiary
+        logCountLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        let toolbar = NSStackView(views: [titleLabel, NSView(), autoScrollCheckbox, clearButton])
+        let headerLeft = NSStackView(views: [iconView, titleLabel, logCountLabel])
+        headerLeft.orientation = .horizontal
+        headerLeft.alignment = .centerY
+        headerLeft.spacing = 8
+
+        let toolbar = NSStackView(views: [headerLeft, NSView(), autoScrollCheckbox, clearButton])
         toolbar.orientation = .horizontal
         toolbar.alignment = .centerY
         toolbar.translatesAutoresizingMaskIntoConstraints = false
@@ -81,6 +102,7 @@ final class BridgeLogsViewController: NSViewController {
     private func reloadLogs() {
         let lines = BridgeLogger.shared.snapshot()
         textView.string = lines.joined(separator: "\n")
+        logCountLabel.stringValue = "\(lines.count) 条"
         if autoScroll {
             textView.scrollToEndOfDocument(nil)
         }

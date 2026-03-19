@@ -1,15 +1,15 @@
 import AppKit
 
 final class AIClawHumanViewController: NSViewController {
-    private let titleLabel = NSTextField(labelWithString: "AIClaw - For Human")
-    private let statusLabel = NSTextField(labelWithString: "查询 AI 平台 Tab 状态")
+    private let headerImageView = NSImageView()
+    private let headerTitleLabel = NSTextField(labelWithString: "AIClaw")
     
     private let platformPopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let queryButton = NSButton(title: "查询状态", target: nil, action: #selector(queryClicked))
     
-    private let messageTitleLabel = NSTextField(labelWithString: "发送消息")
     private let messagePlatformPopup = NSPopUpButton(frame: .zero, pullsDown: false)
-    private let messageTextView = NSTextField()
+    private var messageInputView: NSTextView!
+    private var messageInputScroll: NSScrollView!
     private let sendMessageButton = NSButton(title: "发送消息", target: nil, action: #selector(sendMessageClicked))
     private let newConversationButton = NSButton(title: "新建对话", target: nil, action: #selector(newConversationClicked))
 
@@ -68,9 +68,17 @@ final class AIClawHumanViewController: NSViewController {
     @objc private func refreshInstancesClicked() {
         loadInstances()
     }
-    
+
     private func setupUI() {
-        titleLabel.font = .systemFont(ofSize: 20, weight: .bold)
+        if #available(macOS 11.0, *) {
+            headerImageView.image = NSImage(systemSymbolName: "cpu", accessibilityDescription: nil)
+            headerImageView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 20, weight: .semibold)
+            headerImageView.contentTintColor = DS.colorPrimary
+        }
+        headerImageView.translatesAutoresizingMaskIntoConstraints = false
+        
+        headerTitleLabel.font = NSFont.systemFont(ofSize: 18, weight: .semibold)
+        headerTitleLabel.textColor = DS.colorTextPrimary
         
         // Platform selector
         platformPopup.addItems(withTitles: ["All Platforms", "ChatGPT", "Gemini", "Grok"])
@@ -79,16 +87,21 @@ final class AIClawHumanViewController: NSViewController {
         queryButton.bezelStyle = .rounded
         queryButton.target = self
         
-        // Setup result text view
+        // Setup result text view (Terminal style)
         resultScrollView = NSTextView.scrollableTextView()
         resultTextView = resultScrollView.documentView as? NSTextView
         
         resultTextView.isEditable = false
         resultTextView.isSelectable = true
-        resultTextView.font = .monospacedSystemFont(ofSize: 13, weight: .regular)
-        resultTextView.textContainerInset = NSSize(width: 8, height: 8)
+        resultTextView.font = DS.fontMono
+        resultTextView.textColor = NSColor(calibratedRed: 0.0, green: 0.85, blue: 0.45, alpha: 1.0)
+        resultTextView.backgroundColor = NSColor(white: 0.08, alpha: 1.0)
+        resultTextView.textContainerInset = NSSize(width: DS.spacingM, height: DS.spacingM)
         
-        resultScrollView.borderType = .bezelBorder
+        resultScrollView.borderType = .noBorder
+        resultScrollView.wantsLayer = true
+        resultScrollView.layer?.cornerRadius = DS.radiusM
+        resultScrollView.layer?.backgroundColor = NSColor(white: 0.08, alpha: 1.0).cgColor
         resultScrollView.translatesAutoresizingMaskIntoConstraints = false
         
         let platformLabel = NSTextField(labelWithString: "选择平台:")
@@ -98,29 +111,27 @@ final class AIClawHumanViewController: NSViewController {
         platformRow.spacing = 8
         
         // Send Message UI
-        messageTitleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
         messagePlatformPopup.addItems(withTitles: ["chatgpt", "gemini", "grok"])
         messagePlatformPopup.translatesAutoresizingMaskIntoConstraints = false
         
-        messageTextView.placeholderString = "输入消息内容..."
-        messageTextView.translatesAutoresizingMaskIntoConstraints = false
+        messageInputScroll = NSTextView.scrollableTextView()
+        messageInputView = messageInputScroll.documentView as? NSTextView
+        messageInputView.isEditable = true
+        messageInputView.font = DS.fontBody
+        messageInputView.textContainerInset = NSSize(width: DS.spacingS, height: DS.spacingS)
+        messageInputScroll.borderType = .bezelBorder
+        messageInputScroll.translatesAutoresizingMaskIntoConstraints = false
+        messageInputScroll.heightAnchor.constraint(equalToConstant: 80).isActive = true
         
         sendMessageButton.bezelStyle = .rounded
         sendMessageButton.target = self
         newConversationButton.bezelStyle = .rounded
         newConversationButton.target = self
         
-        
         let msgPlatformLabel = NSTextField(labelWithString: "平台:")
         let msgPlatformRow = NSStackView(views: [msgPlatformLabel, messagePlatformPopup])
         msgPlatformRow.orientation = .horizontal
         msgPlatformRow.spacing = 8
-        
-        let separator = NSBox()
-        separator.boxType = .separator
-        
-        let separator2 = NSBox()
-        separator2.boxType = .separator
         
         // 实例选择器 UI
         instancePopupLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -134,37 +145,48 @@ final class AIClawHumanViewController: NSViewController {
         instanceRow.alignment = .centerY
         instanceRow.spacing = 6
 
+        let headerLeft = NSStackView(views: [headerImageView, headerTitleLabel])
+        headerLeft.orientation = .horizontal
+        headerLeft.spacing = 8
+        headerLeft.alignment = .centerY
+        
+        let pageHeader = NSStackView(views: [headerLeft, NSView(), instanceRow])
+        pageHeader.orientation = .horizontal
+        pageHeader.alignment = .centerY
+        pageHeader.translatesAutoresizingMaskIntoConstraints = false
+
+        let actionButtonRow = NSStackView(views: [sendMessageButton, newConversationButton])
+        actionButtonRow.orientation = .horizontal
+        actionButtonRow.spacing = 8
+
         let leftStack = NSStackView(views: [
-            titleLabel,
-            instanceRow,
-            statusLabel,
+            DS.makeSectionHeader("状态查询"),
             platformRow,
             queryButton,
-            separator,
-            messageTitleLabel,
+            DS.makeSectionHeader("发送消息"),
             msgPlatformRow,
-            messageTextView,
-            sendMessageButton,
-            newConversationButton,
-            separator2
+            messageInputScroll,
+            actionButtonRow
         ])
         leftStack.orientation = .vertical
         leftStack.alignment = .leading
-        leftStack.spacing = 12
+        leftStack.spacing = 15
         leftStack.translatesAutoresizingMaskIntoConstraints = false
-        leftStack.setCustomSpacing(20, after: queryButton)
-        leftStack.setCustomSpacing(20, after: separator)
-        leftStack.setCustomSpacing(20, after: newConversationButton)
         
+        view.addSubview(pageHeader)
         view.addSubview(leftStack)
         view.addSubview(resultScrollView)
         
         NSLayoutConstraint.activate([
-            leftStack.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
-            leftStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            leftStack.widthAnchor.constraint(equalToConstant: 250),
+            pageHeader.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
+            pageHeader.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            pageHeader.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
             
-            resultScrollView.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
+            leftStack.topAnchor.constraint(equalTo: pageHeader.bottomAnchor, constant: 24),
+            leftStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            leftStack.widthAnchor.constraint(equalToConstant: 260),
+            
+            resultScrollView.topAnchor.constraint(equalTo: leftStack.topAnchor),
             resultScrollView.leadingAnchor.constraint(equalTo: leftStack.trailingAnchor, constant: 20),
             resultScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
             resultScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20)
@@ -186,7 +208,7 @@ final class AIClawHumanViewController: NSViewController {
     
     @objc private func sendMessageClicked() {
         let platform = messagePlatformPopup.titleOfSelectedItem ?? "chatgpt"
-        let prompt = messageTextView.stringValue
+        let prompt = messageInputView.string.trimmingCharacters(in: .whitespacesAndNewlines)
         
         if prompt.isEmpty {
             resultTextView.string = "Error: Prompt cannot be empty"
@@ -278,7 +300,8 @@ final class AIClawHumanViewController: NSViewController {
 
 final class AIClawBotViewController: NSViewController {
     private let titleLabel = NSTextField(labelWithString: "AIClaw - For Claw")
-    private let apiDocLabel = NSTextField(wrappingLabelWithString: "")
+    private let scrollView = NSScrollView()
+    private let stackView = NSStackView()
     
     override func loadView() {
         view = NSView()
@@ -290,75 +313,171 @@ final class AIClawBotViewController: NSViewController {
     }
     
     private func setupUI() {
-        titleLabel.font = .systemFont(ofSize: 20, weight: .bold)
+        titleLabel.font = DS.fontTitle
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
         
-        apiDocLabel.isEditable = false
-        apiDocLabel.isSelectable = true
-        apiDocLabel.font = .monospacedSystemFont(ofSize: 12, weight: .regular)
-        apiDocLabel.stringValue = """
-        Usage:
-        curl -X GET http://127.0.0.1:10088/api/v1/ai/status
+        stackView.orientation = .vertical
+        stackView.alignment = .leading
+        stackView.spacing = DS.spacingM
+        stackView.translatesAutoresizingMaskIntoConstraints = false
         
-        ---
+        scrollView.hasVerticalScroller = true
+        scrollView.drawsBackground = false
+        scrollView.documentView = stackView
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
         
-        Endpoint: POST http://127.0.0.1:10088/api/v1/ai/message
-        Description: Sends a message to a specific AI platform.
+        view.addSubview(titleLabel)
+        view.addSubview(scrollView)
         
-        Body (JSON):
-        {
-          "platform": "chatgpt",
-          "prompt": "请用一句话介绍你自己",
-          "timeoutMs": 210000
-        }
-        
-        Response Example:
-        {
-          "taskId": "task_123456789",
-          "success": true,
-          "platform": "chatgpt",
-          "content": "AI 回复的内容",
-          "executedAt": "2024-03-21T12:00:00Z",
-          "durationMs": 1500
-        }
-        
-        Usage:
-        curl -X POST http://127.0.0.1:10088/api/v1/ai/message \\
-             -H "Content-Type: application/json" \\
-             -d '{"platform":"chatgpt", "prompt":"Hello"}'
-        
-        ---
-
-        Endpoint: POST http://127.0.0.1:10088/api/v1/ai/new_conversation
-        Description: Creates a new AI conversation. Currently intended for ChatGPT.
-
-        Body (JSON):
-        {
-          "platform": "chatgpt",
-          "timeoutMs": 30000
-        }
-
-        Usage:
-        curl -X POST http://127.0.0.1:10088/api/v1/ai/new_conversation \\
-             -H "Content-Type: application/json" \\
-             -d '{"platform":"chatgpt"}'
-
-        ---
-        
-        Filter by platform (parse tabs[].platform):
-          chatgpt | gemini | grok
-        """
-        
-        let stack = NSStackView(views: [titleLabel, apiDocLabel])
-        stack.orientation = .vertical
-        stack.alignment = .leading
-        stack.spacing = 20
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        
-        view.addSubview(stack)
         NSLayoutConstraint.activate([
-            stack.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
-            stack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            stack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20)
+            titleLabel.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
+            titleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            
+            scrollView.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: 20),
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
+            
+            stackView.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
+            stackView.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
+            stackView.topAnchor.constraint(equalTo: scrollView.topAnchor)
         ])
+        
+        addEndpoints()
+    }
+    
+    private func addEndpoints() {
+        let statusCard = makeEndpointCard(
+            method: "GET",
+            path: "/api/v1/ai/status",
+            description: "查询 AI 平台 Tab 状态",
+            curl: "curl -X GET http://127.0.0.1:10088/api/v1/ai/status"
+        )
+        
+        let messageCard = makeEndpointCard(
+            method: "POST",
+            path: "/api/v1/ai/message",
+            description: "Sends a message to a specific AI platform.",
+            curl: """
+            curl -X POST http://127.0.0.1:10088/api/v1/ai/message \\
+                 -H "Content-Type: application/json" \\
+                 -d '{"platform":"chatgpt", "prompt":"Hello"}'
+            """
+        )
+        
+        let newConvCard = makeEndpointCard(
+            method: "POST",
+            path: "/api/v1/ai/new_conversation",
+            description: "Creates a new AI conversation. Currently intended for ChatGPT.",
+            curl: """
+            curl -X POST http://127.0.0.1:10088/api/v1/ai/new_conversation \\
+                 -H "Content-Type: application/json" \\
+                 -d '{"platform":"chatgpt"}'
+            """
+        )
+        
+        stackView.addArrangedSubview(statusCard)
+        stackView.addArrangedSubview(messageCard)
+        stackView.addArrangedSubview(newConvCard)
+        
+        statusCard.widthAnchor.constraint(equalTo: stackView.widthAnchor).isActive = true
+        messageCard.widthAnchor.constraint(equalTo: stackView.widthAnchor).isActive = true
+        newConvCard.widthAnchor.constraint(equalTo: stackView.widthAnchor).isActive = true
+    }
+    
+    private func makeEndpointCard(method: String, path: String, description: String, curl: String) -> NSView {
+        let card = NSView()
+        card.wantsLayer = true
+        card.layer?.cornerRadius = DS.radiusM
+        card.layer?.backgroundColor = DS.colorSurface.cgColor
+        card.layer?.borderColor     = DS.colorBorder.cgColor
+        card.layer?.borderWidth     = 1.0
+
+        // method badge
+        let methodLabel = NSTextField(labelWithString: method)
+        methodLabel.font            = DS.fontSection
+        methodLabel.textColor       = .white
+        methodLabel.backgroundColor = method == "GET" ? NSColor.systemBlue : NSColor.systemGreen
+        methodLabel.drawsBackground = true
+        methodLabel.wantsLayer      = true
+        methodLabel.layer?.cornerRadius = DS.radiusS
+        methodLabel.alignment       = .center
+        methodLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        // path
+        let pathLabel = NSTextField(labelWithString: path)
+        pathLabel.font      = DS.fontMono
+        pathLabel.textColor = DS.colorTextPrimary
+        pathLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        // description
+        let descLabel = NSTextField(wrappingLabelWithString: description)
+        descLabel.font      = DS.fontBody
+        descLabel.textColor = DS.colorTextSecond
+        descLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        // curl block
+        let curlLabel = NSTextField(wrappingLabelWithString: curl)
+        curlLabel.font           = DS.fontMono
+        curlLabel.textColor      = DS.colorTextPrimary
+        curlLabel.backgroundColor = DS.colorBackground
+        curlLabel.drawsBackground = true
+        curlLabel.isSelectable    = true
+        curlLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        // copy button
+        let copyBtn = NSButton(title: "复制", target: nil, action: nil)
+        if #available(macOS 11.0, *) {
+            copyBtn.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil)
+        }
+        copyBtn.bezelStyle = NSButton.BezelStyle.rounded
+        copyBtn.translatesAutoresizingMaskIntoConstraints = false
+
+        // Associated data
+        let actionWrapper = TargetActionWrapper(text: curl)
+        copyBtn.target = actionWrapper
+        copyBtn.action = #selector(actionWrapper.performCopy)
+
+        let topRow = NSStackView(views: [methodLabel, pathLabel])
+        topRow.orientation = NSUserInterfaceLayoutOrientation.horizontal
+        topRow.spacing = 8
+
+        let bottomRow = NSStackView(views: [NSView(), copyBtn])
+        bottomRow.orientation = NSUserInterfaceLayoutOrientation.horizontal
+
+        let cardStack = NSStackView(views: [topRow, descLabel, curlLabel, bottomRow])
+        cardStack.orientation = NSUserInterfaceLayoutOrientation.vertical
+        cardStack.alignment = NSLayoutConstraint.Attribute.leading
+        cardStack.spacing = DS.spacingS
+        cardStack.translatesAutoresizingMaskIntoConstraints = false
+        
+        card.addSubview(cardStack)
+        
+        NSLayoutConstraint.activate([
+            methodLabel.widthAnchor.constraint(equalToConstant: 48),
+            methodLabel.heightAnchor.constraint(equalToConstant: 20),
+            
+            cardStack.topAnchor.constraint(equalTo: card.topAnchor, constant: DS.spacingM),
+            cardStack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: DS.spacingM),
+            cardStack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -DS.spacingM),
+            cardStack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -DS.spacingM),
+            
+            topRow.widthAnchor.constraint(equalTo: cardStack.widthAnchor),
+            descLabel.widthAnchor.constraint(equalTo: cardStack.widthAnchor),
+            curlLabel.widthAnchor.constraint(equalTo: cardStack.widthAnchor),
+            bottomRow.widthAnchor.constraint(equalTo: cardStack.widthAnchor)
+        ])
+
+        return card
+    }
+}
+
+// Helper to handle copy action from button
+private class TargetActionWrapper: NSObject {
+    let text: String
+    init(text: String) { self.text = text }
+    @objc func performCopy() {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
     }
 }

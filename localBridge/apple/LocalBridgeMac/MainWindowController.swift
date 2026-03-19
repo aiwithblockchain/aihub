@@ -6,8 +6,8 @@ final class MainWindowController: NSWindowController {
         let window = NSWindow(contentViewController: contentViewController)
 
         window.title = "LocalBridge"
-        window.setContentSize(NSSize(width: 980, height: 680))
-        window.minSize = NSSize(width: 820, height: 520)
+        window.setContentSize(NSSize(width: 1000, height: 700))
+        window.minSize = NSSize(width: 860, height: 560)
         window.center()
         window.styleMask = [.titled, .closable, .miniaturizable, .resizable]
         window.titleVisibility = .visible
@@ -15,12 +15,6 @@ final class MainWindowController: NSWindowController {
         window.isReleasedWhenClosed = false
 
         super.init(window: window)
-        
-        let toolbar = NSToolbar(identifier: "MainWindowToolbar")
-        toolbar.delegate = self
-        toolbar.displayMode = .iconAndLabel
-        toolbar.showsBaselineSeparator = false
-        window.toolbar = toolbar
     }
 
     @available(*, unavailable)
@@ -33,30 +27,4 @@ final class MainWindowController: NSWindowController {
     }
 }
 
-extension MainWindowController: NSToolbarDelegate {
-    func toolbar(_ toolbar: NSToolbar, itemForItemIdentifier itemIdentifier: NSToolbarItem.Identifier, willBeInsertedIntoToolbar flag: Bool) -> NSToolbarItem? {
-        if itemIdentifier == NSToolbarItem.Identifier("QuitAppItem") {
-            let item = NSToolbarItem(itemIdentifier: itemIdentifier)
-            item.label = "Quit"
-            item.paletteLabel = "Quit"
-            item.toolTip = "Quit the entire application"
-            if #available(macOS 11.0, *) {
-                item.image = NSImage(systemSymbolName: "power", accessibilityDescription: "Quit")
-            } else {
-                item.image = NSImage(named: NSImage.stopProgressFreestandingTemplateName)
-            }
-            item.target = self
-            item.action = #selector(quitApp)
-            return item
-        }
-        return nil
-    }
 
-    func toolbarDefaultItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        return [NSToolbarItem.Identifier("QuitAppItem")]
-    }
-
-    func toolbarAllowedItemIdentifiers(_ toolbar: NSToolbar) -> [NSToolbarItem.Identifier] {
-        return [NSToolbarItem.Identifier("QuitAppItem")]
-    }
-}
