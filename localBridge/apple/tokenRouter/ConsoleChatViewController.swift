@@ -10,6 +10,8 @@ final class ConsoleChatViewController: NSViewController {
     private let scrollView = NSScrollView()
     private let inputField = ConsoleTextField()
     private let sendButton = ConsoleSendButton()
+    private let providerPopup = NSPopUpButton()
+    private var availableProviders: [ProviderConfig] = []
 
     init(agent: AIAgent) {
         self.agent = agent
@@ -26,19 +28,35 @@ final class ConsoleChatViewController: NSViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        loadAvailableProviders()
         setupHeader()
         setupMessages()
         setupInput()
-        
+
         viewModel.onMessagesUpdated = { [weak self] in
             guard let self = self else { return }
             self.refreshMessages()
         }
-        
+
         viewModel.onStreamingStateChanged = { [weak self] (isStreaming: Bool) in
             guard let self = self else { return }
             self.inputField.isEnabled = !isStreaming
             self.sendButton.isEnabled = !isStreaming
+        }
+    }
+
+    private func loadAvailableProviders() {
+        print("🔄 [Chat] 加载可用的 Provider 配置...")
+        let keychain = KeychainTokenStore()
+        do {
+            availableProviders = try keychain.loadAllProviderConfigs()
+            print("✅ [Chat] 成功加载 \(availableProviders.count) 个 Provider")
+            for (index, config) in availableProviders.enumerated() {
+                print("   \(index + 1). \(config.name) (\(config.providerType.displayName))")
+            }
+        } catch {
+            print("❌ [Chat] 加载 Provider 配置失败: \(error)")
+            availableProviders = []
         }
     }
 
@@ -78,6 +96,20 @@ final class ConsoleChatViewController: NSViewController {
         sub.translatesAutoresizingMaskIntoConstraints = false
         header.addSubview(sub)
 
+        // Provider 选择下拉菜单
+        providerPopup.removeAllItems()
+        if availableProviders.isEmpty {
+            providerPopup.addItem(withTitle: "无可用 Provider")
+        } else {
+            for config in availableProviders {
+                let title = "\(config.name) (\(config.providerType.displayName))"
+                providerPopup.addItem(withTitle: title)
+            }
+        }
+        providerPopup.font = .systemFont(ofSize: 11)
+        providerPopup.translatesAutoresizingMaskIntoConstraints = false
+        header.addSubview(providerPopup)
+
         let online = NSView()
         online.wantsLayer = true
         online.layer?.cornerRadius    = 10
@@ -113,6 +145,9 @@ final class ConsoleChatViewController: NSViewController {
             name.leadingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: 10),
             sub.bottomAnchor.constraint(equalTo: avatar.bottomAnchor, constant: -1),
             sub.leadingAnchor.constraint(equalTo: avatar.trailingAnchor, constant: 10),
+            providerPopup.centerYAnchor.constraint(equalTo: header.centerYAnchor),
+            providerPopup.trailingAnchor.constraint(equalTo: online.leadingAnchor, constant: -12),
+            providerPopup.widthAnchor.constraint(greaterThanOrEqualToConstant: 200),
             online.centerYAnchor.constraint(equalTo: header.centerYAnchor),
             online.trailingAnchor.constraint(equalTo: header.trailingAnchor, constant: -14),
             online.widthAnchor.constraint(equalToConstant: 54),
@@ -243,37 +278,42 @@ final class ConsoleChatViewController: NSViewController {
     @objc private func sendMessage() {
         let text = inputField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
-        let provider: AIProviderProtocol
-        let keychain = KeychainTokenStore()
-        
-        switch agent.type {
-        case .api:
-            // 尝试加载已启用的 Anthropic 配置，失败则回退到加载旧版 API Key
-            if let config = try? keychain.loadAllProviderConfigs().first(where: { $0.providerType == .anthropic && $0.isEnabled }) {
-                provider = AnthropicHTTPProvider(config: config)
-            } else {
-                let apiKey = (try? keychain.load(key: "anthropic_api_key")) ?? ""
-                let tempConfig = ProviderConfig(
-                    name: "Anthropic (旧版)",
-                    baseURL: ProviderType.anthropic.defaultBaseURL,
-                    apiKey: apiKey,
-                    model: agent.model ?? "claude-3-5-sonnet-20241022",
-                    providerType: .anthropic
-                )
-                provider = AnthropicHTTPProvider(config: tempConfig)
-            }
-        case .cli:
-            if agent.name.lowercased().contains("gemini") { provider = GeminiCLIProvider() }
-            else { provider = CodexAppServerProvider() }
-        case .web:
-            addMessageBubble(AIMessage(sender: AIMessage.Sender.human, content: text, timestamp: Date(), role: nil)); inputField.stringValue = ""
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) { [weak self] in
-                guard let self = self else { return }
-                self.addMessageBubble(AIMessage(sender: AIMessage.Sender.ai, content: "明白了。", timestamp: Date(), role: self.agent.role))
-            }
+
+        print("📤 [Chat] 发送消息: \(text.prefix(50))...")
+
+        // 获取选中的 Provider
+        let selectedIndex = providerPopup.indexOfSelectedItem
+        guard selectedIndex >= 0 && selectedIndex < availableProviders.count else {
+            print("❌ [Chat] 没有可用的 Provider")
+            addMessageBubble(AIMessage(sender: .human, content: text, timestamp: Date(), role: nil))
+            inputField.stringValue = ""
+            addMessageBubble(AIMessage(sender: .ai, content: "错误：没有可用的 Provider，请在设置中配置。", timestamp: Date(), role: agent.role))
             return
         }
+
+        let selectedConfig = availableProviders[selectedIndex]
+        print("🔧 [Chat] 使用 Provider: \(selectedConfig.name)")
+        print("   类型: \(selectedConfig.providerType.displayName)")
+        print("   Base URL: \(selectedConfig.baseURL)")
+        print("   模型: \(selectedConfig.model ?? "默认")")
+        print("   代理模式: \(selectedConfig.isProxyMode ? "是" : "否")")
+
+        // 创建 Provider
+        let provider: AIProviderProtocol
+        switch selectedConfig.providerType {
+        case .anthropic, .openai, .custom:
+            provider = AnthropicHTTPProvider(config: selectedConfig)
+            print("✅ [Chat] 创建 HTTP Provider 成功")
+        default:
+            print("❌ [Chat] 不支持的 Provider 类型: \(selectedConfig.providerType)")
+            addMessageBubble(AIMessage(sender: .human, content: text, timestamp: Date(), role: nil))
+            inputField.stringValue = ""
+            addMessageBubble(AIMessage(sender: .ai, content: "错误：不支持的 Provider 类型。", timestamp: Date(), role: agent.role))
+            return
+        }
+
         inputField.stringValue = ""
+        print("🚀 [Chat] 开始调用 API...")
         viewModel.sendMessage(text, provider: provider, agent: agent)
     }
 }
