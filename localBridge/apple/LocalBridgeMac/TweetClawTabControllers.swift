@@ -3,32 +3,32 @@ import AppKit
 final class TweetClawHumanViewController: NSViewController {
     private let headerImageView = NSImageView()
     private let headerTitleLabel = NSTextField(labelWithString: "TweetClaw")
-    
+
     private let queryButton = NSButton(title: "Query X Status (Immediate)", target: nil, action: #selector(queryXStatusClicked))
     private let queryBasicInfoButton = NSButton(title: "Query X Basic Info", target: nil, action: #selector(queryBasicInfoClicked))
-    
+
     private let pathTextField = NSTextField()
     private let openTabButton = NSButton(title: "打开 x.com Tab", target: nil, action: #selector(openTabClicked))
-    
+
     private let tabIdTextField = NSTextField()
     private let closeTabButton = NSButton(title: "关闭 Tab", target: nil, action: #selector(closeTabClicked))
-    
+
     private let navTabIdTextField = NSTextField()
     private let navPathTextField = NSTextField()
     private let navigateButton = NSButton(title: "跳转到 URL", target: nil, action: #selector(navigateClicked))
-    
+
     private let likeTweetIdTextField = NSTextField()
     private let likeButton = NSButton(title: "点赞 Tweet", target: nil, action: #selector(likeTweetClicked))
-    
+
     private let retweetTweetIdTextField = NSTextField()
     private let retweetButton = NSButton(title: "转推 Tweet", target: nil, action: #selector(retweetClicked))
-    
+
     private let bookmarkTweetIdTextField = NSTextField()
     private let bookmarkButton = NSButton(title: "收藏 Tweet", target: nil, action: #selector(bookmarkClicked))
-    
+
     private let followUserIdTextField = NSTextField()
     private let followButton = NSButton(title: "关注用户", target: nil, action: #selector(followClicked))
-    
+
     private let unfollowUserIdTextField = NSTextField()
     private let unfollowButton = NSButton(title: "取消关注", target: nil, action: #selector(unfollowClicked))
 
@@ -68,12 +68,14 @@ final class TweetClawHumanViewController: NSViewController {
     private let instancePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let refreshInstancesButton = NSButton(title: "↻", target: nil, action: #selector(refreshInstancesClicked))
     private var instanceSnapshots: [LocalBridgeGoManager.InstanceSnapshot] = []
-    
+
     private var resultTextView: NSTextView!
     private var resultScrollView: NSScrollView!
-    
+
     override func loadView() {
         view = NSView()
+        view.wantsLayer = true
+        view.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
     }
     
     override func viewDidLoad() {
@@ -129,65 +131,53 @@ final class TweetClawHumanViewController: NSViewController {
         if #available(macOS 11.0, *) {
             headerImageView.image = NSImage(systemSymbolName: "network", accessibilityDescription: nil)
             headerImageView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 20, weight: .semibold)
-            headerImageView.contentTintColor = DS.colorPrimary
+            headerImageView.contentTintColor = DSV2.primary
         }
         headerImageView.translatesAutoresizingMaskIntoConstraints = false
+
+        headerTitleLabel.font = DSV2.fontTitleLg
+        headerTitleLabel.textColor = DSV2.onSurface
         
-        headerTitleLabel.font = NSFont.systemFont(ofSize: 18, weight: .semibold)
-        headerTitleLabel.textColor = DS.colorTextPrimary
-        
-        queryButton.bezelStyle = .rounded
+        styleButton(queryButton)
         queryButton.target = self
-        
-        queryBasicInfoButton.bezelStyle = .rounded
+
+        styleButton(queryBasicInfoButton)
         queryBasicInfoButton.target = self
-        
+
+        styleInputField(pathTextField)
         pathTextField.placeholderString = "输入路径，如 home"
         pathTextField.stringValue = "home"
-        pathTextField.bezelStyle = .roundedBezel
-        
-        openTabButton.bezelStyle = .rounded
+
+        styleButton(openTabButton)
         openTabButton.target = self
-        
+
+        styleInputField(tabIdTextField)
         tabIdTextField.placeholderString = "输入 Tab ID"
-        tabIdTextField.bezelStyle = .roundedBezel
-        
-        closeTabButton.bezelStyle = .rounded
+
+        styleButton(closeTabButton)
         closeTabButton.target = self
         closeTabButton.attributedTitle = NSAttributedString(
             string: "关闭 Tab",
-            attributes: [.foregroundColor: DS.colorDanger]
+            attributes: [.foregroundColor: DSV2.error]
         )
         
+        styleInputField(navTabIdTextField)
         navTabIdTextField.placeholderString = "Tab ID"
-        navTabIdTextField.bezelStyle = .roundedBezel
         navTabIdTextField.translatesAutoresizingMaskIntoConstraints = false
         navTabIdTextField.widthAnchor.constraint(equalToConstant: 80).isActive = true
-        
+
+        styleInputField(navPathTextField)
         navPathTextField.placeholderString = "路径 (如: home)"
         navPathTextField.stringValue = "home"
-        navPathTextField.bezelStyle = .roundedBezel
-        
+
+        styleButton(navigateButton)
         navigateButton.title = "跳转到 ->"
-        navigateButton.bezelStyle = .rounded
         navigateButton.target = self
         
-        // Setup result text view (Terminal style)
-        resultScrollView = NSTextView.scrollableTextView()
-        resultTextView = resultScrollView.documentView as? NSTextView
-
-        resultTextView.isEditable = false
-        resultTextView.isSelectable = true
-        resultTextView.font = DS.fontMono
-        resultTextView.textColor = NSColor(calibratedRed: 0.0, green: 0.85, blue: 0.45, alpha: 1.0)
-        resultTextView.backgroundColor = DS.colorPreviewBg
-        resultTextView.textContainerInset = NSSize(width: DS.spacingM, height: DS.spacingM)
-
-        resultScrollView.borderType = .noBorder
-        resultScrollView.wantsLayer = true
-        resultScrollView.layer?.cornerRadius = DS.radiusCard
-        resultScrollView.layer?.backgroundColor = DS.colorPreviewBg.cgColor
-        resultScrollView.translatesAutoresizingMaskIntoConstraints = false
+        // 使用 DSV2 终端视图工厂
+        let terminal = DSV2.makeTerminalTextView()
+        resultScrollView = terminal.scrollView
+        resultTextView = terminal.textView
         
         let openTabStack = NSStackView(views: [pathTextField, openTabButton])
         openTabStack.orientation = .horizontal
@@ -207,142 +197,159 @@ final class TweetClawHumanViewController: NSViewController {
         navigateStack.spacing = 8
         navigateStack.alignment = .centerY
         
+        styleInputField(likeTweetIdTextField)
         likeTweetIdTextField.placeholderString = "Tweet ID"
-        likeTweetIdTextField.bezelStyle = .roundedBezel
-        likeButton.bezelStyle = .rounded
+        styleButton(likeButton)
         likeButton.target = self
         let likeStack = NSStackView(views: [likeTweetIdTextField, likeButton])
         likeStack.orientation = .horizontal
         likeStack.spacing = 8
-        
+
+        styleInputField(retweetTweetIdTextField)
         retweetTweetIdTextField.placeholderString = "Tweet ID"
-        retweetTweetIdTextField.bezelStyle = .roundedBezel
-        retweetButton.bezelStyle = .rounded
+        styleButton(retweetButton)
         retweetButton.target = self
         let retweetStack = NSStackView(views: [retweetTweetIdTextField, retweetButton])
         retweetStack.orientation = .horizontal
         retweetStack.spacing = 8
-        
+
+        styleInputField(bookmarkTweetIdTextField)
         bookmarkTweetIdTextField.placeholderString = "Tweet ID"
-        bookmarkTweetIdTextField.bezelStyle = .roundedBezel
-        bookmarkButton.bezelStyle = .rounded
+        styleButton(bookmarkButton)
         bookmarkButton.target = self
         let bookmarkStack = NSStackView(views: [bookmarkTweetIdTextField, bookmarkButton])
         bookmarkStack.orientation = .horizontal
         bookmarkStack.spacing = 8
-        
+
+        styleInputField(followUserIdTextField)
         followUserIdTextField.placeholderString = "User ID"
-        followUserIdTextField.bezelStyle = .roundedBezel
-        followButton.bezelStyle = .rounded
+        styleButton(followButton)
         followButton.target = self
         let followStack = NSStackView(views: [followUserIdTextField, followButton])
         followStack.orientation = .horizontal
         followStack.spacing = 8
-        
+
+        styleInputField(unfollowUserIdTextField)
         unfollowUserIdTextField.placeholderString = "User ID"
-        unfollowUserIdTextField.bezelStyle = .roundedBezel
-        unfollowButton.bezelStyle = .rounded
+        styleButton(unfollowButton)
         unfollowButton.target = self
         let unfollowStack = NSStackView(views: [unfollowUserIdTextField, unfollowButton])
         unfollowStack.orientation = .horizontal
         unfollowStack.spacing = 8
 
+        styleInputField(unlikeTweetIdTextField)
         unlikeTweetIdTextField.placeholderString = "Tweet ID"
-        unlikeTweetIdTextField.bezelStyle = .roundedBezel
-        unlikeButton.bezelStyle = .rounded
+        styleButton(unlikeButton)
         unlikeButton.target = self
         let unlikeStack = NSStackView(views: [unlikeTweetIdTextField, unlikeButton])
         unlikeStack.orientation = .horizontal
         unlikeStack.spacing = 8
 
+        styleInputField(unretweetTweetIdTextField)
         unretweetTweetIdTextField.placeholderString = "Tweet ID"
-        unretweetTweetIdTextField.bezelStyle = .roundedBezel
-        unretweetButton.bezelStyle = .rounded
+        styleButton(unretweetButton)
         unretweetButton.target = self
         let unretweetStack = NSStackView(views: [unretweetTweetIdTextField, unretweetButton])
         unretweetStack.orientation = .horizontal
         unretweetStack.spacing = 8
 
+        styleInputField(unbookmarkTweetIdTextField)
         unbookmarkTweetIdTextField.placeholderString = "Tweet ID"
-        unbookmarkTweetIdTextField.bezelStyle = .roundedBezel
-        unbookmarkButton.bezelStyle = .rounded
+        styleButton(unbookmarkButton)
         unbookmarkButton.target = self
         let unbookmarkStack = NSStackView(views: [unbookmarkTweetIdTextField, unbookmarkButton])
         unbookmarkStack.orientation = .horizontal
         unbookmarkStack.spacing = 8
 
         // Create Tweet
-        createTweetScrollView.documentView = createTweetTextView
-        createTweetScrollView.hasVerticalScroller = true
-        createTweetScrollView.borderType = .bezelBorder
-        createTweetScrollView.translatesAutoresizingMaskIntoConstraints = false
+        styleTextView(createTweetTextView, scrollView: createTweetScrollView)
         createTweetScrollView.heightAnchor.constraint(equalToConstant: 60).isActive = true
-        createTweetTextView.font = NSFont.systemFont(ofSize: 13)
-        createTweetTextView.isRichText = false
-        createTweetButton.bezelStyle = .rounded
+        styleButton(createTweetButton)
         createTweetButton.target = self
 
         // Create Reply
+        styleInputField(replyTweetIdTextField)
         replyTweetIdTextField.placeholderString = "Tweet ID"
-        replyTweetIdTextField.bezelStyle = .roundedBezel
-        replyScrollView.documentView = replyTextView
-        replyScrollView.hasVerticalScroller = true
-        replyScrollView.borderType = .bezelBorder
-        replyScrollView.translatesAutoresizingMaskIntoConstraints = false
+        styleTextView(replyTextView, scrollView: replyScrollView)
         replyScrollView.heightAnchor.constraint(equalToConstant: 60).isActive = true
-        replyTextView.font = NSFont.systemFont(ofSize: 13)
-        replyTextView.isRichText = false
         let replyTopStack = NSStackView(views: [replyTweetIdTextField, createReplyButton])
         replyTopStack.orientation = .horizontal
         replyTopStack.spacing = 8
-        createReplyButton.bezelStyle = .rounded
+        styleButton(createReplyButton)
         createReplyButton.target = self
 
         // Delete Tweet
+        styleInputField(deleteTweetIdTextField)
         deleteTweetIdTextField.placeholderString = "Tweet ID"
-        deleteTweetIdTextField.bezelStyle = .roundedBezel
-        deleteTweetButton.bezelStyle = .rounded
+        styleButton(deleteTweetButton)
         deleteTweetButton.target = self
         deleteTweetButton.attributedTitle = NSAttributedString(
             string: "删除推文",
-            attributes: [.foregroundColor: DS.colorDanger]
+            attributes: [.foregroundColor: DSV2.error]
         )
         let deleteStack = NSStackView(views: [deleteTweetIdTextField, deleteTweetButton])
         deleteStack.orientation = .horizontal
         deleteStack.spacing = 8
 
         // Get Timeline
-        getTimelineButton.bezelStyle = .rounded
+        styleButton(getTimelineButton)
         getTimelineButton.target = self
 
         // Get Tweet Detail
+        styleInputField(getTweetIdTextField)
         getTweetIdTextField.placeholderString = "Tweet ID"
-        getTweetIdTextField.bezelStyle = .roundedBezel
-        getTweetButton.bezelStyle = .rounded
+        styleButton(getTweetButton)
         getTweetButton.target = self
         let getTweetStack = NSStackView(views: [getTweetIdTextField, getTweetButton])
         getTweetStack.orientation = .horizontal
         getTweetStack.spacing = 8
 
         // Get User Profile
+        styleInputField(getUserScreenNameTextField)
         getUserScreenNameTextField.placeholderString = "Screen Name"
-        getUserScreenNameTextField.bezelStyle = .roundedBezel
-        getUserButton.bezelStyle = .rounded
+        styleButton(getUserButton)
         getUserButton.target = self
         let getUserStack = NSStackView(views: [getUserScreenNameTextField, getUserButton])
         getUserStack.orientation = .horizontal
         getUserStack.spacing = 8
 
         // Search Tweets
-        searchButton.bezelStyle = .rounded
+        styleButton(searchButton)
         searchButton.target = self
 
-        // 实例选择器
+        // 实例选择器 - 使用 DSV2 样式，水平布局
+        instanceLabel.font = DSV2.fontLabelSm
+        instanceLabel.textColor = DSV2.onSurfaceTertiary
+        instanceLabel.stringValue = "TARGET INSTANCE"
+
         instancePopup.translatesAutoresizingMaskIntoConstraints = false
-        refreshInstancesButton.bezelStyle = .rounded
+        instancePopup.wantsLayer = true
+        instancePopup.isBordered = false
+        instancePopup.bezelStyle = .rounded
+        instancePopup.layer?.backgroundColor = DSV2.surface.cgColor
+        instancePopup.layer?.cornerRadius = DSV2.radiusInput
+        instancePopup.layer?.borderWidth = 1
+        instancePopup.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.2).cgColor
+        instancePopup.font = DSV2.fontMonoSm
+        instancePopup.contentTintColor = DSV2.onSurface
+
         refreshInstancesButton.target = self
+        refreshInstancesButton.wantsLayer = true
+        refreshInstancesButton.isBordered = false
+        refreshInstancesButton.bezelStyle = .rounded
+        refreshInstancesButton.layer?.backgroundColor = DSV2.surface.cgColor
+        refreshInstancesButton.layer?.cornerRadius = DSV2.radiusButton
+        refreshInstancesButton.layer?.borderWidth = 1
+        refreshInstancesButton.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.2).cgColor
+
+        let refreshAttributes: [NSAttributedString.Key: Any] = [
+            .foregroundColor: DSV2.onSurfaceVariant,
+            .font: DSV2.fontLabelMd
+        ]
+        refreshInstancesButton.attributedTitle = NSAttributedString(string: "↻", attributes: refreshAttributes)
         refreshInstancesButton.translatesAutoresizingMaskIntoConstraints = false
         refreshInstancesButton.widthAnchor.constraint(equalToConstant: 28).isActive = true
+        refreshInstancesButton.heightAnchor.constraint(equalToConstant: 28).isActive = true
 
         let instanceRow = NSStackView(views: [instanceLabel, instancePopup, refreshInstancesButton])
         instanceRow.orientation = .horizontal
@@ -360,55 +367,126 @@ final class TweetClawHumanViewController: NSViewController {
         pageHeader.translatesAutoresizingMaskIntoConstraints = false
 
         let leftStack = NSStackView(views: [
-            DS.makeSectionHeader("状态查询"),
+            makeSectionHeader("状态查询"),
             queryButton, queryBasicInfoButton,
-            DS.makeSectionHeader("Tab 管理"),
+            makeSectionHeader("Tab 管理"),
             openTabStack, closeTabStack, navigateStack,
-            DS.makeSectionHeader("交互操作"),
+            makeSectionHeader("交互操作"),
             likeStack, retweetStack, bookmarkStack, followStack, unfollowStack,
             unlikeStack, unretweetStack, unbookmarkStack,
-            DS.makeSectionHeader("推文管理"),
+            makeSectionHeader("推文管理"),
             createTweetScrollView, createTweetButton,
             replyTopStack, replyScrollView,
             deleteStack,
-            DS.makeSectionHeader("数据读取"),
+            makeSectionHeader("数据读取"),
             getTimelineButton, getTweetStack, getUserStack, searchButton
         ])
         leftStack.orientation = .vertical
         leftStack.alignment = .leading
-        leftStack.spacing = 15
+        leftStack.spacing = DSV2.spacing4
         leftStack.translatesAutoresizingMaskIntoConstraints = false
 
-        // 将 leftStack 包装在 ScrollView 中
+        // 将 leftStack 包装在可滚动的 ScrollView 中
         let leftScrollView = NSScrollView()
-        leftScrollView.documentView = leftStack
         leftScrollView.hasVerticalScroller = true
         leftScrollView.hasHorizontalScroller = false
-        leftScrollView.autohidesScrollers = true
+        leftScrollView.drawsBackground = false
         leftScrollView.borderType = .noBorder
         leftScrollView.translatesAutoresizingMaskIntoConstraints = false
+        leftScrollView.documentView = leftStack
 
         view.addSubview(pageHeader)
         view.addSubview(leftScrollView)
         view.addSubview(resultScrollView)
-        
-        NSLayoutConstraint.activate([
-            pageHeader.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
-            pageHeader.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            pageHeader.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
 
-            leftScrollView.topAnchor.constraint(equalTo: pageHeader.bottomAnchor, constant: 24),
-            leftScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+        NSLayoutConstraint.activate([
+            pageHeader.topAnchor.constraint(equalTo: view.topAnchor, constant: DSV2.spacing6),
+            pageHeader.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
+            pageHeader.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
+
+            leftScrollView.topAnchor.constraint(equalTo: pageHeader.bottomAnchor, constant: DSV2.spacing6),
+            leftScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
             leftScrollView.widthAnchor.constraint(equalToConstant: 380),
-            leftScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
+            leftScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6),
+
+            leftStack.topAnchor.constraint(equalTo: leftScrollView.topAnchor),
+            leftStack.leadingAnchor.constraint(equalTo: leftScrollView.leadingAnchor),
+            leftStack.widthAnchor.constraint(equalToConstant: 380),
 
             resultScrollView.topAnchor.constraint(equalTo: leftScrollView.topAnchor),
-            resultScrollView.leadingAnchor.constraint(equalTo: leftScrollView.trailingAnchor, constant: 16),
-            resultScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-            resultScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
-
-            leftStack.widthAnchor.constraint(equalTo: leftScrollView.widthAnchor, constant: -20)
+            resultScrollView.leadingAnchor.constraint(equalTo: leftScrollView.trailingAnchor, constant: DSV2.spacing4),
+            resultScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
+            resultScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6)
         ])
+    }
+
+    private func styleInputField(_ field: NSTextField) {
+        field.wantsLayer = true
+        field.isBordered = true
+        field.bezelStyle = .roundedBezel
+        field.drawsBackground = true
+        field.backgroundColor = DSV2.surfaceContainerHigh
+        field.textColor = DSV2.onSurface
+        field.font = DSV2.fontBodyMd
+        field.translatesAutoresizingMaskIntoConstraints = false
+
+        // 自定义边框样式
+        field.layer?.borderWidth = 1
+        field.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.6).cgColor
+        field.layer?.cornerRadius = DSV2.radiusInput
+
+        // 增加高度以提供更多垂直空间
+        field.heightAnchor.constraint(equalToConstant: 36).isActive = true
+
+        // 移除焦点环
+        field.focusRingType = .none
+    }
+
+    private func styleButton(_ button: NSButton) {
+        button.wantsLayer = true
+        button.isBordered = false
+        button.bezelStyle = .rounded
+
+        // 使用更明显的按钮背景
+        button.layer?.backgroundColor = DSV2.surfaceContainerHighest.cgColor
+        button.layer?.cornerRadius = DSV2.radiusButton
+        button.layer?.borderWidth = 1
+        button.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.3).cgColor
+
+        button.contentTintColor = DSV2.onSurface
+        button.font = DSV2.fontLabelMd
+
+        // 添加内边距
+        button.translatesAutoresizingMaskIntoConstraints = false
+        if button.constraints.isEmpty {
+            button.heightAnchor.constraint(greaterThanOrEqualToConstant: 28).isActive = true
+        }
+    }
+
+    private func styleTextView(_ textView: NSTextView, scrollView: NSScrollView) {
+        scrollView.documentView = textView
+        scrollView.hasVerticalScroller = true
+        scrollView.borderType = .noBorder
+        scrollView.wantsLayer = true
+        scrollView.layer?.cornerRadius = DSV2.radiusInput
+        scrollView.layer?.borderWidth = 1
+        scrollView.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
+        scrollView.layer?.backgroundColor = DSV2.surface.cgColor
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+
+        textView.font = DSV2.fontBodyMd
+        textView.textColor = DSV2.onSurface
+        textView.backgroundColor = DSV2.surface
+        textView.isRichText = false
+        textView.textContainerInset = NSSize(width: DSV2.spacing2, height: DSV2.spacing2)
+    }
+
+    private func makeSectionHeader(_ title: String) -> NSTextField {
+        let label = NSTextField(labelWithString: title)
+        label.font = DSV2.fontTitleSm
+        label.textColor = DSV2.onSurfaceVariant
+        label.translatesAutoresizingMaskIntoConstraints = false
+        return label
     }
     
     @objc private func queryXStatusClicked() {
@@ -690,6 +768,8 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     
     override func loadView() {
         view = NSView()
+        view.wantsLayer = true
+        view.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
     }
     
     override func viewDidLoad() {
@@ -725,12 +805,12 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         if #available(macOS 11.0, *) {
             headerImageView.image = NSImage(systemSymbolName: "network", accessibilityDescription: nil)
             headerImageView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 20, weight: .semibold)
-            headerImageView.contentTintColor = DS.colorPrimary
+            headerImageView.contentTintColor = DSV2.primary
         }
         headerImageView.translatesAutoresizingMaskIntoConstraints = false
 
-        headerTitleLabel.font = NSFont.systemFont(ofSize: 18, weight: .semibold)
-        headerTitleLabel.textColor = DS.colorTextPrimary
+        headerTitleLabel.font = DSV2.fontTitleLg
+        headerTitleLabel.textColor = DSV2.onSurface
 
         let headerStack = NSStackView(views: [headerImageView, headerTitleLabel])
         headerStack.orientation = NSUserInterfaceLayoutOrientation.horizontal
@@ -751,10 +831,11 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         tableView.dataSource = self
         tableView.rowHeight = 84
         tableView.headerView = nil
-        tableView.selectionHighlightStyle = .regular
+        tableView.selectionHighlightStyle = .regular  // 改为 regular 以支持完整行选择
         tableView.backgroundColor = .clear
         tableView.gridStyleMask = []
-        tableView.intercellSpacing = NSSize(width: 0, height: 8)
+        tableView.intercellSpacing = NSSize(width: 0, height: DSV2.spacing2)
+        tableView.allowsEmptySelection = false  // 始终保持选中状态
 
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("ApiColumn"))
         column.resizingMask = .autoresizingMask
@@ -767,8 +848,8 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         detailScrollView = NSTextView.scrollableTextView()
         detailScrollView.borderType = .noBorder
         detailScrollView.wantsLayer = true
-        detailScrollView.layer?.cornerRadius = DS.radiusM
-        detailScrollView.layer?.backgroundColor = NSColor(white: 0.08, alpha: 1.0).cgColor
+        detailScrollView.layer?.cornerRadius = DSV2.radiusCard
+        detailScrollView.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
         detailScrollView.translatesAutoresizingMaskIntoConstraints = false
 
         detailTextView = detailScrollView.documentView as? NSTextView
@@ -777,15 +858,23 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         detailTextView.isRichText = true
         detailTextView.importsGraphics = true
         detailTextView.drawsBackground = true
-        detailTextView.backgroundColor = NSColor(white: 0.08, alpha: 1.0)
-        detailTextView.textContainerInset = NSSize(width: DS.spacingL, height: DS.spacingL)
-        detailTextView.font = DS.fontMono
-        detailTextView.textColor = NSColor(calibratedRed: 0.0, green: 0.85, blue: 0.45, alpha: 1.0)
+        detailTextView.backgroundColor = DSV2.surfaceContainerLowest
+        detailTextView.textContainerInset = NSSize(width: DSV2.spacing4, height: DSV2.spacing4)
+        detailTextView.font = DSV2.fontMonoMd
+        detailTextView.textColor = DSV2.tertiary
 
         view.addSubview(detailScrollView)
 
         // Copy button with modern styling
-        copyButton.bezelStyle = NSButton.BezelStyle.rounded
+        copyButton.wantsLayer = true
+        copyButton.bezelStyle = .rounded
+        copyButton.isBordered = false
+        copyButton.layer?.backgroundColor = DSV2.surfaceContainerHighest.cgColor
+        copyButton.layer?.cornerRadius = DSV2.radiusButton
+        copyButton.layer?.borderWidth = 1
+        copyButton.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.3).cgColor
+        copyButton.contentTintColor = DSV2.onSurface
+        copyButton.font = DSV2.fontLabelMd
         copyButton.target = self
         copyButton.translatesAutoresizingMaskIntoConstraints = false
         copyButton.isHidden = true
@@ -796,21 +885,21 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         view.addSubview(copyButton)
 
         NSLayoutConstraint.activate([
-            headerStack.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
-            headerStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            headerStack.topAnchor.constraint(equalTo: view.topAnchor, constant: DSV2.spacing6),
+            headerStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
 
-            scrollView.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: 24),
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
+            scrollView.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: DSV2.spacing6),
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
             scrollView.widthAnchor.constraint(equalToConstant: 280),
-            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
+            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6),
 
             detailScrollView.topAnchor.constraint(equalTo: scrollView.topAnchor),
-            detailScrollView.leadingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: 20),
-            detailScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-            detailScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
+            detailScrollView.leadingAnchor.constraint(equalTo: scrollView.trailingAnchor, constant: DSV2.spacing4),
+            detailScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
+            detailScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6),
 
-            copyButton.topAnchor.constraint(equalTo: detailScrollView.topAnchor, constant: 12),
-            copyButton.trailingAnchor.constraint(equalTo: detailScrollView.trailingAnchor, constant: -12)
+            copyButton.topAnchor.constraint(equalTo: detailScrollView.topAnchor, constant: DSV2.spacing2),
+            copyButton.trailingAnchor.constraint(equalTo: detailScrollView.trailingAnchor, constant: -DSV2.spacing2)
         ])
 
         // Default selection
@@ -845,21 +934,21 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             cell?.wantsLayer = true
 
             let nameLabel = NSTextField(labelWithString: "")
-            nameLabel.font = NSFont.systemFont(ofSize: 14, weight: .semibold)
+            nameLabel.font = DSV2.fontTitleSm
             nameLabel.translatesAutoresizingMaskIntoConstraints = false
             nameLabel.tag = 101
 
             let summaryLabel = NSTextField(wrappingLabelWithString: "")
-            summaryLabel.font = DS.fontCaption
-            summaryLabel.textColor = DS.colorTextSecond
+            summaryLabel.font = DSV2.fontBodySm
+            summaryLabel.textColor = DSV2.onSurfaceVariant
             summaryLabel.translatesAutoresizingMaskIntoConstraints = false
             summaryLabel.tag = 102
 
             let methodLabel = NSTextField(labelWithString: "")
-            methodLabel.font = NSFont.monospacedSystemFont(ofSize: 10, weight: .bold)
+            methodLabel.font = DSV2.fontLabelSm
             methodLabel.alignment = .center
             methodLabel.wantsLayer = true
-            methodLabel.layer?.cornerRadius = DS.radiusS
+            methodLabel.layer?.cornerRadius = DSV2.radiusInput
             methodLabel.translatesAutoresizingMaskIntoConstraints = false
             methodLabel.tag = 103
 
@@ -887,16 +976,17 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         let doc = docs[row]
         let isSelected = tableView.selectedRow == row
 
-        // Apply card-like styling
-        cell?.layer?.cornerRadius = DS.radiusM
+        // Apply card-like styling with DSV2
+        cell?.layer?.cornerRadius = DSV2.radiusCard
         if isSelected {
-            cell?.layer?.backgroundColor = DS.colorPrimary.withAlphaComponent(0.15).cgColor
-            cell?.layer?.borderWidth = 1.5
-            cell?.layer?.borderColor = DS.colorPrimary.withAlphaComponent(0.3).cgColor
+            // 选中状态：更明显的背景色变化
+            cell?.layer?.backgroundColor = DSV2.surfaceContainerHighest.cgColor
+            cell?.layer?.borderWidth = 2
+            cell?.layer?.borderColor = DSV2.primary.withAlphaComponent(0.5).cgColor
         } else {
-            cell?.layer?.backgroundColor = DS.colorSurface.cgColor
+            cell?.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
             cell?.layer?.borderWidth = 1.0
-            cell?.layer?.borderColor = DS.colorBorder.cgColor
+            cell?.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
         }
 
         if let methodLabel = cell?.viewWithTag(103) as? NSTextField {
@@ -909,12 +999,12 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
 
         if let nameLabel = cell?.viewWithTag(101) as? NSTextField {
             nameLabel.stringValue = doc.name
-            nameLabel.textColor = isSelected ? DS.colorPrimary : DS.colorTextPrimary
+            nameLabel.textColor = isSelected ? DSV2.primary : DSV2.onSurface
         }
 
         if let summaryLabel = cell?.viewWithTag(102) as? NSTextField {
             summaryLabel.stringValue = doc.summary
-            summaryLabel.textColor = isSelected ? DS.colorPrimary.withAlphaComponent(0.8) : DS.colorTextSecond
+            summaryLabel.textColor = isSelected ? DSV2.primary.withAlphaComponent(0.8) : DSV2.onSurfaceVariant
         }
 
         return cell
@@ -943,72 +1033,63 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         }
         
         let attrStr = NSMutableAttributedString()
-        
-        let titleFont = NSFont.systemFont(ofSize: 22, weight: .bold)
-        let methodFont = NSFont.monospacedSystemFont(ofSize: 14, weight: .bold)
-        let normalFont = NSFont.systemFont(ofSize: 13)
-        let sectionFont = NSFont.systemFont(ofSize: 15, weight: .bold)
-        let codeFont = NSFont.monospacedSystemFont(ofSize: 12, weight: .regular)
-        
+
         // Title
         attrStr.append(NSAttributedString(string: "\(doc.name)\n", attributes: [
-            .font: titleFont,
-            .foregroundColor: NSColor.labelColor
+            .font: DSV2.fontDisplaySm,
+            .foregroundColor: DSV2.onSurface
         ]))
-        
+
         // Method and Path
         attrStr.append(NSAttributedString(string: "\(doc.method) ", attributes: [
-            .font: methodFont,
+            .font: DSV2.fontMonoMd,
             .foregroundColor: methodColor(doc.method)
         ]))
         attrStr.append(NSAttributedString(string: "\(doc.path)\n\n", attributes: [
-            .font: codeFont,
-            .foregroundColor: NSColor.secondaryLabelColor
+            .font: DSV2.fontMonoMd,
+            .foregroundColor: DSV2.onSurfaceVariant
         ]))
-        
+
         // Description
         attrStr.append(NSAttributedString(string: "DESCRIPTION\n", attributes: [
-            .font: sectionFont,
-            .foregroundColor: NSColor.labelColor
+            .font: DSV2.fontTitleMd,
+            .foregroundColor: DSV2.onSurface
         ]))
         attrStr.append(NSAttributedString(string: "\(doc.description)\n\n", attributes: [
-            .font: normalFont,
-            .foregroundColor: NSColor.labelColor
+            .font: DSV2.fontBodyMd,
+            .foregroundColor: DSV2.onSurface
         ]))
-        
+
         // Request Body
         if let body = doc.body {
             attrStr.append(NSAttributedString(string: "REQUEST BODY (JSON)\n", attributes: [
-                .font: sectionFont,
-                .foregroundColor: NSColor.labelColor
+                .font: DSV2.fontTitleMd,
+                .foregroundColor: DSV2.onSurface
             ]))
             attrStr.append(NSAttributedString(string: "\(body)\n\n", attributes: [
-                .font: codeFont,
-                .foregroundColor: NSColor.labelColor,
-                .backgroundColor: NSColor.windowBackgroundColor
+                .font: DSV2.fontMonoSm,
+                .foregroundColor: DSV2.tertiary
             ]))
         }
-        
+
         // cURL
         attrStr.append(NSAttributedString(string: "cURL EXAMPLE\n", attributes: [
-            .font: sectionFont,
-            .foregroundColor: NSColor.labelColor
+            .font: DSV2.fontTitleMd,
+            .foregroundColor: DSV2.onSurface
         ]))
         attrStr.append(NSAttributedString(string: "\(doc.curl)\n\n", attributes: [
-            .font: codeFont,
-            .foregroundColor: NSColor.labelColor,
-            .backgroundColor: NSColor.windowBackgroundColor
+            .font: DSV2.fontMonoSm,
+            .foregroundColor: DSV2.tertiary
         ]))
-        
+
         // Response
         attrStr.append(NSAttributedString(string: "RESPONSE FORMAT\n", attributes: [
-            .font: sectionFont,
-            .foregroundColor: NSColor.systemGreen
+            .font: DSV2.fontTitleMd,
+            .foregroundColor: DSV2.tertiary
         ]))
         attrStr.append(NSAttributedString(string: "\(doc.response)\n", attributes: [
-            .font: codeFont,
-            .foregroundColor: NSColor.labelColor,
-            .backgroundColor: NSColor.windowBackgroundColor
+            .font: DSV2.fontMonoSm,
+            .foregroundColor: DSV2.tertiary
         ]))
         
         let style = NSMutableParagraphStyle()
@@ -1035,11 +1116,11 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     
     private func methodColor(_ method: String) -> NSColor {
         switch method.uppercased() {
-        case "GET": return NSColor.systemBlue
-        case "POST": return NSColor.systemGreen
-        case "PUT": return NSColor.systemOrange
-        case "DELETE": return NSColor.systemRed
-        default: return NSColor.labelColor
+        case "GET": return DSV2.secondary
+        case "POST": return DSV2.tertiary
+        case "PUT": return DSV2.primary
+        case "DELETE": return DSV2.error
+        default: return DSV2.onSurfaceVariant
         }
     }
 }

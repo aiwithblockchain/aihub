@@ -121,7 +121,7 @@ extension SidebarViewController: NSTableViewDataSource, NSTableViewDelegate {
 private extension SidebarViewController {
     func configureView() {
         view.wantsLayer = true
-        view.layer?.backgroundColor = DS.colorSidebarBg.cgColor
+        view.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
     }
 
     func configureTableView() {
@@ -182,8 +182,8 @@ private extension SidebarViewController {
         settingsButton.bezelStyle = .regularSquare
         settingsButton.isBordered = false
         settingsButton.imagePosition = .imageLeading
-        settingsButton.font = NSFont.systemFont(ofSize: 12)
-        settingsButton.contentTintColor = DS.colorTextSecond
+        settingsButton.font = DSV2.fontBodySm
+        settingsButton.contentTintColor = DSV2.onSurfaceVariant
 
         settingsButton.target = self
         settingsButton.action = #selector(showSettingsMenu)
@@ -199,8 +199,8 @@ private extension SidebarViewController {
         quitButton.bezelStyle = .regularSquare
         quitButton.isBordered = false
         quitButton.imagePosition = .imageLeading
-        quitButton.font = NSFont.systemFont(ofSize: 12)
-        quitButton.contentTintColor = DS.colorDanger
+        quitButton.font = DSV2.fontBodySm
+        quitButton.contentTintColor = DSV2.error
 
         quitButton.target = self
         quitButton.action = #selector(quitApplication)
@@ -271,37 +271,39 @@ private final class ConversationCellView: NSTableCellView {
         statusLabel.stringValue = status
 
         if status == "Connected" || status == "Now" {
-            statusDot.layer?.backgroundColor = DS.dotConnected.cgColor
+            statusDot.layer?.backgroundColor = DSV2.tertiary.cgColor
         } else if status == "Waiting..." {
-            statusDot.layer?.backgroundColor = DS.dotConnecting.cgColor
+            statusDot.layer?.backgroundColor = DSV2.secondary.cgColor
         } else {
-            statusDot.layer?.backgroundColor = DS.dotOffline.cgColor
+            statusDot.layer?.backgroundColor = DSV2.onSurfaceTertiary.cgColor
         }
     }
     
     func applySelectionStyle(isSelected: Bool) {
         wantsLayer = true
-        layer?.cornerRadius = DS.radiusCard
+        layer?.cornerRadius = DSV2.radiusCard
 
         if isSelected {
-            // 使用文档定义的蓝色高亮背景
-            layer?.backgroundColor = DS.colorHighlight.cgColor
-            layer?.borderWidth = 0
+            // 使用更明显的选中背景色 (surfaceContainerHighest)
+            layer?.backgroundColor = DSV2.surfaceContainerHighest.cgColor
+            layer?.borderWidth = 1
+            layer?.borderColor = DSV2.primary.withAlphaComponent(0.3).cgColor
             titleLabel.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
-            titleLabel.textColor = .white
-            subtitleLabel.textColor = NSColor.white.withAlphaComponent(0.7)
-            previewLabel.textColor = NSColor.white.withAlphaComponent(0.8)
-            statusLabel.textColor = NSColor.white.withAlphaComponent(0.9)
-            iconView.contentTintColor = .white
+            titleLabel.textColor = DSV2.primary
+            subtitleLabel.textColor = DSV2.primary.withAlphaComponent(0.8)
+            previewLabel.textColor = DSV2.onSurface
+            statusLabel.textColor = DSV2.primary
+            iconView.contentTintColor = DSV2.primary
         } else {
             layer?.backgroundColor = NSColor.clear.cgColor
             layer?.borderWidth = 0
-            titleLabel.font = DS.fontBody.withSize(13)
-            titleLabel.textColor = DS.colorTextPrimary
-            subtitleLabel.textColor = DS.colorTextSecond
-            previewLabel.textColor = DS.colorTextSecond
-            statusLabel.textColor = DS.colorTextTertiary
-            iconView.contentTintColor = DS.colorTextSecond
+            layer?.borderColor = NSColor.clear.cgColor
+            titleLabel.font = DSV2.fontBodyMd.withSize(13)
+            titleLabel.textColor = DSV2.onSurface
+            subtitleLabel.textColor = DSV2.onSurfaceVariant
+            previewLabel.textColor = DSV2.onSurfaceVariant
+            statusLabel.textColor = DSV2.onSurfaceTertiary
+            iconView.contentTintColor = DSV2.onSurfaceVariant
         }
     }
 }
@@ -316,27 +318,27 @@ private extension ConversationCellView {
         if #available(macOS 11.0, *) {
             iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 18, weight: .medium)
         }
-        iconView.contentTintColor = DS.colorTextSecond
+        iconView.contentTintColor = DSV2.onSurfaceVariant
 
         statusDot.translatesAutoresizingMaskIntoConstraints = false
         statusDot.wantsLayer = true
         statusDot.layer?.cornerRadius = 4
 
-        statusLabel.font = DS.fontCaption
-        statusLabel.textColor = DS.colorTextTertiary
+        statusLabel.font = DSV2.fontLabelSm
+        statusLabel.textColor = DSV2.onSurfaceTertiary
 
-        titleLabel.font = DS.fontBody.withSize(13)
-        titleLabel.textColor = DS.colorTextPrimary
+        titleLabel.font = DSV2.fontBodyMd.withSize(13)
+        titleLabel.textColor = DSV2.onSurface
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        subtitleLabel.font = DS.fontSubtitle
-        subtitleLabel.textColor = DS.colorTextSecond
+        subtitleLabel.font = DSV2.fontBodySm
+        subtitleLabel.textColor = DSV2.onSurfaceVariant
         subtitleLabel.lineBreakMode = .byTruncatingTail
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        previewLabel.font = DS.fontCaption
-        previewLabel.textColor = DS.colorTextSecond
+        previewLabel.font = DSV2.fontBodySm
+        previewLabel.textColor = DSV2.onSurfaceVariant
         previewLabel.lineBreakMode = .byTruncatingTail
         previewLabel.translatesAutoresizingMaskIntoConstraints = false
 

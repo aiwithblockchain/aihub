@@ -10,6 +10,8 @@ export type MessageType =
   | 'response.query_ai_tabs_status'
   | 'request.execute_task'
   | 'response.execute_task_result'
+  | 'request.navigate_to_platform'
+  | 'response.navigate_result'
   | 'response.error';
 
 export const MESSAGE_TYPES: Record<string, MessageType> = {
@@ -21,6 +23,8 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_QUERY_AI_TABS_STATUS: 'response.query_ai_tabs_status',
   REQUEST_EXECUTE_TASK: 'request.execute_task',
   RESPONSE_EXECUTE_TASK_RESULT: 'response.execute_task_result',
+  REQUEST_NAVIGATE_TO_PLATFORM: 'request.navigate_to_platform',
+  RESPONSE_NAVIGATE_RESULT: 'response.navigate_result',
   RESPONSE_ERROR: 'response.error',
 };
 
@@ -118,4 +122,17 @@ export interface ExecuteTaskResultPayload {
   error?: string;                // 错误信息（success=false 时有值）
   executedAt: string;            // ISO 8601 时间戳
   durationMs: number;            // 执行耗时（毫秒）
+}
+
+// ── 页面跳转相关接口 ──
+
+export interface NavigateToPlatformPayload {
+  platform: 'chatgpt' | 'gemini' | 'grok';  // 目标平台
+}
+
+export interface NavigateResultPayload {
+  success: boolean;
+  platform: 'chatgpt' | 'gemini' | 'grok';
+  tabsNavigated: number;         // 成功跳转的 tab 数量
+  error?: string;                // 错误信息（success=false 时有值）
 }

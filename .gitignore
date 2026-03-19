@@ -50,3 +50,4 @@ localBridge/go-lib/go.sum
 localBridge/go-lib/lib
 localBridge/apple/LocalBridgeApple/Frameworks/LocalBridge.framework
 localBridge/apple/LocalBridgeMac/doc
+tweetClaw/dist.zip

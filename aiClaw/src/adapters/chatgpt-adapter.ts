@@ -407,9 +407,40 @@ export class ChatGptAdapter extends BasePlatformAdapter {
      * - 取最后一条即为当前回复
      */
     private extractLatestAssistantMessage(msgCountBefore: number): string {
-        const messages = document.querySelectorAll(SEL.MSG_ASST);
-        if (messages.length === 0) {
-            console.warn('[aiClaw ChatGPT] 没有找到 assistant 消息');
+        // 尝试多个选择器以适应 ChatGPT DOM 变化
+        const selectors = [
+            SEL.MSG_ASST,
+            '[data-message-author-role="assistant"]',
+            '[class*="agent-turn"]',
+            '[class*="result-streaming"]',
+            'article[data-testid*="conversation-turn"]',
+        ];
+
+        let messages: NodeListOf<Element> | null = null;
+        for (const selector of selectors) {
+            const found = document.querySelectorAll(selector);
+            if (found.length > 0) {
+                console.log(`[aiClaw ChatGPT] 使用选择器找到消息: ${selector}, 数量: ${found.length}`);
+                messages = found;
+                break;
+            }
+        }
+
+        if (!messages || messages.length === 0) {
+            console.warn('[aiClaw ChatGPT] 没有找到 assistant 消息，尝试的选择器:', selectors);
+
+            // 尝试从 DOM 中查找包含回复内容的元素
+            const allArticles = document.querySelectorAll('article');
+            console.log(`[aiClaw ChatGPT] 页面中共有 ${allArticles.length} 个 article 元素`);
+
+            // 打印前几个 article 的属性以便调试
+            allArticles.forEach((article, index) => {
+                if (index < 3) {
+                    const attrs = Array.from(article.attributes).map(attr => `${attr.name}="${attr.value}"`).join(' ');
+                    console.log(`[aiClaw ChatGPT] Article ${index}: <article ${attrs}>`);
+                }
+            });
+
             return '';
         }
 

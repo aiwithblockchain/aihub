@@ -1,4 +1,4 @@
-import { __DBK_query_id_map, __DBK_bearer_token, watchedOps } from '../capture/consts';
+import { __DBK_query_id_map, __DBK_bearer_token } from '../capture/consts';
 import { buildFeatures, extractMissingFeature } from './feature_manager';
 import { getTransactionIdFor } from './txid';
 
@@ -37,14 +37,13 @@ async function getUrlWithQueryId(op: string): Promise<{ url: string, path: strin
     return { url, path };
 }
 
-export async function performMutation(op: string, variables: any) {
+export async function performMutation(op: string, variables: any, retryCount = 0): Promise<any> {
     const target = await getUrlWithQueryId(op);
     if (!target) throw new Error(`Missing harvested queryId for operation: ${op}`);
 
     const bearer = await getAuthHeader();
     const csrf = await getCsrfToken();
-    const features = await buildFeatures();
-    
+
     // TweetCat txid logic
     const txid = await getTransactionIdFor('POST', target.path);
 
@@ -55,26 +54,49 @@ export async function performMutation(op: string, variables: any) {
         'content-type': 'application/json',
         'x-twitter-active-user': 'yes',
         'x-twitter-auth-type': 'OAuth2Session',
+        'x-twitter-client-language': 'zh-cn',
         'referer': 'https://x.com/',
         'accept': '*/*'
     };
 
-    const payload = {
+    // Some operations (like CreateBookmark, DeleteBookmark) don't need features
+    const operationsWithoutFeatures = ['CreateBookmark', 'DeleteBookmark'];
+    const needsFeatures = !operationsWithoutFeatures.includes(op);
+
+    const payload: any = {
         variables,
-        features,
-        queryId: target.url.split('/')[5]
+        queryId: target.url.split('/')[6]  // Fix: should be index 6, not 5
     };
+
+    // Only add features if needed
+    if (needsFeatures) {
+        const features = await buildFeatures(op);
+        payload.features = features;
+        console.log(`[TwitterAPI] ${op} request with features:`, Object.keys(features));
+    } else {
+        console.log(`[TwitterAPI] ${op} request without features`);
+    }
 
     const response = await fetch(target.url, {
         method: 'POST',
         headers,
         body: JSON.stringify(payload),
-        credentials: 'include' // Crucial for cookies in Content Script
+        credentials: 'include'
     });
 
     if (!response.ok) {
         const text = await response.text();
-        await extractMissingFeature(text);
+        console.error(`[TwitterAPI] ${op} failed (${response.status}):`, text);
+
+        // Try to extract missing feature from error response
+        const missingFeature = await extractMissingFeature(text);
+
+        // If we found a missing feature and haven't retried yet, retry with the new feature
+        if (missingFeature && retryCount === 0) {
+            console.warn(`[TwitterAPI] ${op} missing feature: ${missingFeature}, retrying...`);
+            return performMutation(op, variables, retryCount + 1);
+        }
+
         throw new Error(`X API Error ${response.status} for ${op}: ${text}`);
     }
 
@@ -195,18 +217,18 @@ export async function fetchUserByScreenName(screenName: string): Promise<any> {
     return json;
 }
 
-export async function performQuery(op: string, variables: any) {
+export async function performQuery(op: string, variables: any, retryCount = 0): Promise<any> {
     const target = await getUrlWithQueryId(op);
     if (!target) throw new Error(`Missing harvested queryId for operation: ${op}`);
 
     const bearer = await getAuthHeader();
     const csrf = await getCsrfToken();
-    const features = await buildFeatures();
-    
+    const features = await buildFeatures(op);
+
     const params = new URLSearchParams();
     params.append('variables', JSON.stringify(variables));
     params.append('features', JSON.stringify(features));
-    
+
     const url = `${target.url}?${params.toString()}`;
 
     const headers: Record<string, string> = {
@@ -228,6 +250,14 @@ export async function performQuery(op: string, variables: any) {
     if (!response.ok) {
         const text = await response.text();
         await extractMissingFeature(text);
+
+        // For 404 errors, retry once with fresh features
+        if (response.status === 404 && retryCount === 0) {
+            console.warn(`[TwitterAPI] ${op} query returned 404, retrying with fresh features...`);
+            await new Promise(resolve => setTimeout(resolve, 500));
+            return performQuery(op, variables, retryCount + 1);
+        }
+
         throw new Error(`X API Error ${response.status} for ${op}: ${text}`);
     }
 

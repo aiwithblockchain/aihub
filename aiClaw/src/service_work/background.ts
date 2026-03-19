@@ -23,7 +23,7 @@ import {
     defaultAllCredentials,
 } from '../storage/credentials-store';
 import { LocalBridgeSocket } from '../bridge/local-bridge-socket';
-import type { AITabInfo, QueryAITabsStatusResponsePayload } from '../bridge/ws-protocol';
+import type { AITabInfo, QueryAITabsStatusResponsePayload, NavigateToPlatformPayload, NavigateResultPayload } from '../bridge/ws-protocol';
 
 // ── hook 状态 ──
 
@@ -273,9 +273,74 @@ async function queryAITabsStatus(): Promise<QueryAITabsStatusResponsePayload> {
     };
 }
 
+// ── 页面跳转处理器 ──
+
+async function navigateToPlatform(payload: NavigateToPlatformPayload): Promise<NavigateResultPayload> {
+    const platform = payload.platform;
+
+    // 定义平台首页 URL
+    const platformUrls: Record<string, string> = {
+        chatgpt: 'https://chatgpt.com/',
+        gemini: 'https://gemini.google.com/app',
+        grok: 'https://grok.com/',
+    };
+
+    const targetUrl = platformUrls[platform];
+    if (!targetUrl) {
+        return {
+            success: false,
+            platform,
+            tabsNavigated: 0,
+            error: `Unknown platform: ${platform}`,
+        };
+    }
+
+    // 查询所有匹配平台的 tabs
+    let tabQueryPatterns: string[] = [];
+    if (platform === 'chatgpt') {
+        tabQueryPatterns = ['https://chatgpt.com/*', 'https://chat.openai.com/*'];
+    } else if (platform === 'gemini') {
+        tabQueryPatterns = ['https://gemini.google.com/*'];
+    } else if (platform === 'grok') {
+        tabQueryPatterns = ['https://grok.com/*', 'https://x.com/i/grok*'];
+    }
+
+    const tabs = await chrome.tabs.query({ url: tabQueryPatterns });
+
+    if (tabs.length === 0) {
+        return {
+            success: false,
+            platform,
+            tabsNavigated: 0,
+            error: `No open tabs found for platform: ${platform}`,
+        };
+    }
+
+    // 让所有匹配的 tabs 跳转到首页
+    let navigatedCount = 0;
+    for (const tab of tabs) {
+        if (tab.id) {
+            try {
+                await chrome.tabs.update(tab.id, { url: targetUrl });
+                navigatedCount++;
+            } catch (err) {
+                console.error(`[aiClaw-BG] Failed to navigate tab ${tab.id}:`, err);
+            }
+        }
+    }
+
+    return {
+        success: navigatedCount > 0,
+        platform,
+        tabsNavigated: navigatedCount,
+        error: navigatedCount === 0 ? 'Failed to navigate any tabs' : undefined,
+    };
+}
+
 const localBridge = new LocalBridgeSocket();
 localBridge.queryAITabsHandler = queryAITabsStatus;
 localBridge.executeTaskHandler = executeTask;
+localBridge.navigateToPlatformHandler = navigateToPlatform;
 
 // ── 启动日志 ──
 

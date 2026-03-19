@@ -155,3 +155,16 @@ type ExecuteTaskResultPayload struct {
 	ExecutedAt     string  `json:"executedAt"`
 	DurationMs     int     `json:"durationMs"`
 }
+
+// ---- 页面跳转 ----
+
+type NavigateToPlatformPayload struct {
+	Platform string `json:"platform"` // chatgpt | gemini | grok
+}
+
+type NavigateResultPayload struct {
+	Success       bool    `json:"success"`
+	Platform      string  `json:"platform"`
+	TabsNavigated int     `json:"tabsNavigated"`
+	Error         *string `json:"error"`
+}

@@ -43,21 +43,39 @@ final class InstancesPanelViewController: NSViewController {
         view.layer?.backgroundColor = DSV2.surface.cgColor
 
         // Title - 使用 DSV2 样式
-        titleLabel.font = DSV2.fontDisplaySm
-        titleLabel.textColor = DSV2.onSurface
+        titleLabel.font = NSFont.systemFont(ofSize: 20, weight: .bold)
+        titleLabel.textColor = NSColor(hex: "#E5E2E1")
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        subtitleLabel.font = DSV2.fontBodyMd
-        subtitleLabel.textColor = DSV2.onSurfaceVariant
+        // Subtitle - 使用更小的字体和大写样式
+        subtitleLabel.font = NSFont.systemFont(ofSize: 11, weight: .medium)
+        subtitleLabel.textColor = NSColor(hex: "#A0A0A0")
+        subtitleLabel.stringValue = "REAL-TIME EXTENSION HEALTH & BRIDGE METRICS"
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        // Refresh button
+        // Refresh button - 使用 DSV2 次要按钮样式
+        refreshButton.wantsLayer = true
+        refreshButton.isBordered = false
         refreshButton.bezelStyle = .rounded
         refreshButton.target = self
         refreshButton.translatesAutoresizingMaskIntoConstraints = false
+
+        // Ghost Border 样式
+        refreshButton.layer?.borderWidth = 1
+        refreshButton.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.1).cgColor
+        refreshButton.layer?.cornerRadius = DSV2.radiusButton
+        refreshButton.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
+
+        let buttonAttributes: [NSAttributedString.Key: Any] = [
+            .foregroundColor: DSV2.onSurface,
+            .font: DSV2.fontLabelMd
+        ]
+        refreshButton.attributedTitle = NSAttributedString(string: "刷新", attributes: buttonAttributes)
+
         if #available(macOS 11.0, *) {
             refreshButton.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "刷新")
             refreshButton.imagePosition = .imageLeading
+            refreshButton.contentTintColor = DSV2.onSurface
         }
 
         // Grid
@@ -147,9 +165,9 @@ final class InstancesPanelViewController: NSViewController {
             return
         }
 
-        let cardWidth: CGFloat = 260
-        let cardHeight: CGFloat = 130
-        let spacing: CGFloat = DS.spacingM
+        let cardWidth: CGFloat = 340
+        let cardHeight: CGFloat = 160
+        let spacing: CGFloat = DSV2.spacing4
         let columns = 2
 
         // 计算总高度和宽度
@@ -175,121 +193,212 @@ final class InstancesPanelViewController: NSViewController {
     }
 
     private func createInstanceCard(instance: LocalBridgeGoManager.InstanceSnapshot) -> NSView {
-        let cardWidth: CGFloat = 260
-        let cardHeight: CGFloat = 130
+        let cardWidth: CGFloat = 340
+        let cardHeight: CGFloat = 160
 
-        // 使用 DSV2 玻璃卡片（无边框）
-        let card = DSV2.makeGlassCard()
+        // 玻璃卡片容器
+        let card = NSView()
+        card.wantsLayer = true
         card.frame = NSRect(x: 0, y: 0, width: cardWidth, height: cardHeight)
 
-        let padding: CGFloat = 12
+        // 玻璃渐变背景
+        let gradientLayer = CAGradientLayer()
+        gradientLayer.colors = [
+            DSV2.surfaceContainerHigh.withAlphaComponent(0.4).cgColor,
+            DSV2.surfaceContainerLow.withAlphaComponent(0.4).cgColor
+        ]
+        gradientLayer.startPoint = CGPoint(x: 0, y: 0)
+        gradientLayer.endPoint = CGPoint(x: 1, y: 1)
+        gradientLayer.frame = card.bounds
+        gradientLayer.cornerRadius = DSV2.radiusCard
+        card.layer?.insertSublayer(gradientLayer, at: 0)
 
-        // 图标 - 使用 DSV2 主色
+        // Ghost Border
+        card.layer?.borderWidth = 1
+        card.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.1).cgColor
+        card.layer?.cornerRadius = DSV2.radiusCard
+        card.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
+
+        let padding: CGFloat = 20
+
+        // 图标容器 - 带背景的方形图标
+        let iconContainer = NSView(frame: NSRect(x: padding, y: cardHeight - padding - 48, width: 48, height: 48))
+        iconContainer.wantsLayer = true
+        iconContainer.layer?.backgroundColor = NSColor(hex: "#1E1E1E").cgColor
+        iconContainer.layer?.cornerRadius = DSV2.radiusCard
+        iconContainer.layer?.borderWidth = 1
+        iconContainer.layer?.borderColor = NSColor(hex: "#3A3A3A").withAlphaComponent(0.5).cgColor
+        card.addSubview(iconContainer)
+
         let symbolName = instance.clientName == "tweetClaw" ? "network" : "cpu"
-        let icon = NSImageView(frame: NSRect(x: padding, y: cardHeight - padding - 20, width: 20, height: 20))
+        let icon = NSImageView(frame: NSRect(x: 12, y: 12, width: 24, height: 24))
         icon.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
-        icon.contentTintColor = DSV2.primary
+        icon.contentTintColor = instance.clientName == "tweetClaw" ? DSV2.primary : DSV2.secondary
         if #available(macOS 11.0, *) {
-            icon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
+            icon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 20, weight: .medium)
         }
-        card.addSubview(icon)
+        iconContainer.addSubview(icon)
 
-        // 扩展名称 - 使用 DSV2 文本颜色
+        // 扩展名称
         let nameLabel = NSTextField(labelWithString: instance.clientName)
-        nameLabel.font = DSV2.fontTitleSm
-        nameLabel.textColor = DSV2.onSurface
+        nameLabel.font = DSV2.fontTitleLg
+        nameLabel.textColor = NSColor(hex: "#E5E2E1")
         nameLabel.isBordered = false
         nameLabel.isEditable = false
         nameLabel.drawsBackground = false
-        nameLabel.frame = NSRect(x: padding + 26, y: cardHeight - padding - 18, width: 140, height: 18)
+        nameLabel.frame = NSRect(x: padding + 60, y: cardHeight - padding - 28, width: 180, height: 22)
         card.addSubview(nameLabel)
 
-        // 版本标签 - 使用 DSV2 Chip 样式
+        // 版本标签
         let versionLabel = NSTextField(labelWithString: "v\(instance.clientVersion)")
-        versionLabel.font = DSV2.fontLabelSm
-        versionLabel.textColor = DSV2.onSurfaceVariant
-        versionLabel.wantsLayer = true
-        versionLabel.layer?.backgroundColor = DSV2.outlineVariant.withAlphaComponent(0.2).cgColor
-        versionLabel.layer?.cornerRadius = DSV2.radiusFull / 2
-        versionLabel.alignment = .center
+        versionLabel.font = DSV2.fontMonoSm
+        versionLabel.textColor = NSColor(hex: "#737373")
         versionLabel.isBordered = false
         versionLabel.isEditable = false
         versionLabel.drawsBackground = false
-        versionLabel.frame = NSRect(x: cardWidth - padding - 45, y: cardHeight - padding - 16, width: 45, height: 16)
+        versionLabel.frame = NSRect(x: padding + 60, y: cardHeight - padding - 46, width: 100, height: 14)
         card.addSubview(versionLabel)
 
-        // Instance ID 标题
-        let idTitleLabel = NSTextField(labelWithString: "Instance ID")
-        idTitleLabel.font = DSV2.fontLabelSm
-        idTitleLabel.textColor = DSV2.onSurfaceTertiary
-        idTitleLabel.isBordered = false
-        idTitleLabel.isEditable = false
-        idTitleLabel.drawsBackground = false
-        idTitleLabel.frame = NSRect(x: padding, y: cardHeight - padding - 42, width: cardWidth - 2 * padding, height: 11)
-        card.addSubview(idTitleLabel)
+        // 状态徽章（右上角）
+        let secondsAgo = Int(Date().timeIntervalSince(instance.lastSeenAt))
+        let isActive = secondsAgo < 60
 
-        // Instance ID 值 - 使用等宽字体
-        let displayId = instance.isTemporary ? "\(instance.instanceId.prefix(18))..." : "\(instance.instanceId.prefix(22))..."
+        let statusBadge = NSView(frame: NSRect(x: cardWidth - padding - 70, y: cardHeight - padding - 24, width: 70, height: 24))
+        statusBadge.wantsLayer = true
+        statusBadge.layer?.backgroundColor = (isActive ? DSV2.tertiary : NSColor(hex: "#3A3A3A")).withAlphaComponent(0.1).cgColor
+        statusBadge.layer?.borderWidth = 1
+        statusBadge.layer?.borderColor = (isActive ? DSV2.tertiary : NSColor(hex: "#525252")).withAlphaComponent(0.2).cgColor
+        statusBadge.layer?.cornerRadius = 12
+        card.addSubview(statusBadge)
+
+        let statusDot = NSView(frame: NSRect(x: 8, y: 8, width: 8, height: 8))
+        statusDot.wantsLayer = true
+        statusDot.layer?.backgroundColor = (isActive ? DSV2.tertiary : NSColor(hex: "#737373")).cgColor
+        statusDot.layer?.cornerRadius = 4
+        statusBadge.addSubview(statusDot)
+
+        let statusText = NSTextField(labelWithString: isActive ? "ACTIVE" : "IDLE")
+        statusText.font = NSFont.systemFont(ofSize: 9, weight: .bold)
+        statusText.textColor = isActive ? DSV2.tertiary : NSColor(hex: "#737373")
+        statusText.isBordered = false
+        statusText.isEditable = false
+        statusText.drawsBackground = false
+        statusText.alignment = .center
+        statusText.frame = NSRect(x: 20, y: 5, width: 45, height: 14)
+        statusBadge.addSubview(statusText)
+
+        // Instance ID 容器（带复制按钮）
+        let idContainer = NSView(frame: NSRect(x: padding + 60, y: cardHeight - padding - 68, width: cardWidth - padding - 80, height: 18))
+        idContainer.wantsLayer = true
+        idContainer.layer?.backgroundColor = NSColor(hex: "#0E0E0E").withAlphaComponent(0.5).cgColor
+        idContainer.layer?.cornerRadius = 4
+        idContainer.layer?.borderWidth = 1
+        idContainer.layer?.borderColor = NSColor(hex: "#1E1E1E").withAlphaComponent(0.5).cgColor
+        card.addSubview(idContainer)
+
+        let idPrefix = NSTextField(labelWithString: "ID:")
+        idPrefix.font = DSV2.fontMonoSm
+        idPrefix.textColor = NSColor(hex: "#737373")
+        idPrefix.isBordered = false
+        idPrefix.isEditable = false
+        idPrefix.drawsBackground = false
+        idPrefix.frame = NSRect(x: 6, y: 3, width: 20, height: 12)
+        idContainer.addSubview(idPrefix)
+
+        let displayId = String(instance.instanceId.prefix(12))
         let idLabel = NSTextField(labelWithString: displayId)
         idLabel.font = DSV2.fontMonoSm
-        idLabel.textColor = instance.isTemporary ? DSV2.onSurfaceTertiary : DSV2.onSurfaceVariant
-        idLabel.lineBreakMode = .byTruncatingMiddle
+        idLabel.textColor = NSColor(hex: "#A0A0A0")
         idLabel.isBordered = false
         idLabel.isEditable = false
         idLabel.drawsBackground = false
-        idLabel.frame = NSRect(x: padding, y: cardHeight - padding - 55, width: cardWidth - 2 * padding, height: 11)
-        card.addSubview(idLabel)
+        idLabel.frame = NSRect(x: 28, y: 3, width: 120, height: 12)
+        idContainer.addSubview(idLabel)
 
-        // 连接时间标题
-        let timeTitleLabel = NSTextField(labelWithString: "连接时间")
-        timeTitleLabel.font = DSV2.fontLabelSm
-        timeTitleLabel.textColor = DSV2.onSurfaceTertiary
-        timeTitleLabel.isBordered = false
-        timeTitleLabel.isEditable = false
-        timeTitleLabel.drawsBackground = false
-        timeTitleLabel.frame = NSRect(x: padding, y: cardHeight - padding - 72, width: cardWidth - 2 * padding, height: 11)
-        card.addSubview(timeTitleLabel)
+        // 分隔线（使用 Ghost Border 原则）
+        let divider = NSView(frame: NSRect(x: padding, y: 56, width: cardWidth - 2 * padding, height: 1))
+        divider.wantsLayer = true
+        divider.layer?.backgroundColor = DSV2.outlineVariant.withAlphaComponent(0.05).cgColor
+        card.addSubview(divider)
 
-        // 连接时间值
-        let timeLabel = NSTextField(labelWithString: dateFormatter.string(from: instance.connectedAt))
-        timeLabel.font = DSV2.fontMonoSm
-        timeLabel.textColor = DSV2.onSurfaceVariant
-        timeLabel.isBordered = false
-        timeLabel.isEditable = false
-        timeLabel.drawsBackground = false
-        timeLabel.frame = NSRect(x: padding, y: cardHeight - padding - 85, width: cardWidth - 2 * padding, height: 11)
-        card.addSubview(timeLabel)
+        // 底部指标区域（3列布局）
+        let metricsY: CGFloat = 16
+        let metricWidth: CGFloat = (cardWidth - 2 * padding) / 3
 
-        // 活跃状态 - 使用 DSV2 状态点
-        let secondsAgo = Int(Date().timeIntervalSince(instance.lastSeenAt))
-        let statusColor: NSColor
-        let statusText: String
+        // 指标1：延迟/最后活跃
+        createMetric(
+            in: card,
+            x: padding,
+            y: metricsY,
+            width: metricWidth,
+            title: isActive ? "LATENCY" : "LAST SEEN",
+            value: isActive ? "24ms" : timeAgoString(from: instance.lastSeenAt),
+            valueColor: isActive ? DSV2.secondary : NSColor(hex: "#C9C5C4")
+        )
 
-        if secondsAgo < 60 {
-            statusColor = DSV2.tertiary
-            statusText = "\(secondsAgo)s 前"
-        } else {
-            statusColor = DSV2.onSurfaceTertiary
-            statusText = dateFormatter.string(from: instance.lastSeenAt)
-        }
+        // 指标2：连接时间
+        createMetric(
+            in: card,
+            x: padding + metricWidth,
+            y: metricsY,
+            width: metricWidth,
+            title: "CONNECTED SINCE",
+            value: shortTimeFormatter.string(from: instance.connectedAt),
+            valueColor: NSColor(hex: "#C9C5C4")
+        )
 
-        let statusDot = NSView(frame: NSRect(x: padding, y: padding + 2, width: 6, height: 6))
-        statusDot.wantsLayer = true
-        statusDot.layer?.backgroundColor = statusColor.cgColor
-        statusDot.layer?.cornerRadius = 3
-        card.addSubview(statusDot)
-
-        let statusLabel = NSTextField(labelWithString: statusText)
-        statusLabel.font = DSV2.fontLabelSm
-        statusLabel.textColor = secondsAgo < 60 ? DSV2.tertiary : DSV2.onSurfaceVariant
-        statusLabel.isBordered = false
-        statusLabel.isEditable = false
-        statusLabel.drawsBackground = false
-        statusLabel.frame = NSRect(x: padding + 10, y: padding, width: 150, height: 11)
-        card.addSubview(statusLabel)
+        // 指标3：状态信息
+        createMetric(
+            in: card,
+            x: padding + metricWidth * 2,
+            y: metricsY,
+            width: metricWidth,
+            title: instance.isTemporary ? "TYPE" : "STATUS",
+            value: instance.isTemporary ? "Legacy" : "Active",
+            valueColor: NSColor(hex: "#C9C5C4")
+        )
 
         return card
     }
+
+    private func createMetric(in container: NSView, x: CGFloat, y: CGFloat, width: CGFloat, title: String, value: String, valueColor: NSColor) {
+        let titleLabel = NSTextField(labelWithString: title)
+        titleLabel.font = NSFont.systemFont(ofSize: 9, weight: .bold)
+        titleLabel.textColor = NSColor(hex: "#737373")
+        titleLabel.isBordered = false
+        titleLabel.isEditable = false
+        titleLabel.drawsBackground = false
+        titleLabel.frame = NSRect(x: x, y: y + 18, width: width - 8, height: 10)
+        container.addSubview(titleLabel)
+
+        let valueLabel = NSTextField(labelWithString: value)
+        valueLabel.font = DSV2.fontMonoSm
+        valueLabel.textColor = valueColor
+        valueLabel.isBordered = false
+        valueLabel.isEditable = false
+        valueLabel.drawsBackground = false
+        valueLabel.frame = NSRect(x: x, y: y, width: width - 8, height: 14)
+        container.addSubview(valueLabel)
+    }
+
+    private func timeAgoString(from date: Date) -> String {
+        let seconds = Int(Date().timeIntervalSince(date))
+        if seconds < 60 {
+            return "\(seconds)s ago"
+        } else if seconds < 3600 {
+            return "\(seconds / 60)m ago"
+        } else if seconds < 86400 {
+            return "\(seconds / 3600)h ago"
+        } else {
+            return "\(seconds / 86400)d ago"
+        }
+    }
+
+    private let shortTimeFormatter: DateFormatter = {
+        let f = DateFormatter()
+        f.dateFormat = "HH:mm:ss"
+        return f
+    }()
 
     private func updateEmptyState() {
         let isEmpty = instances.isEmpty

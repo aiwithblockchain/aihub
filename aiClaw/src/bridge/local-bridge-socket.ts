@@ -19,6 +19,7 @@ export class LocalBridgeSocket {
 
   public queryAITabsHandler: (() => Promise<any>) | null = null;
   public executeTaskHandler: ((task: any) => Promise<any>) | null = null;
+  public navigateToPlatformHandler: ((payload: any) => Promise<any>) | null = null;
 
   private WS_URL = 'ws://127.0.0.1:10087/ws'; // Default
 
@@ -171,6 +172,9 @@ export class LocalBridgeSocket {
         case MESSAGE_TYPES.REQUEST_EXECUTE_TASK:
           this.handleExecuteTask(msg);
           break;
+        case MESSAGE_TYPES.REQUEST_NAVIGATE_TO_PLATFORM:
+          this.handleNavigateToPlatform(msg);
+          break;
         default:
           console.warn(`[aiClaw] unknown message type: ${msg.type}`);
       }
@@ -244,6 +248,54 @@ export class LocalBridgeSocket {
       const resp: BaseMessage = {
         id: req.id,
         type: MESSAGE_TYPES.RESPONSE_EXECUTE_TASK_RESULT,
+        source: 'aiClaw',
+        target: 'LocalBridgeMac',
+        timestamp: Date.now(),
+        payload: result,
+      };
+      this.send(resp);
+    } catch (e) {
+      const errResp: BaseMessage = {
+        id: req.id,
+        type: MESSAGE_TYPES.RESPONSE_ERROR,
+        source: 'aiClaw',
+        target: 'LocalBridgeMac',
+        timestamp: Date.now(),
+        payload: {
+          code: 'INTERNAL_ERROR',
+          message: e instanceof Error ? e.message : String(e),
+          details: null,
+        },
+      };
+      this.send(errResp);
+    }
+  }
+
+  private async handleNavigateToPlatform(req: BaseMessage) {
+    console.log('[aiClaw] handling request.navigate_to_platform, platform:', req.payload?.platform);
+    if (!this.navigateToPlatformHandler) {
+      console.error('[aiClaw] no handler registered for navigate_to_platform');
+      const errResp: BaseMessage = {
+        id: req.id,
+        type: MESSAGE_TYPES.RESPONSE_ERROR,
+        source: 'aiClaw',
+        target: 'LocalBridgeMac',
+        timestamp: Date.now(),
+        payload: {
+          code: 'NOT_CONNECTED',
+          message: 'navigateToPlatformHandler is not registered',
+          details: null,
+        },
+      };
+      this.send(errResp);
+      return;
+    }
+
+    try {
+      const result = await this.navigateToPlatformHandler(req.payload);
+      const resp: BaseMessage = {
+        id: req.id,
+        type: MESSAGE_TYPES.RESPONSE_NAVIGATE_RESULT,
         source: 'aiClaw',
         target: 'LocalBridgeMac',
         timestamp: Date.now(),
