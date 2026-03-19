@@ -470,8 +470,9 @@ private final class SettingsModelViewController: NSViewController, ThemeApplicab
             for config in providerConfigs {
                 let card = ProviderConfigCard(config: config, delegate: self)
                 card.translatesAutoresizingMaskIntoConstraints = false
-                card.widthAnchor.constraint(equalTo: stackView.widthAnchor).isActive = true
                 stackView.addArrangedSubview(card)
+                // 在添加到视图层级后再激活约束
+                card.widthAnchor.constraint(equalTo: stackView.widthAnchor).isActive = true
             }
         }
     }

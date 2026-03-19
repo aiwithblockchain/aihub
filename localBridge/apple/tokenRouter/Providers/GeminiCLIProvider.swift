@@ -27,8 +27,13 @@ final class GeminiCLIProvider: AIProviderProtocol, Sendable {
             process.arguments = [request.userText, "--output-format", "stream-json"]
 
             var env = ProcessInfo.processInfo.environment
-            if let apiKey = try? KeychainTokenStore().load(key: KeychainTokenStore.geminiAPIKey) {
-                env["GEMINI_API_KEY"] = apiKey
+            // 尝试从 ProviderConfig 加载 API Key，如果失败则回退到旧版 Keychain 加载（使用字面量避开废弃告警）
+            let keychain = KeychainTokenStore()
+            let apiKey = (try? keychain.loadAllProviderConfigs().first(where: { $0.providerType == .gemini && $0.isEnabled })?.apiKey)
+                         ?? (try? keychain.load(key: "gemini_api_key"))
+            
+            if let key = apiKey {
+                env["GEMINI_API_KEY"] = key
             }
             process.environment = env
             process.standardOutput = stdoutPipe

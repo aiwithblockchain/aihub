@@ -307,12 +307,16 @@ final class ProviderEditSheet: NSViewController {
         guard ProviderType.allCases.indices.contains(selectedIndex) else { return }
         let type = ProviderType.allCases[selectedIndex]
 
-        if baseURLField.stringValue.isEmpty {
-            baseURLField.stringValue = type.defaultBaseURL
-        }
-        if modelField.stringValue.isEmpty {
-            modelField.stringValue = type.defaultModel ?? ""
-        }
+        // 切换类型时总是更新为该类型的默认值
+        baseURLField.stringValue = type.defaultBaseURL
+        baseURLField.placeholderString = type.defaultBaseURL
+
+        modelField.stringValue = type.defaultModel ?? ""
+        modelField.placeholderString = type.defaultModel ?? "留空使用默认模型"
+
+        print("🔄 [EditSheet] 类型切换为: \(type.displayName)")
+        print("   默认 Base URL: \(type.defaultBaseURL)")
+        print("   默认模型: \(type.defaultModel ?? "无")")
     }
 
     @objc private func saveTapped() {

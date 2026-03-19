@@ -244,8 +244,24 @@ final class ConsoleChatViewController: NSViewController {
         let text = inputField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !text.isEmpty else { return }
         let provider: AIProviderProtocol
+        let keychain = KeychainTokenStore()
+        
         switch agent.type {
-        case .api: provider = AnthropicHTTPProvider(model: agent.model ?? "claude-3-5-sonnet-20241022")
+        case .api:
+            // 尝试加载已启用的 Anthropic 配置，失败则回退到加载旧版 API Key
+            if let config = try? keychain.loadAllProviderConfigs().first(where: { $0.providerType == .anthropic && $0.isEnabled }) {
+                provider = AnthropicHTTPProvider(config: config)
+            } else {
+                let apiKey = (try? keychain.load(key: "anthropic_api_key")) ?? ""
+                let tempConfig = ProviderConfig(
+                    name: "Anthropic (旧版)",
+                    baseURL: ProviderType.anthropic.defaultBaseURL,
+                    apiKey: apiKey,
+                    model: agent.model ?? "claude-3-5-sonnet-20241022",
+                    providerType: .anthropic
+                )
+                provider = AnthropicHTTPProvider(config: tempConfig)
+            }
         case .cli:
             if agent.name.lowercased().contains("gemini") { provider = GeminiCLIProvider() }
             else { provider = CodexAppServerProvider() }
