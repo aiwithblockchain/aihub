@@ -128,14 +128,8 @@ final class InstancesPanelViewController: NSViewController {
         // Column: instanceId
         let idCol = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("instanceId"))
         idCol.title = "Instance ID"
-        idCol.width = 280
+        idCol.width = 320
         tableView.addTableColumn(idCol)
-
-        // Column: xScreenName
-        let accountCol = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("xScreenName"))
-        accountCol.title = "X 账号"
-        accountCol.width = 120
-        tableView.addTableColumn(accountCol)
 
         // Column: connectedAt
         let connectedCol = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("connectedAt"))
@@ -219,48 +213,52 @@ extension InstancesPanelViewController: NSTableViewDelegate {
         if cell == nil {
             cell = NSTableCellView()
             cell?.identifier = cellId
-            let textField = NSTextField(labelWithString: "")
-            textField.translatesAutoresizingMaskIntoConstraints = false
-            textField.lineBreakMode = .byTruncatingMiddle
-            cell?.addSubview(textField)
-            cell?.textField = textField
-            NSLayoutConstraint.activate([
-                textField.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 4),
-                textField.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -4),
-                textField.centerYAnchor.constraint(equalTo: cell!.centerYAnchor)
-            ])
+
+            // 对于 clientName 列，需要图标 + 文字
+            if identifier.rawValue == "clientName" {
+                let iv = NSImageView()
+                iv.translatesAutoresizingMaskIntoConstraints = false
+                cell?.addSubview(iv)
+                cell?.imageView = iv
+
+                let textField = NSTextField(labelWithString: "")
+                textField.translatesAutoresizingMaskIntoConstraints = false
+                textField.lineBreakMode = .byTruncatingMiddle
+                cell?.addSubview(textField)
+                cell?.textField = textField
+
+                NSLayoutConstraint.activate([
+                    iv.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 8),
+                    iv.centerYAnchor.constraint(equalTo: cell!.centerYAnchor),
+                    iv.widthAnchor.constraint(equalToConstant: 18),
+                    iv.heightAnchor.constraint(equalToConstant: 18),
+
+                    textField.leadingAnchor.constraint(equalTo: iv.trailingAnchor, constant: 8),
+                    textField.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -4),
+                    textField.centerYAnchor.constraint(equalTo: cell!.centerYAnchor)
+                ])
+            } else {
+                // 其他列只需要文字
+                let textField = NSTextField(labelWithString: "")
+                textField.translatesAutoresizingMaskIntoConstraints = false
+                textField.lineBreakMode = .byTruncatingMiddle
+                cell?.addSubview(textField)
+                cell?.textField = textField
+                NSLayoutConstraint.activate([
+                    textField.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 4),
+                    textField.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -4),
+                    textField.centerYAnchor.constraint(equalTo: cell!.centerYAnchor)
+                ])
+            }
         }
 
         switch identifier.rawValue {
         case "clientName":
             let symbolName = instance.clientName == "tweetClaw" ? "network" : "cpu"
             cell?.imageView?.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
+            cell?.imageView?.contentTintColor = DS.colorPrimary
             cell?.textField?.stringValue = instance.clientName
             cell?.textField?.font = .systemFont(ofSize: 13, weight: .medium)
-            
-            if cell?.imageView == nil {
-                let iv = NSImageView()
-                iv.translatesAutoresizingMaskIntoConstraints = false
-                cell?.addSubview(iv)
-                cell?.imageView = iv
-                
-                // Adjust layout for icon + text
-                if let tf = cell?.textField {
-                    NSLayoutConstraint.deactivate(tf.constraints)
-                    NSLayoutConstraint.activate([
-                        iv.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 8),
-                        iv.centerYAnchor.constraint(equalTo: cell!.centerYAnchor),
-                        iv.widthAnchor.constraint(equalToConstant: 18),
-                        iv.heightAnchor.constraint(equalToConstant: 18),
-                        
-                        tf.leadingAnchor.constraint(equalTo: iv.trailingAnchor, constant: 8),
-                        tf.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -4),
-                        tf.centerYAnchor.constraint(equalTo: cell!.centerYAnchor)
-                    ])
-                }
-            }
-            cell?.imageView?.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
-            cell?.imageView?.contentTintColor = DS.colorPrimary
 
 
         case "instanceId":
