@@ -7,7 +7,7 @@ final class InstancesPanelViewController: NSViewController {
     private let titleLabel = NSTextField(labelWithString: "已连接实例")
     private let subtitleLabel = NSTextField(labelWithString: "以下为当前通过 WebSocket 连接到 LocalBridge 的浏览器扩展实例")
     private let refreshButton = NSButton(title: "刷新", target: nil, action: #selector(refreshClicked))
-    private let tableView = NSTableView()
+    private var gridView: NSView!
     private var scrollView: NSScrollView!
     private var emptyView: NSStackView!
 
@@ -31,7 +31,7 @@ final class InstancesPanelViewController: NSViewController {
     /// 刷新实例列表（DetailViewController 切换到此面板时调用）
     func refresh() {
         instances = AppDelegate.shared?.getConnectedInstances() ?? []
-        tableView.reloadData()
+        rebuildGridView()
         updateEmptyState()
     }
 
@@ -55,8 +55,8 @@ final class InstancesPanelViewController: NSViewController {
             refreshButton.imagePosition = .imageLeading
         }
 
-        // Table
-        setupTableView()
+        // Grid
+        setupGridView()
 
         // Empty state view
         let emptyIcon = NSImageView(image: NSImage(systemSymbolName: "wifi.slash", accessibilityDescription: nil)!)
@@ -118,55 +118,187 @@ final class InstancesPanelViewController: NSViewController {
         ])
     }
 
-    private func setupTableView() {
-        // Column: clientName
-        let nameCol = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("clientName"))
-        nameCol.title = "扩展名称"
-        nameCol.width = 120
-        tableView.addTableColumn(nameCol)
-
-        // Column: instanceId
-        let idCol = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("instanceId"))
-        idCol.title = "Instance ID"
-        idCol.width = 320
-        tableView.addTableColumn(idCol)
-
-        // Column: connectedAt
-        let connectedCol = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("connectedAt"))
-        connectedCol.title = "连接时间"
-        connectedCol.width = 160
-        tableView.addTableColumn(connectedCol)
-
-        // Column: lastSeenAt
-        let lastSeenCol = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("lastSeenAt"))
-        lastSeenCol.title = "最后活跃"
-        lastSeenCol.width = 160
-        tableView.addTableColumn(lastSeenCol)
-
-        // Column: version
-        let versionCol = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("version"))
-        versionCol.title = "版本"
-        versionCol.width = 80
-        tableView.addTableColumn(versionCol)
-
-        tableView.delegate = self
-        tableView.dataSource = self
-        tableView.rowHeight = 44
-        tableView.allowsEmptySelection = true
-        tableView.usesAlternatingRowBackgroundColors = true
-        tableView.columnAutoresizingStyle = .lastColumnOnlyAutoresizingStyle
+    private func setupGridView() {
+        // 创建一个翻转坐标系的容器视图
+        let flippedView = FlippedView()
+        flippedView.frame = NSRect(x: 0, y: 0, width: 600, height: 400)
+        gridView = flippedView
 
         scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
-        scrollView.hasHorizontalScroller = true
-        scrollView.borderType = .bezelBorder
-        scrollView.documentView = tableView
+        scrollView.hasHorizontalScroller = false
+        scrollView.borderType = .noBorder
+        scrollView.documentView = gridView
         scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.drawsBackground = false
+    }
+
+    private func rebuildGridView() {
+        // 清空现有视图
+        gridView.subviews.forEach { $0.removeFromSuperview() }
+
+        guard !instances.isEmpty else {
+            gridView.frame = NSRect(x: 0, y: 0, width: 600, height: 0)
+            return
+        }
+
+        let cardWidth: CGFloat = 260
+        let cardHeight: CGFloat = 130
+        let spacing: CGFloat = DS.spacingM
+        let columns = 2
+
+        // 计算总高度和宽度
+        let rows = (instances.count + columns - 1) / columns
+        let totalHeight = CGFloat(rows) * (cardHeight + spacing) + spacing
+        let totalWidth = CGFloat(columns) * (cardWidth + spacing) + spacing
+
+        gridView.frame = NSRect(x: 0, y: 0, width: totalWidth, height: totalHeight)
+
+        for (index, instance) in instances.enumerated() {
+            let row = index / columns
+            let col = index % columns
+
+            let card = createInstanceCard(instance: instance)
+            gridView.addSubview(card)
+
+            let xOffset = spacing + CGFloat(col) * (cardWidth + spacing)
+            // 因为使用了 FlippedView,y 轴从上往下,所以直接计算即可
+            let yOffset = spacing + CGFloat(row) * (cardHeight + spacing)
+
+            card.frame = NSRect(x: xOffset, y: yOffset, width: cardWidth, height: cardHeight)
+        }
+    }
+
+    private func createInstanceCard(instance: LocalBridgeGoManager.InstanceSnapshot) -> NSView {
+        let cardWidth: CGFloat = 260
+        let cardHeight: CGFloat = 130
+
+        let card = NSView(frame: NSRect(x: 0, y: 0, width: cardWidth, height: cardHeight))
+        card.wantsLayer = true
+        card.layer?.backgroundColor = DS.colorSurface.cgColor
+        card.layer?.cornerRadius = DS.radiusM
+        card.layer?.borderWidth = 1
+        card.layer?.borderColor = DS.colorBorder.cgColor
+
+        // 添加阴影
+        card.shadow = NSShadow()
+        card.layer?.shadowColor = NSColor.black.cgColor
+        card.layer?.shadowOpacity = 0.06
+        card.layer?.shadowOffset = NSSize(width: 0, height: 1)
+        card.layer?.shadowRadius = 3
+
+        let padding: CGFloat = 12
+
+        // 图标
+        let symbolName = instance.clientName == "tweetClaw" ? "network" : "cpu"
+        let icon = NSImageView(frame: NSRect(x: padding, y: cardHeight - padding - 20, width: 20, height: 20))
+        icon.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
+        icon.contentTintColor = DS.colorPrimary
+        if #available(macOS 11.0, *) {
+            icon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
+        }
+        card.addSubview(icon)
+
+        // 扩展名称
+        let nameLabel = NSTextField(labelWithString: instance.clientName)
+        nameLabel.font = .systemFont(ofSize: 14, weight: .semibold)
+        nameLabel.textColor = DS.colorTextPrimary
+        nameLabel.isBordered = false
+        nameLabel.isEditable = false
+        nameLabel.drawsBackground = false
+        nameLabel.frame = NSRect(x: padding + 26, y: cardHeight - padding - 18, width: 140, height: 18)
+        card.addSubview(nameLabel)
+
+        // 版本标签
+        let versionLabel = NSTextField(labelWithString: "v\(instance.clientVersion)")
+        versionLabel.font = .systemFont(ofSize: 9, weight: .medium)
+        versionLabel.textColor = DS.colorTextTertiary
+        versionLabel.wantsLayer = true
+        versionLabel.layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.5).cgColor
+        versionLabel.layer?.cornerRadius = 3
+        versionLabel.alignment = .center
+        versionLabel.isBordered = false
+        versionLabel.isEditable = false
+        versionLabel.drawsBackground = false
+        versionLabel.frame = NSRect(x: cardWidth - padding - 45, y: cardHeight - padding - 16, width: 45, height: 16)
+        card.addSubview(versionLabel)
+
+        // Instance ID 标题
+        let idTitleLabel = NSTextField(labelWithString: "Instance ID")
+        idTitleLabel.font = .systemFont(ofSize: 9, weight: .semibold)
+        idTitleLabel.textColor = DS.colorTextTertiary
+        idTitleLabel.isBordered = false
+        idTitleLabel.isEditable = false
+        idTitleLabel.drawsBackground = false
+        idTitleLabel.frame = NSRect(x: padding, y: cardHeight - padding - 42, width: cardWidth - 2 * padding, height: 11)
+        card.addSubview(idTitleLabel)
+
+        // Instance ID 值
+        let displayId = instance.isTemporary ? "\(instance.instanceId.prefix(18))..." : "\(instance.instanceId.prefix(22))..."
+        let idLabel = NSTextField(labelWithString: displayId)
+        idLabel.font = .monospacedSystemFont(ofSize: 9, weight: .regular)
+        idLabel.textColor = instance.isTemporary ? DS.colorTextTertiary : DS.colorTextSecond
+        idLabel.lineBreakMode = .byTruncatingMiddle
+        idLabel.isBordered = false
+        idLabel.isEditable = false
+        idLabel.drawsBackground = false
+        idLabel.frame = NSRect(x: padding, y: cardHeight - padding - 55, width: cardWidth - 2 * padding, height: 11)
+        card.addSubview(idLabel)
+
+        // 连接时间标题
+        let timeTitleLabel = NSTextField(labelWithString: "连接时间")
+        timeTitleLabel.font = .systemFont(ofSize: 9, weight: .semibold)
+        timeTitleLabel.textColor = DS.colorTextTertiary
+        timeTitleLabel.isBordered = false
+        timeTitleLabel.isEditable = false
+        timeTitleLabel.drawsBackground = false
+        timeTitleLabel.frame = NSRect(x: padding, y: cardHeight - padding - 72, width: cardWidth - 2 * padding, height: 11)
+        card.addSubview(timeTitleLabel)
+
+        // 连接时间值
+        let timeLabel = NSTextField(labelWithString: dateFormatter.string(from: instance.connectedAt))
+        timeLabel.font = .monospacedSystemFont(ofSize: 9, weight: .regular)
+        timeLabel.textColor = DS.colorTextSecond
+        timeLabel.isBordered = false
+        timeLabel.isEditable = false
+        timeLabel.drawsBackground = false
+        timeLabel.frame = NSRect(x: padding, y: cardHeight - padding - 85, width: cardWidth - 2 * padding, height: 11)
+        card.addSubview(timeLabel)
+
+        // 活跃状态
+        let secondsAgo = Int(Date().timeIntervalSince(instance.lastSeenAt))
+        let statusColor: NSColor
+        let statusText: String
+
+        if secondsAgo < 60 {
+            statusColor = DS.dotConnected
+            statusText = "\(secondsAgo)s 前"
+        } else {
+            statusColor = DS.colorTextTertiary
+            statusText = dateFormatter.string(from: instance.lastSeenAt)
+        }
+
+        let statusDot = NSView(frame: NSRect(x: padding, y: padding + 2, width: 6, height: 6))
+        statusDot.wantsLayer = true
+        statusDot.layer?.backgroundColor = statusColor.cgColor
+        statusDot.layer?.cornerRadius = 3
+        card.addSubview(statusDot)
+
+        let statusLabel = NSTextField(labelWithString: statusText)
+        statusLabel.font = .systemFont(ofSize: 9, weight: .regular)
+        statusLabel.textColor = secondsAgo < 60 ? DS.dotConnected : DS.colorTextSecond
+        statusLabel.isBordered = false
+        statusLabel.isEditable = false
+        statusLabel.drawsBackground = false
+        statusLabel.frame = NSRect(x: padding + 10, y: padding, width: 150, height: 11)
+        card.addSubview(statusLabel)
+
+        return card
     }
 
     private func updateEmptyState() {
         let isEmpty = instances.isEmpty
-        tableView.isHidden = isEmpty
+        scrollView.isHidden = isEmpty
         emptyView.isHidden = !isEmpty
     }
 
@@ -191,121 +323,11 @@ final class InstancesPanelViewController: NSViewController {
     }()
 }
 
-// MARK: - NSTableViewDataSource
+// MARK: - FlippedView
 
-extension InstancesPanelViewController: NSTableViewDataSource {
-    func numberOfRows(in tableView: NSTableView) -> Int {
-        return instances.count
-    }
-}
-
-// MARK: - NSTableViewDelegate
-
-extension InstancesPanelViewController: NSTableViewDelegate {
-    func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
-        guard let identifier = tableColumn?.identifier else { return nil }
-
-        let instance = instances[row]
-
-        let cellId = NSUserInterfaceItemIdentifier("Cell_\(identifier.rawValue)")
-        var cell = tableView.makeView(withIdentifier: cellId, owner: self) as? NSTableCellView
-
-        if cell == nil {
-            cell = NSTableCellView()
-            cell?.identifier = cellId
-
-            // 对于 clientName 列，需要图标 + 文字
-            if identifier.rawValue == "clientName" {
-                let iv = NSImageView()
-                iv.translatesAutoresizingMaskIntoConstraints = false
-                cell?.addSubview(iv)
-                cell?.imageView = iv
-
-                let textField = NSTextField(labelWithString: "")
-                textField.translatesAutoresizingMaskIntoConstraints = false
-                textField.lineBreakMode = .byTruncatingMiddle
-                cell?.addSubview(textField)
-                cell?.textField = textField
-
-                NSLayoutConstraint.activate([
-                    iv.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 8),
-                    iv.centerYAnchor.constraint(equalTo: cell!.centerYAnchor),
-                    iv.widthAnchor.constraint(equalToConstant: 18),
-                    iv.heightAnchor.constraint(equalToConstant: 18),
-
-                    textField.leadingAnchor.constraint(equalTo: iv.trailingAnchor, constant: 8),
-                    textField.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -4),
-                    textField.centerYAnchor.constraint(equalTo: cell!.centerYAnchor)
-                ])
-            } else {
-                // 其他列只需要文字
-                let textField = NSTextField(labelWithString: "")
-                textField.translatesAutoresizingMaskIntoConstraints = false
-                textField.lineBreakMode = .byTruncatingMiddle
-                cell?.addSubview(textField)
-                cell?.textField = textField
-                NSLayoutConstraint.activate([
-                    textField.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 4),
-                    textField.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -4),
-                    textField.centerYAnchor.constraint(equalTo: cell!.centerYAnchor)
-                ])
-            }
-        }
-
-        switch identifier.rawValue {
-        case "clientName":
-            let symbolName = instance.clientName == "tweetClaw" ? "network" : "cpu"
-            cell?.imageView?.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
-            cell?.imageView?.contentTintColor = DS.colorPrimary
-            cell?.textField?.stringValue = instance.clientName
-            cell?.textField?.font = .systemFont(ofSize: 13, weight: .medium)
-
-
-        case "instanceId":
-            // 临时 ID 用灰色斜体显示
-            let displayId = instance.isTemporary ? "\(instance.instanceId)  (旧版扩展)" : instance.instanceId
-            cell?.textField?.stringValue = displayId
-            cell?.textField?.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-            cell?.textField?.textColor = instance.isTemporary ? .secondaryLabelColor : .labelColor
-
-        case "xScreenName":
-            if let name = instance.xScreenName {
-                cell?.textField?.stringValue = "@\(name)"
-                cell?.textField?.textColor = .systemBlue
-            } else {
-                cell?.textField?.stringValue = "—"
-                cell?.textField?.textColor = .tertiaryLabelColor
-            }
-
-        case "connectedAt":
-            cell?.textField?.stringValue = dateFormatter.string(from: instance.connectedAt)
-            cell?.textField?.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-            cell?.textField?.textColor = .secondaryLabelColor
-
-        case "lastSeenAt":
-            let secondsAgo = Int(Date().timeIntervalSince(instance.lastSeenAt))
-            if secondsAgo < 60 {
-                cell?.textField?.stringValue = "\(secondsAgo)s 前"
-                cell?.textField?.textColor = .systemGreen
-            } else {
-                cell?.textField?.stringValue = dateFormatter.string(from: instance.lastSeenAt)
-                cell?.textField?.textColor = .secondaryLabelColor
-            }
-            cell?.textField?.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
-
-        case "version":
-            cell?.textField?.stringValue = instance.clientVersion
-            cell?.textField?.textColor = .secondaryLabelColor
-
-        default:
-            cell?.textField?.stringValue = ""
-        }
-
-        return cell
-    }
-
-    func tableView(_ tableView: NSTableView, rowViewForRow row: Int) -> NSTableRowView? {
-        // 多实例情况下，同一 clientName 的行用浅色背景区分
-        return nil  // 使用系统默认行视图即可
+/// 翻转坐标系的视图,让 y 轴从上往下
+private class FlippedView: NSView {
+    override var isFlipped: Bool {
+        return true
     }
 }
