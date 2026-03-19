@@ -75,11 +75,11 @@ final class BridgeLogsViewController: NSViewController {
         textView = scrollView.documentView as? NSTextView
         textView.isEditable = false
         textView.isSelectable = true
-        textView.font = .monospacedSystemFont(ofSize: 11, weight: .regular)
+        textView.font = DS.fontMono
         textView.textContainerInset = NSSize(width: 8, height: 8)
-        textView.backgroundColor = NSColor(white: 0.08, alpha: 1.0)  // 深色背景，像终端
+        textView.backgroundColor = DS.colorPreviewBg  // 使用文档定义的深色背景 #1A1A1A
         textView.textColor = NSColor(red: 0.0, green: 0.9, blue: 0.4, alpha: 1.0) // 绿色文字
-        scrollView.borderType = .bezelBorder
+        scrollView.borderType = .noBorder
         scrollView.translatesAutoresizingMaskIntoConstraints = false
 
         view.addSubview(toolbar)

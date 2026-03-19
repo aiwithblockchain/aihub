@@ -121,7 +121,7 @@ extension SidebarViewController: NSTableViewDataSource, NSTableViewDelegate {
 private extension SidebarViewController {
     func configureView() {
         view.wantsLayer = true
-        view.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
+        view.layer?.backgroundColor = DS.colorSidebarBg.cgColor
     }
 
     func configureTableView() {
@@ -141,6 +141,9 @@ private extension SidebarViewController {
         tableView.intercellSpacing = NSSize(width: 0, height: 6)
         tableView.delegate = self
         tableView.dataSource = self
+
+        // 确保 tableView 使用 NSView-based cells
+        tableView.style = .plain
     }
 
     func configureLayout() {
@@ -219,6 +222,7 @@ private final class ConversationCellView: NSTableCellView {
     private let statusDot = NSView()
     private let statusLabel = NSTextField(labelWithString: "")
     private let titleLabel = NSTextField(labelWithString: "")
+    private let subtitleLabel = NSTextField(labelWithString: "")
     private let previewLabel = NSTextField(labelWithString: "")
 
     override init(frame frameRect: NSRect) {
@@ -231,16 +235,24 @@ private final class ConversationCellView: NSTableCellView {
         fatalError("init(coder:) has not been implemented")
     }
 
-    // 重写这个方法来阻止系统改变背景色
+    // 确保背景完全透明
     override var backgroundStyle: NSView.BackgroundStyle {
         get { return .normal }
         set { /* 忽略系统设置 */ }
     }
 
+    override func prepareForReuse() {
+        super.prepareForReuse()
+        // 确保重用时背景保持透明
+        wantsLayer = true
+        layer?.backgroundColor = NSColor.clear.cgColor
+    }
+
     func configure(with conversation: Conversation) {
         titleLabel.stringValue = conversation.title
+        subtitleLabel.stringValue = conversation.subtitle
         previewLabel.stringValue = conversation.preview
-        
+
         // Icon selection
         if #available(macOS 11.0, *) {
             let symbolName: String
@@ -253,11 +265,11 @@ private final class ConversationCellView: NSTableCellView {
             }
             iconView.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
         }
-        
+
         // Status Dot logic
         let status = conversation.timestamp
         statusLabel.stringValue = status
-        
+
         if status == "Connected" || status == "Now" {
             statusDot.layer?.backgroundColor = DS.dotConnected.cgColor
         } else if status == "Waiting..." {
@@ -269,19 +281,27 @@ private final class ConversationCellView: NSTableCellView {
     
     func applySelectionStyle(isSelected: Bool) {
         wantsLayer = true
-        layer?.cornerRadius = DS.radiusM
+        layer?.cornerRadius = DS.radiusCard
 
         if isSelected {
-            // 只改变背景和边框，保持文字颜色不变以确保可读性
-            layer?.backgroundColor = NSColor.systemBlue.withAlphaComponent(0.15).cgColor
-            layer?.borderWidth = 2.0
-            layer?.borderColor = NSColor.systemBlue.cgColor
+            // 使用文档定义的蓝色高亮背景
+            layer?.backgroundColor = DS.colorHighlight.cgColor
+            layer?.borderWidth = 0
             titleLabel.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
-            // 不改变文字颜色，保持原有颜色
+            titleLabel.textColor = .white
+            subtitleLabel.textColor = NSColor.white.withAlphaComponent(0.7)
+            previewLabel.textColor = NSColor.white.withAlphaComponent(0.8)
+            statusLabel.textColor = NSColor.white.withAlphaComponent(0.9)
+            iconView.contentTintColor = .white
         } else {
             layer?.backgroundColor = NSColor.clear.cgColor
             layer?.borderWidth = 0
             titleLabel.font = DS.fontBody.withSize(13)
+            titleLabel.textColor = DS.colorTextPrimary
+            subtitleLabel.textColor = DS.colorTextSecond
+            previewLabel.textColor = DS.colorTextSecond
+            statusLabel.textColor = DS.colorTextTertiary
+            iconView.contentTintColor = DS.colorTextSecond
         }
     }
 }
@@ -289,24 +309,31 @@ private final class ConversationCellView: NSTableCellView {
 private extension ConversationCellView {
     func configureSubviews() {
         wantsLayer = true
-        
+        // 确保 cell 本身背景透明
+        layer?.backgroundColor = NSColor.clear.cgColor
+
         iconView.translatesAutoresizingMaskIntoConstraints = false
         if #available(macOS 11.0, *) {
             iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 18, weight: .medium)
         }
         iconView.contentTintColor = DS.colorTextSecond
-        
+
         statusDot.translatesAutoresizingMaskIntoConstraints = false
         statusDot.wantsLayer = true
         statusDot.layer?.cornerRadius = 4
-        
+
         statusLabel.font = DS.fontCaption
         statusLabel.textColor = DS.colorTextTertiary
-        
+
         titleLabel.font = DS.fontBody.withSize(13)
         titleLabel.textColor = DS.colorTextPrimary
         titleLabel.lineBreakMode = .byTruncatingTail
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        subtitleLabel.font = DS.fontSubtitle
+        subtitleLabel.textColor = DS.colorTextSecond
+        subtitleLabel.lineBreakMode = .byTruncatingTail
+        subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
 
         previewLabel.font = DS.fontCaption
         previewLabel.textColor = DS.colorTextSecond
@@ -317,8 +344,8 @@ private extension ConversationCellView {
         topRow.orientation = .horizontal
         topRow.alignment = .centerY
         topRow.spacing = 4
-        
-        let textStack = NSStackView(views: [topRow, previewLabel])
+
+        let textStack = NSStackView(views: [topRow, subtitleLabel])
         textStack.orientation = .vertical
         textStack.alignment = .leading
         textStack.spacing = 2
@@ -332,14 +359,14 @@ private extension ConversationCellView {
             iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
             iconView.widthAnchor.constraint(equalToConstant: 28),
             iconView.heightAnchor.constraint(equalToConstant: 28),
-            
+
             statusDot.widthAnchor.constraint(equalToConstant: 8),
             statusDot.heightAnchor.constraint(equalToConstant: 8),
-            
+
             textStack.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 10),
             textStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
             textStack.centerYAnchor.constraint(equalTo: centerYAnchor),
-            
+
             topRow.widthAnchor.constraint(equalTo: textStack.widthAnchor)
         ])
     }

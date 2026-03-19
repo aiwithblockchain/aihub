@@ -175,18 +175,18 @@ final class TweetClawHumanViewController: NSViewController {
         // Setup result text view (Terminal style)
         resultScrollView = NSTextView.scrollableTextView()
         resultTextView = resultScrollView.documentView as? NSTextView
-        
+
         resultTextView.isEditable = false
         resultTextView.isSelectable = true
         resultTextView.font = DS.fontMono
         resultTextView.textColor = NSColor(calibratedRed: 0.0, green: 0.85, blue: 0.45, alpha: 1.0)
-        resultTextView.backgroundColor = NSColor(white: 0.08, alpha: 1.0)
+        resultTextView.backgroundColor = DS.colorPreviewBg
         resultTextView.textContainerInset = NSSize(width: DS.spacingM, height: DS.spacingM)
-        
+
         resultScrollView.borderType = .noBorder
         resultScrollView.wantsLayer = true
-        resultScrollView.layer?.cornerRadius = DS.radiusM
-        resultScrollView.layer?.backgroundColor = NSColor(white: 0.08, alpha: 1.0).cgColor
+        resultScrollView.layer?.cornerRadius = DS.radiusCard
+        resultScrollView.layer?.backgroundColor = DS.colorPreviewBg.cgColor
         resultScrollView.translatesAutoresizingMaskIntoConstraints = false
         
         let openTabStack = NSStackView(views: [pathTextField, openTabButton])
@@ -399,13 +399,15 @@ final class TweetClawHumanViewController: NSViewController {
 
             leftScrollView.topAnchor.constraint(equalTo: pageHeader.bottomAnchor, constant: 24),
             leftScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            leftScrollView.widthAnchor.constraint(equalToConstant: 320),
+            leftScrollView.widthAnchor.constraint(equalToConstant: 380),
             leftScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
 
             resultScrollView.topAnchor.constraint(equalTo: leftScrollView.topAnchor),
-            resultScrollView.leadingAnchor.constraint(equalTo: leftScrollView.trailingAnchor, constant: 20),
+            resultScrollView.leadingAnchor.constraint(equalTo: leftScrollView.trailingAnchor, constant: 16),
             resultScrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-            resultScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20)
+            resultScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
+
+            leftStack.widthAnchor.constraint(equalTo: leftScrollView.widthAnchor, constant: -20)
         ])
     }
     

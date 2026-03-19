@@ -173,19 +173,8 @@ final class InstancesPanelViewController: NSViewController {
         let cardWidth: CGFloat = 260
         let cardHeight: CGFloat = 130
 
-        let card = NSView(frame: NSRect(x: 0, y: 0, width: cardWidth, height: cardHeight))
-        card.wantsLayer = true
-        card.layer?.backgroundColor = DS.colorSurface.cgColor
-        card.layer?.cornerRadius = DS.radiusM
-        card.layer?.borderWidth = 1
-        card.layer?.borderColor = DS.colorBorder.cgColor
-
-        // 添加阴影
-        card.shadow = NSShadow()
-        card.layer?.shadowColor = NSColor.black.cgColor
-        card.layer?.shadowOpacity = 0.06
-        card.layer?.shadowOffset = NSSize(width: 0, height: 1)
-        card.layer?.shadowRadius = 3
+        let card = DS.makeCard()
+        card.frame = NSRect(x: 0, y: 0, width: cardWidth, height: cardHeight)
 
         let padding: CGFloat = 12
 
@@ -193,7 +182,7 @@ final class InstancesPanelViewController: NSViewController {
         let symbolName = instance.clientName == "tweetClaw" ? "network" : "cpu"
         let icon = NSImageView(frame: NSRect(x: padding, y: cardHeight - padding - 20, width: 20, height: 20))
         icon.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
-        icon.contentTintColor = DS.colorPrimary
+        icon.contentTintColor = DS.colorHighlight
         if #available(macOS 11.0, *) {
             icon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
         }
@@ -271,7 +260,7 @@ final class InstancesPanelViewController: NSViewController {
         let statusText: String
 
         if secondsAgo < 60 {
-            statusColor = DS.dotConnected
+            statusColor = DS.colorOnline
             statusText = "\(secondsAgo)s 前"
         } else {
             statusColor = DS.colorTextTertiary
@@ -286,7 +275,7 @@ final class InstancesPanelViewController: NSViewController {
 
         let statusLabel = NSTextField(labelWithString: statusText)
         statusLabel.font = .systemFont(ofSize: 9, weight: .regular)
-        statusLabel.textColor = secondsAgo < 60 ? DS.dotConnected : DS.colorTextSecond
+        statusLabel.textColor = secondsAgo < 60 ? DS.colorOnline : DS.colorTextSecond
         statusLabel.isBordered = false
         statusLabel.isEditable = false
         statusLabel.drawsBackground = false

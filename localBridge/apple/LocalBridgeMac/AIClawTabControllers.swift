@@ -90,12 +90,12 @@ final class AIClawHumanViewController: NSViewController {
         // Setup result text view (Terminal style)
         resultScrollView = NSTextView.scrollableTextView()
         resultTextView = resultScrollView.documentView as? NSTextView
-        
+
         resultTextView.isEditable = false
         resultTextView.isSelectable = true
         resultTextView.font = DS.fontMono
         resultTextView.textColor = NSColor(calibratedRed: 0.0, green: 0.85, blue: 0.45, alpha: 1.0)
-        resultTextView.backgroundColor = NSColor(white: 0.08, alpha: 1.0)
+        resultTextView.backgroundColor = DS.colorPreviewBg
         resultTextView.textContainerInset = NSSize(width: DS.spacingM, height: DS.spacingM)
         
         resultScrollView.borderType = .noBorder
