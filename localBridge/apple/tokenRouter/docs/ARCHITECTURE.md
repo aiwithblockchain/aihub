@@ -1,425 +1,194 @@
-# TokenRouter 系统架构文档
+# TokenRouter 架构设计
 
-## 项目概述
+## 核心理念
 
-TokenRouter 是一个多 AI 模型协调工作平台，旨在通过统一的接口调用不同的大语言模型（Claude、Gemini、Codex 等），并支持多角色 AI Agent 协同完成复杂任务。
+TokenRouter 的设计理念是**作为一个通用的 AI API 客户端**，类似于 Claude Code 这样的 IDE 插件。
 
-## 产品三层架构
+### 设计原则
 
-TokenRouter 采用清晰的三层架构设计，每层专注于不同的职责：
+1. **协议优先，不关心后端**
+   - TokenRouter 只需要知道如何调用标准的 AI API
+   - 不关心后端是直连 API、代理服务、还是网关
+   - 用户配置什么，就调用什么
 
-### 第一层：UI 层（用户交互界面）
-**职责**：人与 AI 的对话界面，提供直观的交互体验
+2. **简单配置**
+   - 用户只需要提供：API Key + Base URL
+   - 就像 Claude Code 插件一样简单
+   - 不需要为每个服务单独配置
 
-- **对话界面**：用户与项目经理 AI 进行对话的主界面
-- **角色配置界面**：配置不同 AI 角色（PM、Developer、QA 等）的参数和行为
-- **进展监控界面**：实时查看任务执行状态和进度
+3. **不穷举模型**
+   - 不为每个 AI 服务单独实现
+   - 支持标准的 API 格式（Anthropic、OpenAI 兼容）
+   - 新的服务只要兼容标准协议，就能直接使用
 
-**设计原则**：
-- 专注于对话和状态展示
-- **不负责文件管理和文件状态展示**（交给其他 IDE 处理）
-- 提供清晰的角色切换和任务监控能力
+## 工作原理
 
-### 第二层：中间层（核心创新层）
-**职责**：信息共享、记忆共享、上下文管理
+### 类比：Claude Code 插件
 
-这是 TokenRouter 最具创新价值的一层，负责：
-- **信息共享**：在不同 AI Agent 之间共享上下文和数据
-- **记忆共享**：维护跨会话的对话历史和知识库
-- **消息路由**：智能路由消息到合适的 AI Agent
-- **任务协调**：协调多个 Agent 协同完成复杂任务
-
-**设计原则**：
-- 不涉及具体的 UI 展示逻辑
-- 不涉及具体的 API 调用细节
-- 专注于 Agent 间的协作和信息流转
-
-### 第三层：AI 调用层（Provider 抽象）
-**职责**：通过统一接口调用各类大模型 API
-
-- **Provider 抽象**：统一不同 AI 服务的调用方式
-- **流式响应**：支持实时流式输出
-- **配置管理**：使用 `base_url + api_key` 统一配置，兼容 CC Switch 等代理工具
-- **安全存储**：使用 macOS Keychain 安全存储 API Keys
-
-**设计原则**：
-- 对上层提供统一的调用接口
-- 屏蔽不同 AI 服务的差异
-- 支持多种调用模式（HTTP、CLI、JSON-RPC）
-
-## 核心设计理念
-
-- **清晰的层次分离**: UI、中间层、AI 调用层各司其职，互不干扰
-- **中间层是核心**: 信息共享和记忆共享是产品的核心竞争力
-- **UI 专注对话**: 不做文件管理，交给专业的 IDE 工具
-- **Provider 抽象**: 通过协议抽象统一不同 AI 服务的调用方式
-- **角色分工**: 支持 PM、Developer、QA 等不同角色的 AI Agent 协作
-- **流式响应**: 所有 Provider 均支持流式输出，提供实时反馈
-- **统一配置**: 所有 HTTP Provider 使用 `base_url + api_key` 配置，兼容 CC Switch 等代理工具
-- **安全存储**: 使用 macOS Keychain 安全存储 API Keys 和配置
-- **可扩展性**: 易于添加新的 AI Provider 和角色类型
-
-## 系统架构
+Claude Code 可以嵌入到任何 IDE（VSCode、Cursor、Windsurf 等）：
 
 ```
-┌─────────────────────────────────────────────────────────────┐
-│                        UI Layer                              │
-│  ┌──────────────────┐  ┌──────────────────┐                │
-│  │ Console Window   │  │ Settings Window  │                │
-│  │  - Sidebar       │  │  - API Keys      │                │
-│  │  - Workspace     │  │  - Preferences   │                │
-│  │  - Chat View     │  └──────────────────┘                │
-│  └──────────────────┘                                       │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                     ViewModel Layer                          │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │ ConsoleChatViewModel                                  │  │
-│  │  - 消息管理                                            │  │
-│  │  - 流式响应缓冲                                        │  │
-│  │  - Provider 调度                                       │  │
-│  └──────────────────────────────────────────────────────┘  │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                    Provider Layer                            │
-│  ┌──────────────────────────────────────────────────────┐  │
-│  │ AIProviderProtocol                                    │  │
-│  │  - stream(request: AIRequest)                         │  │
-│  │  → AsyncThrowingStream<AIStreamEvent, Error>         │  │
-│  └──────────────────────────────────────────────────────┘  │
-│           │                  │                  │           │
-│           ▼                  ▼                  ▼           │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
-│  │ Anthropic    │  │ Gemini CLI   │  │ Codex App    │    │
-│  │ HTTP Provider│  │ Provider     │  │ Server       │    │
-│  │              │  │              │  │ Provider     │    │
-│  │ - SSE Stream │  │ - Process    │  │ - JSON-RPC   │    │
-│  │ - REST API   │  │ - JSONL      │  │ - stdin/out  │    │
-│  └──────────────┘  └──────────────┘  └──────────────┘    │
-└─────────────────────────────────────────────────────────────┘
-                            │
-                            ▼
-┌─────────────────────────────────────────────────────────────┐
-│                   Infrastructure Layer                       │
-│  ┌──────────────┐  ┌──────────────┐  ┌──────────────┐    │
-│  │ Keychain     │  │ SSE Parser   │  │ HTTP Client  │    │
-│  │ Token Store  │  │              │  │              │    │
-│  └──────────────┘  └──────────────┘  └──────────────┘    │
-└─────────────────────────────────────────────────────────────┘
+用户配置：
+  ANTHROPIC_AUTH_TOKEN=sk-xxx
+  ANTHROPIC_BASE_URL=https://api.example.com
+
+Claude Code 插件：
+  ├─ 读取配置
+  ├─ 使用标准 HTTP API 调用
+  └─ 不关心后端是什么
+     ├─ 可能是 Anthropic 官方 API
+     ├─ 可能是 CC Switch 配置的代理
+     ├─ 可能是 Sub2API 网关
+     └─ 可能是任何兼容的服务
 ```
 
-## 核心模块
+### TokenRouter 的工作方式
 
-### 1. Provider 抽象层
+TokenRouter 应该采用完全相同的方式：
 
-#### AIProviderProtocol
-定义统一的 AI 服务接口：
+```
+用户配置：
+  Provider 名称: My Claude
+  API Key: sk-xxx
+  Base URL: https://api.example.com
+  模型: claude-sonnet-4
 
-```swift
-protocol AIProviderProtocol: Sendable {
-    var id: ProviderID { get }
-    var displayName: String { get }
-    func stream(request: AIRequest) -> AsyncThrowingStream<AIStreamEvent, Error>
+TokenRouter：
+  ├─ 读取用户配置
+  ├─ 使用标准 HTTP API 调用
+  └─ 不关心后端是什么
+     ├─ 直连 Anthropic API ✓
+     ├─ 通过 CC Switch 代理 ✓
+     ├─ 通过 Sub2API 网关 ✓
+     ├─ 通过 OpenRouter ✓
+     └─ 任何兼容的服务 ✓
+```
+
+## 支持的 API 格式
+
+### 1. Anthropic Messages API
+
+**端点格式：**
+```
+POST {BASE_URL}/v1/messages
+```
+
+**认证方式：**
+```
+x-api-key: {API_KEY}
+anthropic-version: 2023-06-01
+```
+
+**请求格式：**
+```json
+{
+  "model": "claude-sonnet-4",
+  "max_tokens": 4096,
+  "messages": [
+    {"role": "user", "content": "Hello"}
+  ],
+  "stream": true
 }
 ```
 
-#### 支持的 Provider
+### 2. OpenAI Compatible API
 
-| Provider | 类型 | 协议 | 用途 |
-|---------|------|------|------|
-| AnthropicHTTPProvider | HTTP API | REST + SSE | Claude 模型调用 |
-| GeminiCLIProvider | CLI | Process + JSONL | Gemini 命令行工具 |
-| CodexAppServerProvider | App Server | JSON-RPC | Codex 本地服务 |
+**端点格式：**
+```
+POST {BASE_URL}/v1/chat/completions
+```
 
-### 2. 数据模型层
+**认证方式：**
+```
+Authorization: Bearer {API_KEY}
+```
 
-#### AIRole - 角色系统
-```swift
-enum AIRole {
-    case pm         // 项目经理 - 需求分析、任务分配
-    case developer  // 开发人员 - 代码实现
-    case qa         // 质量保证 - 测试验收
+**请求格式：**
+```json
+{
+  "model": "gpt-4",
+  "messages": [
+    {"role": "user", "content": "Hello"}
+  ],
+  "stream": true
 }
 ```
 
-#### AIType - 调用类型
-```swift
-enum AIType {
-    case web  // Web 界面（模拟）
-    case api  // HTTP API 调用
-    case cli  // 命令行工具
-}
+## 实现策略
+
+### Provider 类型
+
+TokenRouter 支持两种 Provider 类型：
+
+1. **Anthropic 格式** - 使用 Anthropic Messages API
+2. **OpenAI 兼容格式** - 使用 OpenAI Chat Completions API
+
+用户选择类型后，TokenRouter 会使用对应的 API 格式。
+
+### 配置示例
+
+**直连 Anthropic：**
+```
+类型: Anthropic
+Base URL: https://api.anthropic.com/v1
+API Key: sk-ant-xxxxx
+模型: claude-sonnet-4
 ```
 
-#### AIAgent - Agent 实体
-```swift
-struct AIAgent {
-    let id: String
-    let name: String
-    let role: AIRole
-    let type: AIType
-    var status: AIAgentStatus
-    var messages: [AIMessage]
-    var model: String?  // 例如: "claude-sonnet-4-20250514"
-}
+**通过 CC Switch 代理：**
+```
+类型: Anthropic
+Base URL: https://api.lycloud.top
+API Key: sk-xxxxx (CC Switch 配置的 Key)
+模型: claude-sonnet-4
 ```
 
-### 3. 流式响应处理
-
-#### AIStreamEvent
-```swift
-enum AIStreamEvent {
-    case start(messageID: UUID)           // 开始响应
-    case delta(messageID: UUID, text: String)  // 增量文本
-    case finish(messageID: UUID)          // 完成响应
-    case log(String)                      // 日志信息
-}
+**使用 DeepSeek：**
+```
+类型: OpenAI 兼容
+Base URL: https://api.deepseek.com
+API Key: sk-xxxxx
+模型: deepseek-reasoner
 ```
 
-#### 缓冲优化
-- 使用 `pendingDeltaBuffer` 缓冲增量文本
-- 每 40ms 刷新一次 UI，避免过度渲染
-- 支持取消和错误处理
-
-### 4. UI 组件层
-
-#### 主要视图控制器
-
-| 控制器 | 职责 |
-|--------|------|
-| AIConsoleWindowController | 主窗口管理 |
-| ConsoleSidebarViewController | 侧边栏导航 |
-| ConsoleWorkspaceViewController | 工作空间路由 |
-| ConsoleChatViewController | 聊天界面 |
-| AISettingsViewController | 设置界面 |
-
-#### 工作空间类型
-
-- **PM Workspace**: 项目管理视图，任务分配
-- **Dev Workspace**: 开发视图，代码实现
-- **QA Workspace**: 测试视图，质量验收
-- **Message Flow**: 消息流视图，跨 Agent 通信
-- **AI Config**: AI 配置视图，模型参数设置
-
-## 技术实现细节
-
-### 1. HTTP Provider 实现（以 Anthropic 为例）
-
-```swift
-// 1. 从 Keychain 读取 Provider 配置
-let configJSON = try keychain.load(key: KeychainTokenStore.anthropicConfig)
-let config = try JSONDecoder().decode(ProviderConfig.self, from: configJSON.data(using: .utf8)!)
-
-// 2. 构建 HTTP 请求（使用配置的 base_url）
-let endpoint = "\(config.baseURL)/messages"
-var urlRequest = URLRequest(url: URL(string: endpoint)!)
-urlRequest.setValue(config.apiKey, forHTTPHeaderField: "x-api-key")
-urlRequest.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
-
-// 3. 解析 SSE 流
-for try await event in sseClient.stream(request: urlRequest) {
-    if eventType == "content_block_delta" {
-        let text = json["delta"]["text"]
-        continuation.yield(.delta(messageID: messageID, text: text))
-    }
-}
+**使用阿里通义千问：**
+```
+类型: OpenAI 兼容
+Base URL: https://dashscope.aliyuncs.com/compatible-mode/v1
+API Key: sk-xxxxx
+模型: qwen-plus
 ```
 
-**配置示例**：
-- 直连：`baseURL = "https://api.anthropic.com/v1"`
-- CC Switch 代理：`baseURL = "http://localhost:8080/v1"`
+## 与 CC Switch 的关系
 
-### 2. GeminiCLIProvider 实现
+### CC Switch 的作用
 
-```swift
-// 1. 启动子进程
-process.executableURL = URL(fileURLWithPath: "/opt/homebrew/bin/gemini")
-process.arguments = [request.userText, "--output-format", "stream-json"]
+CC Switch 是一个**配置管理工具**，它：
+1. 存储多个 Provider 配置
+2. 允许用户快速切换配置
+3. 自动更新 AI CLI 工具的配置文件
 
-// 2. 异步读取 stdout
-stdoutPipe.fileHandleForReading.readabilityHandler = { handle in
-    let chunk = handle.availableData
-    // 按行解析 JSONL
-    if let text = json["text"] as? String {
-        continuation.yield(.delta(messageID: messageID, text: text))
-    }
-}
-```
+### TokenRouter 的定位
 
-### 3. CodexAppServerProvider 实现
+TokenRouter 是一个**独立的 AI 客户端**，它：
+1. 不依赖 CC Switch
+2. 用户直接在 TokenRouter 中配置 Provider
+3. 如果用户使用 CC Switch，可以把 CC Switch 配置的端点填入 TokenRouter
 
-```swift
-// 1. JSON-RPC 初始化握手
-sendJSON(["jsonrpc": "2.0", "method": "initialize", ...], to: stdinPipe)
+**关键点：TokenRouter 不需要读取 CC Switch 的数据库，用户只需要把配置复制过来即可。**
 
-// 2. 等待 initialize 响应后发送 initialized 通知
-sendJSON(["jsonrpc": "2.0", "method": "initialized", ...], to: stdinPipe)
+## 设计优势
 
-// 3. 发起对话
-sendJSON(["jsonrpc": "2.0", "method": "thread/start", ...], to: stdinPipe)
+1. **简单** - 用户只需要填写 API Key 和 Base URL
+2. **灵活** - 支持任何兼容的 API 服务
+3. **可扩展** - 新的服务只要兼容标准协议就能使用
+4. **独立** - 不依赖任何第三方工具
+5. **通用** - 像 Claude Code 插件一样，可以适配任何后端
 
-// 4. 处理通知事件
-if method == "delta" {
-    continuation.yield(.delta(messageID: messageID, text: text))
-}
-```
+## 总结
 
-## 安全性设计
+TokenRouter 的核心理念是：
 
-### Provider 配置模型
+> **作为一个通用的 AI API 客户端，遵循标准协议，不关心后端实现。**
 
-所有 HTTP Provider 使用统一的配置格式：
-
-```swift
-struct ProviderConfig {
-    let baseURL: String      // API 端点或代理地址
-    let apiKey: String       // API Key
-    let model: String?       // 可选的模型名称
-}
-```
-
-#### 配置示例
-
-**直连模式**（直接调用官方 API）：
-```swift
-let anthropicConfig = ProviderConfig(
-    baseURL: "https://api.anthropic.com/v1",
-    apiKey: "sk-ant-xxxxx",
-    model: "claude-sonnet-4-20250514"
-)
-
-let openAIConfig = ProviderConfig(
-    baseURL: "https://api.openai.com/v1",
-    apiKey: "sk-xxxxx",
-    model: "gpt-4"
-)
-```
-
-**代理模式**（通过 CC Switch 等工具）：
-```swift
-let ccSwitchConfig = ProviderConfig(
-    baseURL: "http://localhost:8080/v1",  // CC Switch 本地代理
-    apiKey: "managed-by-cc-switch",       // 任意值，由代理管理
-    model: nil
-)
-```
-
-### Keychain 集成
-
-```swift
-class KeychainTokenStore {
-    // 存储完整的 Provider 配置
-    static let anthropicConfig = "com.tokenrouter.anthropic.config"
-    static let geminiConfig = "com.tokenrouter.gemini.config"
-    static let openAIConfig = "com.tokenrouter.openai.config"
-
-    func save(key: String, value: String) throws
-    func load(key: String) throws -> String
-    func delete(key: String) throws
-}
-```
-
-### CC Switch 兼容性
-
-TokenRouter 完全兼容 [CC Switch](https://github.com/farion1231/cc-switch) 等 API 代理工具：
-
-**优势**：
-- **统一管理**：所有 API Key 由 CC Switch 集中管理
-- **快速切换**：通过 CC Switch 切换 Provider 无需修改 TokenRouter 配置
-- **高级功能**：支持 token 自动刷新、负载均衡、使用量统计等
-- **安全性**：TokenRouter 无需存储真实 API Key
-
-**工作原理**：
-```
-TokenRouter → http://localhost:8080/v1/messages → CC Switch → 真实 API
-            (配置代理地址)                        (管理真实 Key)
-```
-
-### 错误处理
-```swift
-enum AIProviderError: Error {
-    case authRequired(details: String)   // 401/403
-    case rateLimited(details: String)    // 429
-    case transport(details: String)      // 网络错误
-    case cancelled                       // 用户取消
-}
-```
-
-## 扩展指南
-
-### 添加新的 Provider
-
-1. 创建新的 Provider 类，实现 `AIProviderProtocol`
-2. 在 `ProviderID` 枚举中添加新的 ID
-3. 在 `ConsoleChatViewController.sendMessage()` 中添加路由逻辑
-4. 在 `KeychainTokenStore` 中添加对应的配置 key
-
-示例：
-```swift
-final class OpenAIProvider: AIProviderProtocol {
-    let id: ProviderID = .openai
-    let displayName: String = "OpenAI GPT"
-    private let config: ProviderConfig
-
-    init(config: ProviderConfig) {
-        self.config = config
-    }
-
-    func stream(request: AIRequest) -> AsyncThrowingStream<AIStreamEvent, Error> {
-        AsyncThrowingStream { continuation in
-            Task {
-                // 使用配置的 base_url 和 api_key
-                let endpoint = "\(config.baseURL)/chat/completions"
-                var urlRequest = URLRequest(url: URL(string: endpoint)!)
-                urlRequest.setValue("Bearer \(config.apiKey)", forHTTPHeaderField: "Authorization")
-
-                // 实现流式调用逻辑
-            }
-        }
-    }
-}
-```
-
-### 添加新的角色
-
-1. 在 `AIRole` 枚举中添加新角色
-2. 定义角色的 `label`、`emoji`、`color`
-3. 在工作空间中创建对应的视图控制器
-
-## 性能优化
-
-- **流式缓冲**: 40ms 刷新间隔，减少 UI 重绘
-- **异步处理**: 使用 Swift Concurrency (async/await)
-- **进程管理**: CLI Provider 正确处理 stderr，防止缓冲区阻塞
-- **内存管理**: 使用 `weak self` 避免循环引用
-
-## 未来规划
-
-- [ ] 支持多轮对话上下文管理
-- [ ] Agent 间消息路由和协作机制
-- [ ] 任务状态持久化
-- [ ] 支持更多 AI Provider (OpenAI, Cohere, etc.)
-- [ ] 插件系统，支持自定义 Provider
-- [ ] 分布式部署，支持远程 Agent
-
-## 依赖项
-
-- macOS 13.0+
-- Swift 5.9+
-- AppKit
-- Foundation
-- Security (Keychain)
-
-## 许可证
-
-[待定]
-
----
-
-**文档版本**: 1.0
-**最后更新**: 2026-03-19
-**维护者**: wesley
+就像 Claude Code 插件可以嵌入到任何 IDE 一样，TokenRouter 可以连接到任何兼容的 AI 服务。
