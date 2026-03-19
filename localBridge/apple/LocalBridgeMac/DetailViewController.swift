@@ -3,13 +3,13 @@ import AppKit
 final class DetailViewController: NSViewController {
     // TweetClaw tab view
     private let tweetClawTabView = NSTabView()
-    private let tweetClawSegmentedControl = NSSegmentedControl()
+    private var tweetClawSegmentedControl: SegmentedControl!
     private let humanVC = TweetClawHumanViewController()
     private let clawVC = TweetClawClawViewController()
-    
+
     // AIClaw tab view
     private let aiClawTabView = NSTabView()
-    private let aiClawSegmentedControl = NSSegmentedControl()
+    private var aiClawSegmentedControl: SegmentedControl!
     private let aiHumanVC = AIClawHumanViewController()
     private let aiClawVC = AIClawBotViewController()
     
@@ -76,7 +76,7 @@ final class DetailViewController: NSViewController {
 private extension DetailViewController {
     func configureView() {
         view.wantsLayer = true
-        view.layer?.backgroundColor = DS.colorBackground.cgColor
+        view.layer?.backgroundColor = DSV2.surface.cgColor
 
         placeholderLabel.translatesAutoresizingMaskIntoConstraints = false
         placeholderLabel.font = DS.fontTitle
@@ -92,17 +92,16 @@ private extension DetailViewController {
         
         tweetClawTabView.addTabViewItem(humanItem)
         tweetClawTabView.addTabViewItem(clawItem)
-        
-        tweetClawSegmentedControl.segmentCount = 2
-        tweetClawSegmentedControl.setLabel("For Human", forSegment: 0)
-        tweetClawSegmentedControl.setLabel("For Claw", forSegment: 1)
-        tweetClawSegmentedControl.selectedSegment = 0
-        tweetClawSegmentedControl.target = self
-        tweetClawSegmentedControl.action = #selector(tweetClawSegmentChanged(_:))
-        if #available(macOS 10.15, *) {
-            tweetClawSegmentedControl.segmentStyle = .capsule
-        }
+
+        tweetClawSegmentedControl = DSV2.makeSegmentedControl(items: ["For Human", "For Claw"], target: self, action: #selector(tweetClawSegmentChanged(_:)))
         tweetClawSegmentedControl.translatesAutoresizingMaskIntoConstraints = false
+
+        // Apply DSV2 styling with container
+        tweetClawSegmentedControl.wantsLayer = true
+        tweetClawSegmentedControl.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
+        tweetClawSegmentedControl.layer?.cornerRadius = DSV2.radiusButton
+        tweetClawSegmentedControl.layer?.borderWidth = 1
+        tweetClawSegmentedControl.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.2).cgColor
         
         view.addSubview(tweetClawTabView)
         view.addSubview(tweetClawSegmentedControl)
@@ -118,17 +117,16 @@ private extension DetailViewController {
         
         aiClawTabView.addTabViewItem(aiHumanItem)
         aiClawTabView.addTabViewItem(aiClawItem)
-        
-        aiClawSegmentedControl.segmentCount = 2
-        aiClawSegmentedControl.setLabel("For Human", forSegment: 0)
-        aiClawSegmentedControl.setLabel("For Claw", forSegment: 1)
-        aiClawSegmentedControl.selectedSegment = 0
-        aiClawSegmentedControl.target = self
-        aiClawSegmentedControl.action = #selector(aiClawSegmentChanged(_:))
-        if #available(macOS 10.15, *) {
-            aiClawSegmentedControl.segmentStyle = .capsule
-        }
+
+        aiClawSegmentedControl = DSV2.makeSegmentedControl(items: ["For Human", "For Claw"], target: self, action: #selector(aiClawSegmentChanged(_:)))
         aiClawSegmentedControl.translatesAutoresizingMaskIntoConstraints = false
+
+        // Apply DSV2 styling with container
+        aiClawSegmentedControl.wantsLayer = true
+        aiClawSegmentedControl.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
+        aiClawSegmentedControl.layer?.cornerRadius = DSV2.radiusButton
+        aiClawSegmentedControl.layer?.borderWidth = 1
+        aiClawSegmentedControl.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.2).cgColor
         
         view.addSubview(aiClawTabView)
         view.addSubview(aiClawSegmentedControl)
@@ -179,11 +177,11 @@ private extension DetailViewController {
         ])
     }
     
-    @objc func tweetClawSegmentChanged(_ sender: NSSegmentedControl) {
-        tweetClawTabView.selectTabViewItem(at: sender.selectedSegment)
+    @objc func tweetClawSegmentChanged(_ sender: SegmentedControl) {
+        tweetClawTabView.selectTabViewItem(at: sender.indexOfSelectedItem())
     }
-    
-    @objc func aiClawSegmentChanged(_ sender: NSSegmentedControl) {
-        aiClawTabView.selectTabViewItem(at: sender.selectedSegment)
+
+    @objc func aiClawSegmentChanged(_ sender: SegmentedControl) {
+        aiClawTabView.selectTabViewItem(at: sender.indexOfSelectedItem())
     }
 }

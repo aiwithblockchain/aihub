@@ -524,6 +524,12 @@ class SegmentedControl: NSView {
         selectedIndex = index
 
         for (i, button) in buttons.enumerated() {
+            let attributes: [NSAttributedString.Key: Any] = [
+                .foregroundColor: i == index ? DSV2.onSurface : DSV2.onSurfaceVariant,
+                .font: DSV2.fontLabelMd
+            ]
+            button.attributedTitle = NSAttributedString(string: button.title, attributes: attributes)
+
             if i == index {
                 button.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
                 button.layer?.cornerRadius = DSV2.radiusInput

@@ -115,6 +115,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         goServer.sendNewConversation(platform: platform, instanceId: instanceId)
     }
 
+    func sendNavigateToPlatform(platform: String, instanceId: String? = nil) {
+        goServer.sendNavigateToPlatform(platform: platform, instanceId: instanceId)
+    }
+
     @objc private func restartWebSocketServer() {
         print("[LocalBridgeMac] Restarting WebSocket Service...")
         goServer.stop { [weak self] in

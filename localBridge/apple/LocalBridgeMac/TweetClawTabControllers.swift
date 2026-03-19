@@ -317,14 +317,39 @@ final class TweetClawHumanViewController: NSViewController {
         styleButton(searchButton)
         searchButton.target = self
 
-        // 实例选择器
-        instanceLabel.font = DSV2.fontBodyMd
-        instanceLabel.textColor = DSV2.onSurfaceVariant
+        // 实例选择器 - 使用 DSV2 样式，水平布局
+        instanceLabel.font = DSV2.fontLabelSm
+        instanceLabel.textColor = DSV2.onSurfaceTertiary
+        instanceLabel.stringValue = "TARGET INSTANCE"
+
         instancePopup.translatesAutoresizingMaskIntoConstraints = false
-        styleButton(refreshInstancesButton)
+        instancePopup.wantsLayer = true
+        instancePopup.isBordered = false
+        instancePopup.bezelStyle = .rounded
+        instancePopup.layer?.backgroundColor = DSV2.surface.cgColor
+        instancePopup.layer?.cornerRadius = DSV2.radiusInput
+        instancePopup.layer?.borderWidth = 1
+        instancePopup.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.2).cgColor
+        instancePopup.font = DSV2.fontMonoSm
+        instancePopup.contentTintColor = DSV2.onSurface
+
         refreshInstancesButton.target = self
+        refreshInstancesButton.wantsLayer = true
+        refreshInstancesButton.isBordered = false
+        refreshInstancesButton.bezelStyle = .rounded
+        refreshInstancesButton.layer?.backgroundColor = DSV2.surface.cgColor
+        refreshInstancesButton.layer?.cornerRadius = DSV2.radiusButton
+        refreshInstancesButton.layer?.borderWidth = 1
+        refreshInstancesButton.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.2).cgColor
+
+        let refreshAttributes: [NSAttributedString.Key: Any] = [
+            .foregroundColor: DSV2.onSurfaceVariant,
+            .font: DSV2.fontLabelMd
+        ]
+        refreshInstancesButton.attributedTitle = NSAttributedString(string: "↻", attributes: refreshAttributes)
         refreshInstancesButton.translatesAutoresizingMaskIntoConstraints = false
         refreshInstancesButton.widthAnchor.constraint(equalToConstant: 28).isActive = true
+        refreshInstancesButton.heightAnchor.constraint(equalToConstant: 28).isActive = true
 
         let instanceRow = NSStackView(views: [instanceLabel, instancePopup, refreshInstancesButton])
         instanceRow.orientation = .horizontal

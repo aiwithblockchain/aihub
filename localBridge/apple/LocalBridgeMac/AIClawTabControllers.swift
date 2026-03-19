@@ -30,6 +30,7 @@ final class AIClawHumanViewController: NSViewController {
         
         NotificationCenter.default.addObserver(self, selector: #selector(handleQueryResult(_:)), name: NSNotification.Name("QueryAITabsStatusReceived"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleSendMessageResult(_:)), name: NSNotification.Name("SendMessageReceived"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleNavigateResult(_:)), name: NSNotification.Name("NavigateToPlatformReceived"), object: nil)
 
         loadInstances()
     }
@@ -113,26 +114,52 @@ final class AIClawHumanViewController: NSViewController {
         let sendButton = DSV2.makeGradientButton(title: "发送消息", target: self, action: #selector(sendMessageClicked))
         let newConvButton = DSV2.makeSecondaryButton(title: "新建对话", target: self, action: #selector(newConversationClicked))
 
-        // Instance selector
-        instanceSelector = DSV2.makeInstanceSelector(title: "Select Model Instance", target: self, action: #selector(instanceChanged))
+        // Navigate button - styled as tertiary button with home icon
+        let navigateButton = NSButton(title: "跳转首页", target: self, action: #selector(navigateToHomeClicked))
+        navigateButton.wantsLayer = true
+        navigateButton.isBordered = false
+        navigateButton.bezelStyle = .rounded
+        navigateButton.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
+        navigateButton.layer?.cornerRadius = DSV2.radiusButton
+        navigateButton.layer?.borderWidth = 1
+        navigateButton.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
+
+        let navAttributes: [NSAttributedString.Key: Any] = [
+            .foregroundColor: DSV2.onSurfaceVariant,
+            .font: DSV2.fontLabelMd
+        ]
+        navigateButton.attributedTitle = NSAttributedString(string: "跳转首页", attributes: navAttributes)
+        navigateButton.translatesAutoresizingMaskIntoConstraints = false
+        navigateButton.heightAnchor.constraint(equalToConstant: 36).isActive = true
+
+        if #available(macOS 11.0, *) {
+            navigateButton.image = NSImage(systemSymbolName: "house", accessibilityDescription: nil)
+            navigateButton.imagePosition = .imageLeading
+            navigateButton.contentTintColor = DSV2.onSurfaceVariant
+        }
+
+        // Instance selector - use uppercase label per design system
+        instanceSelector = DSV2.makeInstanceSelector(title: "TARGET INSTANCE", target: self, action: #selector(instanceChanged))
 
         refreshInstancesButton.bezelStyle = .rounded
         refreshInstancesButton.target = self
         refreshInstancesButton.wantsLayer = true
         refreshInstancesButton.isBordered = false
-        refreshInstancesButton.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
+        refreshInstancesButton.layer?.backgroundColor = DSV2.surface.cgColor
         refreshInstancesButton.layer?.cornerRadius = DSV2.radiusButton
+        refreshInstancesButton.layer?.borderWidth = 1
+        refreshInstancesButton.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.2).cgColor
 
         // 设置按钮文字颜色
         let refreshAttributes: [NSAttributedString.Key: Any] = [
             .foregroundColor: DSV2.onSurfaceVariant,
-            .font: NSFont.systemFont(ofSize: 14, weight: .medium)
+            .font: DSV2.fontLabelMd
         ]
         refreshInstancesButton.attributedTitle = NSAttributedString(string: "↻", attributes: refreshAttributes)
 
         refreshInstancesButton.translatesAutoresizingMaskIntoConstraints = false
-        refreshInstancesButton.widthAnchor.constraint(equalToConstant: 32).isActive = true
-        refreshInstancesButton.heightAnchor.constraint(equalToConstant: 32).isActive = true
+        refreshInstancesButton.widthAnchor.constraint(equalToConstant: 28).isActive = true
+        refreshInstancesButton.heightAnchor.constraint(equalToConstant: 28).isActive = true
 
         // Labels with DSV2 typography
         let platformLabel = NSTextField(labelWithString: "PLATFORM")
@@ -178,11 +205,16 @@ final class AIClawHumanViewController: NSViewController {
         actionButtonRow.spacing = DSV2.spacing2
         actionButtonRow.distribution = .fillEqually
 
-        // Left control panel with card background
+        let navigateRow = NSStackView(views: [navigateButton])
+        navigateRow.orientation = .horizontal
+
+        // Left control panel with card background - using proper DSV2 styling
         let leftCard = NSView()
         leftCard.wantsLayer = true
         leftCard.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
         leftCard.layer?.cornerRadius = DSV2.radiusCard
+        leftCard.layer?.borderWidth = 1
+        leftCard.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
         leftCard.translatesAutoresizingMaskIntoConstraints = false
 
         let leftStack = NSStackView(views: [
@@ -192,7 +224,8 @@ final class AIClawHumanViewController: NSViewController {
             messageHeader,
             msgPlatformStack,
             messageInputScroll,
-            actionButtonRow
+            actionButtonRow,
+            navigateRow
         ])
         leftStack.orientation = .vertical
         leftStack.alignment = .leading
@@ -229,6 +262,8 @@ final class AIClawHumanViewController: NSViewController {
             messagePlatformSegmented.widthAnchor.constraint(equalTo: msgPlatformStack.widthAnchor),
             queryButton.widthAnchor.constraint(equalTo: leftStack.widthAnchor),
             actionButtonRow.widthAnchor.constraint(equalTo: leftStack.widthAnchor),
+            navigateRow.widthAnchor.constraint(equalTo: leftStack.widthAnchor),
+            navigateButton.widthAnchor.constraint(equalTo: navigateRow.widthAnchor),
 
             resultScrollView.topAnchor.constraint(equalTo: pageHeader.bottomAnchor, constant: DSV2.spacing6),
             resultScrollView.leadingAnchor.constraint(equalTo: leftCard.trailingAnchor, constant: DSV2.spacing4),
@@ -299,8 +334,17 @@ final class AIClawHumanViewController: NSViewController {
 
         AppDelegate.shared?.sendNewConversation(platform: platform, instanceId: selectedInstanceId())
     }
-    
-    
+
+    @objc private func navigateToHomeClicked() {
+        let platform = messagePlatformSegmented.titleOfSelectedItem() ?? "chatgpt"
+
+        DispatchQueue.main.async {
+            self.resultTextView.string = "Navigating \(platform) tabs to home page...\n"
+        }
+
+        AppDelegate.shared?.sendNavigateToPlatform(platform: platform, instanceId: selectedInstanceId())
+    }
+
     @objc private func handleSendMessageResult(_ notification: Notification) {
         guard let userInfo = notification.userInfo,
               let jsonString = userInfo["dataString"] as? String else { return }
@@ -357,6 +401,15 @@ final class AIClawHumanViewController: NSViewController {
                     self.resultTextView.string = jsonString
                 }
             }
+        }
+    }
+
+    @objc private func handleNavigateResult(_ notification: Notification) {
+        guard let userInfo = notification.userInfo,
+              let jsonString = userInfo["dataString"] as? String else { return }
+
+        DispatchQueue.main.async {
+            self.resultTextView.string = "--- Navigate Result ---\n\(jsonString)"
         }
     }
 }
@@ -472,14 +525,27 @@ final class AIClawBotViewController: NSViewController {
                  -d '{"platform":"chatgpt"}'
             """
         )
-        
+
+        let navigateCard = makeEndpointCard(
+            method: "POST",
+            path: "/api/v1/ai/navigate",
+            description: "Navigate all tabs of a specific AI platform to its home page.",
+            curl: """
+            curl -X POST http://127.0.0.1:10088/api/v1/ai/navigate \\
+                 -H "Content-Type: application/json" \\
+                 -d '{"platform":"chatgpt"}'
+            """
+        )
+
         stackView.addArrangedSubview(statusCard)
         stackView.addArrangedSubview(messageCard)
         stackView.addArrangedSubview(newConvCard)
+        stackView.addArrangedSubview(navigateCard)
         
         statusCard.widthAnchor.constraint(equalTo: stackView.widthAnchor).isActive = true
         messageCard.widthAnchor.constraint(equalTo: stackView.widthAnchor).isActive = true
         newConvCard.widthAnchor.constraint(equalTo: stackView.widthAnchor).isActive = true
+        navigateCard.widthAnchor.constraint(equalTo: stackView.widthAnchor).isActive = true
     }
     
     private func makeEndpointCard(method: String, path: String, description: String, curl: String) -> NSView {

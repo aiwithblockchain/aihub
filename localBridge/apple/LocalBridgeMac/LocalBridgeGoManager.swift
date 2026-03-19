@@ -238,6 +238,18 @@ final class LocalBridgeGoManager {
             extraUserInfo: ["resultTitle": "New Conversation Result"]
         )
     }
+
+    func sendNavigateToPlatform(platform: String, instanceId: String? = nil) {
+        invokePlugin(
+            clientName: "aiClaw",
+            messageType: "request.navigate_to_platform",
+            instanceId: instanceId,
+            payload: NavigateToPlatformPayload(platform: platform),
+            timeoutMs: 5_000,
+            notificationName: "NavigateToPlatformReceived",
+            format: .prettyJSON
+        )
+    }
 }
 
 private extension LocalBridgeGoManager {
@@ -288,6 +300,10 @@ private extension LocalBridgeGoManager {
         let prompt: String?
         let conversationId: String?
         let model: String?
+    }
+
+    struct NavigateToPlatformPayload: Encodable {
+        let platform: String
     }
 
     struct APIErrorResponse: Decodable {

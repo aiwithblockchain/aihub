@@ -49,6 +49,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/ai/status",          h.aiStatus)
 	mux.HandleFunc("/api/v1/ai/message",          h.sendMessage)
 	mux.HandleFunc("/api/v1/ai/new_conversation", h.newConversation)
+	mux.HandleFunc("/api/v1/ai/navigate",         h.navigateToPlatform)
 }
 
 // ============================================================
@@ -320,6 +321,22 @@ func (h *Handler) newConversation(w http.ResponseWriter, r *http.Request) {
 	}
 	h.bridge(w, "aiClaw", id, buildMsg(id, "request.execute_task", "aiClaw", payload), timeoutMs,
 		func(data []byte) { writePayload[types.ExecuteTaskResultPayload](w, data) })
+}
+
+func (h *Handler) navigateToPlatform(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost { jsonErr(w, 405, "method_not_allowed"); return }
+	var req struct {
+		Platform string `json:"platform"`
+	}
+	if err := readJSON(r, &req); err != nil { jsonErr(w, 400, err.Error()); return }
+	if req.Platform != "chatgpt" && req.Platform != "gemini" && req.Platform != "grok" {
+		jsonErr(w, 400, "platform must be chatgpt, gemini, or grok")
+		return
+	}
+	id := newID("http_navigate")
+	payload := types.NavigateToPlatformPayload{Platform: req.Platform}
+	h.bridge(w, "aiClaw", id, buildMsg(id, "request.navigate_to_platform", "aiClaw", payload), 5000,
+		func(data []byte) { writePayload[types.NavigateResultPayload](w, data) })
 }
 
 // --- 工具函数 ---
