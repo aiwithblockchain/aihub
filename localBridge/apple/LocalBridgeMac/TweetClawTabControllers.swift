@@ -1,28 +1,5 @@
 import AppKit
 
-// 自定义 TextFieldCell 以支持内边距
-class PaddedTextFieldCell: NSTextFieldCell {
-    var textInsets = NSSize(width: 8, height: 4)
-
-    override func drawingRect(forBounds rect: NSRect) -> NSRect {
-        return rect.insetBy(dx: textInsets.width, dy: textInsets.height)
-    }
-
-    override func titleRect(forBounds rect: NSRect) -> NSRect {
-        return rect.insetBy(dx: textInsets.width, dy: textInsets.height)
-    }
-
-    override func edit(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, event: NSEvent?) {
-        let insetRect = rect.insetBy(dx: textInsets.width, dy: textInsets.height)
-        super.edit(withFrame: insetRect, in: controlView, editor: textObj, delegate: delegate, event: event)
-    }
-
-    override func select(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, start selStart: Int, length selLength: Int) {
-        let insetRect = rect.insetBy(dx: textInsets.width, dy: textInsets.height)
-        super.select(withFrame: insetRect, in: controlView, editor: textObj, delegate: delegate, start: selStart, length: selLength)
-    }
-}
-
 final class TweetClawHumanViewController: NSViewController {
     private let headerImageView = NSImageView()
     private let headerTitleLabel = NSTextField(labelWithString: "TweetClaw")
@@ -419,12 +396,9 @@ final class TweetClawHumanViewController: NSViewController {
     }
 
     private func styleInputField(_ field: NSTextField) {
-        // 使用自定义的 PaddedTextFieldCell 来支持内边距
-        field.cell = PaddedTextFieldCell(textCell: "")
-
         field.wantsLayer = true
         field.isBordered = true
-        field.bezelStyle = .squareBezel
+        field.bezelStyle = .roundedBezel
         field.drawsBackground = true
         field.backgroundColor = DSV2.surfaceContainerHigh
         field.textColor = DSV2.onSurface
@@ -977,7 +951,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         let doc = docs[row]
         let isSelected = tableView.selectedRow == row
 
-        // Apply card-like styling with DSV2
+        // Apply card-like styling with DSV2
         cell?.layer?.cornerRadius = DSV2.radiusCard
         if isSelected {
             // 选中状态：更明显的背景色变化
