@@ -84,8 +84,79 @@ final class KeychainTokenStore: Sendable {
     }
 }
 
+// MARK: - Provider Configuration Management
+
 extension KeychainTokenStore {
+    /// Keychain key for storing all provider configurations
+    private static let providerConfigsKey = "provider_configs_list"
+
+    /// 保存 Provider 配置
+    func saveProviderConfig(_ config: ProviderConfig) throws {
+        var configs = try loadAllProviderConfigs()
+
+        // 如果已存在相同 ID 的配置，则更新；否则添加
+        if let index = configs.firstIndex(where: { $0.id == config.id }) {
+            configs[index] = config
+        } else {
+            configs.append(config)
+        }
+
+        try saveAllProviderConfigs(configs)
+    }
+
+    /// 加载所有 Provider 配置
+    func loadAllProviderConfigs() throws -> [ProviderConfig] {
+        do {
+            let jsonString = try load(key: Self.providerConfigsKey)
+            guard let data = jsonString.data(using: .utf8) else {
+                throw KeychainError.unexpectedData
+            }
+            let configs = try JSONDecoder().decode([ProviderConfig].self, from: data)
+            return configs
+        } catch KeychainError.itemNotFound {
+            // 如果没有配置，返回空数组
+            return []
+        }
+    }
+
+    /// 加载指定 ID 的 Provider 配置
+    func loadProviderConfig(id: String) throws -> ProviderConfig? {
+        let configs = try loadAllProviderConfigs()
+        return configs.first { $0.id == id }
+    }
+
+    /// 删除指定 ID 的 Provider 配置
+    func deleteProviderConfig(id: String) throws {
+        var configs = try loadAllProviderConfigs()
+        configs.removeAll { $0.id == id }
+        try saveAllProviderConfigs(configs)
+    }
+
+    /// 保存所有 Provider 配置
+    private func saveAllProviderConfigs(_ configs: [ProviderConfig]) throws {
+        let data = try JSONEncoder().encode(configs)
+        guard let jsonString = String(data: data, encoding: .utf8) else {
+            throw KeychainError.unexpectedData
+        }
+        try save(key: Self.providerConfigsKey, value: jsonString)
+    }
+
+    /// 获取默认的 Provider 配置（第一个启用的配置）
+    func getDefaultProviderConfig() throws -> ProviderConfig? {
+        let configs = try loadAllProviderConfigs()
+        return configs.first { $0.isEnabled }
+    }
+}
+
+// MARK: - Legacy API Key Support (Deprecated)
+
+extension KeychainTokenStore {
+    @available(*, deprecated, message: "Use ProviderConfig instead")
     static let anthropicAPIKey = "anthropic_api_key"
+
+    @available(*, deprecated, message: "Use ProviderConfig instead")
     static let openAIAPIKey    = "openai_api_key"
+
+    @available(*, deprecated, message: "Use ProviderConfig instead")
     static let geminiAPIKey    = "gemini_api_key"
 }

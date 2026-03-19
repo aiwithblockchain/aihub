@@ -4,44 +4,70 @@ final class AnthropicHTTPProvider: AIProviderProtocol, Sendable {
     let id: ProviderID = .http
     let displayName: String = "Anthropic API"
 
-    private let model: String
-    private let keychain: KeychainTokenStore
+    private let config: ProviderConfig
     private let sseClient: SSEClient
 
+    /// 使用 ProviderConfig 初始化
     init(
+        config: ProviderConfig,
+        sseClient: SSEClient = SSEClient()
+    ) {
+        self.config = config
+        self.sseClient = sseClient
+    }
+
+    /// 便捷初始化方法（向后兼容，已废弃）
+    @available(*, deprecated, message: "Use init(config:) instead")
+    convenience init(
         model: String = "claude-sonnet-4-20250514",
         keychain: KeychainTokenStore = KeychainTokenStore(),
         sseClient: SSEClient = SSEClient()
     ) {
-        self.model = model
-        self.keychain = keychain
-        self.sseClient = sseClient
+        // 尝试从 Keychain 加载配置，如果失败则使用默认配置
+        let config: ProviderConfig
+        if let loadedConfig = try? keychain.getDefaultProviderConfig(),
+           loadedConfig.providerType == .anthropic {
+            config = loadedConfig
+        } else {
+            // 创建一个临时配置（需要用户后续配置 API Key）
+            config = ProviderConfig(
+                name: "Anthropic (临时)",
+                baseURL: ProviderType.anthropic.defaultBaseURL,
+                apiKey: "",
+                model: model,
+                providerType: .anthropic
+            )
+        }
+        self.init(config: config, sseClient: sseClient)
     }
 
     func stream(request: AIRequest) -> AsyncThrowingStream<AIStreamEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    // 1. 从 Keychain 读取 API Key
-                    let apiKey: String
-                    do {
-                        apiKey = try keychain.load(key: KeychainTokenStore.anthropicAPIKey)
-                    } catch {
-                        continuation.finish(throwing: AIProviderError.authRequired(details: "Anthropic API Key 未设置，请在设置中填写"))
+                    // 1. 验证配置
+                    guard !config.apiKey.isEmpty else {
+                        continuation.finish(throwing: AIProviderError.authRequired(details: "API Key 未设置，请在设置中配置"))
                         return
                     }
 
-                    // 2. 构建请求
-                    let url = URL(string: "https://api.anthropic.com/v1/messages")!
+                    // 2. 构建请求 URL（使用配置的 base_url）
+                    let endpoint = config.endpoint(path: "/messages")
+                    guard let url = URL(string: endpoint) else {
+                        continuation.finish(throwing: AIProviderError.transport(details: "无效的 API 端点: \(endpoint)"))
+                        return
+                    }
+
                     var urlRequest = URLRequest(url: url)
                     urlRequest.httpMethod = "POST"
                     urlRequest.setValue("application/json", forHTTPHeaderField: "Content-Type")
-                    urlRequest.setValue(apiKey, forHTTPHeaderField: "x-api-key")
+                    urlRequest.setValue(config.apiKey, forHTTPHeaderField: "x-api-key")
                     urlRequest.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
 
                     // 3. 构建请求体（Anthropic Messages API 格式）
+                    let modelToUse = config.model ?? "claude-sonnet-4-20250514"
                     var bodyDict: [String: Any] = [
-                        "model": model,
+                        "model": modelToUse,
                         "max_tokens": 4096,
                         "stream": true,
                         "messages": [
