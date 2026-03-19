@@ -38,12 +38,17 @@ final class InstancesPanelViewController: NSViewController {
     // MARK: - Setup
 
     private func setupUI() {
-        // Title
-        titleLabel.font = .systemFont(ofSize: 22, weight: .bold)
+        // 设置主视图背景为深色
+        view.wantsLayer = true
+        view.layer?.backgroundColor = DSV2.surface.cgColor
+
+        // Title - 使用 DSV2 样式
+        titleLabel.font = DSV2.fontDisplaySm
+        titleLabel.textColor = DSV2.onSurface
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        subtitleLabel.font = .systemFont(ofSize: 13)
-        subtitleLabel.textColor = .secondaryLabelColor
+        subtitleLabel.font = DSV2.fontBodyMd
+        subtitleLabel.textColor = DSV2.onSurfaceVariant
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
 
         // Refresh button
@@ -58,32 +63,32 @@ final class InstancesPanelViewController: NSViewController {
         // Grid
         setupGridView()
 
-        // Empty state view
+        // Empty state view - 使用 DSV2 颜色
         let emptyIcon = NSImageView(image: NSImage(systemSymbolName: "wifi.slash", accessibilityDescription: nil)!)
-        emptyIcon.contentTintColor = DS.colorTextTertiary
+        emptyIcon.contentTintColor = DSV2.onSurfaceTertiary
         if #available(macOS 11.0, *) {
             emptyIcon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 36, weight: .thin)
         }
-        
+
         let emptyText = NSTextField(labelWithString: "暂无已连接的实例")
-        emptyText.font      = DS.fontBody
-        emptyText.textColor = DS.colorTextSecond
+        emptyText.font = DSV2.fontBodyLg
+        emptyText.textColor = DSV2.onSurfaceVariant
         emptyText.alignment = .center
         emptyText.isEditable = false
         emptyText.isBordered = false
         emptyText.drawsBackground = false
-        
+
         let emptyHint = NSTextField(wrappingLabelWithString: "请确保浏览器扩展已启动并连接到 LocalBridge")
-        emptyHint.font      = DS.fontCaption
-        emptyHint.textColor = DS.colorTextTertiary
+        emptyHint.font = DSV2.fontBodySm
+        emptyHint.textColor = DSV2.onSurfaceTertiary
         emptyHint.alignment = .center
         emptyHint.isEditable = false
         emptyHint.isBordered = false
         emptyHint.drawsBackground = false
-        
+
         emptyView = NSStackView(views: [emptyIcon, emptyText, emptyHint])
         emptyView.orientation = .vertical
-        emptyView.spacing = DS.spacingS
+        emptyView.spacing = DSV2.spacing4
         emptyView.translatesAutoresizingMaskIntoConstraints = false
         emptyView.isHidden = true
 
@@ -99,18 +104,18 @@ final class InstancesPanelViewController: NSViewController {
         view.addSubview(emptyView)
 
         NSLayoutConstraint.activate([
-            headerStack.topAnchor.constraint(equalTo: view.topAnchor, constant: 20),
-            headerStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            headerStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            headerStack.topAnchor.constraint(equalTo: view.topAnchor, constant: DSV2.spacing6),
+            headerStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
+            headerStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
 
-            subtitleLabel.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: 6),
-            subtitleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            subtitleLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
+            subtitleLabel.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: DSV2.spacing2),
+            subtitleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
+            subtitleLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
 
-            scrollView.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 16),
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 20),
-            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -20),
-            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -20),
+            scrollView.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: DSV2.spacing4),
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
+            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
+            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6),
 
             emptyView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             emptyView.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: 40),
@@ -173,38 +178,39 @@ final class InstancesPanelViewController: NSViewController {
         let cardWidth: CGFloat = 260
         let cardHeight: CGFloat = 130
 
-        let card = DS.makeCard()
+        // 使用 DSV2 玻璃卡片（无边框）
+        let card = DSV2.makeGlassCard()
         card.frame = NSRect(x: 0, y: 0, width: cardWidth, height: cardHeight)
 
         let padding: CGFloat = 12
 
-        // 图标
+        // 图标 - 使用 DSV2 主色
         let symbolName = instance.clientName == "tweetClaw" ? "network" : "cpu"
         let icon = NSImageView(frame: NSRect(x: padding, y: cardHeight - padding - 20, width: 20, height: 20))
         icon.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
-        icon.contentTintColor = DS.colorHighlight
+        icon.contentTintColor = DSV2.primary
         if #available(macOS 11.0, *) {
             icon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 16, weight: .medium)
         }
         card.addSubview(icon)
 
-        // 扩展名称
+        // 扩展名称 - 使用 DSV2 文本颜色
         let nameLabel = NSTextField(labelWithString: instance.clientName)
-        nameLabel.font = .systemFont(ofSize: 14, weight: .semibold)
-        nameLabel.textColor = DS.colorTextPrimary
+        nameLabel.font = DSV2.fontTitleSm
+        nameLabel.textColor = DSV2.onSurface
         nameLabel.isBordered = false
         nameLabel.isEditable = false
         nameLabel.drawsBackground = false
         nameLabel.frame = NSRect(x: padding + 26, y: cardHeight - padding - 18, width: 140, height: 18)
         card.addSubview(nameLabel)
 
-        // 版本标签
+        // 版本标签 - 使用 DSV2 Chip 样式
         let versionLabel = NSTextField(labelWithString: "v\(instance.clientVersion)")
-        versionLabel.font = .systemFont(ofSize: 9, weight: .medium)
-        versionLabel.textColor = DS.colorTextTertiary
+        versionLabel.font = DSV2.fontLabelSm
+        versionLabel.textColor = DSV2.onSurfaceVariant
         versionLabel.wantsLayer = true
-        versionLabel.layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.5).cgColor
-        versionLabel.layer?.cornerRadius = 3
+        versionLabel.layer?.backgroundColor = DSV2.outlineVariant.withAlphaComponent(0.2).cgColor
+        versionLabel.layer?.cornerRadius = DSV2.radiusFull / 2
         versionLabel.alignment = .center
         versionLabel.isBordered = false
         versionLabel.isEditable = false
@@ -214,19 +220,19 @@ final class InstancesPanelViewController: NSViewController {
 
         // Instance ID 标题
         let idTitleLabel = NSTextField(labelWithString: "Instance ID")
-        idTitleLabel.font = .systemFont(ofSize: 9, weight: .semibold)
-        idTitleLabel.textColor = DS.colorTextTertiary
+        idTitleLabel.font = DSV2.fontLabelSm
+        idTitleLabel.textColor = DSV2.onSurfaceTertiary
         idTitleLabel.isBordered = false
         idTitleLabel.isEditable = false
         idTitleLabel.drawsBackground = false
         idTitleLabel.frame = NSRect(x: padding, y: cardHeight - padding - 42, width: cardWidth - 2 * padding, height: 11)
         card.addSubview(idTitleLabel)
 
-        // Instance ID 值
+        // Instance ID 值 - 使用等宽字体
         let displayId = instance.isTemporary ? "\(instance.instanceId.prefix(18))..." : "\(instance.instanceId.prefix(22))..."
         let idLabel = NSTextField(labelWithString: displayId)
-        idLabel.font = .monospacedSystemFont(ofSize: 9, weight: .regular)
-        idLabel.textColor = instance.isTemporary ? DS.colorTextTertiary : DS.colorTextSecond
+        idLabel.font = DSV2.fontMonoSm
+        idLabel.textColor = instance.isTemporary ? DSV2.onSurfaceTertiary : DSV2.onSurfaceVariant
         idLabel.lineBreakMode = .byTruncatingMiddle
         idLabel.isBordered = false
         idLabel.isEditable = false
@@ -236,8 +242,8 @@ final class InstancesPanelViewController: NSViewController {
 
         // 连接时间标题
         let timeTitleLabel = NSTextField(labelWithString: "连接时间")
-        timeTitleLabel.font = .systemFont(ofSize: 9, weight: .semibold)
-        timeTitleLabel.textColor = DS.colorTextTertiary
+        timeTitleLabel.font = DSV2.fontLabelSm
+        timeTitleLabel.textColor = DSV2.onSurfaceTertiary
         timeTitleLabel.isBordered = false
         timeTitleLabel.isEditable = false
         timeTitleLabel.drawsBackground = false
@@ -246,24 +252,24 @@ final class InstancesPanelViewController: NSViewController {
 
         // 连接时间值
         let timeLabel = NSTextField(labelWithString: dateFormatter.string(from: instance.connectedAt))
-        timeLabel.font = .monospacedSystemFont(ofSize: 9, weight: .regular)
-        timeLabel.textColor = DS.colorTextSecond
+        timeLabel.font = DSV2.fontMonoSm
+        timeLabel.textColor = DSV2.onSurfaceVariant
         timeLabel.isBordered = false
         timeLabel.isEditable = false
         timeLabel.drawsBackground = false
         timeLabel.frame = NSRect(x: padding, y: cardHeight - padding - 85, width: cardWidth - 2 * padding, height: 11)
         card.addSubview(timeLabel)
 
-        // 活跃状态
+        // 活跃状态 - 使用 DSV2 状态点
         let secondsAgo = Int(Date().timeIntervalSince(instance.lastSeenAt))
         let statusColor: NSColor
         let statusText: String
 
         if secondsAgo < 60 {
-            statusColor = DS.colorOnline
+            statusColor = DSV2.tertiary
             statusText = "\(secondsAgo)s 前"
         } else {
-            statusColor = DS.colorTextTertiary
+            statusColor = DSV2.onSurfaceTertiary
             statusText = dateFormatter.string(from: instance.lastSeenAt)
         }
 
@@ -274,8 +280,8 @@ final class InstancesPanelViewController: NSViewController {
         card.addSubview(statusDot)
 
         let statusLabel = NSTextField(labelWithString: statusText)
-        statusLabel.font = .systemFont(ofSize: 9, weight: .regular)
-        statusLabel.textColor = secondsAgo < 60 ? DS.colorOnline : DS.colorTextSecond
+        statusLabel.font = DSV2.fontLabelSm
+        statusLabel.textColor = secondsAgo < 60 ? DSV2.tertiary : DSV2.onSurfaceVariant
         statusLabel.isBordered = false
         statusLabel.isEditable = false
         statusLabel.drawsBackground = false
