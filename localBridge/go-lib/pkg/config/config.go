@@ -6,14 +6,40 @@ import (
 	"path/filepath"
 )
 
+type ListenAddress struct {
+	IP      string `json:"ip"`
+	Port    int    `json:"port"`
+	Enabled bool   `json:"enabled"`
+}
+
+type ServiceConfig struct {
+	Addresses []ListenAddress `json:"addresses"`
+}
+
 type Config struct {
-	TweetClawPort int `json:"tweetClawPort"` // default 10086
-	AIClawPort    int `json:"aiClawPort"`    // default 10087
-	RestPort      int `json:"restPort"`      // always 10088, not user-configurable
+	TweetClawWS ServiceConfig `json:"tweetClawWS"`
+	AIClawWS    ServiceConfig `json:"aiClawWS"`
+	RestAPI     ServiceConfig `json:"restAPI"`
 }
 
 func DefaultConfig() Config {
-	return Config{TweetClawPort: 10086, AIClawPort: 10087, RestPort: 10088}
+	return Config{
+		TweetClawWS: ServiceConfig{
+			Addresses: []ListenAddress{
+				{IP: "127.0.0.1", Port: 10086, Enabled: true},
+			},
+		},
+		AIClawWS: ServiceConfig{
+			Addresses: []ListenAddress{
+				{IP: "127.0.0.1", Port: 10087, Enabled: true},
+			},
+		},
+		RestAPI: ServiceConfig{
+			Addresses: []ListenAddress{
+				{IP: "127.0.0.1", Port: 10088, Enabled: true},
+			},
+		},
+	}
 }
 
 func configPath() string {
@@ -29,9 +55,18 @@ func Load() Config {
 		return cfg
 	}
 	_ = json.Unmarshal(data, &cfg)
-	if cfg.TweetClawPort <= 0 { cfg.TweetClawPort = 10086 }
-	if cfg.AIClawPort <= 0    { cfg.AIClawPort    = 10087 }
-	cfg.RestPort = 10088 // 固定，不允许覆盖
+
+	// 确保至少有一个启用的地址
+	if len(cfg.TweetClawWS.Addresses) == 0 {
+		cfg.TweetClawWS = DefaultConfig().TweetClawWS
+	}
+	if len(cfg.AIClawWS.Addresses) == 0 {
+		cfg.AIClawWS = DefaultConfig().AIClawWS
+	}
+	if len(cfg.RestAPI.Addresses) == 0 {
+		cfg.RestAPI = DefaultConfig().RestAPI
+	}
+
 	return cfg
 }
 

@@ -164,10 +164,12 @@ private extension SidebarViewController {
             scrollView.bottomAnchor.constraint(equalTo: settingsButton.topAnchor, constant: -10),
 
             settingsButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
+            settingsButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
             settingsButton.bottomAnchor.constraint(equalTo: quitButton.topAnchor, constant: -8),
             settingsButton.heightAnchor.constraint(equalToConstant: 32),
 
             quitButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
+            quitButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
             quitButton.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -14),
             quitButton.heightAnchor.constraint(equalToConstant: 32)
         ])
@@ -182,6 +184,7 @@ private extension SidebarViewController {
         settingsButton.bezelStyle = .regularSquare
         settingsButton.isBordered = false
         settingsButton.imagePosition = .imageLeading
+        settingsButton.alignment = .left
         settingsButton.font = DSV2.fontBodySm
         settingsButton.contentTintColor = DSV2.onSurfaceVariant
 
@@ -199,6 +202,7 @@ private extension SidebarViewController {
         quitButton.bezelStyle = .regularSquare
         quitButton.isBordered = false
         quitButton.imagePosition = .imageLeading
+        quitButton.alignment = .left
         quitButton.font = DSV2.fontBodySm
         quitButton.contentTintColor = DSV2.error
 
