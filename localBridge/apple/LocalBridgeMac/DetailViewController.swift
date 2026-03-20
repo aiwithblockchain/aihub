@@ -1,10 +1,7 @@
 import AppKit
 
 final class DetailViewController: NSViewController {
-    // TweetClaw tab view
-    private let tweetClawTabView = NSTabView()
-    private var tweetClawSegmentedControl: SegmentedControl!
-    private let humanVC = TweetClawHumanViewController()
+    // TweetClaw
     private let clawVC = TweetClawClawViewController()
 
     // AIClaw tab view
@@ -27,53 +24,15 @@ final class DetailViewController: NSViewController {
     }
 
     func display(conversation: Conversation) {
+        placeholderLabel.isHidden = true
+        clawVC.view.isHidden = conversation.title != "TweetClaw"
+        aiClawTabView.isHidden = conversation.title != "AIClaw"
+        aiClawSegmentedControl.isHidden = conversation.title != "AIClaw"
+        instancesPanelView.view.isHidden = conversation.title != "已连接实例"
+        bridgeLogsVC.view.isHidden = conversation.title != "Bridge Logs"
+        
         if conversation.title == "TweetClaw" {
-            placeholderLabel.isHidden = true
-            tweetClawTabView.isHidden = false
-            tweetClawSegmentedControl.isHidden = false
-            aiClawTabView.isHidden = true
-            aiClawSegmentedControl.isHidden = true
-            instancesPanelView.view.isHidden = true
-            bridgeLogsVC.view.isHidden = true
-            
-            // 如果切到 TweetClaw 时当前选中的是 For Claw 标签页，强制刷新一次详情显示
-            if tweetClawSegmentedControl.indexOfSelectedItem() == 1 {
-                clawVC.selectDefaultRow()
-            }
-        } else if conversation.title == "AIClaw" {
-            placeholderLabel.isHidden = true
-            tweetClawTabView.isHidden = true
-            tweetClawSegmentedControl.isHidden = true
-            aiClawTabView.isHidden = false
-            aiClawSegmentedControl.isHidden = false
-            instancesPanelView.view.isHidden = true
-            bridgeLogsVC.view.isHidden = true
-        } else if conversation.title == "已连接实例" {
-            placeholderLabel.isHidden = true
-            tweetClawTabView.isHidden = true
-            tweetClawSegmentedControl.isHidden = true
-            aiClawTabView.isHidden = true
-            aiClawSegmentedControl.isHidden = true
-            instancesPanelView.view.isHidden = false
-            bridgeLogsVC.view.isHidden = true
-            instancesPanelView.refresh()
-        } else if conversation.title == "Bridge Logs" {
-            placeholderLabel.isHidden = true
-            tweetClawTabView.isHidden = true
-            tweetClawSegmentedControl.isHidden = true
-            aiClawTabView.isHidden = true
-            aiClawSegmentedControl.isHidden = true
-            instancesPanelView.view.isHidden = true
-            bridgeLogsVC.view.isHidden = false
-        } else {
-            placeholderLabel.isHidden = false
-            tweetClawTabView.isHidden = true
-            tweetClawSegmentedControl.isHidden = true
-            aiClawTabView.isHidden = true
-            aiClawSegmentedControl.isHidden = true
-            instancesPanelView.view.isHidden = true
-            bridgeLogsVC.view.isHidden = true
-            placeholderLabel.stringValue = "\(conversation.title): \(conversation.preview)"
+            clawVC.selectDefaultRow()
         }
     }
 }
@@ -88,50 +47,21 @@ private extension DetailViewController {
         placeholderLabel.textColor = DS.colorTextTertiary
         view.addSubview(placeholderLabel)
 
-        // TweetClaw tabs
-        tweetClawTabView.tabViewType = .noTabsNoBorder
-        tweetClawTabView.translatesAutoresizingMaskIntoConstraints = false
-        
-        let humanItem = NSTabViewItem(viewController: humanVC)
-        let clawItem = NSTabViewItem(viewController: clawVC)
-        
-        tweetClawTabView.addTabViewItem(humanItem)
-        tweetClawTabView.addTabViewItem(clawItem)
+        // TweetClaw (Directly use Claw view)
+        addChild(clawVC)
+        clawVC.view.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(clawVC.view)
+        clawVC.view.isHidden = true
 
-        tweetClawSegmentedControl = DSV2.makeSegmentedControl(items: ["For Human", "For Claw"], target: self, action: #selector(tweetClawSegmentChanged(_:)))
-        tweetClawSegmentedControl.translatesAutoresizingMaskIntoConstraints = false
-
-        // Apply DSV2 styling with container
-        tweetClawSegmentedControl.wantsLayer = true
-        tweetClawSegmentedControl.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
-        tweetClawSegmentedControl.layer?.cornerRadius = DSV2.radiusButton
-        tweetClawSegmentedControl.layer?.borderWidth = 1
-        tweetClawSegmentedControl.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.2).cgColor
-        
-        view.addSubview(tweetClawTabView)
-        view.addSubview(tweetClawSegmentedControl)
-        tweetClawTabView.isHidden = true
-        tweetClawSegmentedControl.isHidden = true
-        
         // AIClaw tabs
-        aiClawTabView.tabViewType = .noTabsNoBorder
-        aiClawTabView.translatesAutoresizingMaskIntoConstraints = false
-        
         let aiHumanItem = NSTabViewItem(viewController: aiHumanVC)
         let aiClawItem = NSTabViewItem(viewController: aiClawVC)
-        
         aiClawTabView.addTabViewItem(aiHumanItem)
         aiClawTabView.addTabViewItem(aiClawItem)
-
-        aiClawSegmentedControl = DSV2.makeSegmentedControl(items: ["For Human", "For Claw"], target: self, action: #selector(aiClawSegmentChanged(_:)))
+        aiClawTabView.translatesAutoresizingMaskIntoConstraints = false
+        
+        aiClawSegmentedControl = SegmentedControl(items: ["For Human", "For Claw"], target: self, action: #selector(aiClawSegmentChanged))
         aiClawSegmentedControl.translatesAutoresizingMaskIntoConstraints = false
-
-        // Apply DSV2 styling with container
-        aiClawSegmentedControl.wantsLayer = true
-        aiClawSegmentedControl.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
-        aiClawSegmentedControl.layer?.cornerRadius = DSV2.radiusButton
-        aiClawSegmentedControl.layer?.borderWidth = 1
-        aiClawSegmentedControl.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.2).cgColor
         
         view.addSubview(aiClawTabView)
         view.addSubview(aiClawSegmentedControl)
@@ -154,22 +84,19 @@ private extension DetailViewController {
             placeholderLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             placeholderLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor),
             
-            tweetClawSegmentedControl.topAnchor.constraint(equalTo: view.topAnchor, constant: DS.spacingM),
-            tweetClawSegmentedControl.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            
-            tweetClawTabView.topAnchor.constraint(equalTo: tweetClawSegmentedControl.bottomAnchor, constant: DS.spacingS),
-            tweetClawTabView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            tweetClawTabView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            tweetClawTabView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            clawVC.view.topAnchor.constraint(equalTo: view.topAnchor),
+            clawVC.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            clawVC.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            clawVC.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             
             aiClawSegmentedControl.topAnchor.constraint(equalTo: view.topAnchor, constant: DS.spacingM),
             aiClawSegmentedControl.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             
-            aiClawTabView.topAnchor.constraint(equalTo: aiClawSegmentedControl.bottomAnchor, constant: DS.spacingS),
+            aiClawTabView.topAnchor.constraint(equalTo: aiClawSegmentedControl.bottomAnchor, constant: DS.spacingM),
             aiClawTabView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             aiClawTabView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             aiClawTabView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            
+
             instancesPanelView.view.topAnchor.constraint(equalTo: view.topAnchor),
             instancesPanelView.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             instancesPanelView.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
@@ -180,16 +107,6 @@ private extension DetailViewController {
             bridgeLogsVC.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             bridgeLogsVC.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
-    }
-    
-    @objc func tweetClawSegmentChanged(_ sender: SegmentedControl) {
-        let index = sender.indexOfSelectedItem()
-        tweetClawTabView.selectTabViewItem(at: index)
-        
-        // 当用户手动切换到 For Claw 时，强制同步第一行 API 卡片详情到右侧黑色背景显示区域
-        if index == 1 {
-            clawVC.selectDefaultRow()
-        }
     }
 
     @objc func aiClawSegmentChanged(_ sender: SegmentedControl) {
