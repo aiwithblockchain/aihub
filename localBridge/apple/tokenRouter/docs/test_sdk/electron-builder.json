@@ -1,0 +1,23 @@
+{
+  "appId": "com.test.claude-sdk",
+  "productName": "Claude SDK Chat",
+  "directories": {
+    "output": "release"
+  },
+  "files": [
+    "dist/**/*",
+    "public/**/*",
+    "node_modules/**/*",
+    "package.json"
+  ],
+  "mac": {
+    "category": "public.app-category.developer-tools",
+    "target": ["dmg", "zip"]
+  },
+  "win": {
+    "target": ["nsis", "portable"]
+  },
+  "linux": {
+    "target": ["AppImage", "deb"]
+  }
+}

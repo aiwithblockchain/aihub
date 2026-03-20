@@ -1,9 +1,11 @@
 import express from 'express';
 import { query } from '@anthropic-ai/claude-agent-sdk';
+import type { Server } from 'http';
+import * as path from 'path';
 
 const app = express();
 app.use(express.json());
-app.use(express.static('public'));
+app.use(express.static(path.join(__dirname, '../public')));
 
 let isConfigured = false;
 
@@ -28,7 +30,7 @@ app.post('/api/config', (req, res) => {
 // 对话 API
 app.post('/api/chat', async (req, res) => {
   if (!isConfigured) {
-    return res.status(400).json({ error: '未配置 API，请先在首页配置' });
+    return res.status(400).json({ error: '未配置 API，请先在设置中配置' });
   }
 
   const { message } = req.body;
@@ -63,7 +65,19 @@ app.post('/api/chat', async (req, res) => {
   }
 });
 
-const PORT = 3000;
-app.listen(PORT, () => {
-  console.log(`Server running on http://localhost:${PORT}`);
-});
+// 导出 startServer 函数供 Electron 主进程调用
+export function startServer(port: number = 0): Promise<{ server: Server; port: number }> {
+  return new Promise((resolve) => {
+    const server = app.listen(port, () => {
+      const address = server.address();
+      const actualPort = typeof address === 'object' && address ? address.port : port;
+      console.log(`Server running on http://localhost:${actualPort}`);
+      resolve({ server, port: actualPort });
+    });
+  });
+}
+
+// 如果直接运行此文件（非 import），启动服务器
+if (require.main === module) {
+  startServer(3000);
+}
