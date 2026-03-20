@@ -68,14 +68,26 @@ func NewServer() *Server {
 	}
 }
 
-// Start 在多个端口上启动 WebSocket 监听，自动去重
-func (s *Server) Start(ports []int) error {
-	seen := map[int]bool{}
-	for _, p := range ports {
-		if seen[p] {
+// ListenAddress 监听地址配置
+type ListenAddress struct {
+	IP      string
+	Port    int
+	Enabled bool
+}
+
+// Start 在多个地址上启动 WebSocket 监听，自动去重
+func (s *Server) Start(addresses []ListenAddress) error {
+	seen := map[string]bool{}
+	for _, addr := range addresses {
+		if !addr.Enabled {
 			continue
 		}
-		seen[p] = true
+		listenAddr := fmt.Sprintf("%s:%d", addr.IP, addr.Port)
+		if seen[listenAddr] {
+			continue
+		}
+		seen[listenAddr] = true
+
 		mux := http.NewServeMux()
 		mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 			conn, err := upgrader.Upgrade(w, r, nil)
@@ -85,14 +97,14 @@ func (s *Server) Start(ports []int) error {
 			}
 			go s.handleConn(conn)
 		})
-		srv := &http.Server{Addr: fmt.Sprintf(":%d", p), Handler: mux}
+		srv := &http.Server{Addr: listenAddr, Handler: mux}
 		s.httpServers = append(s.httpServers, srv)
-		go func(port int, server *http.Server) {
-			log.Printf("[WS] listening on :%d", port)
+		go func(address string, server *http.Server) {
+			log.Printf("[WS] listening on %s", address)
 			if err := server.ListenAndServe(); err != nil && err != http.ErrServerClosed {
-				log.Printf("[WS] port %d error: %v", port, err)
+				log.Printf("[WS] address %s error: %v", address, err)
 			}
-		}(p, srv)
+		}(listenAddr, srv)
 	}
 	go s.runHeartbeat()
 	return nil

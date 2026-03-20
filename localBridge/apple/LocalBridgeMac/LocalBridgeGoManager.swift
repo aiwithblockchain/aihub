@@ -19,18 +19,40 @@ final class LocalBridgeGoManager {
     private var lastLogCount: Int = 0
 
     func start() {
-        let defaults = UserDefaults.standard
-        let tweetClawPort = defaults.integer(forKey: "tweetClawPort")
-        let aiClawPort = defaults.integer(forKey: "aiClawPort")
-        let resolvedTweetClawPort = tweetClawPort == 0 ? 10086 : tweetClawPort
-        let resolvedAIClawPort = aiClawPort == 0 ? 10087 : aiClawPort
+        // 加载配置并保存到 Go 的配置文件
+        let config = BridgeConfig.load()
+        saveConfigToGoConfigFile(config)
 
-        let code = LocalBridgeStart(Int32(resolvedTweetClawPort), Int32(resolvedAIClawPort))
+        // 启动服务（端口参数已不再使用，从配置文件读取）
+        let code = LocalBridgeStart(0, 0)
         if code != 0 {
             BridgeLogger.shared.log("[LocalBridgeMac] LocalBridgeStart failed with code \(code)")
         }
 
         startLogPolling()
+    }
+
+    private func saveConfigToGoConfigFile(_ config: BridgeConfig) {
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+
+        guard let jsonData = try? encoder.encode(config),
+              let jsonString = String(data: jsonData, encoding: .utf8) else {
+            BridgeLogger.shared.log("[LocalBridgeMac] Failed to encode config")
+            return
+        }
+
+        let homeDir = FileManager.default.homeDirectoryForCurrentUser
+        let configDir = homeDir.appendingPathComponent(".config/localbridge")
+        let configFile = configDir.appendingPathComponent("config.json")
+
+        do {
+            try FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
+            try jsonString.write(to: configFile, atomically: true, encoding: .utf8)
+            BridgeLogger.shared.log("[LocalBridgeMac] Config saved to \(configFile.path)")
+        } catch {
+            BridgeLogger.shared.log("[LocalBridgeMac] Failed to save config: \(error)")
+        }
     }
 
     func stop(completion: (() -> Void)? = nil) {
