@@ -63,6 +63,8 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         NotificationCenter.default.addObserver(self, selector: #selector(displayResult(_:)), name: NSNotification.Name("CloseTabReceived"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(displayResult(_:)), name: NSNotification.Name("NavigateTabReceived"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(displayResult(_:)), name: NSNotification.Name("ExecActionReceived"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(displayResult(_:)), name: NSNotification.Name("GetAPIDocsReceived"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(displayResult(_:)), name: NSNotification.Name("GetInstancesReceived"), object: nil)
 
         loadInstances()
     }
@@ -551,6 +553,18 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         var inputs: [NSView] = []
         
         switch doc.id {
+        case "get_api_docs":
+            actionButton.title = "Get API Docs"
+        case "query_x_status":
+            actionButton.title = "Refresh Status"
+        case "get_instances":
+            actionButton.title = "Get Instances"
+        case "query_x_basic_info":
+            actionButton.title = "Get Basic Info"
+        case "query_home_timeline":
+            actionButton.title = "Get Home Timeline"
+        case "query_search_results":
+            actionButton.title = "Get Search Results"
         case "open_tab":
             commonPathField.placeholderString = "Enter path (e.g. home) or URL"
             inputs.append(makeInputRow("Path:", commonPathField))
@@ -629,8 +643,12 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         let instanceId = selectedInstanceId()
         
         switch doc.id {
+        case "get_api_docs":
+            AppDelegate.shared?.fetchAPIDocs()
         case "query_x_status":
             AppDelegate.shared?.sendQueryXTabsStatus(instanceId: instanceId)
+        case "get_instances":
+            AppDelegate.shared?.fetchInstances()
         case "query_x_basic_info":
             AppDelegate.shared?.sendQueryXBasicInfo(instanceId: instanceId)
         case "open_tab":

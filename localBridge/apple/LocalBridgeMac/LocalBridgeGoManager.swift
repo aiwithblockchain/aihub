@@ -272,6 +272,43 @@ final class LocalBridgeGoManager {
             format: .prettyJSON
         )
     }
+
+    func sendRESTRequest(method: String, path: String, notificationName: String) {
+        let urlString = "http://127.0.0.1:\(restPort)\(path)"
+        guard let url = URL(string: urlString) else {
+            postNotification(name: notificationName, dataString: "Error: Invalid REST URL: \(urlString)", extraUserInfo: [:])
+            return
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = method.uppercased()
+        
+        BridgeLogger.shared.log("[LocalBridgeMac] REST Request: \(method) \(path)")
+
+        session.dataTask(with: request) { [weak self] data, response, error in
+            guard let self = self else { return }
+
+            if let error = error {
+                self.postNotification(name: notificationName, dataString: "Error: \(error.localizedDescription)", extraUserInfo: [:])
+                return
+            }
+
+            guard let httpResponse = response as? HTTPURLResponse else {
+                self.postNotification(name: notificationName, dataString: "Error: Invalid HTTP response", extraUserInfo: [:])
+                return
+            }
+
+            let responseData = data ?? Data()
+            let dataString = self.formattedResponseString(from: responseData, format: .prettyJSON)
+            
+            if !(200...299).contains(httpResponse.statusCode) {
+                let msg = self.errorMessage(from: responseData) ?? "HTTP \(httpResponse.statusCode)"
+                self.postNotification(name: notificationName, dataString: "Error: \(msg)\n\n\(dataString)", extraUserInfo: [:])
+            } else {
+                self.postNotification(name: notificationName, dataString: dataString, extraUserInfo: [:])
+            }
+        }.resume()
+    }
 }
 
 private extension LocalBridgeGoManager {

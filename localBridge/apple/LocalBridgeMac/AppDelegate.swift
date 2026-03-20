@@ -119,6 +119,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         goServer.sendNavigateToPlatform(platform: platform, instanceId: instanceId)
     }
 
+    func fetchAPIDocs() {
+        goServer.sendRESTRequest(method: "GET", path: "/api/v1/docs", notificationName: "GetAPIDocsReceived")
+    }
+
+    func fetchInstances() {
+        goServer.sendRESTRequest(method: "GET", path: "/api/v1/x/instances", notificationName: "GetInstancesReceived")
+    }
+
     @objc private func restartWebSocketServer() {
         print("[LocalBridgeMac] Restarting WebSocket Service...")
         goServer.stop { [weak self] in
