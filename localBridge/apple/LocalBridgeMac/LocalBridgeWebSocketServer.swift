@@ -1201,6 +1201,12 @@ class LocalBridgeWebSocketServer {
     private func receiveHttpRequest(from connection: NWConnection) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 8192) { data, context, isComplete, error in
             if let data = data, let request = String(data: data, encoding: .utf8) {
+                // Support CORS preflight
+                if request.hasPrefix("OPTIONS ") {
+                    self.sendHttpResponse(connection, status: "204 No Content", body: "")
+                    return
+                }
+                
                 if request.contains("GET /api/v1/x/status") {
                     self.handleXStatusHttpRequest(connection)
                 } else if request.contains("GET /api/v1/x/basic_info") {
@@ -1362,7 +1368,15 @@ class LocalBridgeWebSocketServer {
     }
     
     private func sendHttpResponse(_ connection: NWConnection, status: String, body: String) {
-        let response = "HTTP/1.1 \(status)\r\nContent-Type: application/json\r\nConnection: close\r\nContent-Length: \(body.utf8.count)\r\n\r\n\(body)"
+        var response = "HTTP/1.1 \(status)\r\n"
+        response += "Content-Type: application/json\r\n"
+        response += "Access-Control-Allow-Origin: *\r\n"
+        response += "Access-Control-Allow-Methods: GET, POST, DELETE, OPTIONS\r\n"
+        response += "Access-Control-Allow-Headers: Content-Type\r\n"
+        response += "Connection: close\r\n"
+        response += "Content-Length: \(body.utf8.count)\r\n\r\n"
+        response += body
+        
         connection.send(content: response.data(using: .utf8), completion: .contentProcessed({ _ in
             connection.cancel()
         }))
@@ -1971,21 +1985,38 @@ class LocalBridgeWebSocketServer {
     private func handleApiDocsHttpRequest(_ connection: NWConnection) {
         var jsonString: String? = nil
 
+        // 1. Try Bundle
         if let url = Bundle.main.url(forResource: "api_docs", withExtension: "json"),
            let data = try? Data(contentsOf: url) {
             jsonString = String(data: data, encoding: .utf8)
+            print("[LocalBridgeMac] Loaded api_docs.json from bundle")
         }
 
+        // 2. Try hardcoded development path
         if jsonString == nil {
             let path = "/Users/hyperorchid/aiwithblockchain/aihub/localBridge/apple/LocalBridgeMac/api_docs.json"
             if let data = try? Data(contentsOf: URL(fileURLWithPath: path)) {
                 jsonString = String(data: data, encoding: .utf8)
+                print("[LocalBridgeMac] Loaded api_docs.json from dev path")
+            }
+        }
+        
+        // 3. Try relative path to current directory (for CLI or raw execution)
+        if jsonString == nil {
+            let currentPath = FileManager.default.currentDirectoryPath
+            let url = URL(fileURLWithPath: currentPath).appendingPathComponent("api_docs.json")
+            if let data = try? Data(contentsOf: url) {
+                jsonString = String(data: data, encoding: .utf8)
+                print("[LocalBridgeMac] Loaded api_docs.json from current directory")
             }
         }
 
         if let body = jsonString {
             sendHttpResponse(connection, status: "200 OK", body: body)
         } else {
+            let msg = "[LocalBridgeMac] Error: api_docs.json not found in bundle, dev path, or current directory"
+            print(msg)
+            BridgeLogger.shared.log(msg)
             sendHttpResponse(connection, status: "500 Internal Server Error", body: "{\"error\":\"api_docs_not_found\"}")
         }
     }

@@ -142,7 +142,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         headerTitleLabel.textColor = DSV2.onSurface
 
         let headerStack = NSStackView(views: [headerImageView, headerTitleLabel])
-        headerStack.orientation = .horizontal
+        headerStack.orientation = .horizontal	
         headerStack.spacing = 8
         headerStack.alignment = .centerY
         headerStack.translatesAutoresizingMaskIntoConstraints = false
