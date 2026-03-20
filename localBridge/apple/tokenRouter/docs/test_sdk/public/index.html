@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Claude SDK 配置</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .container {
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      padding: 40px;
+      max-width: 500px;
+      width: 100%;
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 30px;
+      text-align: center;
+      font-size: 28px;
+    }
+    .form-group {
+      margin-bottom: 20px;
+    }
+    label {
+      display: block;
+      color: #555;
+      margin-bottom: 8px;
+      font-weight: 500;
+    }
+    input {
+      width: 100%;
+      padding: 12px;
+      border: 2px solid #e0e0e0;
+      border-radius: 6px;
+      font-size: 14px;
+      transition: border-color 0.3s;
+    }
+    input:focus {
+      outline: none;
+      border-color: #667eea;
+    }
+    button {
+      width: 100%;
+      padding: 14px;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 16px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+    }
+    button:hover {
+      transform: translateY(-2px);
+      box-shadow: 0 10px 20px rgba(102, 126, 234, 0.4);
+    }
+    button:active {
+      transform: translateY(0);
+    }
+    button:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+    .error {
+      color: #e74c3c;
+      margin-top: 10px;
+      font-size: 14px;
+      text-align: center;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <h1>Claude SDK 配置</h1>
+    <form id="configForm">
+      <div class="form-group">
+        <label for="apiKey">API Key</label>
+        <input type="password" id="apiKey" placeholder="输入你的 API Key" required>
+      </div>
+      <div class="form-group">
+        <label for="baseURL">Base URL（可选）</label>
+        <input type="text" id="baseURL" placeholder="https://api.lycloud.top" value="https://api.lycloud.top">
+      </div>
+      <button type="submit" id="submitBtn">启动</button>
+      <div id="error" class="error"></div>
+    </form>
+  </div>
+
+  <script>
+    const form = document.getElementById('configForm');
+    const submitBtn = document.getElementById('submitBtn');
+    const errorDiv = document.getElementById('error');
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const apiKey = document.getElementById('apiKey').value.trim();
+      const baseURL = document.getElementById('baseURL').value.trim();
+
+      if (!apiKey) {
+        errorDiv.textContent = 'API Key 不能为空';
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = '启动中...';
+      errorDiv.textContent = '';
+
+      try {
+        const response = await fetch('/api/config', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({ apiKey, baseURL })
+        });
+
+        const data = await response.json();
+
+        if (response.ok) {
+          window.location.href = '/chat.html';
+        } else {
+          errorDiv.textContent = data.error || '配置失败';
+          submitBtn.disabled = false;
+          submitBtn.textContent = '启动';
+        }
+      } catch (error) {
+        errorDiv.textContent = '网络错误: ' + error.message;
+        submitBtn.disabled = false;
+        submitBtn.textContent = '启动';
+      }
+    });
+  </script>
+</body>
+</html>
