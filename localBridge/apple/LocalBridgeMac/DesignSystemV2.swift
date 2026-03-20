@@ -553,3 +553,24 @@ class SegmentedControl: NSView {
         return buttons[selectedIndex].title
     }
 }
+
+// MARK: - Global UI Component
+open class PassthroughTextField: NSTextField {
+    open override func hitTest(_ point: NSPoint) -> NSView? {
+        return nil // 让点击事件直接透传应用到下层视图（如 TableRow）
+    }
+}
+
+/// 一个点击穿透的通用视图，用于简单的颜色块或图标区域
+open class PassthroughView: NSView {
+    open override func hitTest(_ point: NSPoint) -> NSView? {
+        return nil
+    }
+}
+
+/// 一个点击穿透的图标视图
+open class PassthroughImageView: NSImageView {
+    open override func hitTest(_ point: NSPoint) -> NSView? {
+        return nil
+    }
+}

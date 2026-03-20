@@ -21,9 +21,17 @@ final class ConversationsSplitViewController: NSSplitViewController {
  
         addSplitViewItem(sidebarItem)
         addSplitViewItem(detailItem)
+    }
 
-        if let firstConversation = sidebarViewController.defaultConversation {
-            detailViewController.display(conversation: firstConversation)
+    override func viewDidAppear() {
+        super.viewDidAppear()
+        
+        // 使用 async 确保 TableView 已加载并能正确反映选中状态
+        DispatchQueue.main.async {
+            self.sidebarViewController.selectDefaultRow()
+            if let firstConversation = self.sidebarViewController.defaultConversation {
+                self.detailViewController.display(conversation: firstConversation)
+            }
         }
     }
 }

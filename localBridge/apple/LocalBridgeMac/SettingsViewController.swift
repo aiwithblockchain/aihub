@@ -3,32 +3,72 @@ import AppKit
 // MARK: - Centered Text Field
 
 class CenteredTextField: NSTextField {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        self.cell = CenteredTextFieldCell()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        self.cell = CenteredTextFieldCell()
+    }
+
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
     }
 
     override var intrinsicContentSize: NSSize {
-        var size = super.intrinsicContentSize
-        size.height = 40
-        return size
+        // 让高度回归文本自然高度，从而允许外部容器进行 centerY 居中
+        return super.intrinsicContentSize
     }
 
-    override func textDidBeginEditing(_ notification: Notification) {
-        super.textDidBeginEditing(notification)
-        if let fieldEditor = window?.fieldEditor(true, for: self) as? NSTextView {
+    override func becomeFirstResponder() -> Bool {
+        let success = super.becomeFirstResponder()
+        if success, let fieldEditor = window?.fieldEditor(true, for: self) as? NSTextView {
+            // 关键：强制 Field Editor 透明，避免出现黑色背景条
             fieldEditor.drawsBackground = false
+            fieldEditor.backgroundColor = .clear
+            fieldEditor.insertionPointColor = textColor ?? .white
+            fieldEditor.font = font
+            // 移除内边距冲突
+            fieldEditor.textContainerInset = NSSize(width: 0, height: 0)
+            fieldEditor.textContainer?.lineFragmentPadding = 0
         }
+        return success
     }
 }
 
-class CenteredTextFieldCell: NSTextFieldCell {
-    override func drawingRect(forBounds rect: NSRect) -> NSRect {
-        var newRect = super.drawingRect(forBounds: rect)
-        let textSize = self.cellSize(forBounds: rect)
-        let delta = (rect.size.height - textSize.height) / 2
-        newRect.origin.y = delta
-        return newRect
+final class CenteredTextFieldCell: NSTextFieldCell {
+
+    override func titleRect(forBounds rect: NSRect) -> NSRect {
+        // 计算文本所需的高度以实现垂直居中
+        let titleSize = self.attributedStringValue.size()
+        let yOffset = (rect.height - titleSize.height) / 2.0
+        return NSRect(x: 8, y: max(0, yOffset), width: rect.width - 16, height: titleSize.height)
     }
+
+    override func drawingRect(forBounds rect: NSRect) -> NSRect {
+        return titleRect(forBounds: rect)
+    }
+
+    override func drawInterior(withFrame cellFrame: NSRect, in controlView: NSView) {
+        super.drawInterior(withFrame: titleRect(forBounds: cellFrame), in: controlView)
+    }
+
+    override func select(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, start selStart: Int, length selLength: Int) {
+        let titleRect = self.titleRect(forBounds: rect)
+        super.select(withFrame: titleRect, in: controlView, editor: textObj, delegate: delegate, start: selStart, length: selLength)
+    }
+
+    override func edit(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, event: NSEvent?) {
+        let titleRect = self.titleRect(forBounds: rect)
+        super.edit(withFrame: titleRect, in: controlView, editor: textObj, delegate: delegate, event: event)
+    }
+}
+// MARK: - Flipped View
+
+class SettingsFlippedView: NSView {
+    override var isFlipped: Bool { true }
 }
 
 // MARK: - Collapsible Card Container
@@ -159,7 +199,7 @@ final class SettingsViewController: NSViewController {
         scrollView.automaticallyAdjustsContentInsets = false
 
         // 将 contentStack 包装在一个容器中
-        let containerView = NSView()
+        let containerView = SettingsFlippedView()
         containerView.translatesAutoresizingMaskIntoConstraints = false
         containerView.addSubview(contentStack)
 
@@ -173,11 +213,11 @@ final class SettingsViewController: NSViewController {
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing8),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing8),
 
-            contentStack.topAnchor.constraint(equalTo: containerView.topAnchor, constant: 16),
+            contentStack.topAnchor.constraint(equalTo: containerView.topAnchor, constant: DSV2.spacing8),
             contentStack.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
             contentStack.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
-            contentStack.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -16),
-            contentStack.widthAnchor.constraint(equalTo: scrollView.widthAnchor),
+            contentStack.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -DSV2.spacing8),
+            contentStack.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
 
             generalCard.widthAnchor.constraint(equalTo: contentStack.widthAnchor),
             aiClawCard.widthAnchor.constraint(equalTo: contentStack.widthAnchor),
@@ -491,14 +531,15 @@ final class SettingsViewController: NSViewController {
 class ServiceConfigView: NSView {
     private let serviceName: String
     private var config: ServiceConfig
+    private var initialConfig: ServiceConfig // 用于对比变更
     private let lanIPs: [String]
     private let defaultPort: Int
     private let onConfigChanged: (ServiceConfig) -> Void
     private let onSaveAndRestart: () -> Void
 
-    private var localhostPortField: NSTextField!
+    private var localhostPortField: CenteredTextField!
     private var lanIPCheckboxes: [String: NSButton] = [:]
-    private var lanIPPortFields: [String: NSTextField] = [:]
+    private var lanIPPortFields: [String: CenteredTextField] = [:]
     private var saveButton: NSButton!
     private var hasChanges = false
 
@@ -507,6 +548,7 @@ class ServiceConfigView: NSView {
          onSaveAndRestart: @escaping () -> Void) {
         self.serviceName = serviceName
         self.config = config
+        self.initialConfig = config
         self.lanIPs = lanIPs
         self.defaultPort = defaultPort
         self.onConfigChanged = onConfigChanged
@@ -581,24 +623,49 @@ class ServiceConfigView: NSView {
         label.drawsBackground = false
         label.translatesAutoresizingMaskIntoConstraints = false
 
+        // 物理包裹容器
+        let fieldContainer = NSView()
+        fieldContainer.wantsLayer = true
+        fieldContainer.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
+        fieldContainer.layer?.cornerRadius = 8
+        fieldContainer.layer?.borderWidth = 1
+        fieldContainer.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.3).cgColor // 增加边框可见度
+        fieldContainer.translatesAutoresizingMaskIntoConstraints = false
+
         localhostPortField = CenteredTextField()
-        localhostPortField.cell = CenteredTextFieldCell()
-        styleInputField(localhostPortField)
+        localhostPortField.isBordered = false
+        localhostPortField.drawsBackground = false
+        localhostPortField.font = NSFont.monospacedSystemFont(ofSize: 14, weight: .medium)
+        localhostPortField.textColor = NSColor(hex: "#E5E2E1")
+        localhostPortField.alignment = .center
+        localhostPortField.focusRingType = .none
+        localhostPortField.isEditable = true // 明确设置可编辑
+        localhostPortField.isSelectable = true
+        localhostPortField.isEnabled = true
+        localhostPortField.translatesAutoresizingMaskIntoConstraints = false
         localhostPortField.stringValue = "\(getLocalhostPort())"
         localhostPortField.target = self
         localhostPortField.action = #selector(configChanged)
 
+        fieldContainer.addSubview(localhostPortField)
         container.addSubview(label)
-        container.addSubview(localhostPortField)
+        container.addSubview(fieldContainer)
 
         NSLayoutConstraint.activate([
             label.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
             label.widthAnchor.constraint(equalToConstant: 120),
 
-            localhostPortField.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 16),
-            localhostPortField.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            localhostPortField.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            fieldContainer.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 16),
+            fieldContainer.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            fieldContainer.widthAnchor.constraint(equalToConstant: 120),
+            fieldContainer.heightAnchor.constraint(equalToConstant: 40),
+
+            // TextField 填满容器以确保点击区域最大化
+            localhostPortField.leadingAnchor.constraint(equalTo: fieldContainer.leadingAnchor),
+            localhostPortField.trailingAnchor.constraint(equalTo: fieldContainer.trailingAnchor),
+            localhostPortField.topAnchor.constraint(equalTo: fieldContainer.topAnchor),
+            localhostPortField.bottomAnchor.constraint(equalTo: fieldContainer.bottomAnchor),
 
             container.heightAnchor.constraint(equalToConstant: 40)
         ])
@@ -623,18 +690,35 @@ class ServiceConfigView: NSView {
         label.drawsBackground = false
         label.translatesAutoresizingMaskIntoConstraints = false
 
+        // 创建一个包裹容器做背景和边框
+        let fieldContainer = NSView()
+        fieldContainer.wantsLayer = true
+        fieldContainer.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
+        fieldContainer.layer?.cornerRadius = 8
+        fieldContainer.layer?.borderWidth = 1
+        fieldContainer.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.3).cgColor // 增加可见度
+        fieldContainer.translatesAutoresizingMaskIntoConstraints = false
+
         let portField = CenteredTextField()
-        portField.cell = CenteredTextFieldCell()
-        styleInputField(portField)
+        portField.isBordered = false
+        portField.drawsBackground = false
+        portField.font = NSFont.monospacedSystemFont(ofSize: 14, weight: .medium)
+        portField.textColor = NSColor(hex: "#E5E2E1")
+        portField.alignment = .center
+        portField.focusRingType = .none
+        portField.isEditable = true
+        portField.isSelectable = true
+        portField.isEnabled = checkbox.state == .on
+        portField.translatesAutoresizingMaskIntoConstraints = false
         portField.stringValue = "\(getLANIPPort(ip))"
         portField.target = self
         portField.action = #selector(configChanged)
-        portField.isEnabled = checkbox.state == .on
         lanIPPortFields[ip] = portField
 
+        fieldContainer.addSubview(portField)
         container.addSubview(checkbox)
         container.addSubview(label)
-        container.addSubview(portField)
+        container.addSubview(fieldContainer)
 
         NSLayoutConstraint.activate([
             checkbox.leadingAnchor.constraint(equalTo: container.leadingAnchor),
@@ -645,9 +729,17 @@ class ServiceConfigView: NSView {
             label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
             label.widthAnchor.constraint(equalToConstant: 100),
 
-            portField.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 16),
-            portField.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            portField.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            fieldContainer.leadingAnchor.constraint(equalTo: label.trailingAnchor, constant: 16),
+            fieldContainer.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            fieldContainer.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            fieldContainer.widthAnchor.constraint(equalToConstant: 120),
+            fieldContainer.heightAnchor.constraint(equalToConstant: 40),
+
+            // TextField 填满容器
+            portField.leadingAnchor.constraint(equalTo: fieldContainer.leadingAnchor),
+            portField.trailingAnchor.constraint(equalTo: fieldContainer.trailingAnchor),
+            portField.topAnchor.constraint(equalTo: fieldContainer.topAnchor),
+            portField.bottomAnchor.constraint(equalTo: fieldContainer.bottomAnchor),
 
             container.heightAnchor.constraint(equalToConstant: 40)
         ])
@@ -662,10 +754,12 @@ class ServiceConfigView: NSView {
         button.isBordered = false
         button.bezelStyle = .rounded
 
-        // 先赋值给 saveButton，然后再调用 updateButtonAppearance
-        saveButton = button
-        updateButtonAppearance(enabled: false)
-
+        // Assign to saveButton first, then call updateButtonAppearance
+        // The `saveButton = button` assignment is already handled by the caller of makeSaveButton
+        // so we just need to set the initial state.
+        // The instruction's snippet seems to have a copy-paste error here,
+        // so we'll apply the intended styling logic to updateButtonAppearance.
+        
         button.heightAnchor.constraint(equalToConstant: 44).isActive = true
         button.widthAnchor.constraint(greaterThanOrEqualToConstant: 200).isActive = true
 
@@ -674,15 +768,37 @@ class ServiceConfigView: NSView {
 
     private func updateButtonAppearance(enabled: Bool) {
         saveButton.isEnabled = enabled
-
-        let alpha: CGFloat = enabled ? 1.0 : 0.5
-        let color = enabled ? DSV2.primary : DSV2.onSurfaceVariant
-
-        saveButton.layer?.backgroundColor = color.withAlphaComponent(alpha).cgColor
+        
+        // 移除旧的渐变层
+        saveButton.layer?.sublayers?.filter { $0 is CAGradientLayer }.forEach { $0.removeFromSuperlayer() }
+        
+        if enabled {
+            // 应用高级渐变样式
+            let gradientLayer = CAGradientLayer()
+            gradientLayer.colors = [
+                DSV2.primary.cgColor,
+                DSV2.primaryContainer.cgColor
+            ]
+            gradientLayer.startPoint = CGPoint(x: 0, y: 0)
+            gradientLayer.endPoint = CGPoint(x: 1, y: 1)
+            gradientLayer.cornerRadius = DSV2.radiusButton
+            gradientLayer.frame = CGRect(x: 0, y: 0, width: 200, height: 44) // 初始大小
+            
+            saveButton.layer?.insertSublayer(gradientLayer, at: 0)
+            saveButton.layer?.backgroundColor = NSColor.clear.cgColor
+            
+            // 确保布局刷新后更新 frame
+            DispatchQueue.main.async {
+                gradientLayer.frame = self.saveButton.bounds
+            }
+        } else {
+            saveButton.layer?.backgroundColor = DSV2.onSurfaceVariant.withAlphaComponent(0.2).cgColor
+        }
+        
         saveButton.layer?.cornerRadius = DSV2.radiusButton
-
+        
         let attributes: [NSAttributedString.Key: Any] = [
-            .foregroundColor: NSColor.white,
+            .foregroundColor: enabled ? NSColor.white : DSV2.onSurfaceVariant.withAlphaComponent(0.5),
             .font: NSFont.systemFont(ofSize: 13, weight: .bold)
         ]
         saveButton.attributedTitle = NSAttributedString(string: "Save and Restart", attributes: attributes)
@@ -701,21 +817,25 @@ class ServiceConfigView: NSView {
         // 局域网 IP
         for ip in lanIPs {
             if let checkbox = lanIPCheckboxes[ip],
-               let portField = lanIPPortFields[ip],
-               checkbox.state == .on,
-               let port = Int(portField.stringValue), port > 0 {
-                newAddresses.append(ListenAddress(ip: ip, port: port, enabled: true))
-                portField.isEnabled = true
-            } else if let portField = lanIPPortFields[ip] {
-                portField.isEnabled = false
+               let portField = lanIPPortFields[ip] {
+                
+                let isChecked = checkbox.state == .on
+                portField.isEnabled = isChecked // 只要勾选就启用，不论当前端口是否有效
+                
+                if isChecked,
+                   let port = Int(portField.stringValue), port > 0 {
+                    newAddresses.append(ListenAddress(ip: ip, port: port, enabled: true))
+                }
             }
         }
 
         config.addresses = newAddresses
         onConfigChanged(config)
 
-        hasChanges = true
-        updateButtonAppearance(enabled: true)
+        // 智能变更检测：只有真正不同于初始配置时才启用按钮
+        let changed = config != initialConfig
+        hasChanges = changed
+        updateButtonAppearance(enabled: changed)
     }
 
     @objc private func saveClicked() {
@@ -723,6 +843,7 @@ class ServiceConfigView: NSView {
     }
 
     func resetButtonState() {
+        initialConfig = config // 更新初始参考配置
         hasChanges = false
         updateButtonAppearance(enabled: false)
     }
@@ -745,12 +866,17 @@ class ServiceConfigView: NSView {
         field.drawsBackground = true
         field.backgroundColor = DSV2.surfaceContainerLowest
         field.textColor = NSColor(hex: "#E5E2E1")
-        field.font = DSV2.fontMonoMd
+        field.font = NSFont.monospacedSystemFont(ofSize: 14, weight: .medium)
         field.translatesAutoresizingMaskIntoConstraints = false
         field.focusRingType = .none
         field.alignment = .center
         field.usesSingleLineMode = true
         field.lineBreakMode = .byClipping
+        
+        // 关键：确保新替换的 cell 保持可编辑状态
+        field.isEditable = true
+        field.isSelectable = true
+        field.isEnabled = true
 
         field.layer?.borderWidth = 1
         field.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor

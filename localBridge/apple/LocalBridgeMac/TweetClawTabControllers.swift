@@ -831,7 +831,9 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         tableView.dataSource = self
         tableView.rowHeight = 84
         tableView.headerView = nil
-        tableView.selectionHighlightStyle = .regular  // 改为 regular 以支持完整行选择
+        // 关键：禁用系统默认选中高亮，防止与 4px 蓝框发生视觉重叠或干扰
+        tableView.selectionHighlightStyle = .none
+        tableView.target = self
         tableView.backgroundColor = .clear
         tableView.gridStyleMask = []
         tableView.intercellSpacing = NSSize(width: 0, height: DSV2.spacing2)
@@ -903,11 +905,56 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         ])
 
         // Default selection
-        if !docs.isEmpty {
-            DispatchQueue.main.async {
-                self.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+        selectDefaultRow()
+    }
+
+    /// 公开方法：强制选中第一行并显示详情，由 DetailViewController 触发
+    func selectDefaultRow() {
+        guard !docs.isEmpty else { return }
+        
+        DispatchQueue.main.async {
+            self.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            self.refreshCardStyles() // 立即应用样式
+            self.updateSelectedDetail()
+        }
+    }
+
+    /// 强制刷新所有可见 API 卡片的选中/未选中样式，防止样色“粘滞”
+    func refreshCardStyles() {
+        let selectedRow = tableView.selectedRow
+        for row in 0..<tableView.numberOfRows {
+            if let cellView = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) {
+                let isNowSelected = row == selectedRow
+                applyCardStyle(to: cellView, isSelected: isNowSelected)
             }
         }
+    }
+
+    /// 统一卡片样式应用逻辑
+    private func applyCardStyle(to cell: NSView, isSelected: Bool) {
+        cell.wantsLayer = true
+        cell.layer?.cornerRadius = DSV2.radiusCard
+        
+        if isSelected {
+            // 选中状态：4px 显眼蓝框
+            cell.layer?.backgroundColor = DSV2.surfaceContainerHighest.cgColor
+            cell.layer?.borderWidth = 4
+            cell.layer?.borderColor = NSColor.systemBlue.cgColor
+            cell.layer?.masksToBounds = false
+        } else {
+            // 未选中状态：还原窄灰边框
+            cell.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
+            cell.layer?.borderWidth = 1.0
+            cell.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
+            cell.layer?.masksToBounds = true
+        }
+    }
+
+    /// 按当前选中行更新详情
+    func updateSelectedDetail() {
+        let row = tableView.selectedRow
+        guard row >= 0 && row < docs.count else { return }
+        updateDetailView(with: docs[row])
     }
 
     @objc private func copyCurlClicked() {
@@ -933,18 +980,18 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             cell?.identifier = identifier
             cell?.wantsLayer = true
 
-            let nameLabel = NSTextField(labelWithString: "")
+            let nameLabel = PassthroughTextField(labelWithString: "")
             nameLabel.font = DSV2.fontTitleSm
             nameLabel.translatesAutoresizingMaskIntoConstraints = false
             nameLabel.tag = 101
 
-            let summaryLabel = NSTextField(wrappingLabelWithString: "")
+            let summaryLabel = PassthroughTextField(wrappingLabelWithString: "")
             summaryLabel.font = DSV2.fontBodySm
             summaryLabel.textColor = DSV2.onSurfaceVariant
             summaryLabel.translatesAutoresizingMaskIntoConstraints = false
             summaryLabel.tag = 102
 
-            let methodLabel = NSTextField(labelWithString: "")
+            let methodLabel = PassthroughTextField(labelWithString: "")
             methodLabel.font = DSV2.fontLabelSm
             methodLabel.alignment = .center
             methodLabel.wantsLayer = true
@@ -975,19 +1022,9 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
 
         let doc = docs[row]
         let isSelected = tableView.selectedRow == row
-
-        // Apply card-like styling with DSV2
-        cell?.layer?.cornerRadius = DSV2.radiusCard
-        if isSelected {
-            // 选中状态：更明显的背景色变化
-            cell?.layer?.backgroundColor = DSV2.surfaceContainerHighest.cgColor
-            cell?.layer?.borderWidth = 2
-            cell?.layer?.borderColor = DSV2.primary.withAlphaComponent(0.5).cgColor
-        } else {
-            cell?.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
-            cell?.layer?.borderWidth = 1.0
-            cell?.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
-        }
+        
+        // 使用统一的样式应用逻辑
+        applyCardStyle(to: cell!, isSelected: isSelected)
 
         if let methodLabel = cell?.viewWithTag(103) as? NSTextField {
             methodLabel.stringValue = doc.method.uppercased()
@@ -1011,6 +1048,8 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     }
     
     func tableViewSelectionDidChange(_ notification: Notification) {
+        refreshCardStyles() // 关键：每当选中项变更，立即刷新所有可见 Cell 的 Layer 样式
+        
         let row = tableView.selectedRow
         print("[LocalBridgeMac] API Table Selection Changed: \(row)")
         guard row >= 0 && row < docs.count else {

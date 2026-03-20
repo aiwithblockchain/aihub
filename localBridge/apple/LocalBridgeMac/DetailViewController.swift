@@ -35,6 +35,11 @@ final class DetailViewController: NSViewController {
             aiClawSegmentedControl.isHidden = true
             instancesPanelView.view.isHidden = true
             bridgeLogsVC.view.isHidden = true
+            
+            // 如果切到 TweetClaw 时当前选中的是 For Claw 标签页，强制刷新一次详情显示
+            if tweetClawSegmentedControl.indexOfSelectedItem() == 1 {
+                clawVC.selectDefaultRow()
+            }
         } else if conversation.title == "AIClaw" {
             placeholderLabel.isHidden = true
             tweetClawTabView.isHidden = true
@@ -178,7 +183,13 @@ private extension DetailViewController {
     }
     
     @objc func tweetClawSegmentChanged(_ sender: SegmentedControl) {
-        tweetClawTabView.selectTabViewItem(at: sender.indexOfSelectedItem())
+        let index = sender.indexOfSelectedItem()
+        tweetClawTabView.selectTabViewItem(at: index)
+        
+        // 当用户手动切换到 For Claw 时，强制同步第一行 API 卡片详情到右侧黑色背景显示区域
+        if index == 1 {
+            clawVC.selectDefaultRow()
+        }
     }
 
     @objc func aiClawSegmentChanged(_ sender: SegmentedControl) {

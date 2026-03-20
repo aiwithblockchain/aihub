@@ -61,13 +61,14 @@ final class SidebarViewController: NSViewController {
 
     override func viewDidAppear() {
         super.viewDidAppear()
+        // 初始选中逻辑现在由 ConversationsSplitViewController 统一调度
+    }
 
-        guard tableView.selectedRow == -1, !conversations.isEmpty else {
-            return
+    func selectDefaultRow() {
+        if !conversations.isEmpty {
+            tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
+            refreshSelectionForAllVisibleRows()
         }
-
-        tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
-        delegate?.sidebarViewController(self, didSelect: conversations[0])
     }
 }
 
@@ -101,24 +102,28 @@ extension SidebarViewController: NSTableViewDataSource, NSTableViewDelegate {
     }
 
     func tableViewSelectionDidChange(_ notification: Notification) {
+        refreshSelectionForAllVisibleRows()
+        
         let selectedRow = tableView.selectedRow
         guard conversations.indices.contains(selectedRow) else {
             return
         }
 
         delegate?.sidebarViewController(self, didSelect: conversations[selectedRow])
+    }
+}
 
-        // 只刷新可见的行，而不是整个表格
+private extension SidebarViewController {
+    func refreshSelectionForAllVisibleRows() {
         let visibleRows = tableView.rows(in: tableView.visibleRect)
+        let selectedRow = tableView.selectedRow
         for row in visibleRows.location..<(visibleRows.location + visibleRows.length) {
             if let cellView = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? ConversationCellView {
                 cellView.applySelectionStyle(isSelected: row == selectedRow)
             }
         }
     }
-}
 
-private extension SidebarViewController {
     func configureView() {
         view.wantsLayer = true
         view.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
@@ -213,6 +218,7 @@ private extension SidebarViewController {
 
     @objc func showSettingsMenu(_ sender: NSButton) {
         tableView.deselectAll(nil)
+        refreshSelectionForAllVisibleRows()
         delegate?.sidebarViewControllerDidSelectSettings(self)
     }
 
@@ -220,14 +226,13 @@ private extension SidebarViewController {
         NSApplication.shared.terminate(nil)
     }
 }
-
 private final class ConversationCellView: NSTableCellView {
-    private let iconView = NSImageView()
-    private let statusDot = NSView()
-    private let statusLabel = NSTextField(labelWithString: "")
-    private let titleLabel = NSTextField(labelWithString: "")
-    private let subtitleLabel = NSTextField(labelWithString: "")
-    private let previewLabel = NSTextField(labelWithString: "")
+    private let iconView = PassthroughImageView()
+    private let statusDot = PassthroughView()
+    private let statusLabel = PassthroughTextField(labelWithString: "")
+    private let titleLabel = PassthroughTextField(labelWithString: "")
+    private let subtitleLabel = PassthroughTextField(labelWithString: "")
+    private let previewLabel = PassthroughTextField(labelWithString: "")
 
     override init(frame frameRect: NSRect) {
         super.init(frame: frameRect)
@@ -288,13 +293,13 @@ private final class ConversationCellView: NSTableCellView {
         layer?.cornerRadius = DSV2.radiusCard
 
         if isSelected {
-            // 使用更明显的选中背景色 (surfaceContainerHighest)
-            layer?.backgroundColor = DSV2.surfaceContainerHighest.cgColor
-            layer?.borderWidth = 1
-            layer?.borderColor = DSV2.primary.withAlphaComponent(0.3).cgColor
-            titleLabel.font = NSFont.systemFont(ofSize: 13, weight: .semibold)
+            // 采用更具冲击力的选中样式：背景加亮 + 明显的蓝色边框
+            layer?.backgroundColor = DSV2.primary.withAlphaComponent(0.15).cgColor
+            layer?.borderWidth = 1.5
+            layer?.borderColor = DSV2.primary.cgColor
+            titleLabel.font = NSFont.systemFont(ofSize: 13, weight: .bold)
             titleLabel.textColor = DSV2.primary
-            subtitleLabel.textColor = DSV2.primary.withAlphaComponent(0.8)
+            subtitleLabel.textColor = DSV2.primary.withAlphaComponent(0.9)
             previewLabel.textColor = DSV2.onSurface
             statusLabel.textColor = DSV2.primary
             iconView.contentTintColor = DSV2.primary
@@ -302,7 +307,7 @@ private final class ConversationCellView: NSTableCellView {
             layer?.backgroundColor = NSColor.clear.cgColor
             layer?.borderWidth = 0
             layer?.borderColor = NSColor.clear.cgColor
-            titleLabel.font = DSV2.fontBodyMd.withSize(13)
+            titleLabel.font = NSFont.systemFont(ofSize: 13, weight: .regular)
             titleLabel.textColor = DSV2.onSurface
             subtitleLabel.textColor = DSV2.onSurfaceVariant
             previewLabel.textColor = DSV2.onSurfaceVariant
