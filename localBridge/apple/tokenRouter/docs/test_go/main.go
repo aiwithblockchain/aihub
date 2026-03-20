@@ -19,9 +19,16 @@ type ClaudeSettings struct {
 }
 
 type AnthropicRequest struct {
-	Model      string    `json:"model"`
-	MaxTokens  int       `json:"max_tokens"`
-	Messages   []Message `json:"messages"`
+	Model     string    `json:"model"`
+	MaxTokens int       `json:"max_tokens"`
+	Messages  []Message `json:"messages"`
+	System    string    `json:"system,omitempty"`   // 系统提示
+	Thinking  *Thinking `json:"thinking,omitempty"` // 扩展思考模式
+}
+
+type Thinking struct {
+	Type         string `json:"type"`                    // "enabled" 或 "disabled"
+	BudgetTokens int    `json:"budget_tokens,omitempty"` // thinking tokens 预算 (正确的字段名)
 }
 
 type Message struct {
@@ -34,8 +41,9 @@ type AnthropicResponse struct {
 	Type    string `json:"type"`
 	Role    string `json:"role"`
 	Content []struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
+		Type     string `json:"type"`
+		Text     string `json:"text,omitempty"`
+		Thinking string `json:"thinking,omitempty"` // Extended thinking 内容
 	} `json:"content"`
 	Model      string `json:"model"`
 	StopReason string `json:"stop_reason"`
@@ -91,15 +99,39 @@ func main() {
 		fmt.Printf("✅ Token: %s...%s\n\n", token[:10], token[len(token)-10:])
 	}
 
-	// 使用正确的模型名称
+	// 构造请求 - 可以自定义模型、thinking 和 effort
 	apiURL := baseURL + "/v1/messages"
+
+	// 可选择的模型:
+	// - claude-opus-4-6 (最强,最贵)
+	// - claude-sonnet-4-6 (平衡)
+	// - claude-haiku-4-5-20251001 (最快,最便宜)
+	model := "claude-opus-4-6"
+
+	// 可选择的 max_tokens (相当于 effort level):
+	// - 1024: Low effort
+	// - 4096: Medium effort
+	// - 8192: High effort
+	maxTokens := 4096
+
+	// 构造系统提示 (模仿 Claude Code 的做法)
+
 	reqBody := AnthropicRequest{
-		Model:     "claude-opus-4-6",
-		MaxTokens: 1024,
+		Model:     model,
+		MaxTokens: maxTokens,
 		Messages: []Message{
-			{Role: "user", Content: "你好，请介绍一下你自己是什么模型"},
+			{Role: "user", Content: "你好，你可以帮我编写程序，我懂 go 代码，你是什么模型呢ß"},
+		},
+		// 启用扩展思考模式 (Extended Thinking)
+		Thinking: &Thinking{
+			Type:         "enabled",
+			BudgetTokens: 10000, // thinking tokens 预算 (1024-128000)
 		},
 	}
+
+	fmt.Printf("🎯 模型: %s\n", model)
+	fmt.Printf("🎯 Max Tokens: %d\n", maxTokens)
+	fmt.Printf("🎯 Thinking: enabled (budget: 10000)\n")
 
 	jsonData, _ := json.Marshal(reqBody)
 	req, err := http.NewRequest("POST", apiURL, bytes.NewBuffer(jsonData))
@@ -111,8 +143,6 @@ func main() {
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("anthropic-version", "2023-06-01")
 	req.Header.Set("x-api-key", token)
-
-	fmt.Println("📤 发送消息: 你好，请介绍一下你自己是什么模型")
 	fmt.Println("⏳ 等待响应...\n")
 
 	client := &http.Client{}
@@ -145,7 +175,16 @@ func main() {
 	if len(apiResp.Content) > 0 {
 		fmt.Println("✅ Claude 回复:")
 		fmt.Println("─────────────────────────────────────")
-		fmt.Println(apiResp.Content[0].Text)
+
+		// 显示所有 content 块
+		for i, content := range apiResp.Content {
+			if content.Type == "thinking" && content.Thinking != "" {
+				fmt.Printf("\n💭 [Thinking %d]:\n%s\n", i+1, content.Thinking)
+			} else if content.Type == "text" && content.Text != "" {
+				fmt.Printf("\n📝 [Response %d]:\n%s\n", i+1, content.Text)
+			}
+		}
+
 		fmt.Println("─────────────────────────────────────")
 		fmt.Printf("\n📊 Token 使用: 输入=%d, 输出=%d\n",
 			apiResp.Usage.InputTokens,
