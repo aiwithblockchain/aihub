@@ -30,25 +30,25 @@ class CenteredTextField: NSTextField {
             fieldEditor.backgroundColor = .clear
             fieldEditor.insertionPointColor = textColor ?? .white
             fieldEditor.font = font
-            // 移除内边距冲突
-            fieldEditor.textContainerInset = NSSize(width: 0, height: 0)
-            fieldEditor.textContainer?.lineFragmentPadding = 0
         }
         return success
     }
 }
 
 final class CenteredTextFieldCell: NSTextFieldCell {
-
     override func titleRect(forBounds rect: NSRect) -> NSRect {
-        // 计算文本所需的高度以实现垂直居中
+        var titleRect = super.titleRect(forBounds: rect)
+        
         let titleSize = self.attributedStringValue.size()
-        let yOffset = (rect.height - titleSize.height) / 2.0
-        return NSRect(x: 8, y: max(0, yOffset), width: rect.width - 16, height: titleSize.height)
-    }
-
-    override func drawingRect(forBounds rect: NSRect) -> NSRect {
-        return titleRect(forBounds: rect)
+        if titleSize.height > 0 {
+            titleRect.origin.y = (rect.height - titleSize.height) / 2
+            titleRect.size.height = titleSize.height
+        }
+        
+        // 保持水平边距
+        titleRect.origin.x = 8
+        titleRect.size.width = rect.width - 16
+        return titleRect
     }
 
     override func drawInterior(withFrame cellFrame: NSRect, in controlView: NSView) {
@@ -56,13 +56,11 @@ final class CenteredTextFieldCell: NSTextFieldCell {
     }
 
     override func select(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, start selStart: Int, length selLength: Int) {
-        let titleRect = self.titleRect(forBounds: rect)
-        super.select(withFrame: titleRect, in: controlView, editor: textObj, delegate: delegate, start: selStart, length: selLength)
+        super.select(withFrame: titleRect(forBounds: rect), in: controlView, editor: textObj, delegate: delegate, start: selStart, length: selLength)
     }
 
     override func edit(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, event: NSEvent?) {
-        let titleRect = self.titleRect(forBounds: rect)
-        super.edit(withFrame: titleRect, in: controlView, editor: textObj, delegate: delegate, event: event)
+        super.edit(withFrame: titleRect(forBounds: rect), in: controlView, editor: textObj, delegate: delegate, event: event)
     }
 }
 // MARK: - Flipped View
@@ -600,6 +598,7 @@ class ServiceConfigView: NSView {
         // 保存按钮
         saveButton = makeSaveButton()
         contentStack.addArrangedSubview(saveButton)
+        updateButtonAppearance(enabled: false) // 初始化按钮样式
 
         addSubview(contentStack)
 
@@ -639,13 +638,21 @@ class ServiceConfigView: NSView {
         localhostPortField.textColor = NSColor(hex: "#E5E2E1")
         localhostPortField.alignment = .center
         localhostPortField.focusRingType = .none
-        localhostPortField.isEditable = true // 明确设置可编辑
+        localhostPortField.isEditable = true
         localhostPortField.isSelectable = true
         localhostPortField.isEnabled = true
         localhostPortField.translatesAutoresizingMaskIntoConstraints = false
         localhostPortField.stringValue = "\(getLocalhostPort())"
         localhostPortField.target = self
         localhostPortField.action = #selector(configChanged)
+
+        // 优化点：添加通知监听，在获得焦点时改变边框颜色
+        NotificationCenter.default.addObserver(forName: NSControl.textDidBeginEditingNotification, object: localhostPortField, queue: .main) { _ in
+            fieldContainer.layer?.borderColor = DSV2.primary.withAlphaComponent(0.5).cgColor
+        }
+        NotificationCenter.default.addObserver(forName: NSControl.textDidEndEditingNotification, object: localhostPortField, queue: .main) { _ in
+            fieldContainer.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.3).cgColor
+        }
 
         fieldContainer.addSubview(localhostPortField)
         container.addSubview(label)
@@ -714,6 +721,14 @@ class ServiceConfigView: NSView {
         portField.target = self
         portField.action = #selector(configChanged)
         lanIPPortFields[ip] = portField
+
+        // 优化点：添加通知监听，在获得焦点时改变边框颜色
+        NotificationCenter.default.addObserver(forName: NSControl.textDidBeginEditingNotification, object: portField, queue: .main) { _ in
+            fieldContainer.layer?.borderColor = DSV2.primary.withAlphaComponent(0.5).cgColor
+        }
+        NotificationCenter.default.addObserver(forName: NSControl.textDidEndEditingNotification, object: portField, queue: .main) { _ in
+            fieldContainer.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.3).cgColor
+        }
 
         fieldContainer.addSubview(portField)
         container.addSubview(checkbox)
