@@ -1,5 +1,173 @@
 import AppKit
 
+// MARK: - Custom Alert
+
+/// 自定义深色主题提示框，符合 DSV2 设计规范
+class CustomAlert {
+
+    /// 显示成功提示框
+    static func showSuccess(title: String, message: String, parentWindow: NSWindow? = nil) {
+        guard let window = parentWindow, let contentView = window.contentView else {
+            // 如果没有父窗口，使用系统 Alert 作为后备
+            let alert = NSAlert()
+            alert.messageText = title
+            alert.informativeText = message
+            alert.alertStyle = .informational
+            alert.addButton(withTitle: "确定")
+            alert.runModal()
+            return
+        }
+
+        // 创建叠加层
+        let overlay = CustomAlertOverlay(title: title, message: message)
+        overlay.frame = contentView.bounds
+        overlay.autoresizingMask = [.width, .height]
+        contentView.addSubview(overlay, positioned: .above, relativeTo: nil)
+
+        // 淡入动画
+        overlay.alphaValue = 0
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.2
+            overlay.animator().alphaValue = 1
+        })
+    }
+}
+
+/// 自定义提示框叠加层
+private class CustomAlertOverlay: NSView {
+    private let alertBox: NSView
+
+    init(title: String, message: String) {
+        alertBox = NSView()
+        super.init(frame: .zero)
+        setupContent(title: title, message: message)
+    }
+
+    required init?(coder: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    private func setupContent(title: String, message: String) {
+        self.wantsLayer = true
+
+        // 半透明黑色背景
+        self.layer?.backgroundColor = NSColor.black.withAlphaComponent(0.5).cgColor
+
+        // 提示框容器
+        alertBox.wantsLayer = true
+        alertBox.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
+        alertBox.layer?.cornerRadius = DSV2.radiusCard
+        alertBox.layer?.shadowColor = NSColor.black.cgColor
+        alertBox.layer?.shadowOpacity = 0.3
+        alertBox.layer?.shadowOffset = CGSize(width: 0, height: 10)
+        alertBox.layer?.shadowRadius = 20
+        alertBox.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(alertBox)
+
+        // 图标
+        let iconView = makeSuccessIcon()
+        alertBox.addSubview(iconView)
+
+        // 标题
+        let titleLabel = NSTextField(labelWithString: title)
+        titleLabel.font = DSV2.fontTitleLg
+        titleLabel.textColor = DSV2.onSurface
+        titleLabel.alignment = .center
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        alertBox.addSubview(titleLabel)
+
+        // 消息
+        let messageLabel = NSTextField(wrappingLabelWithString: message)
+        messageLabel.font = DSV2.fontBodyMd
+        messageLabel.textColor = DSV2.onSurfaceVariant
+        messageLabel.alignment = .center
+        messageLabel.maximumNumberOfLines = 3
+        messageLabel.translatesAutoresizingMaskIntoConstraints = false
+        alertBox.addSubview(messageLabel)
+
+        // 确定按钮
+        let confirmButton = DSV2.makeGradientButton(
+            title: "确定",
+            target: self,
+            action: #selector(closeAlert)
+        )
+        alertBox.addSubview(confirmButton)
+
+        // 布局
+        NSLayoutConstraint.activate([
+            alertBox.centerXAnchor.constraint(equalTo: centerXAnchor),
+            alertBox.centerYAnchor.constraint(equalTo: centerYAnchor),
+            alertBox.widthAnchor.constraint(equalToConstant: 360),
+            alertBox.heightAnchor.constraint(equalToConstant: 240),
+
+            iconView.topAnchor.constraint(equalTo: alertBox.topAnchor, constant: DSV2.spacing6),
+            iconView.centerXAnchor.constraint(equalTo: alertBox.centerXAnchor),
+
+            titleLabel.topAnchor.constraint(equalTo: iconView.bottomAnchor, constant: DSV2.spacing4),
+            titleLabel.leadingAnchor.constraint(equalTo: alertBox.leadingAnchor, constant: DSV2.spacing6),
+            titleLabel.trailingAnchor.constraint(equalTo: alertBox.trailingAnchor, constant: -DSV2.spacing6),
+
+            messageLabel.topAnchor.constraint(equalTo: titleLabel.bottomAnchor, constant: DSV2.spacing2),
+            messageLabel.leadingAnchor.constraint(equalTo: alertBox.leadingAnchor, constant: DSV2.spacing6),
+            messageLabel.trailingAnchor.constraint(equalTo: alertBox.trailingAnchor, constant: -DSV2.spacing6),
+
+            confirmButton.topAnchor.constraint(equalTo: messageLabel.bottomAnchor, constant: DSV2.spacing6),
+            confirmButton.centerXAnchor.constraint(equalTo: alertBox.centerXAnchor),
+            confirmButton.widthAnchor.constraint(equalToConstant: 120)
+        ])
+    }
+
+    private func makeSuccessIcon() -> NSView {
+        let container = NSView()
+        container.wantsLayer = true
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        let imageView = NSImageView()
+        imageView.image = NSImage(named: "shrimp_icon")
+        imageView.imageScaling = .scaleProportionallyUpOrDown
+        imageView.translatesAutoresizingMaskIntoConstraints = false
+
+        // 如果没有找到虾虾图标，使用 SF Symbol
+        if imageView.image == nil {
+            if #available(macOS 11.0, *) {
+                imageView.image = NSImage(systemSymbolName: "checkmark.circle.fill", accessibilityDescription: nil)
+                imageView.contentTintColor = DSV2.tertiary
+            }
+        }
+
+        container.addSubview(imageView)
+
+        NSLayoutConstraint.activate([
+            imageView.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+            imageView.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            imageView.widthAnchor.constraint(equalToConstant: 64),
+            imageView.heightAnchor.constraint(equalToConstant: 64),
+            container.widthAnchor.constraint(equalToConstant: 80),
+            container.heightAnchor.constraint(equalToConstant: 80)
+        ])
+
+        return container
+    }
+
+    @objc private func closeAlert() {
+        // 淡出动画后移除
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.2
+            self.animator().alphaValue = 0
+        }, completionHandler: {
+            self.removeFromSuperview()
+        })
+    }
+
+    // 点击背景也可以关闭
+    override func mouseDown(with event: NSEvent) {
+        let location = convert(event.locationInWindow, from: nil)
+        if !alertBox.frame.contains(location) {
+            closeAlert()
+        }
+    }
+}
+
 // MARK: - Centered Text Field
 
 class CenteredTextField: NSTextField {
@@ -284,12 +452,11 @@ final class SettingsViewController: NSViewController {
         NotificationCenter.default.post(name: NSNotification.Name("RestartWebSocketServer"), object: nil)
 
         // 显示成功提示
-        let alert = NSAlert()
-        alert.messageText = "保存成功"
-        alert.informativeText = "\(serviceName) 配置已保存，服务已在后台重启。"
-        alert.alertStyle = .informational
-        alert.addButton(withTitle: "确定")
-        alert.runModal()
+        CustomAlert.showSuccess(
+            title: "保存成功",
+            message: "\(serviceName) 配置已保存，服务已在后台重启。",
+            parentWindow: view.window
+        )
 
         // 更新按钮状态
         serviceViews[serviceName]?.resetButtonState()
