@@ -11,8 +11,6 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     private let headerTitleLabel = NSTextField(labelWithString: "TweetClaw")
     private var detailScrollView: NSScrollView!
     private var detailTextView: NSTextView!
-    private let copyButton = NSButton()
-    private var currentCurlCommand = ""
 
     // Shared Interactive Components
     private let commonIdField = NSTextField()
@@ -260,22 +258,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         actionButton.layer?.backgroundColor = DSV2.primary.cgColor
         actionButton.target = self
 
-        // Copy button
-        copyButton.wantsLayer = true
-        copyButton.bezelStyle = .rounded
-        copyButton.isBordered = false
-        copyButton.layer?.backgroundColor = DSV2.surfaceContainerHighest.cgColor
-        copyButton.layer?.cornerRadius = DSV2.radiusButton
-        copyButton.contentTintColor = DSV2.onSurface
-        copyButton.font = DSV2.fontLabelMd
-        copyButton.target = self
-        copyButton.translatesAutoresizingMaskIntoConstraints = false
-        copyButton.isHidden = true
-        if #available(macOS 11.0, *) {
-            copyButton.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil)
-            copyButton.imagePosition = .imageLeading
-        }
-        view.addSubview(copyButton)
+        headerImageView.contentTintColor = DSV2.primary
 
         NSLayoutConstraint.activate([
             headerStack.topAnchor.constraint(equalTo: view.topAnchor, constant: DSV2.spacing6),
@@ -291,8 +274,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             rightStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
             rightStack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6),
 
-            copyButton.topAnchor.constraint(equalTo: detailScrollView.topAnchor, constant: DSV2.spacing2),
-            copyButton.trailingAnchor.constraint(equalTo: detailScrollView.trailingAnchor, constant: -DSV2.spacing2)
+            rightStack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6)
         ])
 
         selectDefaultRow()
@@ -404,16 +386,6 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         let row = tableView.selectedRow
         guard row >= 0 && row < docs.count else { return }
         updateDetailView(with: docs[row])
-    }
-
-    @objc private func copyCurlClicked() {
-        guard !currentCurlCommand.isEmpty else { return }
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(currentCurlCommand, forType: .string)
-        copyButton.title = "已复制 ✓"
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-            self.copyButton.title = "复制 curl"
-        }
     }
     
     func numberOfRows(in tableView: NSTableView) -> Int {
@@ -539,9 +511,6 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         attrStr.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: attrStr.length))
         textView.textStorage?.setAttributedString(attrStr)
         textView.scrollToBeginningOfDocument(nil)
-
-        currentCurlCommand = doc.curl
-        copyButton.isHidden = false
 
         // Update Interactive Area
         updateInteractiveArea(for: doc)
@@ -697,15 +666,15 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             let tid = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
             AppDelegate.shared?.sendExecAction(action: "deleteTweet", tweetId: tid, userId: nil, tabId: nil, instanceId: instanceId)
         case "query_home_timeline":
-            AppDelegate.shared?.sendExecAction(action: "getTimeline", tweetId: nil, userId: nil, tabId: nil, instanceId: instanceId)
+            AppDelegate.shared?.sendQueryHomeTimeline(tabId: nil, instanceId: instanceId)
         case "query_tweet_detail":
             let tid = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
-            AppDelegate.shared?.sendExecAction(action: "getTweet", tweetId: tid, userId: nil, tabId: nil, instanceId: instanceId)
+            AppDelegate.shared?.sendQueryTweetDetail(tweetId: tid, tabId: nil, instanceId: instanceId)
         case "query_user_profile":
             let handle = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
-            AppDelegate.shared?.sendExecAction(action: "getUser", tweetId: nil, userId: handle, tabId: nil, instanceId: instanceId)
+            AppDelegate.shared?.sendQueryUserProfile(screenName: handle, tabId: nil, instanceId: instanceId)
         case "query_search_results":
-            AppDelegate.shared?.sendExecAction(action: "search", tweetId: nil, userId: nil, tabId: nil, instanceId: instanceId)
+            AppDelegate.shared?.sendQuerySearchTimeline(tabId: nil, instanceId: instanceId)
         default:
             print("Action not implemented for \(doc.id)")
         }

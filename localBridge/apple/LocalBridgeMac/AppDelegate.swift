@@ -103,6 +103,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         goServer.sendExecAction(action: action, tweetId: tweetId, userId: userId, tabId: tabId, text: text, instanceId: instanceId)
     }
 
+    func sendQueryHomeTimeline(tabId: Int? = nil, instanceId: String? = nil) {
+        goServer.sendQueryHomeTimeline(tabId: tabId, instanceId: instanceId)
+    }
+
+    func sendQueryTweetDetail(tweetId: String, tabId: Int? = nil, instanceId: String? = nil) {
+        goServer.sendQueryTweetDetail(tweetId: tweetId, tabId: tabId, instanceId: instanceId)
+    }
+
+    func sendQueryUserProfile(screenName: String, tabId: Int? = nil, instanceId: String? = nil) {
+        goServer.sendQueryUserProfile(screenName: screenName, tabId: tabId, instanceId: instanceId)
+    }
+
+    func sendQuerySearchTimeline(tabId: Int? = nil, instanceId: String? = nil) {
+        goServer.sendQuerySearchTimeline(tabId: tabId, instanceId: instanceId)
+    }
+
     func sendQueryAITabsStatus(instanceId: String? = nil) {
         goServer.sendQueryAITabsStatus(instanceId: instanceId)
     }

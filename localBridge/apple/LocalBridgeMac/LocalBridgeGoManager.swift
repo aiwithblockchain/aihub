@@ -184,12 +184,69 @@ final class LocalBridgeGoManager {
         text: String? = nil,
         instanceId: String? = nil
     ) {
+        // Standardize action names based on Go server expectations
+        let standardizedAction: String
+        switch action {
+        case "createTweet": standardizedAction = "post_tweet"
+        case "createReply": standardizedAction = "reply_tweet"
+        case "deleteTweet": standardizedAction = "delete_tweet"
+        default: standardizedAction = action
+        }
+
         invokePlugin(
             clientName: "tweetClaw",
             messageType: "request.exec_action",
             instanceId: instanceId,
-            payload: ExecActionPayload(action: action, tweetId: tweetId, userId: userId, tabId: tabId, text: text),
+            payload: ExecActionPayload(action: standardizedAction, tweetId: tweetId, userId: userId, tabId: tabId, text: text),
             timeoutMs: 15_000,
+            notificationName: "ExecActionReceived",
+            format: .prettyJSON
+        )
+    }
+
+    func sendQueryHomeTimeline(tabId: Int? = nil, instanceId: String? = nil) {
+        invokePlugin(
+            clientName: "tweetClaw",
+            messageType: "request.query_home_timeline",
+            instanceId: instanceId,
+            payload: QueryTimelinePayload(tabId: tabId),
+            timeoutMs: 8_000,
+            notificationName: "ExecActionReceived",
+            format: .prettyJSON
+        )
+    }
+
+    func sendQueryTweetDetail(tweetId: String, tabId: Int? = nil, instanceId: String? = nil) {
+        invokePlugin(
+            clientName: "tweetClaw",
+            messageType: "request.query_tweet_detail",
+            instanceId: instanceId,
+            payload: QueryTweetDetailPayload(tweetId: tweetId, tabId: tabId),
+            timeoutMs: 8_000,
+            notificationName: "ExecActionReceived",
+            format: .prettyJSON
+        )
+    }
+
+    func sendQueryUserProfile(screenName: String, tabId: Int? = nil, instanceId: String? = nil) {
+        invokePlugin(
+            clientName: "tweetClaw",
+            messageType: "request.query_user_profile",
+            instanceId: instanceId,
+            payload: QueryUserProfilePayload(screenName: screenName, tabId: tabId),
+            timeoutMs: 8_000,
+            notificationName: "ExecActionReceived",
+            format: .prettyJSON
+        )
+    }
+
+    func sendQuerySearchTimeline(tabId: Int? = nil, instanceId: String? = nil) {
+        invokePlugin(
+            clientName: "tweetClaw",
+            messageType: "request.query_search_timeline",
+            instanceId: instanceId,
+            payload: QueryTimelinePayload(tabId: tabId),
+            timeoutMs: 8_000,
             notificationName: "ExecActionReceived",
             format: .prettyJSON
         )
@@ -345,6 +402,20 @@ private extension LocalBridgeGoManager {
         let userId: String?
         let tabId: Int?
         let text: String?
+    }
+
+    struct QueryTimelinePayload: Encodable {
+        let tabId: Int?
+    }
+
+    struct QueryTweetDetailPayload: Encodable {
+        let tweetId: String
+        let tabId: Int?
+    }
+
+    struct QueryUserProfilePayload: Encodable {
+        let screenName: String
+        let tabId: Int?
     }
 
     struct ExecuteTaskPayload: Encodable {

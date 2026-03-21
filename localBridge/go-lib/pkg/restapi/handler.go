@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
 	"strconv"
 	"strings"
 	"time"
@@ -50,6 +51,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/ai/message",          h.sendMessage)
 	mux.HandleFunc("/api/v1/ai/new_conversation", h.newConversation)
 	mux.HandleFunc("/api/v1/ai/navigate",         h.navigateToPlatform)
+
+	// ★ 系统端点
+	mux.HandleFunc("/api/v1/docs", h.apiDocs)
 }
 
 // ============================================================
@@ -264,6 +268,28 @@ func (h *Handler) navigateTab(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) instances(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(h.ws.GetInstances())
+}
+
+func (h *Handler) apiDocs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+
+	// 优先尝试硬编码路径（开发环境）
+	path := "/Users/hyperorchid/aiwithblockchain/aihub/localBridge/apple/LocalBridgeMac/api_docs.json"
+	data, err := os.ReadFile(path)
+	if err != nil {
+		// 备选：尝试相对路径
+		data, err = os.ReadFile("api_docs.json")
+		if err != nil {
+			jsonErr(w, 404, "api_docs.json not found")
+			return
+		}
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	w.Write(data)
 }
 
 // --- aiClaw 端点 ---

@@ -207,6 +207,12 @@ enum DSV2 {
         scrollView.layer?.borderColor = outlineVariant.withAlphaComponent(0.2).cgColor
         scrollView.translatesAutoresizingMaskIntoConstraints = false
 
+        // 设置自定义高亮滚动条
+        let scroller = BrightScroller()
+        scrollView.verticalScroller = scroller
+        scrollView.hasVerticalScroller = true
+        scrollView.autohidesScrollers = false // 强制显示以增加可见性
+
         return (scrollView, textView)
     }
 
@@ -572,5 +578,39 @@ open class PassthroughView: NSView {
 open class PassthroughImageView: NSImageView {
     open override func hitTest(_ point: NSPoint) -> NSView? {
         return nil
+    }
+}
+
+/// 自定义亮色滚动条，提升在深色背景下的可见度
+class BrightScroller: NSScroller {
+    override func drawKnob() {
+        // 只在有内容可滚动时绘制
+        guard knobProportion > 0 else { return }
+        
+        let rect = rect(for: .knob)
+        let path = NSBezierPath(roundedRect: rect.insetBy(dx: 2, dy: 0), xRadius: rect.width/2, yRadius: rect.width/2)
+        
+        // 使用主色调的高亮色
+        DSV2.primary.set()
+        path.fill()
+    }
+    
+    override func drawKnobSlot(in slotRect: NSRect, highlight flag: Bool) {
+        // 背景槽深色处理
+        DSV2.surfaceContainerLowest.set()
+        slotRect.fill()
+        
+        // 添加一个极细的边线
+        DSV2.outlineVariant.withAlphaComponent(0.1).set()
+        let line = NSBezierPath()
+        line.move(to: NSPoint(x: slotRect.minX, y: slotRect.minY))
+        line.line(to: NSPoint(x: slotRect.minX, y: slotRect.maxY))
+        line.lineWidth = 1
+        line.stroke()
+    }
+    
+    // 强制使用系统风格但自定义绘制
+    override class var isCompatibleWithOverlayScrollers: Bool {
+        return false // 禁用 Overlay 风格以确保自定义绘制生效
     }
 }
