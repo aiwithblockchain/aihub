@@ -335,22 +335,31 @@
     <div class="section">
       <div class="section-label">Bridge Status</div>
 
-      <!-- Primary Connection (127.0.0.1) -->
-      <div class="connection-item primary-connection">
-        <span class="dot disconnected" id="primaryDot"></span>
-        <div style="flex: 1;">
-          <div class="connection-url" id="primaryUrl">ws://127.0.0.1:10086/ws</div>
-          <div class="connection-version" id="primaryVersion">Checking…</div>
+      <!-- Single Connection Display -->
+      <div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 12px;">
+        <div style="display: flex; align-items: center; margin-bottom: 12px;">
+          <span class="dot disconnected" id="statusDot"></span>
+          <div style="flex: 1; margin-left: 10px;">
+            <div class="connection-url" id="connectionUrl">ws://127.0.0.1:10086/ws</div>
+            <div class="connection-version" id="connectionVersion">Checking…</div>
+          </div>
         </div>
-      </div>
 
-      <div class="port-row" style="margin-top: 12px;">
-        <input type="number" id="portInput" placeholder="10086" min="1024" max="65535">
-        <button id="savePortBtn">Save &amp; Reconnect</button>
-      </div>
+        <!-- IP Input -->
+        <div style="margin-bottom: 10px;">
+          <label style="font-size: 11px; color: #64748b; display: block; margin-bottom: 4px;">IP Address</label>
+          <input type="text" id="hostInput" placeholder="127.0.0.1" style="width: 100%; background: #0f1117; border: 1px solid #30363d; border-radius: 6px; color: #e2e8f0; padding: 8px 10px; font-size: 13px; outline: none; box-sizing: border-box;">
+        </div>
 
-      <!-- Additional Connections -->
-      <div id="additionalConnectionsList" style="margin-top: 16px;"></div>
+        <!-- Port Input -->
+        <div style="margin-bottom: 10px;">
+          <label style="font-size: 11px; color: #64748b; display: block; margin-bottom: 4px;">Port</label>
+          <input type="number" id="portInput" placeholder="10086" min="1024" max="65535" style="width: 100%; background: #0f1117; border: 1px solid #30363d; border-radius: 6px; color: #e2e8f0; padding: 8px 10px; font-size: 13px; outline: none; box-sizing: border-box;">
+        </div>
+
+        <!-- Save Button -->
+        <button id="saveBtn" style="width: 100%; background: #1d9bf0; border: none; border-radius: 6px; color: #fff; font-size: 13px; font-weight: 600; padding: 10px; cursor: pointer; transition: all 0.2s;">Save &amp; Reconnect</button>
+      </div>
     </div>
 
     <!-- Capabilities -->
@@ -364,21 +373,6 @@
         <li><span class="icon">🌐</span> Open and navigate X tabs on demand</li>
         <li><span class="icon">💎</span> Saves AI token costs via local bridging</li>
       </ul>
-    </div>
-
-    <!-- Add Additional Connection -->
-    <div class="section">
-      <div class="section-label">Add WebSocket Connection</div>
-      <div style="margin-bottom: 8px;">
-        <label style="font-size: 11px; color: #64748b; display: block; margin-bottom: 4px;">IP Address</label>
-        <input type="text" id="ipInput" placeholder="192.168.1.100" style="width: 100%; background: #161b22; border: 1px solid #30363d; border-radius: 8px; color: #e2e8f0; padding: 8px 12px; font-size: 13px; outline: none;">
-      </div>
-      <div style="margin-bottom: 12px;">
-        <label style="font-size: 11px; color: #64748b; display: block; margin-bottom: 4px;">Port</label>
-        <input type="number" id="portInputAdd" placeholder="10086" min="1024" max="65535" style="width: 100%; background: #161b22; border: 1px solid #30363d; border-radius: 8px; color: #e2e8f0; padding: 8px 12px; font-size: 13px; outline: none;">
-      </div>
-      <button id="addConnectionBtn" style="width: 100%; background: #1d9bf0; border: none; border-radius: 8px; color: #fff; font-size: 12px; font-weight: 700; padding: 8px 16px; cursor: pointer;">Add Connection</button>
-      <div id="statusMsg"></div>
     </div>
   </div>
 

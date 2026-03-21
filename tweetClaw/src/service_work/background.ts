@@ -8,23 +8,21 @@ import {
 import { findViewerSummary, findFeaturedTweet, findRepliesSnapshot, findProfileTweetsSnapshot, findTweetById, findDeepUser } from '../capture/extractor';
 import { derivePageContext } from '../utils/scene-parser';
 import { extractTweetId } from '../utils/route-parser';
-import { MultiConnectionManager } from '../bridge/local-bridge-socket';
+import { LocalBridgeSocket } from '../bridge/local-bridge-socket';
 import { OpenTabRequestPayload, OpenTabResponsePayload, CloseTabRequestPayload, CloseTabResponsePayload, NavigateTabRequestPayload, NavigateTabResponsePayload } from '../bridge/ws-protocol';
 
-// Initialize Multi-Connection Manager
-const connectionManager = new MultiConnectionManager();
-connectionManager.setHandlers({
-    queryXTabsHandler: queryXTabsStatus,
-    queryXBasicInfoHandler: queryXBasicInfo,
-    openTabHandler: openXTab,
-    closeTabHandler: closeXTab,
-    navigateTabHandler: navigateXTab,
-    execActionHandler: execAction,
-    queryHomeTimelineHandler: queryHomeTimeline,
-    queryTweetDetailHandler: queryTweetDetail,
-    queryUserProfileHandler: queryUserProfile,
-    querySearchTimelineHandler: querySearchTimeline
-});
+// Initialize LocalBridge Socket
+const localBridge = new LocalBridgeSocket();
+localBridge.queryXTabsHandler = queryXTabsStatus;
+localBridge.queryXBasicInfoHandler = queryXBasicInfo;
+localBridge.openTabHandler = openXTab;
+localBridge.closeTabHandler = closeXTab;
+localBridge.navigateTabHandler = navigateXTab;
+localBridge.execActionHandler = execAction;
+localBridge.queryHomeTimelineHandler = queryHomeTimeline;
+localBridge.queryTweetDetailHandler = queryTweetDetail;
+localBridge.queryUserProfileHandler = queryUserProfile;
+localBridge.querySearchTimelineHandler = querySearchTimeline;
 
 interface ApiHit {
     op: string;
@@ -224,90 +222,34 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     // ── GET_BRIDGE_STATUS: popup queries live connection state ────────
     if (message.type === 'GET_BRIDGE_STATUS') {
-        const connections = connectionManager.getConnectionStatus();
-        if (sendResponse) sendResponse({ connections });
+        const status = {
+            connected: localBridge.isConnected(),
+            url: localBridge.getCurrentUrl(),
+            serverInfo: localBridge.getServerInfo()
+        };
+        if (sendResponse) sendResponse(status);
         return true;
     }
 
-    // ── UPDATE_PRIMARY_CONNECTION: update 127.0.0.1 connection ────────
-    if (message.type === 'UPDATE_PRIMARY_CONNECTION') {
-        // Remove old 127.0.0.1 connection
-        const currentConnections = connectionManager.getConnectionStatus();
-        const oldPrimary = currentConnections.find(c => c.url.includes('127.0.0.1'));
-        if (oldPrimary) {
-            connectionManager.removeConnection(oldPrimary.url);
-        }
-
-        // Add new primary connection
-        connectionManager.addConnection(message.url);
-
-        // Update storage
-        chrome.storage.local.get('wsConnections').then(res => {
-            const connections: Array<{url: string, enabled: boolean}> = (res.wsConnections as Array<{url: string, enabled: boolean}>) || [];
-            // Remove old 127.0.0.1 entries
-            const filtered = connections.filter(c => !c.url.includes('127.0.0.1'));
-            // Add new primary
-            filtered.unshift({ url: message.url, enabled: true });
-            chrome.storage.local.set({ wsConnections: filtered });
-        });
-
-        if (sendResponse) sendResponse({ success: true });
-        return true;
-    }
-
-    // ── ADD_WS_CONNECTION: add a new WebSocket connection ─────────────
-    if (message.type === 'ADD_WS_CONNECTION') {
-        connectionManager.addConnection(message.url);
+    // ── UPDATE_WS_CONFIG: update WebSocket host and port ──────────────
+    if (message.type === 'UPDATE_WS_CONFIG') {
+        const { host, port } = message;
         // Save to storage
-        chrome.storage.local.get('wsConnections').then(res => {
-            const connections: Array<{url: string, enabled: boolean}> = (res.wsConnections as Array<{url: string, enabled: boolean}>) || [];
-            connections.push({ url: message.url, enabled: true });
-            chrome.storage.local.set({ wsConnections: connections });
+        chrome.storage.local.set({ wsHost: host, wsPort: port }).then(() => {
+            // Reconnect with new config
+            localBridge.reconnect(host, port);
+            if (sendResponse) sendResponse({ success: true });
         });
-        if (sendResponse) sendResponse({ success: true });
-        return true;
-    }
-
-    // ── REMOVE_WS_CONNECTION: remove a WebSocket connection ───────────
-    if (message.type === 'REMOVE_WS_CONNECTION') {
-        connectionManager.removeConnection(message.url);
-        // Remove from storage
-        chrome.storage.local.get('wsConnections').then(res => {
-            const connections: Array<{url: string, enabled: boolean}> = (res.wsConnections as Array<{url: string, enabled: boolean}>) || [];
-            const filtered = connections.filter(c => c.url !== message.url);
-            chrome.storage.local.set({ wsConnections: filtered });
-        });
-        if (sendResponse) sendResponse({ success: true });
-        return true;
-    }
-
-    // ── TOGGLE_WS_CONNECTION: enable/disable a connection ─────────────
-    if (message.type === 'TOGGLE_WS_CONNECTION') {
-        chrome.storage.local.get('wsConnections').then(res => {
-            const connections: Array<{url: string, enabled: boolean}> = (res.wsConnections as Array<{url: string, enabled: boolean}>) || [];
-            const conn = connections.find(c => c.url === message.url);
-            if (conn) {
-                conn.enabled = message.enabled;
-                chrome.storage.local.set({ wsConnections: connections }).then(() => {
-                    // Reload all connections
-                    connectionManager.reloadConnections();
-                });
-            }
-        });
-        if (sendResponse) sendResponse({ success: true });
         return true;
     }
 
     // ── WS_PORT_CHANGED (legacy support) ──────────────────────────────
     if (message.type === 'WS_PORT_CHANGED') {
-        // For backward compatibility, convert to new format
-        const url = `ws://127.0.0.1:${message.port}/ws`;
-        chrome.storage.local.set({
-            wsConnections: [{ url, enabled: true }]
-        }).then(() => {
-            connectionManager.reloadConnections();
+        // For backward compatibility
+        chrome.storage.local.set({ wsPort: message.port }).then(() => {
+            localBridge.reconnect('127.0.0.1', message.port);
+            if (sendResponse) sendResponse({ ok: true });
         });
-        if (sendResponse) sendResponse({ ok: true });
         return true;
     }
 

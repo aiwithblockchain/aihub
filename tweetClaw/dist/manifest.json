@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TweetClaw",
-  "version": "0.4.30",
+  "version": "0.4.31",
   "description": "TweetClaw: Powerful agentic tool for X web session binding.",
   "background": {
     "service_worker": "js/background.js"
