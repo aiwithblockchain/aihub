@@ -516,3 +516,101 @@ export class LocalBridgeSocket {
   }
 }
 
+// ── Multi-Connection Manager ────────────────────────────────────────
+
+export class MultiConnectionManager {
+  private connections: Map<string, LocalBridgeSocket> = new Map();
+  private handlers: Record<string, any> = {};
+
+  constructor() {
+    this.loadConnections();
+  }
+
+  private async loadConnections() {
+    const res = await chrome.storage.local.get(['wsConnections', 'wsPort']);
+    let connections: Array<{url: string, enabled: boolean}> = (res.wsConnections as Array<{url: string, enabled: boolean}>) || [];
+
+    // 向后兼容：迁移旧的 wsPort 配置
+    if (!connections.length && res.wsPort) {
+      connections = [{ url: `ws://127.0.0.1:${res.wsPort}/ws`, enabled: true }];
+      await chrome.storage.local.set({ wsConnections: connections });
+      console.log(`[tweetClaw] migrated legacy wsPort ${res.wsPort} to new format`);
+    }
+
+    // 如果还是没有连接，使用默认值
+    if (!connections.length) {
+      connections = [{ url: 'ws://127.0.0.1:10086/ws', enabled: true }];
+      await chrome.storage.local.set({ wsConnections: connections });
+    }
+
+    // 创建所有启用的连接
+    for (const conn of connections) {
+      if (conn.enabled) {
+        this.addConnection(conn.url);
+      }
+    }
+  }
+
+  public addConnection(url: string) {
+    if (this.connections.has(url)) {
+      console.log(`[tweetClaw] connection already exists: ${url}`);
+      return;
+    }
+
+    console.log(`[tweetClaw] adding new connection: ${url}`);
+    const socket = new LocalBridgeSocket();
+
+    // 直接设置 URL（绕过 connect 中的动态端口检查）
+    socket['WS_URL'] = url;
+
+    // 设置所有处理器
+    Object.keys(this.handlers).forEach(key => {
+      (socket as any)[key] = this.handlers[key];
+    });
+
+    socket.connect();
+    this.connections.set(url, socket);
+  }
+
+  public removeConnection(url: string) {
+    const socket = this.connections.get(url);
+    if (socket) {
+      console.log(`[tweetClaw] removing connection: ${url}`);
+      if (socket['ws']) {
+        socket['ws'].close();
+      }
+      this.connections.delete(url);
+    }
+  }
+
+  public getConnectionStatus(): Array<{url: string, connected: boolean, serverInfo: any}> {
+    return Array.from(this.connections.entries()).map(([url, socket]) => ({
+      url,
+      connected: socket.isConnected(),
+      serverInfo: socket.getServerInfo()
+    }));
+  }
+
+  public setHandlers(handlers: Record<string, any>) {
+    this.handlers = handlers;
+    this.connections.forEach(socket => {
+      Object.keys(handlers).forEach(key => {
+        (socket as any)[key] = handlers[key];
+      });
+    });
+  }
+
+  public async reloadConnections() {
+    // 关闭所有现有连接
+    this.connections.forEach((socket, url) => {
+      if (socket['ws']) {
+        socket['ws'].close();
+      }
+    });
+    this.connections.clear();
+
+    // 重新加载
+    await this.loadConnections();
+  }
+}
+

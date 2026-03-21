@@ -145,6 +145,60 @@
     .port-row button:active { transform: translateY(0); }
     #statusMsg { font-size: 11px; color: #22c55e; margin-top: 8px; min-height: 14px; font-weight: 500; }
 
+    /* ── Connection list ── */
+    .connection-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      background: #161b22;
+      border: 1px solid #30363d;
+      border-radius: 8px;
+      margin-bottom: 8px;
+      transition: all 0.2s;
+    }
+    .connection-item:hover { background: #1c2128; border-color: #475569; }
+    .primary-connection {
+      border-color: #3b82f6;
+      background: #1e2433;
+    }
+    .connection-url {
+      flex: 1;
+      font-size: 12px;
+      font-family: 'SFMono-Regular', Consolas, monospace;
+      color: #e2e8f0;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+    .connection-version {
+      font-size: 10px;
+      color: #64748b;
+      margin-top: 2px;
+    }
+    .connection-actions {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .btn-remove {
+      background: none;
+      border: none;
+      color: #94a3b8;
+      cursor: pointer;
+      padding: 4px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+      transition: all 0.2s;
+    }
+    .btn-remove:hover { background: #ef444422; color: #ef4444; }
+    .empty-state {
+      text-align: center;
+      padding: 20px;
+      color: #64748b;
+      font-size: 12px;
+    }
+
     /* ── Download banner ── */
     .download-banner {
       display: flex;
@@ -280,11 +334,23 @@
     <!-- Connection Status -->
     <div class="section">
       <div class="section-label">Bridge Status</div>
-      <div class="status-row">
-        <span class="dot disconnected" id="statusDot"></span>
-        <span id="statusText">Checking…</span>
+
+      <!-- Primary Connection (127.0.0.1) -->
+      <div class="connection-item primary-connection">
+        <span class="dot disconnected" id="primaryDot"></span>
+        <div style="flex: 1;">
+          <div class="connection-url" id="primaryUrl">ws://127.0.0.1:10086/ws</div>
+          <div class="connection-version" id="primaryVersion">Checking…</div>
+        </div>
       </div>
-      <div id="statusUrl"></div>
+
+      <div class="port-row" style="margin-top: 12px;">
+        <input type="number" id="portInput" placeholder="10086" min="1024" max="65535">
+        <button id="savePortBtn">Save &amp; Reconnect</button>
+      </div>
+
+      <!-- Additional Connections -->
+      <div id="additionalConnectionsList" style="margin-top: 16px;"></div>
     </div>
 
     <!-- Capabilities -->
@@ -300,13 +366,18 @@
       </ul>
     </div>
 
-    <!-- Port Configuration -->
+    <!-- Add Additional Connection -->
     <div class="section">
-      <div class="section-label">WebSocket Port</div>
-      <div class="port-row">
-        <input type="number" id="portInput" placeholder="10086" min="1024" max="65535">
-        <button id="saveBtn">Save &amp; Reconnect</button>
+      <div class="section-label">Add WebSocket Connection</div>
+      <div style="margin-bottom: 8px;">
+        <label style="font-size: 11px; color: #64748b; display: block; margin-bottom: 4px;">IP Address</label>
+        <input type="text" id="ipInput" placeholder="192.168.1.100" style="width: 100%; background: #161b22; border: 1px solid #30363d; border-radius: 8px; color: #e2e8f0; padding: 8px 12px; font-size: 13px; outline: none;">
       </div>
+      <div style="margin-bottom: 12px;">
+        <label style="font-size: 11px; color: #64748b; display: block; margin-bottom: 4px;">Port</label>
+        <input type="number" id="portInputAdd" placeholder="10086" min="1024" max="65535" style="width: 100%; background: #161b22; border: 1px solid #30363d; border-radius: 8px; color: #e2e8f0; padding: 8px 12px; font-size: 13px; outline: none;">
+      </div>
+      <button id="addConnectionBtn" style="width: 100%; background: #1d9bf0; border: none; border-radius: 8px; color: #fff; font-size: 12px; font-weight: 700; padding: 8px 16px; cursor: pointer;">Add Connection</button>
       <div id="statusMsg"></div>
     </div>
   </div>
