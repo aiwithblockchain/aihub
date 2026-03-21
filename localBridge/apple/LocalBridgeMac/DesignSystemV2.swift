@@ -208,12 +208,17 @@ enum DSV2 {
         scrollView.translatesAutoresizingMaskIntoConstraints = false
 
         // 设置自定义高亮滚动条
+        applyBrightScroller(to: scrollView)
+
+        return (scrollView, textView)
+    }
+
+    /// 将亮色滚动条应用到指定的 NSScrollView
+    static func applyBrightScroller(to scrollView: NSScrollView) {
         let scroller = BrightScroller()
         scrollView.verticalScroller = scroller
         scrollView.hasVerticalScroller = true
         scrollView.autohidesScrollers = false // 强制显示以增加可见性
-
-        return (scrollView, textView)
     }
 
     /// 创建 Ghost Border 容器视图

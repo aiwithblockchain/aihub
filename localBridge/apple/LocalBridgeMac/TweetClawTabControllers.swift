@@ -4,13 +4,16 @@ import AppKit
 
 final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, NSTableViewDataSource {
     private var resultTextView: NSTextView!
-    private var resultScrollView: NSScrollView!
     private let interactiveAreaContainer = NSStackView()
     private let tableView = NSTableView()
     private let headerImageView = NSImageView()
     private let headerTitleLabel = NSTextField(labelWithString: "TweetClaw")
-    private var detailScrollView: NSScrollView!
     private var detailTextView: NSTextView!
+    private var mainRightScrollView: NSScrollView!
+    
+    // 高度约束，用于让文本视图在 StackView 中“撑开”
+    private var detailHeightConstraint: NSLayoutConstraint?
+    private var resultHeightConstraint: NSLayoutConstraint?
 
     // Shared Interactive Components
     private let commonIdField = NSTextField()
@@ -155,12 +158,6 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         listScrollView.borderType = .noBorder
         listScrollView.translatesAutoresizingMaskIntoConstraints = false
 
-        tableView.delegate = self
-        tableView.dataSource = self
-        tableView.rowHeight = 84
-        tableView.headerView = nil
-        tableView.selectionHighlightStyle = .none
-        tableView.backgroundColor = .clear
         tableView.intercellSpacing = NSSize(width: 0, height: DSV2.spacing2)
         tableView.allowsEmptySelection = false
 
@@ -201,22 +198,33 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         instanceRow.alignment = .centerY
         instanceRow.translatesAutoresizingMaskIntoConstraints = false
 
-        // 2. Documentation View
-        detailScrollView = NSTextView.scrollableTextView()
-        detailScrollView.borderType = .noBorder
-        detailScrollView.wantsLayer = true
-        detailScrollView.layer?.cornerRadius = DSV2.radiusCard
-        detailScrollView.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
-        detailScrollView.translatesAutoresizingMaskIntoConstraints = false
-
-        detailTextView = detailScrollView.documentView as? NSTextView
+        // 2. Documentation Container
+        let detailContainer = DSV2.makeGhostBorderView()
+        detailContainer.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
+        
+        detailTextView = NSTextView()
         detailTextView.isEditable = false
         detailTextView.isSelectable = true
-        detailTextView.drawsBackground = true
-        detailTextView.backgroundColor = DSV2.surfaceContainerLowest
-        detailTextView.textContainerInset = NSSize(width: DSV2.spacing4, height: DSV2.spacing4)
+        detailTextView.drawsBackground = false // 背景由容器提供
         detailTextView.font = DSV2.fontMonoMd
         detailTextView.textColor = DSV2.tertiary
+        detailTextView.textContainerInset = NSSize(width: DSV2.spacing4, height: DSV2.spacing4)
+        detailTextView.isVerticallyResizable = true
+        detailTextView.autoresizingMask = [.width]
+        
+        detailContainer.addSubview(detailTextView)
+        detailTextView.translatesAutoresizingMaskIntoConstraints = false
+        
+        NSLayoutConstraint.activate([
+            detailTextView.topAnchor.constraint(equalTo: detailContainer.topAnchor),
+            detailTextView.leadingAnchor.constraint(equalTo: detailContainer.leadingAnchor),
+            detailTextView.trailingAnchor.constraint(equalTo: detailContainer.trailingAnchor),
+            detailTextView.bottomAnchor.constraint(equalTo: detailContainer.bottomAnchor),
+            detailContainer.heightAnchor.constraint(greaterThanOrEqualToConstant: 100)
+        ])
+        
+        detailHeightConstraint = detailTextView.heightAnchor.constraint(equalToConstant: 100)
+        detailHeightConstraint?.isActive = true
 
         // 3. Interactive Area Container
         interactiveAreaContainer.orientation = .vertical
@@ -224,27 +232,71 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         interactiveAreaContainer.spacing = DSV2.spacing4
         interactiveAreaContainer.translatesAutoresizingMaskIntoConstraints = false
 
-        // 4. Result View (Terminal)
-        let terminal = DSV2.makeTerminalTextView()
-        resultScrollView = terminal.scrollView
-        resultTextView = terminal.textView
-        resultScrollView.heightAnchor.constraint(greaterThanOrEqualToConstant: 220).isActive = true
+        // 4. Result View (Terminal) Container
+        let resultContainer = DSV2.makeGhostBorderView()
+        resultContainer.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
+        
+        resultTextView = NSTextView()
+        resultTextView.isEditable = false
+        resultTextView.isSelectable = true
+        resultTextView.drawsBackground = false
+        resultTextView.font = DSV2.fontMonoMd
+        resultTextView.textColor = DSV2.tertiary
+        resultTextView.textContainerInset = NSSize(width: DSV2.spacing4, height: DSV2.spacing4)
+        resultTextView.isVerticallyResizable = true
+        resultTextView.autoresizingMask = [.width]
+        
+        resultContainer.addSubview(resultTextView)
+        resultTextView.translatesAutoresizingMaskIntoConstraints = false
+        
+        NSLayoutConstraint.activate([
+            resultTextView.topAnchor.constraint(equalTo: resultContainer.topAnchor),
+            resultTextView.leadingAnchor.constraint(equalTo: resultContainer.leadingAnchor),
+            resultTextView.trailingAnchor.constraint(equalTo: resultContainer.trailingAnchor),
+            resultTextView.bottomAnchor.constraint(equalTo: resultContainer.bottomAnchor),
+            resultContainer.heightAnchor.constraint(greaterThanOrEqualToConstant: 100)
+        ])
 
-        // 5. Right Stack Assembly
+        resultHeightConstraint = resultTextView.heightAnchor.constraint(equalToConstant: 100)
+        resultHeightConstraint?.isActive = true
+
+        // 5. Main Right Column ScrollView (The Master Container)
+        mainRightScrollView = NSScrollView()
+        mainRightScrollView.drawsBackground = false
+        mainRightScrollView.hasVerticalScroller = true
+        mainRightScrollView.hasHorizontalScroller = false
+        mainRightScrollView.translatesAutoresizingMaskIntoConstraints = false
+        DSV2.applyBrightScroller(to: mainRightScrollView)
+
+        let rightContentContainer = NSView()
+        rightContentContainer.translatesAutoresizingMaskIntoConstraints = false
+        mainRightScrollView.documentView = rightContentContainer
+
+        // 6. Right Stack Assembly (Scrollable area)
         let rightStack = NSStackView(views: [
-            instanceRow,
-            detailScrollView,
+            detailContainer,
             interactiveAreaContainer,
-            resultScrollView
+            resultContainer
         ])
         rightStack.orientation = .vertical
         rightStack.alignment = .leading
-        rightStack.spacing = DSV2.spacing4
+        rightStack.spacing = DSV2.spacing6
+        rightStack.edgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: DSV2.spacing8, right: 0) // 给底部留出呼吸空间
         rightStack.translatesAutoresizingMaskIntoConstraints = false
-        // Make documentation and terminal share space
-        detailScrollView.heightAnchor.constraint(greaterThanOrEqualToConstant: 200).isActive = true
         
-        view.addSubview(rightStack)
+        rightContentContainer.addSubview(rightStack)
+        
+        // 7. Outer Container for Fixed Header + Scrollable Area
+        let rightColumnOuterStack = NSStackView(views: [
+            instanceRow,
+            mainRightScrollView
+        ])
+        rightColumnOuterStack.orientation = .vertical
+        rightColumnOuterStack.alignment = .leading
+        rightColumnOuterStack.spacing = DSV2.spacing4
+        rightColumnOuterStack.translatesAutoresizingMaskIntoConstraints = false
+        
+        view.addSubview(rightColumnOuterStack)
 
         // Styling Shared Components
         styleInputField(commonIdField)
@@ -269,13 +321,29 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             listScrollView.widthAnchor.constraint(equalToConstant: 280),
             listScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6),
 
-            rightStack.topAnchor.constraint(equalTo: listScrollView.topAnchor),
-            rightStack.leadingAnchor.constraint(equalTo: listScrollView.trailingAnchor, constant: DSV2.spacing4),
-            rightStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
-            rightStack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6),
+            rightStack.topAnchor.constraint(equalTo: rightContentContainer.topAnchor),
+            rightStack.leadingAnchor.constraint(equalTo: rightContentContainer.leadingAnchor),
+            rightStack.trailingAnchor.constraint(equalTo: rightContentContainer.trailingAnchor),
+            rightStack.bottomAnchor.constraint(equalTo: rightContentContainer.bottomAnchor),
+            rightStack.widthAnchor.constraint(equalTo: mainRightScrollView.contentView.widthAnchor),
 
-            rightStack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6)
+            // Outer Stack Constraints
+            rightColumnOuterStack.topAnchor.constraint(equalTo: listScrollView.topAnchor),
+            rightColumnOuterStack.leadingAnchor.constraint(equalTo: listScrollView.trailingAnchor, constant: DSV2.spacing4),
+            rightColumnOuterStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
+            rightColumnOuterStack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6),
+            
+            instanceRow.widthAnchor.constraint(equalTo: rightColumnOuterStack.widthAnchor),
+            mainRightScrollView.widthAnchor.constraint(equalTo: rightColumnOuterStack.widthAnchor)
         ])
+
+        // 设置代理（放到最后，防止在界面完全初始化前触发选择事件导致的 Crash）
+        tableView.delegate = self
+        tableView.dataSource = self
+        tableView.rowHeight = 84
+        tableView.headerView = nil
+        tableView.selectionHighlightStyle = .none
+        tableView.backgroundColor = .clear
 
         selectDefaultRow()
     }
@@ -330,12 +398,37 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         return label
     }
 
+    /// 根据内容自动更新文本视图的高度约束，实现“撑开”效果
+    private func updateTextViewHeight(_ textView: NSTextView?, constraint: NSLayoutConstraint?) {
+        guard let textView = textView, let constraint = constraint else { return }
+        
+        // 强制 LayoutManager 计算布局
+        if let layoutManager = textView.layoutManager, let textContainer = textView.textContainer {
+            layoutManager.ensureLayout(for: textContainer)
+            let usedRect = layoutManager.usedRect(for: textContainer)
+            let newHeight = max(100, usedRect.height + textView.textContainerInset.height * 2)
+            
+            // 更新约束
+            constraint.constant = newHeight
+        }
+    }
+
     @objc private func displayResult(_ notification: Notification) {
         guard let userInfo = notification.userInfo,
               let jsonString = userInfo["dataString"] as? String else { return }
         DispatchQueue.main.async {
-            self.resultTextView.string = jsonString
-            self.resultTextView.scrollToEndOfDocument(nil)
+            self.resultTextView?.string = jsonString
+            
+            // 立即计算并撑开高度
+            self.updateTextViewHeight(self.resultTextView, constraint: self.resultHeightConstraint)
+            
+            self.resultTextView?.scrollToEndOfDocument(nil)
+            
+            // 同时滚动主视图到底部，以便看到最新日志
+            if let documentView = self.mainRightScrollView.documentView {
+                let bottomRect = NSRect(x: 0, y: documentView.frame.height - 1, width: 1, height: 1)
+                documentView.scrollToVisible(bottomRect)
+            }
         }
     }
 
@@ -472,12 +565,18 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         refreshCardStyles() // 关键：每当选中项变更，立即刷新所有可见 Cell 的 Layer 样式
         
         let row = tableView.selectedRow
+        resultTextView?.string = "" // 安全检查：切换 API 时清空之前的执行结果
+        updateTextViewHeight(resultTextView, constraint: resultHeightConstraint) // 立即重置高度
+        
         print("[LocalBridgeMac] API Table Selection Changed: \(row)")
         guard row >= 0 && row < docs.count else {
             updateDetailView(with: nil)
             return
         }
         updateDetailView(with: docs[row])
+        
+        // 选中新 API 时，将整个区域滚动到最顶部
+        mainRightScrollView?.contentView.scrollToVisible(NSRect.zero)
     }
     
     private func updateDetailView(with doc: ApiDoc?) {
@@ -485,6 +584,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         
         guard let doc = doc else {
             textView.string = "Select an API from the left sidebar to view details."
+            updateTextViewHeight(textView, constraint: detailHeightConstraint) // 重置文档区高度
             interactiveAreaContainer.arrangedSubviews.forEach { $0.removeFromSuperview() }
             return
         }
@@ -510,6 +610,10 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         style.lineSpacing = 4; style.paragraphSpacing = 8
         attrStr.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: attrStr.length))
         textView.textStorage?.setAttributedString(attrStr)
+        
+        // 立即计算并撑开文档区域高度
+        updateTextViewHeight(detailTextView, constraint: detailHeightConstraint)
+        
         textView.scrollToBeginningOfDocument(nil)
 
         // Update Interactive Area
