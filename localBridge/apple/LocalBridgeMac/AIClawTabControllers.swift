@@ -238,8 +238,10 @@ final class AIClawHumanViewController: NSViewController {
         view.addSubview(leftCard)
         view.addSubview(resultScrollView)
 
-        // 确保终端视图在最上层
+        // 确保终端视图在最上层，并应用高亮滚动条
         resultScrollView.wantsLayer = true
+        DSV2.applyBrightScroller(to: messageInputScroll)
+        DSV2.applyBrightScroller(to: resultScrollView)
 
         NSLayoutConstraint.activate([
             pageHeader.topAnchor.constraint(equalTo: view.topAnchor, constant: DSV2.spacing6),
@@ -477,6 +479,8 @@ final class AIClawBotViewController: NSViewController {
 
         view.addSubview(headerStack)
         view.addSubview(scrollView)
+        
+        DSV2.applyBrightScroller(to: scrollView)
 
         NSLayoutConstraint.activate([
             headerStack.topAnchor.constraint(equalTo: view.topAnchor, constant: DSV2.spacing6),

@@ -10,7 +10,7 @@ final class DetailViewController: NSViewController {
     private let aiHumanVC = AIClawHumanViewController()
     private let aiClawVC = AIClawBotViewController()
     
-    private let placeholderLabel = NSTextField(labelWithString: "选择左侧会话查看内容")
+    private let placeholderLabel = NSTextField(labelWithString: "选择左侧列表项查看内容")
     private let instancesPanelView = InstancesPanelViewController()
     private let bridgeLogsVC = BridgeLogsViewController()
 
@@ -43,8 +43,8 @@ private extension DetailViewController {
         view.layer?.backgroundColor = DSV2.surface.cgColor
 
         placeholderLabel.translatesAutoresizingMaskIntoConstraints = false
-        placeholderLabel.font = DS.fontTitle
-        placeholderLabel.textColor = DS.colorTextTertiary
+        placeholderLabel.font = DSV2.fontTitleMd
+        placeholderLabel.textColor = DSV2.onSurfaceVariant.withAlphaComponent(0.5)
         view.addSubview(placeholderLabel)
 
         // TweetClaw (Directly use Claw view)
@@ -58,6 +58,7 @@ private extension DetailViewController {
         let aiClawItem = NSTabViewItem(viewController: aiClawVC)
         aiClawTabView.addTabViewItem(aiHumanItem)
         aiClawTabView.addTabViewItem(aiClawItem)
+        aiClawTabView.tabViewType = .noTabsNoBorder // 隐藏默认标签，解决类名显示问题
         aiClawTabView.translatesAutoresizingMaskIntoConstraints = false
         
         aiClawSegmentedControl = SegmentedControl(items: ["For Human", "For Claw"], target: self, action: #selector(aiClawSegmentChanged))
@@ -89,10 +90,10 @@ private extension DetailViewController {
             clawVC.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             clawVC.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
             
-            aiClawSegmentedControl.topAnchor.constraint(equalTo: view.topAnchor, constant: DS.spacingM),
+            aiClawSegmentedControl.topAnchor.constraint(equalTo: view.topAnchor, constant: DSV2.spacing6),
             aiClawSegmentedControl.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             
-            aiClawTabView.topAnchor.constraint(equalTo: aiClawSegmentedControl.bottomAnchor, constant: DS.spacingM),
+            aiClawTabView.topAnchor.constraint(equalTo: aiClawSegmentedControl.bottomAnchor, constant: DSV2.spacing4),
             aiClawTabView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             aiClawTabView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             aiClawTabView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
