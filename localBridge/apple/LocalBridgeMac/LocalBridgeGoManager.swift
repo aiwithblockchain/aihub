@@ -5,6 +5,7 @@ final class LocalBridgeGoManager {
     struct InstanceSnapshot: Decodable {
         let clientName: String
         let instanceId: String
+        let instanceName: String?
         let clientVersion: String
         let capabilities: [String]
         let connectedAt: Date

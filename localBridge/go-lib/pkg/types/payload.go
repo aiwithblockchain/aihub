@@ -13,6 +13,7 @@ type ClientHelloPayload struct {
 	Browser         string   `json:"browser"`
 	Capabilities    []string `json:"capabilities"` // 插件支持的所有 messageType
 	InstanceID      string   `json:"instanceId,omitempty"` // 空 = 旧版插件，自动生成 tmp- 前缀 ID
+	InstanceName    string   `json:"instanceName,omitempty"`
 	Incognito       *bool    `json:"incognito,omitempty"`
 }
 

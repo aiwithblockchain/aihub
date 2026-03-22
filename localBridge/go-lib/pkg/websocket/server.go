@@ -30,6 +30,7 @@ var upgrader = gorillaws.Upgrader{
 type ClientSession struct {
 	ClientName    string
 	InstanceID    string
+	InstanceName  string
 	Conn          *gorillaws.Conn
 	ConnectedAt   time.Time
 	LastSeenAt    time.Time
@@ -43,6 +44,7 @@ type ClientSession struct {
 type InstanceSnapshot struct {
 	ClientName    string    `json:"clientName"`
 	InstanceID    string    `json:"instanceId"`
+	InstanceName  string    `json:"instanceName,omitempty"`
 	ClientVersion string    `json:"clientVersion"`
 	Capabilities  []string  `json:"capabilities"`
 	ConnectedAt   time.Time `json:"connectedAt"`
@@ -186,11 +188,12 @@ func (s *Server) handleClientHello(data []byte, conn *gorillaws.Conn) {
 	}
 	clientName := msg.Payload.ClientName
 	instanceID := msg.Payload.InstanceID
+	instanceName := msg.Payload.InstanceName
 	if instanceID == "" {
 		// 旧版扩展没有 instanceId，生成带 "tmp-" 前缀的临时 ID
 		instanceID = "tmp-" + uuid.New().String()
 	}
-	log.Printf("[WS] hello: %s / %s", clientName, instanceID)
+	log.Printf("[WS] hello: clientName=%s, instanceId=%s, instanceName=%s", clientName, instanceID, instanceName)
 
 	s.mu.Lock()
 	if s.sessions[clientName] == nil {
@@ -204,6 +207,7 @@ func (s *Server) handleClientHello(data []byte, conn *gorillaws.Conn) {
 	sess := &ClientSession{
 		ClientName:    clientName,
 		InstanceID:    instanceID,
+		InstanceName:  instanceName,
 		Conn:          conn,
 		ConnectedAt:   time.Now(),
 		LastSeenAt:    time.Now(),
@@ -327,6 +331,7 @@ func (s *Server) GetInstances() []InstanceSnapshot {
 			result = append(result, InstanceSnapshot{
 				ClientName:    sess.ClientName,
 				InstanceID:    instanceID,
+				InstanceName:  sess.InstanceName,
 				ClientVersion: sess.ClientVersion,
 				Capabilities:  sess.Capabilities,
 				ConnectedAt:   sess.ConnectedAt,

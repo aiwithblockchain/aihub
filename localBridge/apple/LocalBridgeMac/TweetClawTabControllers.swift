@@ -333,7 +333,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
 
             listScrollView.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: DSV2.spacing6),
             listScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
-            listScrollView.widthAnchor.constraint(equalToConstant: 280),
+            listScrollView.widthAnchor.constraint(equalToConstant: 220),
             listScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6),
 
             rightStack.topAnchor.constraint(equalTo: rightContentContainer.topAnchor),
@@ -355,7 +355,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         // 设置代理（放到最后，防止在界面完全初始化前触发选择事件导致的 Crash）
         tableView.delegate = self
         tableView.dataSource = self
-        tableView.rowHeight = 84
+        tableView.rowHeight = 68
         tableView.headerView = nil
         tableView.selectionHighlightStyle = .none
         tableView.backgroundColor = .clear
@@ -536,19 +536,19 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             cell?.addSubview(methodLabel)
 
             NSLayoutConstraint.activate([
-                methodLabel.topAnchor.constraint(equalTo: cell!.topAnchor, constant: 12),
-                methodLabel.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 12),
-                methodLabel.widthAnchor.constraint(equalToConstant: 48),
-                methodLabel.heightAnchor.constraint(equalToConstant: 18),
+                methodLabel.topAnchor.constraint(equalTo: cell!.topAnchor, constant: 10),
+                methodLabel.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 8),
+                methodLabel.widthAnchor.constraint(equalToConstant: 42),
+                methodLabel.heightAnchor.constraint(equalToConstant: 16),
 
                 nameLabel.centerYAnchor.constraint(equalTo: methodLabel.centerYAnchor),
-                nameLabel.leadingAnchor.constraint(equalTo: methodLabel.trailingAnchor, constant: 10),
-                nameLabel.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -12),
+                nameLabel.leadingAnchor.constraint(equalTo: methodLabel.trailingAnchor, constant: 8),
+                nameLabel.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -8),
 
-                summaryLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 6),
-                summaryLabel.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 12),
-                summaryLabel.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -12),
-                summaryLabel.bottomAnchor.constraint(lessThanOrEqualTo: cell!.bottomAnchor, constant: -12)
+                summaryLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 4),
+                summaryLabel.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 8),
+                summaryLabel.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -8),
+                summaryLabel.bottomAnchor.constraint(lessThanOrEqualTo: cell!.bottomAnchor, constant: -10)
             ])
         }
 
@@ -680,12 +680,14 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             actionButton.title = doc.name
         case "create_tweet":
             inputs.append(makeSectionHeader("Tweet Content:"))
+            contentScrollView.widthAnchor.constraint(equalToConstant: 450).isActive = true
             inputs.append(contentScrollView)
             actionButton.title = "Post Tweet"
         case "create_reply":
             commonIdField.placeholderString = "Enter Tweet ID to reply to"
             inputs.append(makeInputRow("Tweet ID:", commonIdField))
             inputs.append(makeSectionHeader("Reply Content:"))
+            contentScrollView.widthAnchor.constraint(equalToConstant: 450).isActive = true
             inputs.append(contentScrollView)
             actionButton.title = "Post Reply"
         case "query_tweet_detail":
@@ -723,7 +725,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         stack.orientation = .horizontal
         stack.spacing = 8
         stack.alignment = .centerY
-        field.widthAnchor.constraint(equalToConstant: 320).isActive = true
+        field.widthAnchor.constraint(equalToConstant: 450).isActive = true
         return stack
     }
 

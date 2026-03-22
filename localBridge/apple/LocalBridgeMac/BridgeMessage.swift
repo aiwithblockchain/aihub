@@ -78,6 +78,7 @@ struct ClientHelloPayload: Codable {
     let capabilities: [String]
     // 新增（可选）：
     let instanceId: String?   // 扩展侧生成的稳定 UUID，区分不同 Profile
+    let instanceName: String? // 用户自定义的显示名称
     let incognito: Bool?      // 是否是无痕模式
 }
 

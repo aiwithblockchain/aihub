@@ -25,6 +25,7 @@ class LocalBridgeWebSocketServer {
     private struct ClientSession {
         let clientName: String
         let instanceId: String
+        let instanceName: String?
         let connection: NWConnection
         let connectedAt: Date
         var lastSeenAt: Date
@@ -37,6 +38,7 @@ class LocalBridgeWebSocketServer {
     struct InstanceSnapshot {
         let clientName: String
         let instanceId: String
+        let instanceName: String?
         let clientVersion: String
         let capabilities: [String]
         let connectedAt: Date
@@ -75,6 +77,7 @@ class LocalBridgeWebSocketServer {
                 result.append(InstanceSnapshot(
                     clientName: clientName,
                     instanceId: instanceId,
+                    instanceName: session.instanceName,
                     clientVersion: session.clientVersion,
                     capabilities: session.capabilities,
                     connectedAt: session.connectedAt,
@@ -335,10 +338,15 @@ class LocalBridgeWebSocketServer {
                     // 如果扩展没有传 instanceId（旧版），自动生成一个临时 ID
                     // 临时 ID 带 "tmp-" 前缀，便于日志识别
                     let instanceId = helloMsg.payload.instanceId ?? "tmp-\(UUID().uuidString)"
+                    let instanceName = helloMsg.payload.instanceName
 
-                    let msg = "[LocalBridgeMac] client identified: \(clientName), instanceId: \(instanceId)"
+                    let msg = "[LocalBridgeMac] client identified: \(clientName), instanceId: \(instanceId), instanceName: \(instanceName ?? "nil")"
                     print(msg)
                     BridgeLogger.shared.log(msg)
+                    
+                    let endpointInfoMsg = "[LocalBridgeMac] received endpoint information: client=\(clientName), instanceId=\(instanceId), instanceName=\(instanceName ?? "nil"), version=\(helloMsg.payload.clientVersion), capabilities=\(helloMsg.payload.capabilities)"
+                    print(endpointInfoMsg)
+                    BridgeLogger.shared.log(endpointInfoMsg)
 
                     let connId = ObjectIdentifier(connection)
 
@@ -355,6 +363,7 @@ class LocalBridgeWebSocketServer {
                     let newSession = ClientSession(
                         clientName: clientName,
                         instanceId: instanceId,
+                        instanceName: instanceName,
                         connection: connection,
                         connectedAt: Date(),
                         lastSeenAt: Date(),

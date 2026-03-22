@@ -287,8 +287,40 @@ final class InstancesPanelViewController: NSViewController {
         statusText.frame = NSRect(x: 20, y: 5, width: 45, height: 14)
         statusBadge.addSubview(statusText)
 
+        // Instance Name 容器（如果有名字则显示）
+        var currentY: CGFloat = cardHeight - padding - 68
+        if let instanceName = instance.instanceName {
+            let nameContainer = NSView(frame: NSRect(x: padding + 60, y: currentY, width: cardWidth - padding - 80, height: 18))
+            nameContainer.wantsLayer = true
+            nameContainer.layer?.backgroundColor = NSColor(hex: "#1A4D2E").withAlphaComponent(0.3).cgColor
+            nameContainer.layer?.cornerRadius = 4
+            nameContainer.layer?.borderWidth = 1
+            nameContainer.layer?.borderColor = NSColor(hex: "#2D5F3F").withAlphaComponent(0.5).cgColor
+            card.addSubview(nameContainer)
+
+            let namePrefix = NSTextField(labelWithString: "NAME:")
+            namePrefix.font = DSV2.fontMonoSm
+            namePrefix.textColor = NSColor(hex: "#4ADE80")
+            namePrefix.isBordered = false
+            namePrefix.isEditable = false
+            namePrefix.drawsBackground = false
+            namePrefix.frame = NSRect(x: 6, y: 3, width: 40, height: 12)
+            nameContainer.addSubview(namePrefix)
+
+            let nameLabel = NSTextField(labelWithString: instanceName)
+            nameLabel.font = DSV2.fontMonoSm
+            nameLabel.textColor = NSColor(hex: "#86EFAC")
+            nameLabel.isBordered = false
+            nameLabel.isEditable = false
+            nameLabel.drawsBackground = false
+            nameLabel.frame = NSRect(x: 48, y: 3, width: cardWidth - padding - 140, height: 12)
+            nameContainer.addSubview(nameLabel)
+
+            currentY -= 22
+        }
+
         // Instance ID 容器（带复制按钮）
-        let idContainer = NSView(frame: NSRect(x: padding + 60, y: cardHeight - padding - 68, width: cardWidth - padding - 80, height: 18))
+        let idContainer = NSView(frame: NSRect(x: padding + 60, y: currentY, width: cardWidth - padding - 80, height: 18))
         idContainer.wantsLayer = true
         idContainer.layer?.backgroundColor = NSColor(hex: "#0E0E0E").withAlphaComponent(0.5).cgColor
         idContainer.layer?.cornerRadius = 4

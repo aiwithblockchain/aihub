@@ -159,10 +159,12 @@ export class LocalBridgeSocket {
         clientVersion: '0.3.17',
         browser: 'chrome',
         capabilities: ['query_x_tabs_status', 'query_x_basic_info'],
-        instanceId: this.instanceId && this.instanceName ? `${this.instanceId}【${this.instanceName}】` : this.instanceId || undefined,
+        instanceId: this.instanceId || undefined,
+        instanceName: this.instanceName || undefined,
         incognito: chrome.extension.inIncognitoContext
       }
     };
+    console.log(`[tweetClaw] sending endpoint info to server: ${JSON.stringify(hello.payload)}`);
     this.send(hello);
   }
   
@@ -219,6 +221,7 @@ export class LocalBridgeSocket {
   
   private handleHelloAck(msg: BaseMessage<ServerHelloAckPayload>) {
     console.log('[tweetClaw] received server.hello_ack');
+    console.log(`[tweetClaw] received endpoint info from server: ${JSON.stringify(msg.payload)}`);
     this.serverInfo = msg.payload;
     this.startHeartbeat(msg.payload.heartbeatIntervalMs || 20000);
   }
