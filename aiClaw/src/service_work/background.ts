@@ -58,7 +58,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     // 0. WebSocket port update
     if (message.type === 'WS_PORT_CHANGED') {
-        localBridge.reconnectWithNewPort(message.port);
+        localBridge.reconnectWithNewPort(message.host || '127.0.0.1', message.port);
         if (sendResponse) sendResponse({ ok: true });
         return;
     }

@@ -28,9 +28,9 @@ export class LocalBridgeSocket {
     this.connect();
   }
 
-  public reconnectWithNewPort(port: number) {
-    console.log(`[aiClaw] reconnecting to new port: ${port}`);
-    this.WS_URL = `ws://127.0.0.1:${port}/ws`;
+  public reconnectWithNewPort(host: string, port: number) {
+    console.log(`[aiClaw] reconnecting to new host: ${host}, port: ${port}`);
+    this.WS_URL = `ws://${host}:${port}/ws`;
     this.isConnecting = false;
     if (this.reconnectTimer) {
       clearTimeout(this.reconnectTimer);
@@ -60,9 +60,10 @@ export class LocalBridgeSocket {
     // Check dynamic port
     try {
       if (typeof chrome !== 'undefined' && chrome.storage) {
-        const res = await chrome.storage.local.get('wsPort');
+        const res = await chrome.storage.local.get(['wsHost', 'wsPort']);
+        const host = res.wsHost || '127.0.0.1';
         if (res.wsPort) {
-          this.WS_URL = `ws://127.0.0.1:${res.wsPort}/ws`;
+          this.WS_URL = `ws://${host}:${res.wsPort}/ws`;
         }
       }
     } catch (e) {

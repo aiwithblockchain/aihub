@@ -365,9 +365,8 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
 
     private func styleInputField(_ field: NSTextField) {
         field.wantsLayer = true
-        field.drawsBackground = true
-        field.isBezeled = false
-        field.isBordered = false
+        field.isBezeled = true
+        field.bezelStyle = .roundedBezel
         field.backgroundColor = DSV2.surfaceContainerHigh
         field.textColor = DSV2.onSurface
         field.font = DSV2.fontBodyMd
@@ -725,7 +724,15 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         stack.orientation = .horizontal
         stack.spacing = 8
         stack.alignment = .centerY
+        stack.distribution = .fill
         field.widthAnchor.constraint(equalToConstant: 450).isActive = true
+
+        // 确保输入框在垂直方向上居中
+        if let textField = field as? NSTextField {
+            textField.setContentHuggingPriority(.defaultHigh, for: .vertical)
+            textField.setContentCompressionResistancePriority(.defaultHigh, for: .vertical)
+        }
+
         return stack
     }
 
