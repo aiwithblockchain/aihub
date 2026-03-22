@@ -65,7 +65,7 @@ export async function setInstanceName(name: string): Promise<void> {
 export async function getInstanceName(): Promise<string> {
     try {
         const result = await chrome.storage.local.get(INSTANCE_NAME_KEY);
-        return result[INSTANCE_NAME_KEY] || 'User';
+        return (result[INSTANCE_NAME_KEY] as string) || 'User';
     } catch (e) {
         console.warn('[tweetClaw] failed to get instanceName:', e);
         return 'User';

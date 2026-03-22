@@ -248,8 +248,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const { name } = message;
         // Name is already saved to storage by popup, just trigger reconnect
         chrome.storage.local.get(['wsHost', 'wsPort']).then(res => {
-            const host = res.wsHost || '127.0.0.1';
-            const port = res.wsPort || 10086;
+            const host = (res.wsHost as string) || '127.0.0.1';
+            const port = (res.wsPort as number) || 10086;
             localBridge.reconnect(host, port);
             if (sendResponse) sendResponse({ success: true });
         });
