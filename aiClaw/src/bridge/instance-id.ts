@@ -22,3 +22,40 @@ export async function getOrCreateInstanceId(): Promise<string> {
         return '';
     }
 }
+
+const INSTANCE_NAME_KEY = 'bridge.instanceName';
+
+export async function getOrCreateInstanceName(): Promise<string> {
+    try {
+        const result = await chrome.storage.local.get(INSTANCE_NAME_KEY);
+        if (result[INSTANCE_NAME_KEY] && typeof result[INSTANCE_NAME_KEY] === 'string') {
+            return result[INSTANCE_NAME_KEY];
+        }
+        const defaultName = 'aiClaw-' + crypto.randomUUID().substring(0, 4);
+        await chrome.storage.local.set({ [INSTANCE_NAME_KEY]: defaultName });
+        console.log('[aiClaw] generated default instanceName:', defaultName);
+        return defaultName;
+    } catch (e) {
+        console.warn('[aiClaw] failed to read/write storage for instanceName:', e);
+        return '';
+    }
+}
+
+export async function setInstanceName(name: string): Promise<void> {
+    try {
+        await chrome.storage.local.set({ [INSTANCE_NAME_KEY]: name });
+        console.log('[aiClaw] updated instanceName:', name);
+    } catch (e) {
+        console.error('[aiClaw] failed to set instanceName:', e);
+    }
+}
+
+export async function getInstanceName(): Promise<string> {
+    try {
+        const result = await chrome.storage.local.get(INSTANCE_NAME_KEY);
+        return (result[INSTANCE_NAME_KEY] as string) || '';
+    } catch (e) {
+        console.warn('[aiClaw] failed to get instanceName:', e);
+        return '';
+    }
+}

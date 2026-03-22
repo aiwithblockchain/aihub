@@ -89,13 +89,11 @@ export class LocalBridgeSocket {
         this.isConnecting = false;
         this.reconnectAttempts = 0;
         this.lastPongTimestamp = Date.now();
-        // 确保 instanceId 和 instanceName 已加载（同一 Profile 内多次重连复用同一个值）
+        // 确保 instanceId 已加载，并且每次重连时获取最新的 instanceName
         if (!this.instanceId) {
             this.instanceId = await getOrCreateInstanceId();
         }
-        if (!this.instanceName) {
-            this.instanceName = await getOrCreateInstanceName();
-        }
+        this.instanceName = await getOrCreateInstanceName();
         this.sendHello();
       };
       

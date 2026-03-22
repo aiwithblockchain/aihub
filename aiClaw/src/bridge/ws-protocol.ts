@@ -55,6 +55,7 @@ export interface ClientHelloPayload {
   browser: 'chrome';
   capabilities: string[];
   instanceId?: string;   // 新增：Profile 级别的稳定唯一 ID
+  instanceName?: string; // 用户自定义的显示名称
   incognito?: boolean;   // 新增：是否无痕模式
 }
 

@@ -6,7 +6,7 @@ import {
   PROTOCOL_VERSION,
   ServerHelloAckPayload,
 } from './ws-protocol';
-import { getOrCreateInstanceId } from './instance-id';
+import { getOrCreateInstanceId, getOrCreateInstanceName } from './instance-id';
 
 export class LocalBridgeSocket {
   private ws: WebSocket | null = null;
@@ -16,6 +16,7 @@ export class LocalBridgeSocket {
   private serverInfo: ServerHelloAckPayload | null = null;
   private lastPongTimestamp = 0;
   private instanceId: string = '';
+  private instanceName: string = '';
 
   public queryAITabsHandler: (() => Promise<any>) | null = null;
   public executeTaskHandler: ((task: any) => Promise<any>) | null = null;
@@ -80,10 +81,11 @@ export class LocalBridgeSocket {
         this.reconnectAttempts = 0;
         this.lastPongTimestamp = Date.now();
 
-        // 确保 instanceId 已加载（同一 Profile 内多次重连复用同一个值）
+        // 确保 instanceId 已加载，并且每次重连时获取最新的 instanceName
         if (!this.instanceId) {
           this.instanceId = await getOrCreateInstanceId();
         }
+        this.instanceName = await getOrCreateInstanceName();
         this.sendHello();
       };
 
@@ -147,9 +149,11 @@ export class LocalBridgeSocket {
         browser: 'chrome',
         capabilities: ['query_ai_tabs_status', 'execute_task'],
         instanceId: this.instanceId || undefined,           // 新增
+        instanceName: this.instanceName || undefined,
         incognito: (typeof chrome !== 'undefined' && chrome.extension) ? chrome.extension.inIncognitoContext : false // 新增
       },
     };
+    console.log(`[aiClaw] sending endpoint info to server: ${JSON.stringify(hello.payload)}`);
     this.send(hello);
   }
 
@@ -185,6 +189,7 @@ export class LocalBridgeSocket {
 
   private handleHelloAck(msg: BaseMessage<ServerHelloAckPayload>) {
     console.log('[aiClaw] received server.hello_ack');
+    console.log(`[aiClaw] received endpoint info from server: ${JSON.stringify(msg.payload)}`);
     this.serverInfo = msg.payload;
     this.startHeartbeat(msg.payload.heartbeatIntervalMs || 20000);
   }
