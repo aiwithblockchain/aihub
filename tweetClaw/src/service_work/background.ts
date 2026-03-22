@@ -243,6 +243,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
+    // ── UPDATE_INSTANCE_NAME: update instance name and reconnect ──────
+    if (message.type === 'UPDATE_INSTANCE_NAME') {
+        const { name } = message;
+        // Name is already saved to storage by popup, just trigger reconnect
+        chrome.storage.local.get(['wsHost', 'wsPort']).then(res => {
+            const host = res.wsHost || '127.0.0.1';
+            const port = res.wsPort || 10086;
+            localBridge.reconnect(host, port);
+            if (sendResponse) sendResponse({ success: true });
+        });
+        return true;
+    }
+
     // ── WS_PORT_CHANGED (legacy support) ──────────────────────────────
     if (message.type === 'WS_PORT_CHANGED') {
         // For backward compatibility

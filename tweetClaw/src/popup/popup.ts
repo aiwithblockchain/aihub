@@ -11,6 +11,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const connectionUrl = document.getElementById('connectionUrl') as HTMLElement;
     const connectionVersion = document.getElementById('connectionVersion') as HTMLElement;
 
+    const nameInput = document.getElementById('nameInput') as HTMLInputElement;
+    const saveNameBtn = document.getElementById('saveNameBtn') as HTMLButtonElement;
+
     // ── View Switching ───────────────────────────────────────────
     btnX.addEventListener('click', () => {
         mainView.classList.add('hidden');
@@ -24,9 +27,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ── Load saved config ────────────────────────────────────────
-    chrome.storage.local.get(['wsHost', 'wsPort']).then(res => {
+    chrome.storage.local.get(['wsHost', 'wsPort', 'bridge.instanceName']).then(res => {
         hostInput.value = (res.wsHost as string) || '127.0.0.1';
         portInput.value = String((res.wsPort as number) || 10086);
+        nameInput.value = (res['bridge.instanceName'] as string) || '';
     });
 
     // ── Query live connection status from background ─────────────
@@ -106,4 +110,32 @@ document.addEventListener('DOMContentLoaded', () => {
             window.close();
         });
     }
+
+    // ── Save name & reconnect ────────────────────────────────────
+    saveNameBtn.addEventListener('click', () => {
+        const name = nameInput.value.trim();
+
+        if (!name) {
+            alert('Please enter a name');
+            return;
+        }
+
+        if (name.length > 20) {
+            alert('Name must be 20 characters or less');
+            return;
+        }
+
+        chrome.storage.local.set({ 'bridge.instanceName': name }).then(() => {
+            chrome.runtime.sendMessage({ type: 'UPDATE_INSTANCE_NAME', name }).then(() => {
+                // Show success feedback
+                saveNameBtn.textContent = 'Saved!';
+                saveNameBtn.style.background = '#22c55e';
+                setTimeout(() => {
+                    saveNameBtn.textContent = 'Save Name & Reconnect';
+                    saveNameBtn.style.background = '#1d9bf0';
+                    refreshStatus();
+                }, 1500);
+            });
+        });
+    });
 });

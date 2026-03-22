@@ -228,7 +228,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
 
         // 3. Interactive Area Container
         interactiveAreaContainer.orientation = .vertical
-        interactiveAreaContainer.alignment = .leading
+        interactiveAreaContainer.alignment = .centerX
         interactiveAreaContainer.spacing = DSV2.spacing4
         interactiveAreaContainer.translatesAutoresizingMaskIntoConstraints = false
 
@@ -273,9 +273,24 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         mainRightScrollView.documentView = rightContentContainer
 
         // 6. Right Stack Assembly (Scrollable area)
+        // 添加弹性空间实现垂直居中
+        let topSpacer = NSView()
+        topSpacer.translatesAutoresizingMaskIntoConstraints = false
+        let bottomSpacer = NSView()
+        bottomSpacer.translatesAutoresizingMaskIntoConstraints = false
+
+        let centeredInteractiveStack = NSStackView(views: [
+            topSpacer,
+            interactiveAreaContainer,
+            bottomSpacer
+        ])
+        centeredInteractiveStack.orientation = .vertical
+        centeredInteractiveStack.distribution = .equalSpacing
+        centeredInteractiveStack.translatesAutoresizingMaskIntoConstraints = false
+
         let rightStack = NSStackView(views: [
             detailContainer,
-            interactiveAreaContainer,
+            centeredInteractiveStack,
             resultContainer
         ])
         rightStack.orientation = .vertical
@@ -302,7 +317,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         styleInputField(commonIdField)
         styleInputField(commonPathField)
         styleTextView(contentEditor, scrollView: contentScrollView)
-        contentScrollView.heightAnchor.constraint(equalToConstant: 100).isActive = true
+        contentScrollView.heightAnchor.constraint(equalToConstant: 200).isActive = true
         styleButton(actionButton)
         actionButton.widthAnchor.constraint(equalToConstant: 120).isActive = true
         actionButton.heightAnchor.constraint(equalToConstant: 36).isActive = true
@@ -351,9 +366,12 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     private func styleInputField(_ field: NSTextField) {
         field.wantsLayer = true
         field.drawsBackground = true
+        field.isBezeled = false
+        field.isBordered = false
         field.backgroundColor = DSV2.surfaceContainerHigh
         field.textColor = DSV2.onSurface
         field.font = DSV2.fontBodyMd
+        field.alignment = .center
         field.translatesAutoresizingMaskIntoConstraints = false
         field.layer?.borderWidth = 1
         field.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.6).cgColor
@@ -699,13 +717,13 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         let labelField = NSTextField(labelWithString: label)
         labelField.font = DSV2.fontLabelSm
         labelField.textColor = DSV2.onSurfaceVariant
-        labelField.widthAnchor.constraint(equalToConstant: 60).isActive = true
-        
+        labelField.widthAnchor.constraint(equalToConstant: 80).isActive = true
+
         let stack = NSStackView(views: [labelField, field])
         stack.orientation = .horizontal
         stack.spacing = 8
         stack.alignment = .centerY
-        field.widthAnchor.constraint(equalToConstant: 240).isActive = true
+        field.widthAnchor.constraint(equalToConstant: 320).isActive = true
         return stack
     }
 
