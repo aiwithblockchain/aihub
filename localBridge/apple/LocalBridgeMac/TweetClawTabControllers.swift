@@ -367,8 +367,8 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         field.wantsLayer = true
         field.isBezeled = true
         field.bezelStyle = .roundedBezel
-        field.backgroundColor = DSV2.surfaceContainerHigh
-        field.textColor = DSV2.onSurface
+        field.backgroundColor = NSColor.white
+        field.textColor = NSColor.black
         field.font = DSV2.fontBodyMd
         field.alignment = .center
         field.translatesAutoresizingMaskIntoConstraints = false
