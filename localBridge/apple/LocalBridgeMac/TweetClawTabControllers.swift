@@ -73,6 +73,11 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     private var latestRepliesPreviousCursor: String?
     private var lastRepliesPaginationDirection: String = "none"
 
+    // Cursor 历史栈：用于实现传统的上一页/下一页功能
+    // Twitter 的 previous cursor 不是用来获取"上一页"的，而是用来获取增量数据
+    // 所以我们需要自己维护一个栈来记录每一页的 cursor
+    private var repliesCursorStack: [String?] = [nil]  // 栈底是 nil（第一页）
+
 
     // Instance Selector
     private let instanceLabel = NSTextField(labelWithString: "TARGET INSTANCE")
@@ -1037,13 +1042,27 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     }
 
     @objc private func previousPageClicked() {
-        guard let cursor = latestRepliesPreviousCursor, !cursor.isEmpty else {
-            print("[LocalBridgeMac] Previous Page ignored: previous cursor unavailable selectedApi=\(selectedApiID() ?? "<nil>")")
+        // 使用 cursor 栈实现上一页功能
+        guard repliesCursorStack.count > 1 else {
+            print("[LocalBridgeMac] Previous Page ignored: already at first page")
             return
         }
-        print("[LocalBridgeMac] Previous Page clicked cursor=\(cursor)")
+
+        // 弹出当前页的 cursor
+        repliesCursorStack.removeLast()
+
+        // 获取上一页的 cursor（栈顶）
+        let previousCursor = repliesCursorStack.last ?? nil
+
+        print("[LocalBridgeMac] Previous Page clicked, stack depth=\(repliesCursorStack.count), cursor=\(previousCursor ?? "<nil>")")
         lastRepliesPaginationDirection = "previous"
-        triggerRepliesRequest(withCursor: cursor)
+
+        if let cursor = previousCursor {
+            triggerRepliesRequest(withCursor: cursor)
+        } else {
+            // cursor 为 nil 表示回到第一页
+            triggerRepliesRequest(withCursor: "")
+        }
     }
 
     @objc private func nextPageClicked() {
@@ -1051,7 +1070,11 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             print("[LocalBridgeMac] Next Page ignored: next cursor unavailable selectedApi=\(selectedApiID() ?? "<nil>")")
             return
         }
-        print("[LocalBridgeMac] Next Page clicked cursor=\(cursor)")
+
+        // 将当前页的 next cursor 入栈
+        repliesCursorStack.append(cursor)
+
+        print("[LocalBridgeMac] Next Page clicked, stack depth=\(repliesCursorStack.count), cursor=\(cursor)")
         lastRepliesPaginationDirection = "next"
         triggerRepliesRequest(withCursor: cursor)
     }
@@ -1106,32 +1129,30 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
 
         let nextCursor = parsed.cursor?.next ?? parsed.data?.cursor?.next
         let previousCursor = parsed.cursor?.previous ?? parsed.data?.cursor?.previous
-        
+
+        // 始终更新两个 cursor，因为 Twitter API 返回的是当前页的完整 cursor 信息
+        latestRepliesNextCursor = nextCursor
+        latestRepliesPreviousCursor = previousCursor
+
+        // 如果是首次加载（direction == "none"），重置 cursor 栈
         if lastRepliesPaginationDirection == "none" {
-            latestRepliesNextCursor = nextCursor
-            latestRepliesPreviousCursor = previousCursor
-        } else if lastRepliesPaginationDirection == "next" {
-            latestRepliesNextCursor = nextCursor   // Only update next cursor
-        } else if lastRepliesPaginationDirection == "previous" {
-            latestRepliesPreviousCursor = previousCursor // Only update previous cursor
+            repliesCursorStack = [nil]
+            print("[LocalBridgeMac] cacheRepliesCursors reset cursor stack for initial load")
         }
-        
-        print("[LocalBridgeMac] cacheRepliesCursors updated next=\(latestRepliesNextCursor == nil ? "<nil>" : "yes") previous=\(latestRepliesPreviousCursor == nil ? "<nil>" : "yes") direction=\(lastRepliesPaginationDirection)")
+
+        print("[LocalBridgeMac] cacheRepliesCursors updated next=\(latestRepliesNextCursor == nil ? "<nil>" : "yes") previous=\(latestRepliesPreviousCursor == nil ? "<nil>" : "yes") direction=\(lastRepliesPaginationDirection) stackDepth=\(repliesCursorStack.count)")
         updateRepliesPaginationControls()
     }
 
     private func updateRepliesPaginationControls() {
-        let hasPrevious = !(latestRepliesPreviousCursor ?? "").isEmpty
+        // 使用 cursor 栈判断是否可以上一页
+        let hasPrevious = repliesCursorStack.count > 1
         let hasNext = !(latestRepliesNextCursor ?? "").isEmpty
         previousPageButton.isEnabled = hasPrevious
         nextPageButton.isEnabled = hasNext
         previousPageButton.alphaValue = hasPrevious ? 1.0 : 0.45
         nextPageButton.alphaValue = hasNext ? 1.0 : 0.45
-
-        let previousText = hasPrevious ? "previous ready" : "previous empty"
-        let nextText = hasNext ? "next ready" : "next empty"
-        cursorStatusLabel.stringValue = "Cursor state: \(previousText) | \(nextText)"
-        print("[LocalBridgeMac] updateRepliesPaginationControls previousEnabled=\(hasPrevious) nextEnabled=\(hasNext)")
+        print("[LocalBridgeMac] updateRepliesPaginationControls previousEnabled=\(hasPrevious) nextEnabled=\(hasNext) stackDepth=\(repliesCursorStack.count)")
     }
 
     private func selectedApiID() -> String? {
