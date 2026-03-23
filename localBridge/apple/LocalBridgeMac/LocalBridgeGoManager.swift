@@ -229,6 +229,30 @@ final class LocalBridgeGoManager {
         )
     }
 
+    func sendQueryTweet(tweetId: String, tabId: Int? = nil, instanceId: String? = nil) {
+        invokePlugin(
+            clientName: "tweetClaw",
+            messageType: "request.query_tweet",
+            instanceId: instanceId,
+            payload: QueryTweetPayload(tweetId: tweetId, tabId: tabId),
+            timeoutMs: 8_000,
+            notificationName: "ExecActionReceived",
+            format: .prettyJSON
+        )
+    }
+
+    func sendQueryTweetReplies(tweetId: String, cursor: String? = nil, tabId: Int? = nil, instanceId: String? = nil) {
+        invokePlugin(
+            clientName: "tweetClaw",
+            messageType: "request.query_tweet_replies",
+            instanceId: instanceId,
+            payload: QueryTweetRepliesPayload(tweetId: tweetId, tabId: tabId, cursor: cursor),
+            timeoutMs: 8_000,
+            notificationName: "ExecActionReceived",
+            format: .prettyJSON
+        )
+    }
+
     func sendQueryUserProfile(screenName: String, tabId: Int? = nil, instanceId: String? = nil) {
         invokePlugin(
             clientName: "tweetClaw",
@@ -412,6 +436,17 @@ private extension LocalBridgeGoManager {
     struct QueryTweetDetailPayload: Encodable {
         let tweetId: String
         let tabId: Int?
+    }
+
+    struct QueryTweetPayload: Encodable {
+        let tweetId: String
+        let tabId: Int?
+    }
+
+    struct QueryTweetRepliesPayload: Encodable {
+        let tweetId: String
+        let tabId: Int?
+        let cursor: String?
     }
 
     struct QueryUserProfilePayload: Encodable {

@@ -1210,6 +1210,7 @@ class LocalBridgeWebSocketServer {
     private func receiveHttpRequest(from connection: NWConnection) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 8192) { data, context, isComplete, error in
             if let data = data, let request = String(data: data, encoding: .utf8) {
+                let parsedRequest = self.parseHTTPRequestTarget(from: data)
                 // Support CORS preflight
                 if request.hasPrefix("OPTIONS ") {
                     self.sendHttpResponse(connection, status: "204 No Content", body: "")
@@ -1254,16 +1255,40 @@ class LocalBridgeWebSocketServer {
                     self.handleExecActionHttpRequest(connection, requestData: data, action: "unbookmark")
                 } else if request.contains("DELETE /api/v1/x/mytweets") {
                     self.handleExecActionHttpRequest(connection, requestData: data, action: "delete_tweet")
+                } else if let parsedRequest,
+                          parsedRequest.method == "GET",
+                          let tweetResource = self.parseTweetResourcePath(parsedRequest.path) {
+                    if tweetResource.isRepliesCollection {
+                        self.handleGenericQueryHttpRequest(
+                            connection,
+                            requestData: data,
+                            type: .requestQueryTweetReplies,
+                            parsedRequest: parsedRequest,
+                            pathTweetId: tweetResource.tweetId
+                        )
+                    } else {
+                        self.handleGenericQueryHttpRequest(
+                            connection,
+                            requestData: data,
+                            type: .requestQueryTweet,
+                            parsedRequest: parsedRequest,
+                            pathTweetId: tweetResource.tweetId
+                        )
+                    }
+                } else if let parsedRequest,
+                          parsedRequest.method == "GET",
+                          parsedRequest.path.hasPrefix("/api/v1/x/tweets/") {
+                    self.sendHttpResponse(connection, status: "404 Not Found", body: "{\"error\":\"not_found\"}")
                 } else if request.contains("GET /api/v1/x/timeline") {
-                    self.handleGenericQueryHttpRequest(connection, requestData: data, type: .requestQueryHomeTimeline)
-                } else if request.contains("GET /api/v1/x/tweets") {
+                    self.handleGenericQueryHttpRequest(connection, requestData: data, type: .requestQueryHomeTimeline, parsedRequest: parsedRequest)
+                } else if parsedRequest?.method == "GET", parsedRequest?.path == "/api/v1/x/tweets" {
                     // /api/v1/x/tweets?tweetId=xxx
-                    self.handleGenericQueryHttpRequest(connection, requestData: data, type: .requestQueryTweetDetail)
+                    self.handleGenericQueryHttpRequest(connection, requestData: data, type: .requestQueryTweetDetail, parsedRequest: parsedRequest)
                 } else if request.contains("GET /api/v1/x/users") {
                     // /api/v1/x/users?screenName=xxx
-                    self.handleGenericQueryHttpRequest(connection, requestData: data, type: .requestQueryUserProfile)
+                    self.handleGenericQueryHttpRequest(connection, requestData: data, type: .requestQueryUserProfile, parsedRequest: parsedRequest)
                 } else if request.contains("GET /api/v1/x/search") {
-                    self.handleGenericQueryHttpRequest(connection, requestData: data, type: .requestQuerySearchTimeline)
+                    self.handleGenericQueryHttpRequest(connection, requestData: data, type: .requestQuerySearchTimeline, parsedRequest: parsedRequest)
                 } else if request.contains("GET /api/v1/x/instances") {
                     self.handleInstancesHttpRequest(connection)
                 } else if request.contains("GET /api/v1/docs") {
@@ -1885,7 +1910,61 @@ class LocalBridgeWebSocketServer {
         }
     }
 
-    private func handleGenericQueryHttpRequest(_ connection: NWConnection, requestData: Data, type: MessageType) {
+    private struct ParsedHTTPRequestTarget {
+        let method: String
+        let path: String
+        let queryItems: [String: String]
+    }
+
+    private func parseHTTPRequestTarget(from requestData: Data) -> ParsedHTTPRequestTarget? {
+        let requestString = String(data: requestData, encoding: .utf8) ?? ""
+        let firstLine = requestString.components(separatedBy: "\r\n").first ?? ""
+        let components = firstLine.components(separatedBy: " ")
+        guard components.count >= 2 else { return nil }
+
+        let method = components[0]
+        let target = components[1]
+        guard let urlComponents = URLComponents(string: "http://localhost\(target)") else {
+            return nil
+        }
+
+        var queryItems: [String: String] = [:]
+        for item in urlComponents.queryItems ?? [] {
+            queryItems[item.name] = item.value ?? ""
+        }
+
+        return ParsedHTTPRequestTarget(
+            method: method,
+            path: urlComponents.path,
+            queryItems: queryItems
+        )
+    }
+
+    private func parseTweetResourcePath(_ path: String) -> (tweetId: String, isRepliesCollection: Bool)? {
+        let prefix = "/api/v1/x/tweets/"
+        guard path.hasPrefix(prefix) else { return nil }
+
+        let suffix = String(path.dropFirst(prefix.count))
+        let components = suffix.split(separator: "/", omittingEmptySubsequences: true)
+        guard let first = components.first, !first.isEmpty else { return nil }
+
+        let tweetId = String(first)
+        if components.count == 1 {
+            return (tweetId, false)
+        }
+        if components.count == 2, components[1] == "replies" {
+            return (tweetId, true)
+        }
+        return nil
+    }
+
+    private func handleGenericQueryHttpRequest(
+        _ connection: NWConnection,
+        requestData: Data,
+        type: MessageType,
+        parsedRequest: ParsedHTTPRequestTarget? = nil,
+        pathTweetId: String? = nil
+    ) {
         let resolveResult = resolveConnection(clientName: "tweetClaw")
         guard case .success(let wsClient) = resolveResult else {
             var errorDetail = "tweetclaw_offline"
@@ -1894,24 +1973,19 @@ class LocalBridgeWebSocketServer {
             return
         }
 
-        let requestString = String(data: requestData, encoding: .utf8) ?? ""
-        let firstLine = requestString.components(separatedBy: "\r\n").first ?? ""
-        
-        // Simple query parameter parsing
-        var tweetId: String? = nil
+        let parsedRequest = parsedRequest ?? parseHTTPRequestTarget(from: requestData)
+
+        var tweetId: String? = pathTweetId
         var screenName: String? = nil
         var tabId: Int? = nil
-        
-        if let range = firstLine.range(of: "\\?.* ", options: .regularExpression) {
-            let query = String(firstLine[range]).trimmingCharacters(in: .whitespaces)
-            let items = query.replacingOccurrences(of: "?", with: "").components(separatedBy: "&")
-            for item in items {
-                let pair = item.components(separatedBy: "=")
-                if pair.count == 2 {
-                    if pair[0] == "tweetId" { tweetId = pair[1] }
-                    if pair[0] == "screenName" { screenName = pair[1] }
-                    if pair[0] == "tabId" { tabId = Int(pair[1]) }
-                }
+        var cursor: String? = nil
+
+        if let parsedRequest {
+            if tweetId == nil { tweetId = parsedRequest.queryItems["tweetId"] }
+            screenName = parsedRequest.queryItems["screenName"]
+            cursor = parsedRequest.queryItems["cursor"]
+            if let tabIdValue = parsedRequest.queryItems["tabId"] {
+                tabId = Int(tabIdValue)
             }
         }
 
@@ -1929,7 +2003,29 @@ class LocalBridgeWebSocketServer {
             self.sendHttpResponse(connection, status: "500 Internal Server Error", body: "{\"error\":\"decode_failed\"}")
         }
 
-        if type == .requestQueryTweetDetail, let tid = tweetId {
+        if type == .requestQueryTweet && tweetId == nil {
+            self.pendingHttpCallbacks.removeValue(forKey: reqId)
+            self.sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":{\"code\":\"INVALID_ARGUMENT\",\"message\":\"tweetId is required\",\"details\":null}}")
+            return
+        } else if type == .requestQueryTweetReplies && tweetId == nil {
+            self.pendingHttpCallbacks.removeValue(forKey: reqId)
+            self.sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":{\"code\":\"INVALID_ARGUMENT\",\"message\":\"tweetId is required\",\"details\":null}}")
+            return
+        } else if type == .requestQueryTweetDetail && tweetId == nil {
+            self.pendingHttpCallbacks.removeValue(forKey: reqId)
+            self.sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":{\"code\":\"INVALID_ARGUMENT\",\"message\":\"tweetId is required\",\"details\":null}}")
+            return
+        } else if type == .requestQueryUserProfile && screenName == nil {
+            self.pendingHttpCallbacks.removeValue(forKey: reqId)
+            self.sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":{\"code\":\"INVALID_ARGUMENT\",\"message\":\"screenName is required\",\"details\":null}}")
+            return
+        }
+
+        if type == .requestQueryTweet, let tid = tweetId {
+            self.sendBaseMessage(wsClient, id: reqId, type: type, payload: QueryTweetRequestPayload(tweetId: tid, tabId: tabId))
+        } else if type == .requestQueryTweetReplies, let tid = tweetId {
+            self.sendBaseMessage(wsClient, id: reqId, type: type, payload: QueryTweetRepliesRequestPayload(tweetId: tid, tabId: tabId, cursor: cursor))
+        } else if type == .requestQueryTweetDetail, let tid = tweetId {
             self.sendBaseMessage(wsClient, id: reqId, type: type, payload: QueryTweetDetailRequestPayload(tweetId: tid, tabId: tabId))
         } else if type == .requestQueryUserProfile, let sn = screenName {
             self.sendBaseMessage(wsClient, id: reqId, type: type, payload: QueryUserProfileRequestPayload(screenName: sn, tabId: tabId))

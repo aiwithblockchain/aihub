@@ -109,6 +109,15 @@ type QueryTweetDetailRequest struct {
 	TweetID string `json:"tweetId"`
 	TabID   *int   `json:"tabId"`
 }
+type QueryTweetRequest struct {
+	TweetID string `json:"tweetId"`
+	TabID   *int   `json:"tabId"`
+}
+type QueryTweetRepliesRequest struct {
+	TweetID string `json:"tweetId"`
+	TabID   *int   `json:"tabId"`
+	Cursor  string `json:"cursor,omitempty"`
+}
 type QueryUserProfileRequest struct {
 	ScreenName string `json:"screenName"`
 	TabID      *int   `json:"tabId"`

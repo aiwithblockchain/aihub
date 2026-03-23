@@ -20,6 +20,8 @@ localBridge.closeTabHandler = closeXTab;
 localBridge.navigateTabHandler = navigateXTab;
 localBridge.execActionHandler = execAction;
 localBridge.queryHomeTimelineHandler = queryHomeTimeline;
+localBridge.queryTweetHandler = queryTweet;
+localBridge.queryTweetRepliesHandler = queryTweetReplies;
 localBridge.queryTweetDetailHandler = queryTweetDetail;
 localBridge.queryUserProfileHandler = queryUserProfile;
 localBridge.querySearchTimelineHandler = querySearchTimeline;
@@ -1032,6 +1034,110 @@ export async function queryHomeTimeline(payload: any) {
 }
 
 // B2: 读取推文详情及回复
+export async function queryTweet(payload: any) {
+    const { tweetId, tabId } = payload as { tweetId: string, tabId?: number };
+    if (!tweetId) return { ok: false, error: 'tweetId is required', data: null };
+
+    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
+    let targetTabId: number | undefined = tabId;
+    if (!targetTabId) {
+        const activeTab = xTabs.find(t => t.active) || xTabs[0];
+        targetTabId = activeTab?.id;
+    }
+    if (!targetTabId) return { ok: false, error: 'No x.com tab found', data: null };
+
+    const state = tabDataStore.get(targetTabId);
+    const rawDetail = (tweetId && state?.data?.[`TweetDetail_${tweetId}`])
+                   || state?.data?.['TweetDetail'];
+
+    if (!rawDetail) {
+        return {
+            ok: false,
+            error: 'TweetDetail not captured yet. Navigate to the tweet detail page first.',
+            data: null
+        };
+    }
+
+    const tweet = findTweetById(rawDetail, tweetId) || state?.featuredTweet || null;
+    if (!tweet) {
+        return {
+            ok: false,
+            error: `Tweet ${tweetId} not found in captured detail payload.`,
+            data: null
+        };
+    }
+
+    return { ok: true, data: tweet, error: null };
+}
+
+export async function queryTweetReplies(payload: any) {
+    const { tweetId, tabId, cursor } = payload as { tweetId: string, tabId?: number, cursor?: string };
+    if (!tweetId) return { ok: false, error: 'tweetId is required', data: null };
+
+    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
+    let targetTabId: number | undefined = tabId;
+    if (!targetTabId) {
+        const activeTab = xTabs.find(t => t.active) || xTabs[0];
+        targetTabId = activeTab?.id;
+    }
+    if (!targetTabId) return { ok: false, error: 'No x.com tab found', data: null };
+
+    const state = tabDataStore.get(targetTabId);
+    const rawDetail = (tweetId && state?.data?.[`TweetDetail_${tweetId}`])
+                   || state?.data?.['TweetDetail'];
+
+    if (!rawDetail) {
+        return {
+            ok: false,
+            error: 'TweetDetail not captured yet. Navigate to the tweet detail page first.',
+            data: null
+        };
+    }
+
+    const { extractTimelineCursors } = await import('../capture/timeline-extractor');
+    let detailPageData = rawDetail;
+    let detailPageUrl = state?.url || '';
+
+    if (cursor) {
+        const fetchedPage: any = await new Promise(resolve => {
+            chrome.tabs.sendMessage(targetTabId!, {
+                type: 'FETCH_TWEET_REPLIES_PAGE',
+                tweetId,
+                cursor
+            }, (resp) => resolve(resp || { success: false, error: 'No response' }));
+        });
+
+        if (!fetchedPage?.success || !fetchedPage?.data) {
+            return {
+                ok: false,
+                error: fetchedPage?.error || 'Failed to fetch tweet replies page',
+                data: null
+            };
+        }
+
+        detailPageData = fetchedPage.data;
+        detailPageUrl = fetchedPage.pageUrl || detailPageUrl;
+    }
+
+    const replies = findRepliesSnapshot(detailPageData, detailPageUrl, state?.account?.handle);
+    const cursors = extractTimelineCursors(detailPageData);
+
+    return {
+        ok: true,
+        data: {
+            items: replies,
+            cursor: {
+                next: cursors.next,
+                previous: cursors.previous
+            },
+            hasMore: !!cursors.next,
+            requestCursor: cursor || null,
+            source: cursor ? 'fetched_page' : 'cached_page'
+        },
+        error: null
+    };
+}
+
 export async function queryTweetDetail(payload: any) {
     const { tweetId, tabId } = payload as { tweetId: string, tabId?: number };
     const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
@@ -1117,4 +1223,3 @@ export async function querySearchTimeline(payload: any) {
     const tweets = extractTweetsFromTimeline(rawSearch);
     return { ok: true, data: { tweets, count: tweets.length }, error: null };
 }
-

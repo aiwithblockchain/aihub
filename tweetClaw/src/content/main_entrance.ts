@@ -1,5 +1,5 @@
 import { MsgType } from '../capture/consts';
-import { performMutation, performLegacyREST, fetchUserByScreenName } from '../x_api/twitter_api';
+import { performMutation, performLegacyREST, fetchUserByScreenName, performQuery } from '../x_api/twitter_api';
 import { findDeepUser } from '../capture/extractor';
 import { UserProfile } from '../object/user_info';
 
@@ -235,6 +235,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 }
 
                 sendResponse({ success: true, data: userProfile.toJSON() });
+            } catch (e: any) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    if (message.type === 'FETCH_TWEET_REPLIES_PAGE') {
+        (async () => {
+            try {
+                const tweetId = String(message.tweetId || '').trim();
+                const cursor = typeof message.cursor === 'string' ? message.cursor.trim() : '';
+                if (!tweetId) throw new Error('tweetId is required');
+
+                const variables: Record<string, any> = {
+                    focalTweetId: tweetId,
+                    with_rux_injections: false,
+                    includePromotedContent: true,
+                    withCommunity: true,
+                    withQuickPromoteEligibilityTweetFields: true,
+                    withBirdwatchNotes: true,
+                    withVoice: true,
+                    rankingMode: 'Relevance'
+                };
+
+                if (cursor) {
+                    variables.cursor = cursor;
+                }
+
+                const data = await performQuery('TweetDetail', variables);
+                sendResponse({
+                    success: true,
+                    data,
+                    pageUrl: window.location.href,
+                    requestCursor: cursor || null
+                });
             } catch (e: any) {
                 sendResponse({ success: false, error: e.message });
             }

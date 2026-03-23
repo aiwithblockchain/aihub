@@ -50,12 +50,32 @@
     "response": "{\"list\":[{\"rest_id\":\"...\",\"legacy\":{\"full_text\":\"...\"}}],\"tabId\":123}"
   },
   {
-    "id": "query_tweet_detail",
-    "name": "Get Tweet Detail",
-    "summary": "获取指定推文的详情及其回复列表（Captured Read）。",
+    "id": "get_tweet",
+    "name": "Get Tweet",
+    "summary": "读取单条推文资源，不包含回复集合。",
+    "method": "GET",
+    "path": "/api/v1/x/tweets/{tweetId}",
+    "description": "资源模型：tweet。该接口返回指定 tweetId 的主推文资源表示，不包含 replies 集合。URI 使用 /api/v1/x/tweets/{tweetId}，符合资源导向与复数集合命名。可选 query 参数 tabId 用于指定浏览器标签页上下文。成功返回 200；tweetClaw 未连接返回 503；参数错误返回 400；资源不存在返回 404。",
+    "curl": "curl -X GET \"http://127.0.0.1:10088/api/v1/x/tweets/1234567890?tabId=123\"",
+    "response": "{\"id\":\"1234567890\",\"text\":\"Hello World\",\"author\":{\"id\":\"2244994945\",\"screenName\":\"wesley\",\"name\":\"wesley\"},\"favoriteCount\":120,\"replyCount\":5,\"raw\":{}}"
+  },
+  {
+    "id": "get_tweet_replies",
+    "name": "Get Tweet Replies",
+    "summary": "读取指定推文的回复集合，并支持基于 cursor 的双向分页。",
+    "method": "GET",
+    "path": "/api/v1/x/tweets/{tweetId}/replies",
+    "description": "资源模型：tweet replies collection。该接口返回指定推文下当前页的 replies，并返回分页游标。query 参数 cursor 选填，首次请求不传；tabId 选填。响应中的 cursor.next 对应更老回复，cursor.previous 对应更上方或更新回复。成功返回 200；参数错误返回 400；tweetClaw 未连接返回 503；超时返回 504。",
+    "curl": "curl -X GET \"http://127.0.0.1:10088/api/v1/x/tweets/1234567890/replies?cursor=DAABCgABFxxx==&tabId=123\"",
+    "response": "{\"items\":[{\"id\":\"1234567891\",\"text\":\"reply 1\",\"author\":{\"id\":\"111\",\"screenName\":\"user1\",\"name\":\"user1\"},\"raw\":{}}],\"cursor\":{\"next\":\"DAABCgABFxxx==\",\"previous\":\"DAABCgABFyyy==\"},\"hasMore\":true}"
+  },
+  {
+    "id": "query_tweet_detail_deprecated",
+    "name": "Get Tweet Detail (Deprecated)",
+    "summary": "兼容旧调用方的详情读取接口，返回主推文与回复的混合结构。",
     "method": "GET",
     "path": "/api/v1/x/tweets",
-    "description": "读取特定推文详情页捕获的数据。通过 URL 参数 tweetId 过滤。必须在浏览器中曾打开过该推文的页面，扩展才能捕获到对应的数据。返回内容包括主推文详情及其下的回复对话流。",
+    "description": "兼容接口。通过 query 参数 tweetId 查询旧版 tweet detail 结构。该接口保留用于平滑迁移，建议新调用方改用 /api/v1/x/tweets/{tweetId} 和 /api/v1/x/tweets/{tweetId}/replies。旧接口未来会移除。",
     "curl": "curl -X GET \"http://127.0.0.1:10088/api/v1/x/tweets?tweetId=1234567890\"",
     "response": "{\"mainTweet\":{...},\"replies\":[...],\"tabId\":123}"
   },

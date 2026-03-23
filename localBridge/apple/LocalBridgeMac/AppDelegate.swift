@@ -126,6 +126,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         goServer.sendQueryTweetDetail(tweetId: tweetId, tabId: tabId, instanceId: instanceId)
     }
 
+    func sendQueryTweet(tweetId: String, tabId: Int? = nil, instanceId: String? = nil) {
+        goServer.sendQueryTweet(tweetId: tweetId, tabId: tabId, instanceId: instanceId)
+    }
+
+    func sendQueryTweetReplies(tweetId: String, cursor: String? = nil, tabId: Int? = nil, instanceId: String? = nil) {
+        goServer.sendQueryTweetReplies(tweetId: tweetId, cursor: cursor, tabId: tabId, instanceId: instanceId)
+    }
+
     func sendQueryUserProfile(screenName: String, tabId: Int? = nil, instanceId: String? = nil) {
         goServer.sendQueryUserProfile(screenName: screenName, tabId: tabId, instanceId: instanceId)
     }

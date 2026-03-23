@@ -62,9 +62,15 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     // Shared Interactive Components
     private let commonIdField = InsetTextField()
     private let commonPathField = InsetTextField()
+    private let commonCursorField = InsetTextField()
     private let contentEditor = NSTextView()
     private let contentScrollView = NSScrollView()
     private let actionButton = NSButton(title: "Run API", target: nil, action: #selector(actionButtonClicked))
+    private let previousPageButton = NSButton(title: "Previous Page", target: nil, action: #selector(previousPageClicked))
+    private let nextPageButton = NSButton(title: "Next Page", target: nil, action: #selector(nextPageClicked))
+    private let cursorStatusLabel = NSTextField(labelWithString: "")
+    private var latestRepliesNextCursor: String?
+    private var latestRepliesPreviousCursor: String?
 
     // Instance Selector
     private let instanceLabel = NSTextField(labelWithString: "TARGET INSTANCE")
@@ -91,6 +97,15 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             case id, name, summary, method, path, description, curl, response
             case body = "request_body"
         }
+    }
+
+    private struct RepliesCursorEnvelope: Decodable {
+        struct CursorPayload: Decodable {
+            let next: String?
+            let previous: String?
+        }
+
+        let cursor: CursorPayload?
     }
     
     private var docs: [ApiDoc] = []
@@ -455,14 +470,32 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         // Styling Shared Components
         styleInputField(commonIdField)
         styleInputField(commonPathField)
+        styleInputField(commonCursorField)
         styleTextView(contentEditor, scrollView: contentScrollView)
         contentScrollView.heightAnchor.constraint(equalToConstant: 200).isActive = true
         styleButton(actionButton)
+        styleButton(previousPageButton)
+        styleButton(nextPageButton)
         actionButton.widthAnchor.constraint(equalToConstant: 120).isActive = true
         actionButton.heightAnchor.constraint(equalToConstant: 36).isActive = true
         actionButton.contentTintColor = .white
         actionButton.layer?.backgroundColor = DSV2.primary.cgColor
         actionButton.target = self
+        previousPageButton.widthAnchor.constraint(equalToConstant: 140).isActive = true
+        previousPageButton.heightAnchor.constraint(equalToConstant: 36).isActive = true
+        previousPageButton.contentTintColor = .white
+        previousPageButton.layer?.backgroundColor = DSV2.secondary.cgColor
+        previousPageButton.target = self
+        nextPageButton.widthAnchor.constraint(equalToConstant: 140).isActive = true
+        nextPageButton.heightAnchor.constraint(equalToConstant: 36).isActive = true
+        nextPageButton.contentTintColor = .white
+        nextPageButton.layer?.backgroundColor = DSV2.secondary.cgColor
+        nextPageButton.target = self
+        cursorStatusLabel.font = DSV2.fontMonoSm
+        cursorStatusLabel.textColor = DSV2.onSurfaceVariant
+        cursorStatusLabel.alignment = .center
+        cursorStatusLabel.maximumNumberOfLines = 2
+        cursorStatusLabel.lineBreakMode = .byTruncatingMiddle
 
         headerImageView.contentTintColor = DSV2.primary
 
@@ -579,6 +612,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
               let jsonString = userInfo["dataString"] as? String else { return }
         DispatchQueue.main.async {
             self.resultTextView?.string = jsonString
+            self.cacheRepliesCursorsIfNeeded(from: jsonString)
             
             // 立即计算并撑开高度
             self.updateTextViewHeight(self.resultTextView, constraint: self.resultHeightConstraint)
@@ -834,10 +868,17 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             contentScrollView.widthAnchor.constraint(equalToConstant: 450).isActive = true
             inputs.append(contentScrollView)
             actionButton.title = "Post Reply"
-        case "query_tweet_detail":
+        case "get_tweet", "query_tweet_detail_deprecated":
             commonIdField.placeholderString = "Enter Tweet ID"
             inputs.append(makeInputRow("Tweet ID:", commonIdField))
-            actionButton.title = "Get Detail"
+            actionButton.title = doc.id == "get_tweet" ? "Get Tweet" : "Get Detail"
+        case "get_tweet_replies":
+            commonIdField.placeholderString = "Enter Tweet ID"
+            commonCursorField.placeholderString = "Cursor (Optional)"
+            inputs.append(makeInputRow("Tweet ID:", commonIdField))
+            inputs.append(makeInputRow("Cursor:", commonCursorField))
+            inputs.append(makeRepliesPaginationControls())
+            actionButton.title = "Get Replies"
         case "query_user_profile":
             commonIdField.placeholderString = "Enter @handle (e.g. elonmusk)"
             inputs.append(makeInputRow("Handle:", commonIdField))
@@ -864,7 +905,10 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         commonIdField.placeholderString = nil
         commonPathField.stringValue = ""
         commonPathField.placeholderString = nil
+        commonCursorField.stringValue = ""
+        commonCursorField.placeholderString = nil
         contentEditor.string = ""
+        updateRepliesPaginationControls()
     }
     
     private func makeInputRow(_ label: String, _ field: NSView) -> NSView {
@@ -951,7 +995,19 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             AppDelegate.shared?.sendExecAction(action: "deleteTweet", tweetId: tid, userId: nil, tabId: nil, instanceId: instanceId)
         case "query_home_timeline":
             AppDelegate.shared?.sendQueryHomeTimeline(tabId: nil, instanceId: instanceId)
-        case "query_tweet_detail":
+        case "get_tweet":
+            let tid = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
+            AppDelegate.shared?.sendQueryTweet(tweetId: tid, tabId: nil, instanceId: instanceId)
+        case "get_tweet_replies":
+            let tid = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
+            let cursor = commonCursorField.stringValue.trimmingCharacters(in: .whitespaces)
+            AppDelegate.shared?.sendQueryTweetReplies(
+                tweetId: tid,
+                cursor: cursor.isEmpty ? nil : cursor,
+                tabId: nil,
+                instanceId: instanceId
+            )
+        case "query_tweet_detail", "query_tweet_detail_deprecated":
             let tid = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
             AppDelegate.shared?.sendQueryTweetDetail(tweetId: tid, tabId: nil, instanceId: instanceId)
         case "query_user_profile":
@@ -962,6 +1018,72 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         default:
             print("Action not implemented for \(doc.id)")
         }
+    }
+
+    @objc private func previousPageClicked() {
+        guard let cursor = latestRepliesPreviousCursor, !cursor.isEmpty else { return }
+        commonCursorField.stringValue = cursor
+        triggerRepliesRequest()
+    }
+
+    @objc private func nextPageClicked() {
+        guard let cursor = latestRepliesNextCursor, !cursor.isEmpty else { return }
+        commonCursorField.stringValue = cursor
+        triggerRepliesRequest()
+    }
+
+    private func triggerRepliesRequest() {
+        let instanceId = selectedInstanceId()
+        let tid = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
+        let cursor = commonCursorField.stringValue.trimmingCharacters(in: .whitespaces)
+        AppDelegate.shared?.sendQueryTweetReplies(
+            tweetId: tid,
+            cursor: cursor.isEmpty ? nil : cursor,
+            tabId: nil,
+            instanceId: instanceId
+        )
+    }
+
+    private func makeRepliesPaginationControls() -> NSView {
+        updateRepliesPaginationControls()
+        let buttonsRow = NSStackView(views: [previousPageButton, nextPageButton])
+        buttonsRow.orientation = .horizontal
+        buttonsRow.spacing = 12
+        buttonsRow.alignment = .centerY
+
+        let container = NSStackView(views: [cursorStatusLabel, buttonsRow])
+        container.orientation = .vertical
+        container.spacing = 8
+        container.alignment = .centerX
+        return container
+    }
+
+    private func cacheRepliesCursorsIfNeeded(from jsonString: String) {
+        let row = tableView.selectedRow
+        guard row >= 0, row < docs.count else { return }
+        let doc = docs[row]
+        guard doc.id == "get_tweet_replies" else { return }
+        guard let data = jsonString.data(using: .utf8),
+              let parsed = try? JSONDecoder().decode(RepliesCursorEnvelope.self, from: data) else {
+            return
+        }
+
+        latestRepliesNextCursor = parsed.cursor?.next
+        latestRepliesPreviousCursor = parsed.cursor?.previous
+        updateRepliesPaginationControls()
+    }
+
+    private func updateRepliesPaginationControls() {
+        let hasPrevious = !(latestRepliesPreviousCursor ?? "").isEmpty
+        let hasNext = !(latestRepliesNextCursor ?? "").isEmpty
+        previousPageButton.isEnabled = hasPrevious
+        nextPageButton.isEnabled = hasNext
+        previousPageButton.alphaValue = hasPrevious ? 1.0 : 0.45
+        nextPageButton.alphaValue = hasNext ? 1.0 : 0.45
+
+        let previousText = hasPrevious ? "previous ready" : "previous empty"
+        let nextText = hasNext ? "next ready" : "next empty"
+        cursorStatusLabel.stringValue = "Cursor state: \(previousText) | \(nextText)"
     }
     
     private func methodColor(_ method: String) -> NSColor {

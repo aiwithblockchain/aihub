@@ -26,6 +26,10 @@ enum MessageType: String, Codable {
     case responseExecAction = "response.exec_action"
     case requestQueryHomeTimeline = "request.query_home_timeline"
     case responseQueryHomeTimeline = "response.query_home_timeline"
+    case requestQueryTweet = "request.query_tweet"
+    case responseQueryTweet = "response.query_tweet"
+    case requestQueryTweetReplies = "request.query_tweet_replies"
+    case responseQueryTweetReplies = "response.query_tweet_replies"
     case requestQueryTweetDetail = "request.query_tweet_detail"
     case responseQueryTweetDetail = "response.query_tweet_detail"
     case requestQueryUserProfile = "request.query_user_profile"
@@ -224,6 +228,17 @@ struct ExecActionRequestPayload: Codable {
 struct QueryTweetDetailRequestPayload: Codable {
     let tweetId: String
     let tabId: Int?
+}
+
+struct QueryTweetRequestPayload: Codable {
+    let tweetId: String
+    let tabId: Int?
+}
+
+struct QueryTweetRepliesRequestPayload: Codable {
+    let tweetId: String
+    let tabId: Int?
+    let cursor: String?
 }
 
 struct QueryUserProfileRequestPayload: Codable {

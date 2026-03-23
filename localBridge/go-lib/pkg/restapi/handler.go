@@ -33,6 +33,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/x/search",     h.searchTimeline)
 	mux.HandleFunc("/api/v1/x/users",      h.userProfile)
 	mux.HandleFunc("/api/v1/x/tweets",     h.tweetsDispatch)
+	mux.HandleFunc("/api/v1/x/tweets/",    h.tweetResourceDispatch)
 	mux.HandleFunc("/api/v1/x/likes",      func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "like") })
 	mux.HandleFunc("/api/v1/x/unlikes",    func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "unlike") })
 	mux.HandleFunc("/api/v1/x/retweets",   func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "retweet") })
@@ -213,6 +214,36 @@ func (h *Handler) tweetsDispatch(w http.ResponseWriter, r *http.Request) {
 		h.bridge(w, "tweetClaw", id, buildMsg(id, "request.query_tweet_detail", "tweetClaw",
 			types.QueryTweetDetailRequest{TweetID: tweetID, TabID: parseTabID(r)}), 8000,
 			func(data []byte) { writeRawPayload(w, data) })
+	}
+}
+
+func (h *Handler) tweetResourceDispatch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+
+	path := strings.TrimPrefix(r.URL.Path, "/api/v1/x/tweets/")
+	parts := strings.Split(strings.Trim(path, "/"), "/")
+	if len(parts) == 0 || parts[0] == "" {
+		jsonErr(w, 404, "not_found")
+		return
+	}
+
+	tweetID := parts[0]
+	switch {
+	case len(parts) == 1:
+		id := newID("http_tweet")
+		h.bridge(w, "tweetClaw", id, buildMsg(id, "request.query_tweet", "tweetClaw",
+			types.QueryTweetRequest{TweetID: tweetID, TabID: parseTabID(r)}), 8000,
+			func(data []byte) { writeRawPayload(w, data) })
+	case len(parts) == 2 && parts[1] == "replies":
+		id := newID("http_tweet_replies")
+		h.bridge(w, "tweetClaw", id, buildMsg(id, "request.query_tweet_replies", "tweetClaw",
+			types.QueryTweetRepliesRequest{TweetID: tweetID, TabID: parseTabID(r), Cursor: r.URL.Query().Get("cursor")}), 8000,
+			func(data []byte) { writeRawPayload(w, data) })
+	default:
+		jsonErr(w, 404, "not_found")
 	}
 }
 

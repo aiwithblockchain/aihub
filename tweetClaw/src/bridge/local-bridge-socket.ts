@@ -18,6 +18,8 @@ export class LocalBridgeSocket {
   public navigateTabHandler: ((payload: any) => Promise<any>) | null = null;
   public execActionHandler: ((payload: any) => Promise<any>) | null = null;
   public queryHomeTimelineHandler: ((payload: any) => Promise<any>) | null = null;
+  public queryTweetHandler: ((payload: any) => Promise<any>) | null = null;
+  public queryTweetRepliesHandler: ((payload: any) => Promise<any>) | null = null;
   public queryTweetDetailHandler: ((payload: any) => Promise<any>) | null = null;
   public queryUserProfileHandler: ((payload: any) => Promise<any>) | null = null;
   public querySearchTimelineHandler: ((payload: any) => Promise<any>) | null = null;
@@ -199,6 +201,12 @@ export class LocalBridgeSocket {
           break;
         case MESSAGE_TYPES.REQUEST_QUERY_HOME_TIMELINE:
           this.handleGenericQuery(msg, this.queryHomeTimelineHandler, MESSAGE_TYPES.RESPONSE_QUERY_HOME_TIMELINE);
+          break;
+        case MESSAGE_TYPES.REQUEST_QUERY_TWEET:
+          this.handleGenericQuery(msg, this.queryTweetHandler, MESSAGE_TYPES.RESPONSE_QUERY_TWEET);
+          break;
+        case MESSAGE_TYPES.REQUEST_QUERY_TWEET_REPLIES:
+          this.handleGenericQuery(msg, this.queryTweetRepliesHandler, MESSAGE_TYPES.RESPONSE_QUERY_TWEET_REPLIES);
           break;
         case MESSAGE_TYPES.REQUEST_QUERY_TWEET_DETAIL:
           this.handleGenericQuery(msg, this.queryTweetDetailHandler, MESSAGE_TYPES.RESPONSE_QUERY_TWEET_DETAIL);
@@ -520,5 +528,4 @@ export class LocalBridgeSocket {
     }
   }
 }
-
 

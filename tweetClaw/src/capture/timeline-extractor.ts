@@ -28,6 +28,11 @@ export interface MinimalTweet {
     quoted_tweet?: MinimalTweet;
 }
 
+export interface TimelineCursors {
+    next: string | null;
+    previous: string | null;
+}
+
 /**
  * Recursively searches for the 'instructions' array.
  */
@@ -84,6 +89,38 @@ export function extractTweetsFromTimeline(json: any): MinimalTweet[] {
         console.warn('[TweetClaw-Extractor] Error in extractTweetsFromTimeline', e);
     }
     return tweets;
+}
+
+export function extractTimelineCursors(json: any): TimelineCursors {
+    let next: string | null = null;
+    let previous: string | null = null;
+
+    try {
+        const instructions = findInstructionsRecursive(json) || [];
+        for (const instr of instructions) {
+            if (instr.type !== 'TimelineAddEntries' && instr.type !== 'TimelineReplaceEntry') {
+                continue;
+            }
+
+            const entries = instr.entries || (instr.entry ? [instr.entry] : []);
+            for (const entry of entries) {
+                const cursorNode = entry?.content?.entryType === 'TimelineTimelineCursor'
+                    ? entry.content
+                    : null;
+                if (!cursorNode?.value) continue;
+
+                if (cursorNode.cursorType === 'Bottom') {
+                    next = cursorNode.value;
+                } else if (cursorNode.cursorType === 'Top') {
+                    previous = cursorNode.value;
+                }
+            }
+        }
+    } catch (e) {
+        console.warn('[TweetClaw-Extractor] Error in extractTimelineCursors', e);
+    }
+
+    return { next, previous };
 }
 
 /**
