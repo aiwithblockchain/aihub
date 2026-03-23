@@ -91,13 +91,13 @@
   },
   {
     "id": "query_search_results",
-    "name": "Search Tweets",
-    "summary": "读取浏览器当前搜索结果页捕获的内容（Captured Read）。",
+    "name": "Search Timeline",
+    "summary": "Search tweets by keywords with pagination support. Supports both active search and cached result reading.",
     "method": "GET",
     "path": "/api/v1/x/search",
-    "description": "读取当前 search 标签页捕获到的结果流。Bot 可以先通过 navigate_tab 跳转到 /search?q=keyword 路径，待页面加载完成后调用此接口解析内容。这是实现‘关键词监控’和‘自动化搜索’链路的关键一环。",
-    "curl": "curl -X GET http://127.0.0.1:10088/api/v1/x/search",
-    "response": "{\"list\":[{\"tweetId\":\"...\",\"text\":\"...\"}],\"tabId\":123}"
+    "description": "Search Twitter timeline by keywords. Supports pagination via cursor. Returns raw Twitter API response including tweets and next page cursor. If query parameter is omitted, falls back to reading cached search results from browser (legacy behavior).",
+    "curl": "curl \"http://127.0.0.1:10088/api/v1/x/search?query=open%20claw&count=20\"",
+    "response": "{\"data\":{\"search_by_raw_query\":{\"search_timeline\":{\"timeline\":{\"instructions\":[...],\"metadata\":{\"cursor\":\"DAACCgACHEGUyk_AJxAKAAMcQZTKT7_Y8AgABAAAAAIL...\"}}}}}}"
   },
   {
     "id": "create_tweet",

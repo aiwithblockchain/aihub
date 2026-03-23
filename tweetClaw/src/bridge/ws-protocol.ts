@@ -191,6 +191,9 @@ export interface QueryUserProfileRequestPayload {
 
 export interface QuerySearchTimelineRequestPayload {
   tabId?: number;
+  query?: string;   // 搜索关键词
+  cursor?: string;  // 翻页游标
+  count?: number;   // 结果数量（默认 20）
 }
 // HomeTimeline 不需要额外参数，使用 any 或 EmptyPayload (如果定义了)
 

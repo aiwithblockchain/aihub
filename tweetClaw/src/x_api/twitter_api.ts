@@ -237,6 +237,7 @@ export async function performQuery(op: string, variables: any, retryCount = 0): 
         'content-type': 'application/json',
         'x-twitter-active-user': 'yes',
         'x-twitter-auth-type': 'OAuth2Session',
+        'x-twitter-client-language': 'en',
         'referer': 'https://x.com/',
         'accept': '*/*'
     };

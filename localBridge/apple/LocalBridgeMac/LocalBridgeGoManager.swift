@@ -210,7 +210,7 @@ final class LocalBridgeGoManager {
             clientName: "tweetClaw",
             messageType: "request.query_home_timeline",
             instanceId: instanceId,
-            payload: QueryTimelinePayload(tabId: tabId),
+            payload: QueryTimelinePayload(tabId: tabId, query: nil, cursor: nil, count: nil),
             timeoutMs: 8_000,
             notificationName: "ExecActionReceived",
             format: .prettyJSON
@@ -266,12 +266,12 @@ final class LocalBridgeGoManager {
         )
     }
 
-    func sendQuerySearchTimeline(tabId: Int? = nil, instanceId: String? = nil) {
+    func sendQuerySearchTimeline(query: String? = nil, cursor: String? = nil, tabId: Int? = nil, instanceId: String? = nil) {
         invokePlugin(
             clientName: "tweetClaw",
             messageType: "request.query_search_timeline",
             instanceId: instanceId,
-            payload: QueryTimelinePayload(tabId: tabId),
+            payload: QueryTimelinePayload(tabId: tabId, query: query, cursor: cursor, count: nil),
             timeoutMs: 8_000,
             notificationName: "ExecActionReceived",
             format: .prettyJSON
@@ -420,6 +420,9 @@ private extension LocalBridgeGoManager {
 
     struct QueryTimelinePayload: Encodable {
         let tabId: Int?
+        let query: String?
+        let cursor: String?
+        let count: Int?
     }
 
     struct QueryTweetDetailPayload: Encodable {

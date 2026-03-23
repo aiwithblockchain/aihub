@@ -139,8 +139,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         goServer.sendQueryUserProfile(screenName: screenName, tabId: tabId, instanceId: instanceId)
     }
 
-    func sendQuerySearchTimeline(tabId: Int? = nil, instanceId: String? = nil) {
-        goServer.sendQuerySearchTimeline(tabId: tabId, instanceId: instanceId)
+    func sendQuerySearchTimeline(query: String? = nil, cursor: String? = nil, tabId: Int? = nil, instanceId: String? = nil) {
+        goServer.sendQuerySearchTimeline(query: query, cursor: cursor, tabId: tabId, instanceId: instanceId)
     }
 
     func sendQueryAITabsStatus(instanceId: String? = nil) {

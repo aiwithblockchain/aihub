@@ -276,6 +276,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
+    if (message.type === 'SEARCH_TIMELINE') {
+        (async () => {
+            try {
+                const query = String(message.query || '').trim();
+                const cursor = message.cursor ? String(message.cursor).trim() : '';
+                const count = message.count || 20;
+                if (!query) throw new Error('query is required');
+                console.log(`[TweetClaw-CS] SEARCH_TIMELINE start query="${query}" cursor=${cursor || '<nil>'} count=${count}`);
+
+                const variables: Record<string, any> = {
+                    rawQuery: query,
+                    count: count,
+                    querySource: 'typed_query',
+                    product: 'Top',
+                    withGrokTranslatedBio: false
+                };
+
+                if (cursor) {
+                    variables.cursor = cursor;
+                }
+
+                const data = await performQuery('SearchTimeline', variables);
+                console.log(`[TweetClaw-CS] SEARCH_TIMELINE success query="${query}" cursor=${cursor || '<nil>'}`);
+                sendResponse({
+                    success: true,
+                    data,
+                    pageUrl: window.location.href
+                });
+            } catch (e: any) {
+                console.error(`[TweetClaw-CS] SEARCH_TIMELINE failed query="${message.query || '<nil>'}" cursor=${message.cursor || '<nil>'}`, e);
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
     return false;
 });
 

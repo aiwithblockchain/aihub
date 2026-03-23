@@ -1229,23 +1229,43 @@ export async function queryUserProfile(payload: any) {
     return { ok: false, error: result?.error || 'Failed to fetch user profile', data: null };
 }
 
-// B4: 读取搜索结果
+// B4: 读取搜索结果或主动搜索
 export async function querySearchTimeline(payload: any) {
+    const { query, cursor, count, tabId } = payload || {};
+
     const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    let targetTabId: number | undefined = payload?.tabId;
+    let targetTabId: number | undefined = tabId;
     if (!targetTabId) {
         const activeTab = xTabs.find(t => t.active) || xTabs[0];
         targetTabId = activeTab?.id;
     }
     if (!targetTabId) return { ok: false, error: 'No x.com tab found', data: null };
 
+    // 如果提供了 query，则主动调用 Content Script 执行搜索
+    if (query) {
+        const result: any = await new Promise(resolve => {
+            chrome.tabs.sendMessage(targetTabId!, {
+                type: 'SEARCH_TIMELINE',
+                query: query,
+                cursor: cursor || null,
+                count: count || 20
+            }, (resp) => resolve(resp || { success: false, error: 'No response' }));
+        });
+
+        if (result?.success && result?.data) {
+            return { ok: true, data: result.data, error: null };
+        }
+        return { ok: false, error: result?.error || 'Failed to search timeline', data: null };
+    }
+
+    // 向后兼容：如果没有提供 query，则读取缓存的搜索结果
     const state = tabDataStore.get(targetTabId);
     const rawSearch = state?.data?.['SearchTimeline'];
 
     if (!rawSearch) {
         return {
             ok: false,
-            error: 'Search results not captured. Navigate to x.com/search?q=... first.',
+            error: 'Search results not captured. Navigate to x.com/search?q=... first, or provide a query parameter.',
             data: null
         };
     }

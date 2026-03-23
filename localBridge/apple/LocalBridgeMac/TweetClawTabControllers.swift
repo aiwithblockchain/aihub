@@ -63,6 +63,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     private let commonIdField = InsetTextField()
     private let commonPathField = InsetTextField()
     private let commonCursorField = InsetTextField()
+    private let searchQueryField = InsetTextField()  // 新增：搜索关键词输入框
     private let contentEditor = NSTextView()
     private let contentScrollView = NSScrollView()
     private let actionButton = NSButton(title: "Run API", target: nil, action: #selector(actionButtonClicked))
@@ -77,6 +78,13 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     // Twitter 的 previous cursor 不是用来获取"上一页"的，而是用来获取增量数据
     // 所以我们需要自己维护一个栈来记录每一页的 cursor
     private var repliesCursorStack: [String?] = [nil]  // 栈底是 nil（第一页）
+
+    // 搜索状态管理
+    private var currentSearchQuery: String?           // 当前搜索关键词
+    private var currentSearchCursor: String?          // 当前页的 cursor（用于下一页）
+    private let searchNextPageButton = NSButton(title: "Next Page", target: nil, action: #selector(searchNextPageClicked))  // 下一页按钮
+    private let searchStatusLabel = NSTextField(labelWithString: "")  // 搜索状态标签
+    private var searchPaginationContainer: NSView?    // 翻页容器引用
 
 
     // Instance Selector
@@ -308,6 +316,18 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         previousPageButton.target = self
         nextPageButton.target = self
 
+        // 初始化所有输入框为可编辑状态
+        [commonIdField, commonPathField, commonCursorField, searchQueryField].forEach { field in
+            field.isEditable = true
+            field.isEnabled = true
+            field.isSelectable = true
+            field.isBordered = true
+            field.isBezeled = true
+            field.drawsBackground = true
+            field.backgroundColor = NSColor.textBackgroundColor
+            field.textColor = NSColor.textColor
+        }
+
         // --- Header ---
         if #available(macOS 11.0, *) {
             headerImageView.image = NSImage(systemSymbolName: "network", accessibilityDescription: nil)
@@ -498,6 +518,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         styleButton(actionButton)
         styleButton(previousPageButton)
         styleButton(nextPageButton)
+        styleButton(searchNextPageButton)  // 添加搜索翻页按钮样式
         actionButton.widthAnchor.constraint(equalToConstant: 120).isActive = true
         actionButton.heightAnchor.constraint(equalToConstant: 36).isActive = true
         actionButton.contentTintColor = .white
@@ -513,11 +534,21 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         nextPageButton.contentTintColor = .white
         nextPageButton.layer?.backgroundColor = DSV2.secondary.cgColor
         nextPageButton.target = self
+        searchNextPageButton.widthAnchor.constraint(equalToConstant: 140).isActive = true
+        searchNextPageButton.heightAnchor.constraint(equalToConstant: 36).isActive = true
+        searchNextPageButton.contentTintColor = .white
+        searchNextPageButton.layer?.backgroundColor = DSV2.secondary.cgColor
+        searchNextPageButton.target = self
         cursorStatusLabel.font = DSV2.fontMonoSm
         cursorStatusLabel.textColor = DSV2.onSurfaceVariant
         cursorStatusLabel.alignment = .center
         cursorStatusLabel.maximumNumberOfLines = 2
         cursorStatusLabel.lineBreakMode = .byTruncatingMiddle
+        searchStatusLabel.font = DSV2.fontMonoSm
+        searchStatusLabel.textColor = DSV2.onSurfaceVariant
+        searchStatusLabel.alignment = .center
+        searchStatusLabel.maximumNumberOfLines = 2
+        searchStatusLabel.lineBreakMode = .byTruncatingMiddle
 
         headerImageView.contentTintColor = DSV2.primary
 
@@ -637,12 +668,13 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             print("[LocalBridgeMac] displayResult source=\(title) selectedApi=\(self.selectedApiID() ?? "<nil>") payloadChars=\(jsonString.count)")
             self.resultTextView?.string = jsonString
             self.cacheRepliesCursorsIfNeeded(from: jsonString)
-            
+            self.handleSearchTimelineResponse(from: jsonString)
+
             // 立即计算并撑开高度
             self.updateTextViewHeight(self.resultTextView, constraint: self.resultHeightConstraint)
-            
+
             self.resultTextView?.scrollToEndOfDocument(nil)
-            
+
             // 同时滚动主视图到底部，以便看到最新日志
             if let documentView = self.mainRightScrollView.documentView {
                 let bottomRect = NSRect(x: 0, y: documentView.frame.height - 1, width: 1, height: 1)
@@ -856,7 +888,13 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         case "query_home_timeline":
             actionButton.title = "Get Home Timeline"
         case "query_search_results":
-            actionButton.title = "Get Search Results"
+            // 确保输入框完全可编辑
+            searchQueryField.isEditable = true
+            searchQueryField.isEnabled = true
+            searchQueryField.isSelectable = true
+            searchQueryField.placeholderString = "Enter search keywords (e.g., open claw)"
+            inputs.append(makeInputRow("Search Query:", searchQueryField))
+            actionButton.title = "Search"
         case "open_tab":
             commonPathField.placeholderString = "Enter path (e.g. home) or URL"
             inputs.append(makeInputRow("Path:", commonPathField))
@@ -907,10 +945,15 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         default:
             actionButton.title = "Run Request"
         }
-        
+
         inputs.forEach { interactiveAreaContainer.addArrangedSubview($0) }
         interactiveAreaContainer.addArrangedSubview(actionButton)
-        
+
+        // 对于搜索 API，在 Search 按钮之后添加翻页控件
+        if doc.id == "query_search_results" {
+            interactiveAreaContainer.addArrangedSubview(makeSearchPaginationControls())
+        }
+
         // Final styling for action button based on method
         if doc.method == "DELETE" {
             actionButton.contentTintColor = .white
@@ -928,6 +971,8 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         commonPathField.placeholderString = nil
         commonCursorField.stringValue = ""
         commonCursorField.placeholderString = nil
+        searchQueryField.stringValue = ""
+        searchQueryField.placeholderString = nil
         contentEditor.string = ""
         updateRepliesPaginationControls()
     }
@@ -1082,7 +1127,17 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             let handle = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
             AppDelegate.shared?.sendQueryUserProfile(screenName: handle, tabId: nil, instanceId: instanceId)
         case "query_search_results":
-            AppDelegate.shared?.sendQuerySearchTimeline(tabId: nil, instanceId: instanceId)
+            let query = searchQueryField.stringValue.trimmingCharacters(in: .whitespaces)
+            guard !query.isEmpty else {
+                showAlert(title: "Error", message: "Please enter search keywords")
+                return
+            }
+
+            // 新搜索：重置状态（但不设置 currentSearchQuery，等待成功响应后再设置）
+            currentSearchCursor = nil
+            searchPaginationContainer?.isHidden = true
+
+            AppDelegate.shared?.sendQuerySearchTimeline(query: query, cursor: nil, tabId: nil, instanceId: instanceId)
         default:
             print("Action not implemented for \(docId)")
         }
@@ -1126,6 +1181,18 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         triggerRepliesRequest(withCursor: cursor)
     }
 
+    @objc private func searchNextPageClicked() {
+        guard let query = currentSearchQuery,
+              let cursor = currentSearchCursor else {
+            print("[LocalBridgeMac] Search Next Page ignored: query or cursor unavailable")
+            return
+        }
+
+        let instanceId = selectedInstanceId()
+        print("[LocalBridgeMac] Search Next Page clicked, query=\(query), cursor=\(cursor)")
+        AppDelegate.shared?.sendQuerySearchTimeline(query: query, cursor: cursor, tabId: nil, instanceId: instanceId)
+    }
+
     private func triggerRepliesRequest(withCursor cursor: String) {
         let instanceId = selectedInstanceId()
         let tid = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
@@ -1154,6 +1221,27 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         container.orientation = .vertical
         container.spacing = 8
         container.alignment = .centerX
+        return container
+    }
+
+    private func makeSearchPaginationControls() -> NSView {
+        // 完全复制 replies API 的实现
+        let buttonsRow = NSStackView(views: [searchNextPageButton])
+        buttonsRow.orientation = .horizontal
+        buttonsRow.spacing = 12
+        buttonsRow.alignment = .centerY
+
+        let container = NSStackView(views: [searchStatusLabel, buttonsRow])
+        container.orientation = .vertical
+        container.spacing = 8
+        container.alignment = .centerX
+
+        // 初始状态隐藏容器
+        container.isHidden = true
+
+        // 保存容器引用
+        searchPaginationContainer = container
+
         return container
     }
 
@@ -1202,12 +1290,118 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         print("[LocalBridgeMac] updateRepliesPaginationControls previousEnabled=\(hasPrevious) nextEnabled=\(hasNext) stackDepth=\(repliesCursorStack.count)")
     }
 
+    private func updateSearchPaginationControls() {
+        let hasNext = currentSearchCursor != nil && !currentSearchCursor!.isEmpty
+        searchNextPageButton.isEnabled = hasNext
+        searchNextPageButton.alphaValue = hasNext ? 1.0 : 0.45
+
+        // 更新状态标签
+        if let query = currentSearchQuery, hasNext {
+            searchStatusLabel.stringValue = "More results available"
+        } else if let query = currentSearchQuery, !hasNext {
+            searchStatusLabel.stringValue = "End of results"
+        } else {
+            searchStatusLabel.stringValue = ""
+        }
+
+        // 只在有搜索查询且有结果时显示容器
+        searchPaginationContainer?.isHidden = (currentSearchQuery == nil)
+
+        print("[LocalBridgeMac] updateSearchPaginationControls nextEnabled=\(hasNext) query=\(currentSearchQuery ?? "<nil>")")
+    }
+
+    private func handleSearchTimelineResponse(from jsonString: String) {
+        let row = tableView.selectedRow
+        guard row >= 0, row < docs.count else {
+            return
+        }
+        let doc = docs[row]
+        guard doc.id == "query_search_results" else {
+            return
+        }
+
+        guard let data = jsonString.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            print("[LocalBridgeMac] handleSearchTimelineResponse: failed to parse JSON")
+            currentSearchQuery = nil
+            searchPaginationContainer?.isHidden = true
+            return
+        }
+
+        // 检查是否有错误或 data 为 null
+        if let error = json["error"] as? String {
+            print("[LocalBridgeMac] handleSearchTimelineResponse: API error - \(error)")
+            currentSearchQuery = nil
+            searchPaginationContainer?.isHidden = true
+            return
+        }
+
+        if json["data"] is NSNull || json["data"] == nil {
+            print("[LocalBridgeMac] handleSearchTimelineResponse: data is null")
+            currentSearchQuery = nil
+            searchPaginationContainer?.isHidden = true
+            return
+        }
+
+        // 解析响应，提取 Bottom cursor
+        var bottomCursor: String?
+        var hasResults = false
+
+        if let dataObj = json["data"] as? [String: Any],
+           let searchByRawQuery = dataObj["search_by_raw_query"] as? [String: Any],
+           let searchTimeline = searchByRawQuery["search_timeline"] as? [String: Any],
+           let timeline = searchTimeline["timeline"] as? [String: Any],
+           let instructions = timeline["instructions"] as? [[String: Any]] {
+
+            hasResults = true
+
+            // 查找 Bottom cursor
+            for instruction in instructions {
+                if let entries = instruction["entries"] as? [[String: Any]] {
+                    for entry in entries {
+                        if let content = entry["content"] as? [String: Any],
+                           let cursorType = content["cursorType"] as? String,
+                           cursorType == "Bottom",
+                           let value = content["value"] as? String {
+                            bottomCursor = value
+                            break
+                        }
+                    }
+                }
+                if bottomCursor != nil {
+                    break
+                }
+            }
+        }
+
+        // 只有在有结果时才设置 currentSearchQuery 和显示翻页容器
+        if hasResults {
+            currentSearchQuery = searchQueryField.stringValue.trimmingCharacters(in: .whitespaces)
+            currentSearchCursor = bottomCursor
+            updateSearchPaginationControls()
+        } else {
+            currentSearchQuery = nil
+            searchPaginationContainer?.isHidden = true
+        }
+
+        print("[LocalBridgeMac] handleSearchTimelineResponse: hasResults=\(hasResults) bottomCursor=\(bottomCursor ?? "<nil>")")
+    }
+
     private func selectedApiID() -> String? {
         let row = tableView.selectedRow
         guard row >= 0, row < docs.count else { return nil }
         return docs[row].id
     }
-    
+
+    private func showAlert(title: String, message: String) {
+        let alert = NSAlert()
+        alert.messageText = title
+        alert.informativeText = message
+        alert.alertStyle = .warning
+        alert.addButton(withTitle: "OK")
+        alert.runModal()
+    }
+
     private func methodColor(_ method: String) -> NSColor {
         switch method.uppercased() {
         case "GET": return DSV2.secondary

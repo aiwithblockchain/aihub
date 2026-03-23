@@ -32,6 +32,30 @@ export const baseFeatures = {
     c9s_tweet_anatomy_moderator_badge_enabled: true
 };
 
+// Per-operation features for SearchTimeline
+export const searchTimelineFeatures = {
+    profile_label_improvements_pcf_label_in_post_enabled: true,
+    responsive_web_profile_redirect_enabled: false,
+    rweb_tipjar_consumption_enabled: false,
+    verified_phone_label_enabled: false,
+    premium_content_api_read_enabled: false,
+    responsive_web_grok_analyze_button_fetch_trends_enabled: false,
+    responsive_web_grok_analyze_post_followups_enabled: true,
+    responsive_web_jetfuel_frame: true,
+    responsive_web_grok_share_attachment_enabled: true,
+    responsive_web_grok_annotations_enabled: true,
+    tweet_awards_web_tipping_enabled: false,
+    content_disclosure_indicator_enabled: true,
+    content_disclosure_ai_generated_indicator_enabled: true,
+    responsive_web_grok_show_grok_translated_post: false,
+    responsive_web_grok_analysis_button_from_backend: true,
+    post_ctas_fetch_enabled: true,
+    longform_notetweets_inline_media_enabled: false,
+    responsive_web_grok_image_annotation_enabled: true,
+    responsive_web_grok_imagine_annotation_enabled: true,
+    responsive_web_grok_community_note_auto_translation_is_enabled: false
+};
+
 export async function extractMissingFeature(body: string): Promise<string | null> {
     if (!body) return null;
     // X normally returns: "cannot be null: some_feature_flag"
@@ -59,6 +83,11 @@ export async function buildFeatures(op?: string): Promise<Record<string, boolean
     const perOpFeatures = (data[__DBK_per_op_features] || {}) as Record<string, Record<string, boolean>>;
 
     const opSpecific = op ? (perOpFeatures[op] || {}) : {};
+
+    // Special handling for SearchTimeline - use hardcoded features if not cached
+    if (op === 'SearchTimeline' && Object.keys(opSpecific).length === 0) {
+        return { ...baseFeatures, ...globalDynamic, ...searchTimelineFeatures };
+    }
 
     return { ...baseFeatures, ...globalDynamic, ...opSpecific };
 }

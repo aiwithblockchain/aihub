@@ -256,8 +256,22 @@ func (h *Handler) userProfile(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) searchTimeline(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_search")
+	query := r.URL.Query().Get("query")
+	cursor := r.URL.Query().Get("cursor")
+	count := 20
+	if c := r.URL.Query().Get("count"); c != "" {
+		if n, err := strconv.Atoi(c); err == nil && n > 0 {
+			count = n
+		}
+	}
+
 	h.bridge(w, "tweetClaw", id, buildMsg(id, "request.query_search_timeline", "tweetClaw",
-		types.QuerySearchTimelineRequest{TabID: parseTabID(r)}), 8000,
+		types.QuerySearchTimelineRequest{
+			TabID:  parseTabID(r),
+			Query:  query,
+			Cursor: cursor,
+			Count:  count,
+		}), 8000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
