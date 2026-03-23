@@ -11,6 +11,8 @@
 
 import { INJECTION_SOURCE, MsgType } from '../capture/consts';
 import { ChatGptAdapter } from '../adapters/chatgpt-adapter';
+import { GeminiAdapter } from '../adapters/gemini-adapter';
+import { GrokAdapter } from '../adapters/grok-adapter';
 import type { ExecuteTaskPayload, ExecuteTaskResultPayload } from '../bridge/ws-protocol';
 
 // ── 1. 注入 injection.js 到页面 MAIN world ──
@@ -45,7 +47,10 @@ function detectPlatform(): string {
 
 // ── Adapter 工厂 ──
 function getAdapter(platform: string) {
-    if (platform === 'chatgpt' || platform === 'ChatGPT') return new ChatGptAdapter();
+    const p = platform.toLowerCase();
+    if (p === 'chatgpt') return new ChatGptAdapter();
+    if (p === 'gemini') return new GeminiAdapter();
+    if (p === 'grok') return new GrokAdapter();
     return null;
 }
 

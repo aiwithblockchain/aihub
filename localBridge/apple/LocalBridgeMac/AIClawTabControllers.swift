@@ -14,6 +14,10 @@ final class AIClawHumanViewController: NSViewController {
     private var instanceSelector: InstanceSelector!
     private let refreshInstancesButton = NSButton(title: "↻", target: nil, action: #selector(refreshInstancesClicked))
     private var instanceSnapshots: [LocalBridgeGoManager.InstanceSnapshot] = []
+    private var isRefreshingInstances = false
+    private var refreshAnimationTimer: Timer?
+    private let refreshFrames = ["↻", "↺", "↻", "↺"]
+    private var refreshFrameIndex = 0
 
     private var resultTextView: NSTextView!
     private var resultScrollView: NSScrollView!
@@ -56,7 +60,63 @@ final class AIClawHumanViewController: NSViewController {
     }
 
     @objc private func refreshInstancesClicked() {
-        loadInstances()
+        guard !isRefreshingInstances else { return }
+
+        setRefreshingInstances(true)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let all = AppDelegate.shared?.getConnectedInstances() ?? []
+            let snapshots = all.filter { $0.clientName == "aiClaw" }
+            
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                guard let self = self else { return }
+                self.instanceSnapshots = snapshots
+                self.updateInstanceLabel()
+                self.setRefreshingInstances(false)
+            }
+        }
+    }
+
+    private func setRefreshingInstances(_ isRefreshing: Bool) {
+        isRefreshingInstances = isRefreshing
+        refreshInstancesButton.isEnabled = !isRefreshing
+        applyRefreshButtonStyle(isRefreshing: isRefreshing)
+
+        if isRefreshing {
+            startRefreshAnimation()
+        } else {
+            stopRefreshAnimation()
+        }
+    }
+
+    private func startRefreshAnimation() {
+        stopRefreshAnimation()
+        refreshFrameIndex = 0
+        updateRefreshButtonSymbol(refreshFrames[refreshFrameIndex], isRefreshing: true)
+        refreshAnimationTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            self.refreshFrameIndex = (self.refreshFrameIndex + 1) % self.refreshFrames.count
+            self.updateRefreshButtonSymbol(self.refreshFrames[self.refreshFrameIndex], isRefreshing: true)
+        }
+    }
+
+    private func stopRefreshAnimation() {
+        refreshAnimationTimer?.invalidate()
+        refreshAnimationTimer = nil
+        updateRefreshButtonSymbol("↻", isRefreshing: false)
+    }
+
+    private func applyRefreshButtonStyle(isRefreshing: Bool = false) {
+        refreshInstancesButton.layer?.backgroundColor = (isRefreshing ? DSV2.primary.withAlphaComponent(0.18) : DSV2.surface).cgColor
+        refreshInstancesButton.layer?.borderColor = (isRefreshing ? DSV2.primary.withAlphaComponent(0.75) : DSV2.outlineVariant.withAlphaComponent(0.2)).cgColor
+        updateRefreshButtonSymbol(isRefreshing ? refreshFrames[refreshFrameIndex] : "↻", isRefreshing: isRefreshing)
+    }
+
+    private func updateRefreshButtonSymbol(_ symbol: String, isRefreshing: Bool) {
+        let attributes: [NSAttributedString.Key: Any] = [
+            .foregroundColor: isRefreshing ? NSColor.white : DSV2.onSurfaceVariant,
+            .font: DSV2.fontLabelMd
+        ]
+        refreshInstancesButton.attributedTitle = NSAttributedString(string: symbol, attributes: attributes)
     }
 
     private func setupUI() {
