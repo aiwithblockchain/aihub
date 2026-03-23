@@ -22,12 +22,12 @@
   {
     "id": "get_instances",
     "name": "Get Connected Instances",
-    "summary": "查询当前所有通过 WebSocket 连接到 LocalBridge 的浏览器扩展实例，用于多 Profile 场景下的路由选择。",
+    "summary": "查询当前所有通过 WebSocket 连接到 LocalBridge 的 tweetClaw 实例，用于 X 多 Profile 场景下的路由选择。",
     "method": "GET",
     "path": "/api/v1/x/instances",
-    "description": "此接口返回当前所有在线的浏览器扩展实例列表。当用户在多个浏览器 Profile 中同时运行 tweetClaw 或 aiClaw 扩展时，每个 Profile 会产生一个独立的连接实例，各自拥有唯一的 instanceId。调用方可通过此接口获取所有实例的 instanceId、clientName、连接时间、最后活跃时间等元数据，再将所需的 instanceId 附加到后续操作指令中，实现精准的多账号路由控制。若扩展版本较旧（未携带 instanceId），instanceId 将以 'tmp-' 开头，表示为临时标识符。",
+    "description": "资源模型：X 实例集合。该接口返回当前所有在线的 tweetClaw 浏览器扩展实例列表，不包含 aiClaw 等非 X 客户端。URI 使用 /api/v1/x/instances，表达“X 域下的实例资源集合”；HTTP 方法使用 GET，语义为读取。成功时返回 200 OK 和实例数组；失败时返回 500。返回字段包括 instanceId、instanceName、clientName、连接时间、最后活跃时间等元数据，调用方可将所需的 instanceId 附加到后续 X 相关操作中，实现精准的多账号路由控制。若扩展版本较旧（未携带稳定 instanceId），isTemporary 会标记为 true。",
     "curl": "curl -X GET http://127.0.0.1:10088/api/v1/x/instances",
-    "response": "[{\"clientName\":\"tweetClaw\",\"instanceId\":\"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\"clientVersion\":\"0.3.17\",\"capabilities\":[\"query_x_tabs_status\",\"query_x_basic_info\"],\"connectedAt\":\"2025-01-01T10:00:00Z\",\"lastSeenAt\":\"2025-01-01T10:05:00Z\"}]"
+    "response": "[{\"clientName\":\"tweetClaw\",\"instanceId\":\"a1b2c3d4-e5f6-7890-abcd-ef1234567890\",\"instanceName\":\"mac pro ws sonic2\",\"clientVersion\":\"0.3.17\",\"capabilities\":[\"query_x_tabs_status\",\"query_x_basic_info\"],\"connectedAt\":\"2025-01-01T10:00:00Z\",\"lastSeenAt\":\"2025-01-01T10:05:00Z\",\"isTemporary\":false}]"
   },
   {
     "id": "query_x_basic_info",

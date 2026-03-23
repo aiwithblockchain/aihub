@@ -1967,6 +1967,7 @@ class LocalBridgeWebSocketServer {
         let formatter = ISO8601DateFormatter()
 
         for (clientName, clientSessions) in sessions {
+            guard clientName == "tweetClaw" else { continue }
             for (instanceId, session) in clientSessions {
                 var item: [String: Any] = [
                     "clientName": clientName,
@@ -1976,9 +1977,13 @@ class LocalBridgeWebSocketServer {
                     "clientVersion": session.clientVersion,
                     "capabilities": session.capabilities
                 ]
+                if let instanceName = session.instanceName {
+                    item["instanceName"] = instanceName
+                }
                 if let screenName = session.xScreenName {
                     item["xScreenName"] = screenName
                 }
+                item["isTemporary"] = instanceId.hasPrefix("tmp-")
                 result.append(item)
             }
         }

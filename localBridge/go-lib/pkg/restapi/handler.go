@@ -267,7 +267,14 @@ func (h *Handler) navigateTab(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) instances(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(h.ws.GetInstances())
+	allInstances := h.ws.GetInstances()
+	xInstances := make([]websocket.InstanceSnapshot, 0, len(allInstances))
+	for _, instance := range allInstances {
+		if instance.ClientName == "tweetClaw" {
+			xInstances = append(xInstances, instance)
+		}
+	}
+	json.NewEncoder(w).Encode(xInstances)
 }
 
 func (h *Handler) apiDocs(w http.ResponseWriter, r *http.Request) {
