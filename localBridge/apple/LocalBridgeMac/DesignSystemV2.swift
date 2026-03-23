@@ -355,7 +355,7 @@ class InstanceSelector: NSView {
     private let titleLabel = NSTextField(labelWithString: "")
     private let idLabel = NSTextField(labelWithString: "")
     private let dropdownButton = NSButton()
-    private var instances: [(id: String, isTemporary: Bool)] = []
+    private var instances: [(id: String, name: String?, isTemporary: Bool)] = []
     private var selectedIndex: Int = 0
     private let target: AnyObject?
     private let action: Selector
@@ -426,7 +426,8 @@ class InstanceSelector: NSView {
 
         let menu = NSMenu()
         for (index, instance) in instances.enumerated() {
-            let title = instance.isTemporary ? "\(instance.id) (legacy)" : instance.id
+            let displayName = instance.name ?? instance.id
+            let title = instance.isTemporary ? "\(displayName) (legacy)" : displayName
             let item = NSMenuItem(title: title, action: #selector(selectInstance(_:)), keyEquivalent: "")
             item.target = self
             item.tag = index
@@ -444,7 +445,7 @@ class InstanceSelector: NSView {
         _ = target?.perform(action, with: self)
     }
 
-    func setInstances(_ instances: [(id: String, isTemporary: Bool)]) {
+    func setInstances(_ instances: [(id: String, name: String?, isTemporary: Bool)]) {
         self.instances = instances
         if !instances.isEmpty && selectedIndex >= instances.count {
             selectedIndex = 0
@@ -462,7 +463,8 @@ class InstanceSelector: NSView {
             idLabel.stringValue = "No instance available"
         } else {
             let instance = instances[selectedIndex]
-            idLabel.stringValue = instance.isTemporary ? "\(instance.id) (legacy)" : instance.id
+            let displayName = instance.name ?? instance.id
+            idLabel.stringValue = instance.isTemporary ? "\(displayName) (legacy)" : displayName
         }
     }
 }

@@ -47,7 +47,7 @@ final class AIClawHumanViewController: NSViewController {
     }
 
     private func updateInstanceLabel() {
-        let instances = instanceSnapshots.map { (id: $0.instanceId, isTemporary: $0.isTemporary) }
+        let instances = instanceSnapshots.map { (id: $0.instanceId, name: $0.instanceName, isTemporary: $0.isTemporary) }
         instanceSelector.setInstances(instances)
     }
 
