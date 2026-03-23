@@ -21,6 +21,7 @@ type QueryXTabsStatusResponse struct {
 }
 
 type QueryXBasicInfoResponse struct {
+	// Core fields
 	IsLoggedIn     bool        `json:"isLoggedIn"`
 	Name           *string     `json:"name"`
 	ScreenName     *string     `json:"screenName"`
@@ -32,6 +33,25 @@ type QueryXBasicInfoResponse struct {
 	Avatar         *string     `json:"avatar"`
 	Description    *string     `json:"description"`
 	CreatedAt      *string     `json:"createdAt"`
+
+	// Extended fields from UserProfile
+	IsFollowing              *bool    `json:"isFollowing"`
+	ListedCount              *int     `json:"listedCount"`
+	FavouritesCount          *int     `json:"favouritesCount"`
+	MediaCount               *int     `json:"mediaCount"`
+	FollowerRatio            *float64 `json:"followerRatio"`
+	IsBlueVerified           *bool    `json:"isBlueVerified"`
+	CanHighlightTweets       *bool    `json:"canHighlightTweets"`
+	HasAffiliateLabel        *bool    `json:"hasAffiliateLabel"`
+	IsSuperFollowEligible    *bool    `json:"isSuperFollowEligible"`
+	HasProfileBanner         *bool    `json:"hasProfileBanner"`
+	HasProfessionalType      *bool    `json:"hasProfessionalType"`
+	HasHiddenSubscriptions   *bool    `json:"hasHiddenSubscriptions"`
+	HasDescription           *bool    `json:"hasDescription"`
+	AccountAgeDays           *int     `json:"accountAgeDays"`
+	AvgTweetsPerDay          *float64 `json:"avgTweetsPerDay"`
+	CreatorSubscriptionsCount *int    `json:"creatorSubscriptionsCount"`
+
 	Raw            interface{} `json:"raw"`
 	UpdatedAt      *int64      `json:"updatedAt"`
 }

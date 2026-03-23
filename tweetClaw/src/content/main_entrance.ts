@@ -1,6 +1,7 @@
 import { MsgType } from '../capture/consts';
 import { performMutation, performLegacyREST, fetchUserByScreenName } from '../x_api/twitter_api';
 import { findDeepUser } from '../capture/extractor';
+import { UserProfile } from '../object/user_info';
 
 /**
  * main_entrance.ts - Content Script Supervisor
@@ -226,24 +227,14 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             try {
                 const cleanName = (message.screenName as string).replace('@', '');
                 const json = await fetchUserByScreenName(cleanName);
-                const { findDeepUser } = await import('../capture/extractor');
-                const userResult = findDeepUser(json);
-                if (!userResult) throw new Error('User not found or unavailable');
 
-                const legacy = userResult?.legacy ?? {};
-                const data = {
-                    userId: userResult?.rest_id || '',
-                    screenName: legacy.screen_name || '',
-                    name: legacy.name || '',
-                    description: legacy.description || '',
-                    followersCount: legacy.followers_count,
-                    friendsCount: legacy.friends_count,
-                    statusesCount: legacy.statuses_count,
-                    verified: userResult?.is_blue_verified || legacy.verified || false,
-                    createdAt: legacy.created_at || '',
-                    avatar: (legacy.profile_image_url_https || '').replace('_normal', '')
-                };
-                sendResponse({ success: true, data });
+                // Use UserProfile class for complete field extraction
+                const userProfile = new UserProfile(json);
+                if (!userProfile.isValid) {
+                    throw new Error('User not found or unavailable');
+                }
+
+                sendResponse({ success: true, data: userProfile.toJSON() });
             } catch (e: any) {
                 sendResponse({ success: false, error: e.message });
             }
