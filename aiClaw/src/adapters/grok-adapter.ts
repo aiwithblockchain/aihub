@@ -10,16 +10,10 @@ export class GrokAdapter extends BasePlatformAdapter {
     readonly platform: PlatformType = 'grok';
 
     public isTargetApiUrl(url: string): boolean {
-        // TODO: Implement this based on packet sniffing
         return false;
     }
 
-    public extractCredentials(
-        url: string,
-        requestHeaders: Record<string, string>,
-        responseBody: any
-    ): Partial<Credentials> {
-        // TODO: Implement this based on packet sniffing
+    public extractCredentials(): Partial<Credentials> {
         return {};
     }
 
@@ -27,7 +21,7 @@ export class GrokAdapter extends BasePlatformAdapter {
         request: Pick<SendMessageRequest, 'model'>
     ): Promise<SendMessageResponse> {
         try {
-            const newChatBtn = document.querySelector<HTMLElement>('a[href="/"], button[aria-label="New chat"]');
+            const newChatBtn = document.querySelector<HTMLElement>('a[href="/"], button[aria-label*="New chat"], a[aria-label*="New"]');
             if (newChatBtn) {
                 newChatBtn.click();
                 await new Promise(r => setTimeout(r, 2000));
@@ -47,61 +41,86 @@ export class GrokAdapter extends BasePlatformAdapter {
     ): Promise<SendMessageResponse> {
         return new Promise(async (resolve) => {
             try {
-                // 1. Find input
-                let input = document.querySelector<HTMLTextAreaElement>('textarea[placeholder*="Ask Grok"], textarea');
+                // 1. Find input: Grok uses tiptap ProseMirror div
+                let input = document.querySelector<HTMLElement>('div.tiptap.ProseMirror, textarea[placeholder*="Ask Grok"], textarea');
                 if (!input) {
-                    resolve({ success: false, error: 'Cannot find Grok input box', content: '' });
+                    resolve({ success: false, error: 'Cannot find Grok input box (tiptap.ProseMirror)', content: '' });
                     return;
                 }
                 
                 input.focus();
-                input.value = request.prompt;
-                input.dispatchEvent(new Event('input', { bubbles: true }));
+                
+                // If it's contenteditable (ProseMirror):
+                if (input.getAttribute('contenteditable') === 'true' || input.tagName === 'DIV') {
+                    document.execCommand('selectAll', false);
+                    document.execCommand('delete', false);
+                    document.execCommand('insertText', false, request.prompt);
+                } else {
+                    // Fallback to older textarea
+                    const textarea = input as HTMLTextAreaElement;
+                    textarea.value = request.prompt;
+                    textarea.dispatchEvent(new Event('input', { bubbles: true }));
+                }
                 
                 await new Promise(r => setTimeout(r, 500));
                 
-                // 2. Find send button
-                let sendBtn = document.querySelector<HTMLElement>('button[aria-label*="Grok"], button[aria-label*="send"], button svg path[d*="M2.01 21L23 12 2.01 3"]');
-                let actualBtn = sendBtn?.closest('button') || sendBtn;
-                if (!actualBtn || (actualBtn as HTMLButtonElement).disabled) {
-                    // Try pressing Enter instead
-                    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true, cancelable: true }));
+                // 2. Count messages before send
+                const msgsBefore = document.querySelectorAll('.message-bubble').length;
+                
+                // 3. Find send button: Grok uses button[aria-label="Submit"]
+                let sendBtn = document.querySelector<HTMLElement>('button[aria-label="Submit" i], button[aria-label*="Grok something" i], button[aria-label*="send" i]');
+                if (!sendBtn || (sendBtn as HTMLButtonElement).disabled) {
+                    // Try Enter key
+                    input.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', keyCode: 13, which: 13, bubbles: true, cancelable: true }));
                 } else {
-                    actualBtn.click();
+                    sendBtn.click();
                 }
                 
-                const msgsBefore = document.querySelectorAll('.message-content, [class*="message"]').length;
-                
-                // 3. Wait for generation to start and finish
+                // 4. Wait for generation to start and finish
                 let waitTime = 0;
+                let lastContent = '';
                 while (waitTime < 120000) {
                     await new Promise(r => setTimeout(r, 1000));
                     waitTime += 1000;
                     
-                    let stopBtn = document.querySelector('button[aria-label*="Stop"]');
-                    if (stopBtn) continue;
+                    // Stop btn: button[aria-label="Stop model response"]
+                    let stopBtn = document.querySelector('button[aria-label*="Stop model response" i], button[aria-label*="Stop" i]');
+                    if (stopBtn) {
+                        // Keep lastContent synced during generation
+                        let msgsForUpdate = document.querySelectorAll('.message-bubble');
+                        if (msgsForUpdate.length > msgsBefore) {
+                            lastContent = msgsForUpdate[msgsForUpdate.length - 1].textContent || '';
+                        }
+                        continue;
+                    }
                     
-                    let msgsAfter = document.querySelectorAll('.message-content, [class*="message"]');
+                    let msgsAfter = document.querySelectorAll('.message-bubble');
                     if (msgsAfter.length > msgsBefore) {
                         const lastMsg = msgsAfter[msgsAfter.length - 1];
+                        const currentContent = lastMsg.textContent || '';
+                        
+                        // Ignore empty text
+                        if (currentContent.trim() === '') {
+                            continue;
+                        }
+                        
+                        // Wait until content stops changing for 2 cycles
+                        if (currentContent !== lastContent) {
+                            lastContent = currentContent;
+                            continue;
+                        }
+                        
+                        // Ignore if it's identical to prompt (user message caught in race condition)
+                        if (currentContent.trim() === request.prompt.trim()) {
+                            continue;
+                        }
+                        
                         resolve({
                             success: true,
-                            content: lastMsg.textContent || '',
+                            content: currentContent.trim(),
                             conversationId: undefined
                         });
                         return;
-                    }
-                    
-                    // Also check if Send button is re-enabled
-                    let currentBtn = document.querySelector<HTMLElement>('button[aria-label*="Grok"], button[aria-label*="send"]');
-                    if (currentBtn && !(currentBtn as HTMLButtonElement).disabled && msgsAfter.length > 0) {
-                       const lastMsg = msgsAfter[msgsAfter.length - 1];
-                       resolve({
-                            success: true,
-                            content: lastMsg.textContent || '',
-                            conversationId: undefined
-                       });
-                       return;
                     }
                 }
                 
