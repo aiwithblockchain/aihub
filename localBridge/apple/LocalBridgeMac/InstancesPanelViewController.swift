@@ -35,7 +35,26 @@ final class InstancesPanelViewController: NSViewController {
     }
 
     @objc private func handleThemeChange() {
+        // 更新背景色
         view.layer?.backgroundColor = DSV2.surface.cgColor
+
+        // 更新标题和副标题颜色
+        titleLabel.textColor = DSV2.onSurface
+        subtitleLabel.textColor = DSV2.onSurfaceVariant
+
+        // 更新刷新按钮
+        refreshButton.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.1).cgColor
+        refreshButton.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
+        let buttonAttributes: [NSAttributedString.Key: Any] = [
+            .foregroundColor: DSV2.onSurface,
+            .font: DSV2.fontLabelMd
+        ]
+        refreshButton.attributedTitle = NSAttributedString(string: "刷新", attributes: buttonAttributes)
+        refreshButton.contentTintColor = DSV2.onSurface
+
+        // 重新构建网格视图以更新实例卡片
+        rebuildGridView()
+
         view.needsDisplay = true
     }
 
@@ -55,18 +74,18 @@ final class InstancesPanelViewController: NSViewController {
     // MARK: - Setup
 
     private func setupUI() {
-        // 设置主视图背景为深色
+        // 设置主视图背景
         view.wantsLayer = true
         view.layer?.backgroundColor = DSV2.surface.cgColor
 
         // Title - 使用 DSV2 样式
         titleLabel.font = NSFont.systemFont(ofSize: 20, weight: .bold)
-        titleLabel.textColor = NSColor(hex: "#E5E2E1")
+        titleLabel.textColor = DSV2.onSurface
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
         // Subtitle - 使用更小的字体和大写样式
         subtitleLabel.font = NSFont.systemFont(ofSize: 11, weight: .medium)
-        subtitleLabel.textColor = NSColor(hex: "#A0A0A0")
+        subtitleLabel.textColor = DSV2.onSurfaceVariant
         subtitleLabel.stringValue = "REAL-TIME EXTENSION HEALTH & BRIDGE METRICS"
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
 
@@ -241,10 +260,10 @@ final class InstancesPanelViewController: NSViewController {
         // 图标容器 - 带背景的方形图标
         let iconContainer = NSView(frame: NSRect(x: padding, y: cardHeight - padding - 48, width: 48, height: 48))
         iconContainer.wantsLayer = true
-        iconContainer.layer?.backgroundColor = NSColor(hex: "#1E1E1E").cgColor
+        iconContainer.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
         iconContainer.layer?.cornerRadius = DSV2.radiusCard
         iconContainer.layer?.borderWidth = 1
-        iconContainer.layer?.borderColor = NSColor(hex: "#3A3A3A").withAlphaComponent(0.5).cgColor
+        iconContainer.layer?.borderColor = DSV2.surfaceContainerHigh.withAlphaComponent(0.5).cgColor
         card.addSubview(iconContainer)
 
         let symbolName = instance.clientName == "tweetClaw" ? "network" : "cpu"
@@ -259,7 +278,7 @@ final class InstancesPanelViewController: NSViewController {
         // 扩展名称
         let nameLabel = NSTextField(labelWithString: instance.clientName)
         nameLabel.font = DSV2.fontTitleLg
-        nameLabel.textColor = NSColor(hex: "#E5E2E1")
+        nameLabel.textColor = DSV2.onSurface
         nameLabel.isBordered = false
         nameLabel.isEditable = false
         nameLabel.drawsBackground = false
@@ -269,7 +288,7 @@ final class InstancesPanelViewController: NSViewController {
         // 版本标签
         let versionLabel = NSTextField(labelWithString: "v\(instance.clientVersion)")
         versionLabel.font = DSV2.fontMonoSm
-        versionLabel.textColor = NSColor(hex: "#737373")
+        versionLabel.textColor = DSV2.onSurfaceVariant
         versionLabel.isBordered = false
         versionLabel.isEditable = false
         versionLabel.drawsBackground = false
@@ -282,21 +301,21 @@ final class InstancesPanelViewController: NSViewController {
 
         let statusBadge = NSView(frame: NSRect(x: cardWidth - padding - 70, y: cardHeight - padding - 24, width: 70, height: 24))
         statusBadge.wantsLayer = true
-        statusBadge.layer?.backgroundColor = (isActive ? DSV2.tertiary : NSColor(hex: "#3A3A3A")).withAlphaComponent(0.1).cgColor
+        statusBadge.layer?.backgroundColor = (isActive ? DSV2.tertiary : DSV2.surfaceContainerHigh).withAlphaComponent(0.1).cgColor
         statusBadge.layer?.borderWidth = 1
-        statusBadge.layer?.borderColor = (isActive ? DSV2.tertiary : NSColor(hex: "#525252")).withAlphaComponent(0.2).cgColor
+        statusBadge.layer?.borderColor = (isActive ? DSV2.tertiary : DSV2.outlineVariant).withAlphaComponent(0.2).cgColor
         statusBadge.layer?.cornerRadius = 12
         card.addSubview(statusBadge)
 
         let statusDot = NSView(frame: NSRect(x: 8, y: 8, width: 8, height: 8))
         statusDot.wantsLayer = true
-        statusDot.layer?.backgroundColor = (isActive ? DSV2.tertiary : NSColor(hex: "#737373")).cgColor
+        statusDot.layer?.backgroundColor = (isActive ? DSV2.tertiary : DSV2.onSurfaceVariant).cgColor
         statusDot.layer?.cornerRadius = 4
         statusBadge.addSubview(statusDot)
 
         let statusText = NSTextField(labelWithString: isActive ? "ACTIVE" : "IDLE")
         statusText.font = NSFont.systemFont(ofSize: 9, weight: .bold)
-        statusText.textColor = isActive ? DSV2.tertiary : NSColor(hex: "#737373")
+        statusText.textColor = isActive ? DSV2.tertiary : DSV2.onSurfaceVariant
         statusText.isBordered = false
         statusText.isEditable = false
         statusText.drawsBackground = false
@@ -309,15 +328,15 @@ final class InstancesPanelViewController: NSViewController {
         if let instanceName = instance.instanceName {
             let nameContainer = NSView(frame: NSRect(x: padding + 60, y: currentY, width: cardWidth - padding - 80, height: 18))
             nameContainer.wantsLayer = true
-            nameContainer.layer?.backgroundColor = NSColor(hex: "#1A4D2E").withAlphaComponent(0.3).cgColor
+            nameContainer.layer?.backgroundColor = DSV2.tertiary.withAlphaComponent(0.3).withAlphaComponent(0.3).cgColor
             nameContainer.layer?.cornerRadius = 4
             nameContainer.layer?.borderWidth = 1
-            nameContainer.layer?.borderColor = NSColor(hex: "#2D5F3F").withAlphaComponent(0.5).cgColor
+            nameContainer.layer?.borderColor = DSV2.tertiary.withAlphaComponent(0.5).cgColor
             card.addSubview(nameContainer)
 
             let namePrefix = NSTextField(labelWithString: "NAME:")
             namePrefix.font = DSV2.fontMonoSm
-            namePrefix.textColor = NSColor(hex: "#4ADE80")
+            namePrefix.textColor = DSV2.tertiary
             namePrefix.isBordered = false
             namePrefix.isEditable = false
             namePrefix.drawsBackground = false
@@ -326,7 +345,7 @@ final class InstancesPanelViewController: NSViewController {
 
             let nameLabel = NSTextField(labelWithString: instanceName)
             nameLabel.font = DSV2.fontMonoSm
-            nameLabel.textColor = NSColor(hex: "#86EFAC")
+            nameLabel.textColor = DSV2.tertiary.withAlphaComponent(0.8)
             nameLabel.isBordered = false
             nameLabel.isEditable = false
             nameLabel.drawsBackground = false
@@ -339,15 +358,15 @@ final class InstancesPanelViewController: NSViewController {
         // Instance ID 容器（带复制按钮）
         let idContainer = NSView(frame: NSRect(x: padding + 60, y: currentY, width: cardWidth - padding - 80, height: 18))
         idContainer.wantsLayer = true
-        idContainer.layer?.backgroundColor = NSColor(hex: "#0E0E0E").withAlphaComponent(0.5).cgColor
+        idContainer.layer?.backgroundColor = DSV2.surfaceContainerLowest.withAlphaComponent(0.5).cgColor
         idContainer.layer?.cornerRadius = 4
         idContainer.layer?.borderWidth = 1
-        idContainer.layer?.borderColor = NSColor(hex: "#1E1E1E").withAlphaComponent(0.5).cgColor
+        idContainer.layer?.borderColor = DSV2.surfaceContainerLow.withAlphaComponent(0.5).cgColor
         card.addSubview(idContainer)
 
         let idPrefix = NSTextField(labelWithString: "ID:")
         idPrefix.font = DSV2.fontMonoSm
-        idPrefix.textColor = NSColor(hex: "#737373")
+        idPrefix.textColor = DSV2.onSurfaceVariant
         idPrefix.isBordered = false
         idPrefix.isEditable = false
         idPrefix.drawsBackground = false
@@ -357,7 +376,7 @@ final class InstancesPanelViewController: NSViewController {
         let displayId = String(instance.instanceId.prefix(12))
         let idLabel = NSTextField(labelWithString: displayId)
         idLabel.font = DSV2.fontMonoSm
-        idLabel.textColor = NSColor(hex: "#A0A0A0")
+        idLabel.textColor = DSV2.onSurfaceTertiary
         idLabel.isBordered = false
         idLabel.isEditable = false
         idLabel.drawsBackground = false
@@ -382,7 +401,7 @@ final class InstancesPanelViewController: NSViewController {
             width: metricWidth,
             title: isActive ? "LATENCY" : "LAST SEEN",
             value: isActive ? "24ms" : timeAgoString(from: instance.lastSeenAt),
-            valueColor: isActive ? DSV2.secondary : NSColor(hex: "#C9C5C4")
+            valueColor: isActive ? DSV2.secondary : DSV2.onSurfaceVariant
         )
 
         // 指标2：连接时间
@@ -393,7 +412,7 @@ final class InstancesPanelViewController: NSViewController {
             width: metricWidth,
             title: "CONNECTED SINCE",
             value: shortTimeFormatter.string(from: instance.connectedAt),
-            valueColor: NSColor(hex: "#C9C5C4")
+            valueColor: DSV2.onSurfaceVariant
         )
 
         // 指标3：状态信息
@@ -404,7 +423,7 @@ final class InstancesPanelViewController: NSViewController {
             width: metricWidth,
             title: instance.isTemporary ? "TYPE" : "STATUS",
             value: instance.isTemporary ? "Legacy" : "Active",
-            valueColor: NSColor(hex: "#C9C5C4")
+            valueColor: DSV2.onSurfaceVariant
         )
 
         return card
@@ -413,7 +432,7 @@ final class InstancesPanelViewController: NSViewController {
     private func createMetric(in container: NSView, x: CGFloat, y: CGFloat, width: CGFloat, title: String, value: String, valueColor: NSColor) {
         let titleLabel = NSTextField(labelWithString: title)
         titleLabel.font = NSFont.systemFont(ofSize: 9, weight: .bold)
-        titleLabel.textColor = NSColor(hex: "#737373")
+        titleLabel.textColor = DSV2.onSurfaceVariant
         titleLabel.isBordered = false
         titleLabel.isEditable = false
         titleLabel.drawsBackground = false

@@ -323,16 +323,57 @@ final class SettingsViewController: NSViewController {
     }
 
     private func applyTheme() {
+        // 更新主视图背景
         view.layer?.backgroundColor = DSV2.surface.cgColor
-        // 刷新所有子视图
+
+        // 更新标题颜色
+        titleLabel.textColor = DSV2.onSurface
+
+        // 递归更新所有卡片和子视图
+        updateViewColors(view)
+
+        // 强制重绘
         view.needsDisplay = true
-        view.subviews.forEach { $0.needsDisplay = true }
+        view.needsLayout = true
+    }
+
+    private func updateViewColors(_ view: NSView) {
+        // 更新 layer 背景色
+        if let layer = view.layer {
+            // 检查是否是卡片背景
+            if layer.cornerRadius == 12 {
+                layer.backgroundColor = DSV2.surfaceContainerLow.cgColor
+            }
+            // 更新边框颜色
+            if layer.borderWidth > 0 {
+                layer.borderColor = DSV2.outlineVariant.withAlphaComponent(0.3).cgColor
+            }
+        }
+
+        // 更新文本颜色
+        if let textField = view as? NSTextField, !textField.isEditable || textField is CenteredTextField {
+            // 根据字体大小判断是标题还是普通文本
+            if let font = textField.font {
+                if font.pointSize >= 20 {
+                    textField.textColor = DSV2.onSurface
+                } else if font.pointSize >= 13 {
+                    textField.textColor = DSV2.onSurface
+                } else {
+                    textField.textColor = DSV2.onSurfaceVariant
+                }
+            }
+        }
+
+        // 递归处理子视图
+        for subview in view.subviews {
+            updateViewColors(subview)
+        }
     }
 
     private func setupUI() {
         // Title
         titleLabel.font = NSFont.systemFont(ofSize: 28, weight: .bold)
-        titleLabel.textColor = NSColor(hex: "#E5E2E1")
+        titleLabel.textColor = DSV2.onSurface
         titleLabel.stringValue = "App Configuration"
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
@@ -347,7 +388,7 @@ final class SettingsViewController: NSViewController {
         stayOnTopCheckbox.translatesAutoresizingMaskIntoConstraints = false
         stayOnTopCheckbox.target = self
         if #available(macOS 10.14, *) {
-            stayOnTopCheckbox.contentTintColor = NSColor(hex: "#4A9EFF")
+            stayOnTopCheckbox.contentTintColor = DSV2.primary
         }
 
         // 创建卡片
@@ -499,7 +540,7 @@ final class SettingsViewController: NSViewController {
 
         let label = NSTextField(labelWithString: "Keep window on top")
         label.font = DSV2.fontBodyMd
-        label.textColor = NSColor(hex: "#E5E2E1")
+        label.textColor = DSV2.onSurface
         label.isBordered = false
         label.isEditable = false
         label.drawsBackground = false
@@ -507,7 +548,7 @@ final class SettingsViewController: NSViewController {
 
         let hint = NSTextField(labelWithString: "Ensure LocalBridge remains visible above other applications.")
         hint.font = NSFont.systemFont(ofSize: 11, weight: .regular)
-        hint.textColor = NSColor(hex: "#737373")
+        hint.textColor = DSV2.onSurfaceVariant
         hint.isBordered = false
         hint.isEditable = false
         hint.drawsBackground = false
@@ -645,7 +686,7 @@ final class SettingsViewController: NSViewController {
 
         let titleLabel = NSTextField(labelWithString: title.uppercased())
         titleLabel.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        titleLabel.textColor = NSColor(hex: "#737373")
+        titleLabel.textColor = DSV2.onSurfaceVariant
         titleLabel.isBordered = false
         titleLabel.isEditable = false
         titleLabel.drawsBackground = false
@@ -688,7 +729,7 @@ final class SettingsViewController: NSViewController {
             chevronView.image = NSImage(systemSymbolName: "chevron.right", accessibilityDescription: nil)
             chevronView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 14, weight: .medium)
         }
-        chevronView.contentTintColor = NSColor(hex: "#737373")
+        chevronView.contentTintColor = DSV2.onSurfaceVariant
         chevronView.translatesAutoresizingMaskIntoConstraints = false
 
         // Header
@@ -705,7 +746,7 @@ final class SettingsViewController: NSViewController {
 
         let titleLabel = NSTextField(labelWithString: title)
         titleLabel.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        titleLabel.textColor = NSColor(hex: "#737373")
+        titleLabel.textColor = DSV2.onSurfaceVariant
         titleLabel.isBordered = false
         titleLabel.isEditable = false
         titleLabel.drawsBackground = false
@@ -849,7 +890,7 @@ class ServiceConfigView: NSView {
 
             let lanLabel = NSTextField(labelWithString: "LAN IP ADDRESSES (OPTIONAL)")
             lanLabel.font = NSFont.systemFont(ofSize: 11, weight: .semibold)
-            lanLabel.textColor = NSColor(hex: "#737373")
+            lanLabel.textColor = DSV2.onSurfaceVariant
             lanLabel.isBordered = false
             lanLabel.isEditable = false
             lanLabel.drawsBackground = false
@@ -882,7 +923,7 @@ class ServiceConfigView: NSView {
 
         let label = NSTextField(labelWithString: "127.0.0.1")
         label.font = DSV2.fontMonoMd
-        label.textColor = NSColor(hex: "#E5E2E1")
+        label.textColor = DSV2.onSurface
         label.isBordered = false
         label.isEditable = false
         label.drawsBackground = false
@@ -901,7 +942,7 @@ class ServiceConfigView: NSView {
         localhostPortField.isBordered = false
         localhostPortField.drawsBackground = false
         localhostPortField.font = NSFont.monospacedSystemFont(ofSize: 14, weight: .medium)
-        localhostPortField.textColor = NSColor(hex: "#E5E2E1")
+        localhostPortField.textColor = DSV2.onSurface
         localhostPortField.alignment = .center
         localhostPortField.focusRingType = .none
         localhostPortField.isEditable = true
@@ -951,7 +992,7 @@ class ServiceConfigView: NSView {
 
         let label = NSTextField(labelWithString: ip)
         label.font = DSV2.fontMonoMd
-        label.textColor = NSColor(hex: "#E5E2E1")
+        label.textColor = DSV2.onSurface
         label.isBordered = false
         label.isEditable = false
         label.drawsBackground = false
@@ -970,7 +1011,7 @@ class ServiceConfigView: NSView {
         portField.isBordered = false
         portField.drawsBackground = false
         portField.font = NSFont.monospacedSystemFont(ofSize: 14, weight: .medium)
-        portField.textColor = NSColor(hex: "#E5E2E1")
+        portField.textColor = DSV2.onSurface
         portField.alignment = .center
         portField.focusRingType = .none
         portField.isEditable = true
@@ -1147,7 +1188,7 @@ class ServiceConfigView: NSView {
         field.isBordered = false
         field.drawsBackground = true
         field.backgroundColor = DSV2.surfaceContainerLowest
-        field.textColor = NSColor(hex: "#E5E2E1")
+        field.textColor = DSV2.onSurface
         field.font = NSFont.monospacedSystemFont(ofSize: 14, weight: .medium)
         field.translatesAutoresizingMaskIntoConstraints = false
         field.focusRingType = .none

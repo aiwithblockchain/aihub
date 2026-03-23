@@ -68,8 +68,25 @@ final class SidebarViewController: NSViewController {
     }
 
     @objc private func handleThemeChange() {
+        // 更新侧边栏背景色
+        view.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
+
+        // 更新按钮颜色
+        settingsButton.contentTintColor = DSV2.onSurfaceVariant
+        quitButton.contentTintColor = DSV2.onSurfaceVariant
+
+        // 更新所有可见的 cell
+        let visibleRows = tableView.rows(in: tableView.visibleRect)
+        for row in visibleRows.location..<(visibleRows.location + visibleRows.length) {
+            if let cellView = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? ConversationCellView {
+                // 重新配置 cell 以更新所有颜色（包括 statusDot）
+                cellView.configure(with: conversations[row])
+                // 重新应用选中状态
+                cellView.applySelectionStyle(isSelected: row == tableView.selectedRow)
+            }
+        }
+
         view.needsDisplay = true
-        tableView.reloadData()
     }
 
     deinit {
