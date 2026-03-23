@@ -161,14 +161,18 @@
             const reqArg = args[0];
             const initArg = args[1];
 
-            // 1. 提取 URL
+            // 1. 提取 URL 并转换为绝对路径
             let url = '';
             try {
-                url = typeof reqArg === 'string'
+                const rawUrl = typeof reqArg === 'string'
                     ? reqArg
                     : (reqArg instanceof Request ? reqArg.url : String(reqArg));
+                url = new URL(rawUrl, window.location.href).href;
             } catch (e) {
                 console.warn(`${TAG} Failed to parse fetch URL:`, e);
+                try {
+                    url = typeof reqArg === 'string' ? reqArg : (reqArg instanceof Request ? reqArg.url : String(reqArg));
+                } catch {}
             }
 
             // 2. 执行捕获逻辑（包裹在 try 块中以防崩溃导致页面挂掉）
@@ -215,9 +219,13 @@
             private _ac_method: string = 'GET';
 
             open(method: string, url: string, ...rest: any[]) {
-                this._ac_url = url;
+                try {
+                    this._ac_url = new URL(url, window.location.href).href;
+                } catch {
+                    this._ac_url = url;
+                }
                 this._ac_method = method;
-                this._ac_platform = detectPlatform(url);
+                this._ac_platform = detectPlatform(this._ac_url);
                 return (super.open as any).apply(this, [method, url, ...rest]);
             }
 

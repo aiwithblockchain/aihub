@@ -25,16 +25,15 @@
   }
 
   // ─── 找到 composer form ───────────────────────────────────────────────────
-  function findComposer(): HTMLFormElement | null {
-    // class="group/composer w-full" 是 Tailwind group 语法，实际 class 名是 "group/composer"
-    // querySelector 需要转义斜杠
-    return document.querySelector('form[class*="group/composer"]');
+  function findComposer(): Element | null {
+    return document.querySelector('form[class*="group/composer"]') || 
+           document.querySelector('rich-textarea') || 
+           document.body; // Fallback to observing the whole body
   }
 
   const composer = findComposer();
   if (!composer) {
-    console.error('[ACSpy] 未找到 composer form，请确认你在 ChatGPT 对话页面');
-    // @ts-ignore
+    console.error('[ACSpy] 找不到可用的监控目标');
     return;
   }
 
@@ -227,31 +226,29 @@
   }
 
   // ─── 3. 事件监听：捕获 input / keydown / submit ───────────────────────────
-  const proseMirrorDiv = document.getElementById('prompt-textarea');
-  if (proseMirrorDiv) {
-    proseMirrorDiv.addEventListener('input', (e) => {
+  const inputEl = document.getElementById('prompt-textarea') || 
+                  document.querySelector('div[contenteditable="true"]') || 
+                  document.querySelector('textarea');
+  if (inputEl) {
+    inputEl.addEventListener('input', (e) => {
       log('✏️ INPUT_EVENT', {
         type: e.type,
-        currentText: (e.target as HTMLElement).textContent?.slice(0, 100),
-        innerText: (e.target as HTMLElement).innerText?.slice(0, 100),
+        currentText: (e.target as HTMLElement).textContent?.slice(0, 100) || (e.target as HTMLTextAreaElement).value?.slice(0, 100),
       });
     });
 
-    proseMirrorDiv.addEventListener('keydown', (e: Event) => {
+    inputEl.addEventListener('keydown', (e: Event) => {
       const ke = e as KeyboardEvent;
       log('⌨️ KEYDOWN', {
         key: ke.key,
         code: ke.code,
-        ctrlKey: ke.ctrlKey,
-        metaKey: ke.metaKey,
-        shiftKey: ke.shiftKey,
       });
     });
 
-    proseMirrorDiv.addEventListener('focus', () => log('🎯 INPUT_FOCUS', {}));
-    proseMirrorDiv.addEventListener('blur', () => log('💤 INPUT_BLUR', {}));
+    inputEl.addEventListener('focus', () => log('🎯 INPUT_FOCUS', {}));
+    inputEl.addEventListener('blur', () => log('💤 INPUT_BLUR', {}));
 
-    log('INPUT_SPY_ON', { el: describeEl(proseMirrorDiv) });
+    log('INPUT_SPY_ON', { el: describeEl(inputEl) });
   }
 
   // form submit 事件
