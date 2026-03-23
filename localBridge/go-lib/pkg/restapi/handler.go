@@ -340,7 +340,6 @@ func (h *Handler) newConversation(w http.ResponseWriter, r *http.Request) {
 		TimeoutMs *int    `json:"timeoutMs"`
 	}
 	if err := readJSON(r, &req); err != nil { jsonErr(w, 400, err.Error()); return }
-	if req.Platform != "chatgpt" { jsonErr(w, 400, "only chatgpt supported"); return }
 	timeoutMs := 30_000
 	if req.TimeoutMs != nil && *req.TimeoutMs > 1000 {
 		timeoutMs = *req.TimeoutMs

@@ -774,14 +774,6 @@ class LocalBridgeWebSocketServer {
     }
 
     func sendNewConversation(platform: String, instanceId: String? = nil) {
-        guard platform == "chatgpt" else {
-            NotificationCenter.default.post(name: NSNotification.Name("SendMessageReceived"), object: nil, userInfo: [
-                "dataString": "Error: New conversation is currently supported only for chatgpt",
-                "resultTitle": "New Conversation Result"
-            ])
-            return
-        }
-
         let resolveResult = resolveConnection(clientName: "aiClaw", instanceId: instanceId)
         guard case .success(let connection) = resolveResult else {
             if case .failure(let err) = resolveResult {
@@ -1564,10 +1556,6 @@ class LocalBridgeWebSocketServer {
             }
 
             let req = try JSONDecoder().decode(NewConversationRequest.self, from: bodyData)
-            guard req.platform == "chatgpt" else {
-                sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":\"unsupported_platform\",\"details\":\"new_conversation currently supports only chatgpt\"}")
-                return
-            }
             let reqId = "http_req_new_conv_\(Int(Date().timeIntervalSince1970))"
             let timeoutMs = max(req.timeoutMs ?? 30_000, 1_000)
 

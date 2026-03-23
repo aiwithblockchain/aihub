@@ -385,11 +385,6 @@ final class AIClawHumanViewController: NSViewController {
     @objc private func newConversationClicked() {
         let platform = messagePlatformSegmented.titleOfSelectedItem() ?? "chatgpt"
 
-        if platform != "chatgpt" {
-            resultTextView.string = "Error: New conversation is currently supported only for chatgpt"
-            return
-        }
-
         DispatchQueue.main.async {
             self.resultTextView.string = "Creating new conversation on \(platform)...\n"
         }

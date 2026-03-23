@@ -287,18 +287,6 @@ final class LocalBridgeGoManager {
     }
 
     func sendNewConversation(platform: String, instanceId: String? = nil) {
-        guard platform == "chatgpt" else {
-            NotificationCenter.default.post(
-                name: NSNotification.Name("SendMessageReceived"),
-                object: nil,
-                userInfo: [
-                    "dataString": "Error: New conversation is currently supported only for chatgpt",
-                    "resultTitle": "New Conversation Result"
-                ]
-            )
-            return
-        }
-
         let payload = ExecuteTaskPayload(
             taskId: "task_new_conv_\(Int(Date().timeIntervalSince1970))",
             platform: platform,
