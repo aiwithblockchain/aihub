@@ -273,11 +273,7 @@ class CollapsibleCardContainer: NSView {
             invalidateIntrinsicContentSize()
             needsLayout = true
             superview?.needsLayout = true
-        }, completionHandler: { [weak self] in
-            DispatchQueue.main.async {
-                self?.superview?.layoutSubtreeIfNeeded()
-            }
-        })
+        }, completionHandler: nil)
     }
 }
 

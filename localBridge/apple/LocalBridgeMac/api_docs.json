@@ -4,9 +4,9 @@
     "name": "Get API Docs",
     "summary": "获取 LocalBridge 所有已实现 REST API 的完整说明文档，供 ClawBot 自动发现接口。",
     "method": "GET",
-    "path": "/api/v1/docs",
-    "description": "此接口直接返回 api_docs.json 文件的完整内容（JSON 数组），包含所有已注册的 REST API 的 id、name、summary、method、path、description、request_body、curl 示例和 response 示例。ClawBot 在初始化时调用此接口即可自动获知所有可用能力，无需硬编码 API 列表。该接口无需任何参数，无需 WebSocket 连接，直接响应。文档中的 curl 示例默认使用 10088 端口；如果用户在设置页修改了 REST API 端口，应以当前配置端口为准。",
-    "curl": "curl -X GET http://127.0.0.1:10088/api/v1/docs",
+    "path": "/api/v1/x/docs",
+    "description": "资源模型：X API documentation collection。该接口返回当前 LocalBridge 对外暴露的 X 域 REST API 文档集合，供 clawbot 自动发现与推特交互相关的能力。URI 使用 /api/v1/x/docs，表示“X 领域下的文档资源集合”；HTTP 方法使用 GET，语义为读取。成功时返回 200 和文档数组；失败时返回 500。文档中的 curl 示例默认使用 10088 端口；如果用户在设置页修改了 REST API 端口，应以当前配置端口为准。",
+    "curl": "curl -X GET http://127.0.0.1:10088/api/v1/x/docs",
     "response": "[{\"id\":\"query_x_status\", \"name\":\"...\"}]"
   },
   {
@@ -62,12 +62,12 @@
   {
     "id": "get_tweet_replies",
     "name": "Get Tweet Replies",
-    "summary": "读取指定推文的回复集合，并支持基于 cursor 的双向分页。",
+    "summary": "读取指定推文的回复集合，支持基于 cursor 的分页。",
     "method": "GET",
     "path": "/api/v1/x/tweets/{tweetId}/replies",
-    "description": "资源模型：tweet replies collection。该接口返回指定推文下当前页的 replies，并返回分页游标。query 参数 cursor 选填，首次请求不传；tabId 选填。响应中的 cursor.next 对应更老回复，cursor.previous 对应更上方或更新回复。成功返回 200；参数错误返回 400；tweetClaw 未连接返回 503；超时返回 504。",
+    "description": "资源模型：tweet replies collection。该接口返回指定推文下当前页的回复，并返回分页游标。cursor 参数选填，首次请求不传；后续请求传入上次响应中的 cursor.next 获取更老的回复。响应中的 cursor.next 用于获取下一页（更老回复），cursor.previous 用于获取增量数据（通常为 null）。如需实现传统的上一页/下一页 UI，必须在客户端维护 cursor 历史栈：首次请求栈为 [null]，点击下一页时将 cursor.next 入栈并请求，点击上一页时弹出栈顶并用新栈顶的 cursor 重新请求。tabId 参数选填，用于指定浏览器标签页上下文。必须先导航到推文详情页让 tweetClaw 捕获数据后才能调用此接口。成功返回 200；参数错误返回 400；tweetClaw 未连接返回 503；超时返回 504。",
     "curl": "curl -X GET \"http://127.0.0.1:10088/api/v1/x/tweets/1234567890/replies?cursor=DAABCgABFxxx==&tabId=123\"",
-    "response": "{\"items\":[{\"id\":\"1234567891\",\"text\":\"reply 1\",\"author\":{\"id\":\"111\",\"screenName\":\"user1\",\"name\":\"user1\"},\"raw\":{}}],\"cursor\":{\"next\":\"DAABCgABFxxx==\",\"previous\":\"DAABCgABFyyy==\"},\"hasMore\":true}"
+    "response": "{\"ok\":true,\"data\":{\"items\":[{\"tweetId\":\"1234567891\",\"text\":\"reply 1\",\"authorHandle\":\"@user1\",\"authorName\":\"User One\"}],\"cursor\":{\"next\":\"DAABCgABFxxx==\",\"previous\":null},\"hasMore\":true,\"requestCursor\":\"DAABCgABFxxx==\",\"source\":\"fetched_page\"},\"error\":null}"
   },
   {
     "id": "query_tweet_detail_deprecated",

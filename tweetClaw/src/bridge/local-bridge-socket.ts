@@ -171,14 +171,15 @@ export class LocalBridgeSocket {
   private handleMessage(data: string) {
     try {
       const msg = JSON.parse(data) as BaseMessage;
-      console.log(`[tweetClaw] received message: ${msg.type}`);
+      if (msg.type !== MESSAGE_TYPES.PONG && msg.type !== MESSAGE_TYPES.PING) {
+        console.log(`[tweetClaw] received message: ${msg.type}`);
+      }
       
       switch (msg.type) {
         case MESSAGE_TYPES.SERVER_HELLO_ACK:
           this.handleHelloAck(msg as BaseMessage<ServerHelloAckPayload>);
           break;
         case MESSAGE_TYPES.PONG:
-          console.log('[tweetClaw] received pong');
           this.lastPongTimestamp = Date.now();
           break;
         case MESSAGE_TYPES.REQUEST_QUERY_X_TABS_STATUS:
@@ -485,7 +486,6 @@ export class LocalBridgeSocket {
   
   private startHeartbeat(interval: number) {
     this.stopHeartbeat();
-    console.log(`[tweetClaw] starting heartbeat every ${interval}ms`);
     this.heartbeatInterval = setInterval(() => {
       // Check for timeout (60 seconds)
       const now = Date.now();
@@ -522,10 +522,11 @@ export class LocalBridgeSocket {
   public send(msg: any) {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) {
       this.ws.send(JSON.stringify(msg));
-      console.log(`[tweetClaw] sent message: ${msg.type}`);
+      if (msg.type !== MESSAGE_TYPES.PING && msg.type !== MESSAGE_TYPES.PONG) {
+        console.log(`[tweetClaw] sent message: ${msg.type}`);
+      }
     } else {
       console.warn(`[tweetClaw] cannot send message, socket status: ${this.ws?.readyState}`);
     }
   }
 }
-

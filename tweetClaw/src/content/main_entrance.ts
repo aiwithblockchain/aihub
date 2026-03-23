@@ -248,6 +248,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 const tweetId = String(message.tweetId || '').trim();
                 const cursor = typeof message.cursor === 'string' ? message.cursor.trim() : '';
                 if (!tweetId) throw new Error('tweetId is required');
+                console.log(`[TweetClaw-CS] FETCH_TWEET_REPLIES_PAGE start tweetId=${tweetId} cursor=${cursor || '<nil>'}`);
 
                 const variables: Record<string, any> = {
                     focalTweetId: tweetId,
@@ -265,6 +266,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 }
 
                 const data = await performQuery('TweetDetail', variables);
+                console.log(`[TweetClaw-CS] FETCH_TWEET_REPLIES_PAGE success tweetId=${tweetId} cursor=${cursor || '<nil>'}`);
                 sendResponse({
                     success: true,
                     data,
@@ -272,6 +274,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     requestCursor: cursor || null
                 });
             } catch (e: any) {
+                console.error(`[TweetClaw-CS] FETCH_TWEET_REPLIES_PAGE failed tweetId=${message.tweetId || '<nil>'} cursor=${message.cursor || '<nil>'}`, e);
                 sendResponse({ success: false, error: e.message });
             }
         })();

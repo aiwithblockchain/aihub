@@ -1073,6 +1073,7 @@ export async function queryTweet(payload: any) {
 export async function queryTweetReplies(payload: any) {
     const { tweetId, tabId, cursor } = payload as { tweetId: string, tabId?: number, cursor?: string };
     if (!tweetId) return { ok: false, error: 'tweetId is required', data: null };
+    console.log(`[TweetClaw-BG] queryTweetReplies start tweetId=${tweetId} cursor=${cursor || '<nil>'} tabId=${tabId ?? '<nil>'}`);
 
     const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
     let targetTabId: number | undefined = tabId;
@@ -1081,12 +1082,15 @@ export async function queryTweetReplies(payload: any) {
         targetTabId = activeTab?.id;
     }
     if (!targetTabId) return { ok: false, error: 'No x.com tab found', data: null };
+    console.log(`[TweetClaw-BG] queryTweetReplies using targetTabId=${targetTabId}`);
 
     const state = tabDataStore.get(targetTabId);
     const rawDetail = (tweetId && state?.data?.[`TweetDetail_${tweetId}`])
                    || state?.data?.['TweetDetail'];
 
-    if (!rawDetail) {
+    // 如果没有缓存数据且没有 cursor，返回错误
+    if (!rawDetail && !cursor) {
+        console.warn(`[TweetClaw-BG] queryTweetReplies missing cached TweetDetail tweetId=${tweetId} tabId=${targetTabId}`);
         return {
             ok: false,
             error: 'TweetDetail not captured yet. Navigate to the tweet detail page first.',
@@ -1098,7 +1102,10 @@ export async function queryTweetReplies(payload: any) {
     let detailPageData = rawDetail;
     let detailPageUrl = state?.url || '';
 
-    if (cursor) {
+    // 始终主动获取最新数据以确保获得完整的 cursor 信息（包括 Top 和 Bottom cursor）
+    // 缓存数据可能只包含 Bottom cursor，因为页面首次加载时已经在顶部
+    if (true) {
+        console.log(`[TweetClaw-BG] queryTweetReplies fetching continuation tweetId=${tweetId} cursor=${cursor}`);
         const fetchedPage: any = await new Promise(resolve => {
             chrome.tabs.sendMessage(targetTabId!, {
                 type: 'FETCH_TWEET_REPLIES_PAGE',
@@ -1108,6 +1115,7 @@ export async function queryTweetReplies(payload: any) {
         });
 
         if (!fetchedPage?.success || !fetchedPage?.data) {
+            console.error(`[TweetClaw-BG] queryTweetReplies continuation failed tweetId=${tweetId} cursor=${cursor}`, fetchedPage);
             return {
                 ok: false,
                 error: fetchedPage?.error || 'Failed to fetch tweet replies page',
@@ -1117,10 +1125,33 @@ export async function queryTweetReplies(payload: any) {
 
         detailPageData = fetchedPage.data;
         detailPageUrl = fetchedPage.pageUrl || detailPageUrl;
+        console.log(`[TweetClaw-BG] queryTweetReplies continuation success tweetId=${tweetId} cursor=${cursor}`);
     }
 
     const replies = findRepliesSnapshot(detailPageData, detailPageUrl, state?.account?.handle);
     const cursors = extractTimelineCursors(detailPageData);
+    console.log(`[TweetClaw-BG] queryTweetReplies done tweetId=${tweetId} items=${replies.length} next=${cursors.next ? 'yes' : 'no'} previous=${cursors.previous ? 'yes' : 'no'} source=${cursor ? 'fetched_page' : 'cached_page'}`);
+
+    // 防御性校验：如果是 continuation 页面而且没有 items，Twitter 依然会返回完整的 cursor 状态。
+    // 我们必须如实返回从 API 拿到的 cursor（而不是返回 null），以免中断调用端（Mac UI）的分页状态导致上一页/下一页按钮永久失效。
+    if (cursor && replies.length === 0) {
+        console.warn(`[TweetClaw-BG] ⚠️ queryTweetReplies got EMPTY continuation page tweetId=${tweetId} cursor=${cursor} - returning empty result but preserving API cursors`);
+        return {
+            ok: true,
+            data: {
+                items: [],
+                cursor: {
+                    next: cursors.next,
+                    previous: cursors.previous
+                },
+                hasMore: !!cursors.next,
+                requestCursor: cursor,
+                source: 'fetched_page',
+                emptyPage: true
+            },
+            error: null
+        };
+    }
 
     return {
         ok: true,

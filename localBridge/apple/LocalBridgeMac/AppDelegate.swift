@@ -131,6 +131,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func sendQueryTweetReplies(tweetId: String, cursor: String? = nil, tabId: Int? = nil, instanceId: String? = nil) {
+        print("[LocalBridgeMac] AppDelegate sendQueryTweetReplies tweetId=\(tweetId) cursor=\(cursor ?? "<nil>") tabId=\(tabId.map(String.init) ?? "<nil>") instanceId=\(instanceId ?? "<nil>")")
         goServer.sendQueryTweetReplies(tweetId: tweetId, cursor: cursor, tabId: tabId, instanceId: instanceId)
     }
 
@@ -159,7 +160,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func fetchAPIDocs() {
-        goServer.sendRESTRequest(method: "GET", path: "/api/v1/docs", notificationName: "GetAPIDocsReceived")
+        goServer.sendRESTRequest(method: "GET", path: "/api/v1/x/docs", notificationName: "GetAPIDocsReceived")
     }
 
     func fetchInstances() {

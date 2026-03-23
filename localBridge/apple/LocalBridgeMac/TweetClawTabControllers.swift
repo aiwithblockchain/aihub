@@ -71,6 +71,8 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     private let cursorStatusLabel = NSTextField(labelWithString: "")
     private var latestRepliesNextCursor: String?
     private var latestRepliesPreviousCursor: String?
+    private var lastRepliesPaginationDirection: String = "none"
+
 
     // Instance Selector
     private let instanceLabel = NSTextField(labelWithString: "TARGET INSTANCE")
@@ -105,7 +107,12 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             let previous: String?
         }
 
+        struct DataPayload: Decodable {
+            let cursor: CursorPayload?
+        }
+
         let cursor: CursorPayload?
+        let data: DataPayload?
     }
     
     private var docs: [ApiDoc] = []
@@ -264,28 +271,38 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     }
     
     private func loadDocs() {
-        guard let url = Bundle.main.url(forResource: "api_docs", withExtension: "json") else {
-            // Fallback for development (Absolute path)
-            let path = "/Users/hyperorchid/aiwithblockchain/aihub/localBridge/apple/LocalBridgeMac/api_docs.json"
-            if let data = try? Data(contentsOf: URL(fileURLWithPath: path)) {
+        for url in apiDocsCandidateURLs() {
+            if let data = try? Data(contentsOf: url) {
                 do {
                     self.docs = try JSONDecoder().decode([ApiDoc].self, from: data)
+                    print("[LocalBridgeMac] Loaded api_docs.json from \(url.path)")
+                    return
                 } catch {
-                    print("[LocalBridgeMac] JSON Decode Error: \(error)")
+                    print("[LocalBridgeMac] JSON Decode Error from \(url.path): \(error)")
                 }
-            }
-            return
-        }
-        if let data = try? Data(contentsOf: url) {
-            do {
-                self.docs = try JSONDecoder().decode([ApiDoc].self, from: data)
-            } catch {
-                print("[LocalBridgeMac] JSON Decode Error from Bundle: \(error)")
             }
         }
     }
+
+    private func apiDocsCandidateURLs() -> [URL] {
+        let fileManager = FileManager.default
+        let currentDirectory = URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
+        let repoRoot = fileManager.homeDirectoryForCurrentUser
+            .appendingPathComponent("aiwithblockchain/aihub/localBridge/apple", isDirectory: true)
+
+        return [
+            Bundle.main.url(forResource: "api_docs", withExtension: "json"),
+            currentDirectory.appendingPathComponent("api_docs.json"),
+            currentDirectory.appendingPathComponent("LocalBridgeMac/api_docs.json"),
+            repoRoot.appendingPathComponent("LocalBridgeMac/api_docs.json")
+        ].compactMap { $0 }
+    }
     
     private func setupUI() {
+        actionButton.target = self
+        previousPageButton.target = self
+        nextPageButton.target = self
+
         // --- Header ---
         if #available(macOS 11.0, *) {
             headerImageView.image = NSImage(systemSymbolName: "network", accessibilityDescription: nil)
@@ -611,6 +628,8 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         guard let userInfo = notification.userInfo,
               let jsonString = userInfo["dataString"] as? String else { return }
         DispatchQueue.main.async {
+            let title = userInfo["resultTitle"] as? String ?? notification.name.rawValue
+            print("[LocalBridgeMac] displayResult source=\(title) selectedApi=\(self.selectedApiID() ?? "<nil>") payloadChars=\(jsonString.count)")
             self.resultTextView?.string = jsonString
             self.cacheRepliesCursorsIfNeeded(from: jsonString)
             
@@ -763,7 +782,6 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         resultTextView?.string = "" // 安全检查：切换 API 时清空之前的执行结果
         updateTextViewHeight(resultTextView, constraint: resultHeightConstraint) // 立即重置高度
         
-        print("[LocalBridgeMac] API Table Selection Changed: \(row)")
         guard row >= 0 && row < docs.count else {
             updateDetailView(with: nil)
             return
@@ -874,9 +892,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             actionButton.title = doc.id == "get_tweet" ? "Get Tweet" : "Get Detail"
         case "get_tweet_replies":
             commonIdField.placeholderString = "Enter Tweet ID"
-            commonCursorField.placeholderString = "Cursor (Optional)"
             inputs.append(makeInputRow("Tweet ID:", commonIdField))
-            inputs.append(makeInputRow("Cursor:", commonCursorField))
             inputs.append(makeRepliesPaginationControls())
             actionButton.title = "Get Replies"
         case "query_user_profile":
@@ -1000,10 +1016,10 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             AppDelegate.shared?.sendQueryTweet(tweetId: tid, tabId: nil, instanceId: instanceId)
         case "get_tweet_replies":
             let tid = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
-            let cursor = commonCursorField.stringValue.trimmingCharacters(in: .whitespaces)
+            lastRepliesPaginationDirection = "none" // 初始加载时重置方向
             AppDelegate.shared?.sendQueryTweetReplies(
                 tweetId: tid,
-                cursor: cursor.isEmpty ? nil : cursor,
+                cursor: nil, // 初次获取禁止带有游标，完全依靠 API 生成第一页及后续双游标
                 tabId: nil,
                 instanceId: instanceId
             )
@@ -1021,24 +1037,37 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     }
 
     @objc private func previousPageClicked() {
-        guard let cursor = latestRepliesPreviousCursor, !cursor.isEmpty else { return }
-        commonCursorField.stringValue = cursor
-        triggerRepliesRequest()
+        guard let cursor = latestRepliesPreviousCursor, !cursor.isEmpty else {
+            print("[LocalBridgeMac] Previous Page ignored: previous cursor unavailable selectedApi=\(selectedApiID() ?? "<nil>")")
+            return
+        }
+        print("[LocalBridgeMac] Previous Page clicked cursor=\(cursor)")
+        lastRepliesPaginationDirection = "previous"
+        triggerRepliesRequest(withCursor: cursor)
     }
 
     @objc private func nextPageClicked() {
-        guard let cursor = latestRepliesNextCursor, !cursor.isEmpty else { return }
-        commonCursorField.stringValue = cursor
-        triggerRepliesRequest()
+        guard let cursor = latestRepliesNextCursor, !cursor.isEmpty else {
+            print("[LocalBridgeMac] Next Page ignored: next cursor unavailable selectedApi=\(selectedApiID() ?? "<nil>")")
+            return
+        }
+        print("[LocalBridgeMac] Next Page clicked cursor=\(cursor)")
+        lastRepliesPaginationDirection = "next"
+        triggerRepliesRequest(withCursor: cursor)
     }
 
-    private func triggerRepliesRequest() {
+    private func triggerRepliesRequest(withCursor cursor: String) {
         let instanceId = selectedInstanceId()
         let tid = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
-        let cursor = commonCursorField.stringValue.trimmingCharacters(in: .whitespaces)
+        let selectedApi = selectedApiID() ?? "<nil>"
+        guard !tid.isEmpty else {
+            print("[LocalBridgeMac] triggerRepliesRequest aborted: tweetId empty selectedApi=\(selectedApi)")
+            return
+        }
+        print("[LocalBridgeMac] triggerRepliesRequest tweetId=\(tid) cursor=\(cursor) instanceId=\(instanceId ?? "<nil>")")
         AppDelegate.shared?.sendQueryTweetReplies(
             tweetId: tid,
-            cursor: cursor.isEmpty ? nil : cursor,
+            cursor: cursor,
             tabId: nil,
             instanceId: instanceId
         )
@@ -1060,16 +1089,34 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
 
     private func cacheRepliesCursorsIfNeeded(from jsonString: String) {
         let row = tableView.selectedRow
-        guard row >= 0, row < docs.count else { return }
+        guard row >= 0, row < docs.count else {
+            print("[LocalBridgeMac] cacheRepliesCursors skipped: no selected row")
+            return
+        }
         let doc = docs[row]
-        guard doc.id == "get_tweet_replies" else { return }
+        guard doc.id == "get_tweet_replies" else {
+            print("[LocalBridgeMac] cacheRepliesCursors skipped: selectedApi=\(doc.id)")
+            return
+        }
         guard let data = jsonString.data(using: .utf8),
               let parsed = try? JSONDecoder().decode(RepliesCursorEnvelope.self, from: data) else {
+            print("[LocalBridgeMac] cacheRepliesCursors decode failed selectedApi=\(doc.id) payloadPrefix=\(String(jsonString.prefix(240)))")
             return
         }
 
-        latestRepliesNextCursor = parsed.cursor?.next
-        latestRepliesPreviousCursor = parsed.cursor?.previous
+        let nextCursor = parsed.cursor?.next ?? parsed.data?.cursor?.next
+        let previousCursor = parsed.cursor?.previous ?? parsed.data?.cursor?.previous
+        
+        if lastRepliesPaginationDirection == "none" {
+            latestRepliesNextCursor = nextCursor
+            latestRepliesPreviousCursor = previousCursor
+        } else if lastRepliesPaginationDirection == "next" {
+            latestRepliesNextCursor = nextCursor   // Only update next cursor
+        } else if lastRepliesPaginationDirection == "previous" {
+            latestRepliesPreviousCursor = previousCursor // Only update previous cursor
+        }
+        
+        print("[LocalBridgeMac] cacheRepliesCursors updated next=\(latestRepliesNextCursor == nil ? "<nil>" : "yes") previous=\(latestRepliesPreviousCursor == nil ? "<nil>" : "yes") direction=\(lastRepliesPaginationDirection)")
         updateRepliesPaginationControls()
     }
 
@@ -1084,6 +1131,13 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         let previousText = hasPrevious ? "previous ready" : "previous empty"
         let nextText = hasNext ? "next ready" : "next empty"
         cursorStatusLabel.stringValue = "Cursor state: \(previousText) | \(nextText)"
+        print("[LocalBridgeMac] updateRepliesPaginationControls previousEnabled=\(hasPrevious) nextEnabled=\(hasNext)")
+    }
+
+    private func selectedApiID() -> String? {
+        let row = tableView.selectedRow
+        guard row >= 0, row < docs.count else { return nil }
+        return docs[row].id
     }
     
     private func methodColor(_ method: String) -> NSColor {

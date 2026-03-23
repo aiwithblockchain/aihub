@@ -389,9 +389,6 @@ class LocalBridgeWebSocketServer {
 
                 
             case .ping:
-                let msg = "[LocalBridgeMac] received ping"
-                print(msg)
-                BridgeLogger.shared.log(msg)
                 let connId = ObjectIdentifier(connection)
                 if let key = connIdToKey[connId] {
                     let pingKey = "\(key.clientName)/\(key.instanceId)"
@@ -561,9 +558,6 @@ class LocalBridgeWebSocketServer {
         
         if let data = try? JSONEncoder().encode(ack),
            let jsonString = String(data: data, encoding: .utf8) {
-            let msg = "[LocalBridgeMac] sent pong to \(target)"
-            print(msg)
-            BridgeLogger.shared.log(msg)
             self.sendMessage(connection, jsonString)
         }
     }
@@ -1291,7 +1285,7 @@ class LocalBridgeWebSocketServer {
                     self.handleGenericQueryHttpRequest(connection, requestData: data, type: .requestQuerySearchTimeline, parsedRequest: parsedRequest)
                 } else if request.contains("GET /api/v1/x/instances") {
                     self.handleInstancesHttpRequest(connection)
-                } else if request.contains("GET /api/v1/docs") {
+                } else if request.contains("GET /api/v1/x/docs") {
                     self.handleApiDocsHttpRequest(connection)
                 } else {
                     self.sendHttpResponse(connection, status: "404 Not Found", body: "{\"error\":\"not_found\"}")
@@ -2024,6 +2018,7 @@ class LocalBridgeWebSocketServer {
         if type == .requestQueryTweet, let tid = tweetId {
             self.sendBaseMessage(wsClient, id: reqId, type: type, payload: QueryTweetRequestPayload(tweetId: tid, tabId: tabId))
         } else if type == .requestQueryTweetReplies, let tid = tweetId {
+            print("[LocalBridgeMac] REST query tweet replies tweetId=\(tid) cursor=\(cursor ?? "<nil>") tabId=\(tabId.map(String.init) ?? "<nil>")")
             self.sendBaseMessage(wsClient, id: reqId, type: type, payload: QueryTweetRepliesRequestPayload(tweetId: tid, tabId: tabId, cursor: cursor))
         } else if type == .requestQueryTweetDetail, let tid = tweetId {
             self.sendBaseMessage(wsClient, id: reqId, type: type, payload: QueryTweetDetailRequestPayload(tweetId: tid, tabId: tabId))
@@ -2095,39 +2090,35 @@ class LocalBridgeWebSocketServer {
     private func handleApiDocsHttpRequest(_ connection: NWConnection) {
         var jsonString: String? = nil
 
-        // 1. Try Bundle
-        if let url = Bundle.main.url(forResource: "api_docs", withExtension: "json"),
-           let data = try? Data(contentsOf: url) {
-            jsonString = String(data: data, encoding: .utf8)
-            print("[LocalBridgeMac] Loaded api_docs.json from bundle")
-        }
-
-        // 2. Try hardcoded development path
-        if jsonString == nil {
-            let path = "/Users/hyperorchid/aiwithblockchain/aihub/localBridge/apple/LocalBridgeMac/api_docs.json"
-            if let data = try? Data(contentsOf: URL(fileURLWithPath: path)) {
-                jsonString = String(data: data, encoding: .utf8)
-                print("[LocalBridgeMac] Loaded api_docs.json from dev path")
-            }
-        }
-        
-        // 3. Try relative path to current directory (for CLI or raw execution)
-        if jsonString == nil {
-            let currentPath = FileManager.default.currentDirectoryPath
-            let url = URL(fileURLWithPath: currentPath).appendingPathComponent("api_docs.json")
+        for url in apiDocsCandidateURLs() {
             if let data = try? Data(contentsOf: url) {
                 jsonString = String(data: data, encoding: .utf8)
-                print("[LocalBridgeMac] Loaded api_docs.json from current directory")
+                print("[LocalBridgeMac] Loaded api_docs.json from \(url.path)")
+                break
             }
         }
 
         if let body = jsonString {
             sendHttpResponse(connection, status: "200 OK", body: body)
         } else {
-            let msg = "[LocalBridgeMac] Error: api_docs.json not found in bundle, dev path, or current directory"
+            let msg = "[LocalBridgeMac] Error: api_docs.json not found in any candidate location"
             print(msg)
             BridgeLogger.shared.log(msg)
-            sendHttpResponse(connection, status: "500 Internal Server Error", body: "{\"error\":\"api_docs_not_found\"}")
+            sendHttpResponse(connection, status: "500 Internal Server Error", body: "{\"error\":\"api_docs.json not found\"}")
         }
+    }
+
+    private func apiDocsCandidateURLs() -> [URL] {
+        let fileManager = FileManager.default
+        let currentDirectory = URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
+        let repoRoot = fileManager.homeDirectoryForCurrentUser
+            .appendingPathComponent("aiwithblockchain/aihub/localBridge/apple", isDirectory: true)
+
+        return [
+            Bundle.main.url(forResource: "api_docs", withExtension: "json"),
+            currentDirectory.appendingPathComponent("api_docs.json"),
+            currentDirectory.appendingPathComponent("LocalBridgeMac/api_docs.json"),
+            repoRoot.appendingPathComponent("LocalBridgeMac/api_docs.json")
+        ].compactMap { $0 }
     }
 }

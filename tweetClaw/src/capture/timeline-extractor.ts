@@ -57,14 +57,23 @@ export function extractTweetsFromTimeline(json: any): MinimalTweet[] {
     const tweets: MinimalTweet[] = [];
     try {
         const instructions = findInstructionsRecursive(json) || [];
+        const instrTypes = instructions.map((i: any) => i.type);
+        const entryTypes: string[] = [];
+        let normalItemCount = 0;
+        let moduleItemCount = 0;
+
         for (const instr of instructions) {
             if (instr.type === 'TimelineAddEntries' || instr.type === 'TimelineReplaceEntry') {
                 const entries = instr.entries || (instr.entry ? [instr.entry] : []);
                 for (const entry of entries) {
+                    const entryType = entry?.content?.entryType;
+                    if (entryType) entryTypes.push(entryType);
+
                     // Normal Item
                     const result = entry?.content?.itemContent?.tweet_results?.result
                         || entry?.content?.content?.tweet_results?.result;
                     if (result) {
+                        normalItemCount++;
                         const tweet = parseTweetResult(result);
                         if (tweet) {
                             tweets.push(tweet);
@@ -77,6 +86,7 @@ export function extractTweetsFromTimeline(json: any): MinimalTweet[] {
                         for (const item of items) {
                             const itemResult = item.item?.itemContent?.tweet_results?.result;
                             if (itemResult) {
+                                moduleItemCount++;
                                 const t = parseTweetResult(itemResult);
                                 if (t) tweets.push(t);
                             }
@@ -85,6 +95,8 @@ export function extractTweetsFromTimeline(json: any): MinimalTweet[] {
                 }
             }
         }
+
+        console.log(`[TweetClaw-Extractor] extractTweetsFromTimeline: instructions=[${instrTypes.join(',')}] entryTypes=[${entryTypes.join(',')}] normalItems=${normalItemCount} moduleItems=${moduleItemCount} tweets=${tweets.length}`);
     } catch (e) {
         console.warn('[TweetClaw-Extractor] Error in extractTweetsFromTimeline', e);
     }
@@ -97,6 +109,10 @@ export function extractTimelineCursors(json: any): TimelineCursors {
 
     try {
         const instructions = findInstructionsRecursive(json) || [];
+        const instrTypes = instructions.map((i: any) => i.type);
+        const entryTypes: string[] = [];
+        let cursorCount = 0;
+
         for (const instr of instructions) {
             if (instr.type !== 'TimelineAddEntries' && instr.type !== 'TimelineReplaceEntry') {
                 continue;
@@ -104,11 +120,15 @@ export function extractTimelineCursors(json: any): TimelineCursors {
 
             const entries = instr.entries || (instr.entry ? [instr.entry] : []);
             for (const entry of entries) {
+                const entryType = entry?.content?.entryType;
+                if (entryType) entryTypes.push(entryType);
+
                 const cursorNode = entry?.content?.entryType === 'TimelineTimelineCursor'
                     ? entry.content
                     : null;
                 if (!cursorNode?.value) continue;
 
+                cursorCount++;
                 if (cursorNode.cursorType === 'Bottom') {
                     next = cursorNode.value;
                 } else if (cursorNode.cursorType === 'Top') {
@@ -116,6 +136,8 @@ export function extractTimelineCursors(json: any): TimelineCursors {
                 }
             }
         }
+
+        console.log(`[TweetClaw-Extractor] extractTimelineCursors: instructions=[${instrTypes.join(',')}] entryTypes=[${entryTypes.join(',')}] cursors=${cursorCount} next=${next ? 'yes' : 'no'} previous=${previous ? 'yes' : 'no'}`);
     } catch (e) {
         console.warn('[TweetClaw-Extractor] Error in extractTimelineCursors', e);
     }

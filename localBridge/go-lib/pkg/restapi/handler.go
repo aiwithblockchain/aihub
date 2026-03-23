@@ -54,7 +54,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/ai/navigate",         h.navigateToPlatform)
 
 	// ★ 系统端点
-	mux.HandleFunc("/api/v1/docs", h.apiDocs)
+	mux.HandleFunc("/api/v1/x/docs", h.apiDocs)
 }
 
 // ============================================================
@@ -314,16 +314,23 @@ func (h *Handler) apiDocs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 优先尝试硬编码路径（开发环境）
-	path := "/Users/hyperorchid/aiwithblockchain/aihub/localBridge/apple/LocalBridgeMac/api_docs.json"
-	data, err := os.ReadFile(path)
-	if err != nil {
-		// 备选：尝试相对路径
-		data, err = os.ReadFile("api_docs.json")
-		if err != nil {
-			jsonErr(w, 404, "api_docs.json not found")
-			return
+	candidatePaths := []string{
+		"api_docs.json",
+		"LocalBridgeMac/api_docs.json",
+		os.ExpandEnv("$HOME/aiwithblockchain/aihub/localBridge/apple/LocalBridgeMac/api_docs.json"),
+	}
+
+	var data []byte
+	var err error
+	for _, path := range candidatePaths {
+		data, err = os.ReadFile(path)
+		if err == nil {
+			break
 		}
+	}
+	if err != nil {
+		jsonErr(w, 404, "api_docs.json not found")
+		return
 	}
 
 	w.Header().Set("Content-Type", "application/json")
