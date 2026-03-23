@@ -18,9 +18,25 @@ final class ConversationsSplitViewController: NSSplitViewController {
 
         let detailItem = NSSplitViewItem(viewController: detailViewController)
         self.detailItem = detailItem
- 
+
         addSplitViewItem(sidebarItem)
         addSplitViewItem(detailItem)
+
+        // 注册主题变化通知
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleThemeChange),
+            name: ThemeManager.themeDidChangeNotification,
+            object: nil
+        )
+    }
+
+    @objc private func handleThemeChange() {
+        view.needsDisplay = true
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     override func viewDidAppear() {

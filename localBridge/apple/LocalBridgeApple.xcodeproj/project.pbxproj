@@ -31,6 +31,7 @@
 		A1000000000000000000003B /* BridgeMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002D /* BridgeMessage.swift */; };
 		A1000000000000000000003C /* LocalBridgeWebSocketServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002E /* LocalBridgeWebSocketServer.swift */; };
 		A1000000000000000000003E /* SettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002F /* SettingsViewController.swift */; };
+		DC05180F1DBA4CB78738E6CF /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AD4AA32E2504CBD8363254C /* ThemeManager.swift */; };
 		A1000000000000000000003F /* TweetClawTabControllers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000046 /* TweetClawTabControllers.swift */; };
 		A10000000000000000000047 /* AIClawTabControllers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000048 /* AIClawTabControllers.swift */; };
 /* End PBXBuildFile section */
@@ -63,6 +64,7 @@
 		A1000000000000000000002D /* BridgeMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeMessage.swift; sourceTree = "<group>"; };
 		A1000000000000000000002E /* LocalBridgeWebSocketServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBridgeWebSocketServer.swift; sourceTree = "<group>"; };
 		A1000000000000000000002F /* SettingsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewController.swift; sourceTree = "<group>"; };
+		0AD4AA32E2504CBD8363254C /* ThemeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManager.swift; sourceTree = "<group>"; };
 		A10000000000000000000046 /* TweetClawTabControllers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TweetClawTabControllers.swift; sourceTree = "<group>"; };
 		A10000000000000000000048 /* AIClawTabControllers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIClawTabControllers.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -156,6 +158,7 @@
 				69B055D52F692B160076AC1D /* BridgeLogsViewController.swift */,
 				6983D0152F6BD50900CC7BF2 /* DesignSystemV2.swift */,
 				A1000000000000000000002F /* SettingsViewController.swift */,
+				0AD4AA32E2504CBD8363254C /* ThemeManager.swift */,
 				694D65272F6CDBFE0071EDE7 /* NetworkUtils.swift */,
 				694D65282F6CDBFE0071EDE7 /* ServiceConfig.swift */,
 				A10000000000000000000046 /* TweetClawTabControllers.swift */,
@@ -330,6 +333,7 @@
 				A1000000000000000000003B /* BridgeMessage.swift in Sources */,
 				A1000000000000000000003C /* LocalBridgeWebSocketServer.swift in Sources */,
 				A1000000000000000000003E /* SettingsViewController.swift in Sources */,
+				DC05180F1DBA4CB78738E6CF /* ThemeManager.swift in Sources */,
 				A1000000000000000000003F /* TweetClawTabControllers.swift in Sources */,
 				2B8FB38E2F6A8D040005B31B /* LocalBridgeGoManager.swift in Sources */,
 				A10000000000000000000047 /* AIClawTabControllers.swift in Sources */,

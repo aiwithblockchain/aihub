@@ -69,6 +69,22 @@ final class APIDocViewController: NSViewController {
         super.viewDidLoad()
         setupUI()
         selectFirstAPI()
+
+        // 注册主题变化通知
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleThemeChange),
+            name: ThemeManager.themeDidChangeNotification,
+            object: nil
+        )
+    }
+
+    @objc private func handleThemeChange() {
+        view.needsDisplay = true
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     private func setupUI() {

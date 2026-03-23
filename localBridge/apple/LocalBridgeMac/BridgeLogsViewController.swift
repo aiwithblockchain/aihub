@@ -24,6 +24,23 @@ final class BridgeLogsViewController: NSViewController {
             object: nil
         )
         reloadLogs()
+
+        // 注册主题变化通知
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleThemeChange),
+            name: ThemeManager.themeDidChangeNotification,
+            object: nil
+        )
+    }
+
+    @objc private func handleThemeChange() {
+        view.layer?.backgroundColor = DSV2.surface.cgColor
+        textView?.textColor = DSV2.tertiary
+        textView?.backgroundColor = DSV2.surfaceContainerLowest
+        scrollView?.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
+        scrollView?.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.2).cgColor
+        view.needsDisplay = true
     }
 
     deinit {

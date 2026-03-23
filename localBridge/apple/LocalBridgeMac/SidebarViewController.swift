@@ -57,6 +57,23 @@ final class SidebarViewController: NSViewController {
         configureSettingsButton()
         configureQuitButton()
         configureLayout()
+
+        // 注册主题变化通知
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleThemeChange),
+            name: ThemeManager.themeDidChangeNotification,
+            object: nil
+        )
+    }
+
+    @objc private func handleThemeChange() {
+        view.needsDisplay = true
+        tableView.reloadData()
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     override func viewDidAppear() {

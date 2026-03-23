@@ -21,6 +21,24 @@ final class DetailViewController: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         configureView()
+
+        // 注册主题变化通知
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleThemeChange),
+            name: ThemeManager.themeDidChangeNotification,
+            object: nil
+        )
+    }
+
+    @objc private func handleThemeChange() {
+        view.layer?.backgroundColor = DSV2.surface.cgColor
+        view.needsDisplay = true
+        view.subviews.forEach { $0.needsDisplay = true }
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     func display(conversation: Conversation) {

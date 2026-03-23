@@ -7,66 +7,102 @@ enum DSV2 {
     // MARK: - Surface Hierarchy (层次化表面)
 
     /// 终端/代码区域 - 最深层，用于最大化文本对比度
-    static let surfaceContainerLowest = NSColor(hex: "#0E0E0E")
+    static var surfaceContainerLowest: NSColor {
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#0E0E0E") : NSColor(hex: "#FFFFFF")
+    }
 
     /// 基础层 - 应用的绝对基础背景
-    static let surface = NSColor(hex: "#131313")
+    static var surface: NSColor {
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#131313") : NSColor(hex: "#F8F8F8")
+    }
 
     /// 侧边栏/导航区域 - 次要上下文
-    static let surfaceContainerLow = NSColor(hex: "#1E1E1E")
+    static var surfaceContainerLow: NSColor {
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#1E1E1E") : NSColor(hex: "#F0F0F0")
+    }
 
     /// 活动面板/可操作元素
-    static let surfaceContainerHigh = NSColor(hex: "#2A2A2A")
+    static var surfaceContainerHigh: NSColor {
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#2A2A2A") : NSColor(hex: "#E8E8E8")
+    }
 
     /// Hover 状态的最高层
-    static let surfaceContainerHighest = NSColor(hex: "#323232")
+    static var surfaceContainerHighest: NSColor {
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#323232") : NSColor(hex: "#E0E0E0")
+    }
 
     /// 明亮表面（用于 focus 状态）
-    static let surfaceBright = NSColor(hex: "#3A3A3A")
+    static var surfaceBright: NSColor {
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#3A3A3A") : NSColor(hex: "#FFFFFF")
+    }
 	
     // MARK: - Text Colors (文本颜色)
 
     /// 主要文本颜色 - 避免使用纯白以减少眼睛疲劳
-    static let onSurface = NSColor(hex: "#E5E2E1")
+    static var onSurface: NSColor {
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#E5E2E1") : NSColor(hex: "#1A1A1A")
+    }
 
     /// 次要文本颜色
-    static let onSurfaceVariant = NSColor(hex: "#C9C5C4")
+    static var onSurfaceVariant: NSColor {
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#C9C5C4") : NSColor(hex: "#4A4A4A")
+    }
 
     /// 三级文本颜色
-    static let onSurfaceTertiary = NSColor(hex: "#A0A0A0")
+    static var onSurfaceTertiary: NSColor {
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#A0A0A0") : NSColor(hex: "#737373")
+    }
 
     // MARK: - Primary Colors (主色系)
 
     /// 主色 - 渐变起点
-    static let primary = NSColor(hex: "#AAC7FF")
+    static var primary: NSColor {
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#AAC7FF") : NSColor(hex: "#2563EB")
+    }
 
     /// 主色容器 - 渐变终点
-    static let primaryContainer = NSColor(hex: "#3E90FF")
+    static var primaryContainer: NSColor {
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#3E90FF") : NSColor(hex: "#60A5FA")
+    }
 
     /// 主色上的文本
-    static let onPrimaryContainer = NSColor(hex: "#001D35")
+    static var onPrimaryContainer: NSColor {
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#001D35") : NSColor(hex: "#FFFFFF")
+    }
 
     // MARK: - Semantic Colors (语义色)
 
     /// 成功/终端绿色 - 针对深色背景优化，对比度 ≥ 7:1
-    static let tertiary = NSColor(hex: "#42E355")
+    static var tertiary: NSColor {
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#42E355") : NSColor(hex: "#16A34A")
+    }
 
     /// 终端成功消息固定色
-    static let tertiaryFixed = NSColor(hex: "#42E355")
+    static var tertiaryFixed: NSColor {
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#42E355") : NSColor(hex: "#16A34A")
+    }
 
     /// 警告/信息蓝色
-    static let secondary = NSColor(hex: "#68D3FF")
+    static var secondary: NSColor {
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#68D3FF") : NSColor(hex: "#0EA5E9")
+    }
 
     /// 错误红色
-    static let error = NSColor(hex: "#FFB4AB")
+    static var error: NSColor {
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#FFB4AB") : NSColor(hex: "#DC2626")
+    }
 
     // MARK: - Border & Outline (边框和轮廓)
 
     /// Ghost Border 基础色
-    static let outlineVariant = NSColor(hex: "#4A4A4A")
+    static var outlineVariant: NSColor {
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#4A4A4A") : NSColor(hex: "#D4D4D4")
+    }
 
     /// 表面着色（用于阴影）
-    static let surfaceTint = NSColor(hex: "#AAC7FF")
+    static var surfaceTint: NSColor {
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#AAC7FF") : NSColor(hex: "#2563EB")
+    }
 
     // MARK: - Spacing (间距系统)
 

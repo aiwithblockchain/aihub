@@ -280,6 +280,7 @@ class CollapsibleCardContainer: NSView {
 final class SettingsViewController: NSViewController {
     private let titleLabel = NSTextField(labelWithString: "设置")
     private let stayOnTopCheckbox = NSButton(checkboxWithTitle: "窗口保持在最前面", target: nil, action: #selector(toggleStayOnTop))
+    private var themeSegmentedControl: SegmentedControl!
 
     // 配置数据
     private var currentConfig: BridgeConfig = BridgeConfig.load()
@@ -302,11 +303,30 @@ final class SettingsViewController: NSViewController {
         super.viewDidLoad()
         lanIPs = NetworkUtils.getLocalIPAddresses()
         setupUI()
+
+        // 监听主题变化
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(themeDidChange),
+            name: ThemeManager.themeDidChangeNotification,
+            object: nil
+        )
     }
 
     override func viewWillAppear() {
         super.viewWillAppear()
         updateCheckboxState()
+    }
+
+    @objc private func themeDidChange() {
+        applyTheme()
+    }
+
+    private func applyTheme() {
+        view.layer?.backgroundColor = DSV2.surface.cgColor
+        // 刷新所有子视图
+        view.needsDisplay = true
+        view.subviews.forEach { $0.needsDisplay = true }
     }
 
     private func setupUI() {
@@ -335,7 +355,7 @@ final class SettingsViewController: NSViewController {
             title: "General",
             icon: "tune",
             iconColor: DSV2.primary,
-            views: [makeCheckboxRow()]
+            views: [makeCheckboxRow(), makeThemeRow()]
         )
 
         // 创建服务配置卡片
@@ -528,6 +548,83 @@ final class SettingsViewController: NSViewController {
         ])
 
         return container
+    }
+
+    private func makeThemeRow() -> NSView {
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        let label = NSTextField(labelWithString: "Theme")
+        label.font = DSV2.fontBodyMd
+        label.textColor = DSV2.onSurface
+        label.isBordered = false
+        label.isEditable = false
+        label.drawsBackground = false
+        label.translatesAutoresizingMaskIntoConstraints = false
+
+        let hint = NSTextField(labelWithString: "Choose your preferred color theme or follow system settings.")
+        hint.font = NSFont.systemFont(ofSize: 11, weight: .regular)
+        hint.textColor = DSV2.onSurfaceVariant
+        hint.isBordered = false
+        hint.isEditable = false
+        hint.drawsBackground = false
+        hint.translatesAutoresizingMaskIntoConstraints = false
+
+        // 创建主题分段控制器
+        themeSegmentedControl = DSV2.makeSegmentedControl(
+            items: ["Dark", "Light", "Auto"],
+            target: self,
+            action: #selector(themeChanged)
+        )
+        themeSegmentedControl.translatesAutoresizingMaskIntoConstraints = false
+
+        // 根据当前主题设置选中项
+        let currentTheme = ThemeManager.shared.userTheme
+        switch currentTheme {
+        case .dark:
+            themeSegmentedControl.selectItem(at: 0)
+        case .light:
+            themeSegmentedControl.selectItem(at: 1)
+        case .auto:
+            themeSegmentedControl.selectItem(at: 2)
+        }
+
+        container.addSubview(label)
+        container.addSubview(hint)
+        container.addSubview(themeSegmentedControl)
+
+        NSLayoutConstraint.activate([
+            label.topAnchor.constraint(equalTo: container.topAnchor),
+            label.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            label.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+
+            hint.topAnchor.constraint(equalTo: label.bottomAnchor, constant: 4),
+            hint.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            hint.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+
+            themeSegmentedControl.topAnchor.constraint(equalTo: hint.bottomAnchor, constant: 12),
+            themeSegmentedControl.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            themeSegmentedControl.widthAnchor.constraint(equalToConstant: 240),
+            themeSegmentedControl.bottomAnchor.constraint(equalTo: container.bottomAnchor)
+        ])
+
+        return container
+    }
+
+    @objc private func themeChanged() {
+        let selectedIndex = themeSegmentedControl.indexOfSelectedItem()
+        let newTheme: AppTheme
+        switch selectedIndex {
+        case 0:
+            newTheme = .dark
+        case 1:
+            newTheme = .light
+        case 2:
+            newTheme = .auto
+        default:
+            newTheme = .dark
+        }
+        ThemeManager.shared.setTheme(newTheme)
     }
 
     private func makeSettingsCard(title: String, icon: String, iconColor: NSColor, views: [NSView]) -> NSView {
