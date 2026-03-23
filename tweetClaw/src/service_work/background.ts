@@ -1253,7 +1253,22 @@ export async function querySearchTimeline(payload: any) {
         });
 
         if (result?.success && result?.data) {
-            return { ok: true, data: result.data, error: null };
+            // Extract cursor from response
+            const { extractTimelineCursors } = await import('../capture/timeline-extractor');
+            const cursors = extractTimelineCursors(result.data);
+
+            // Return data with cursor information embedded (similar to queryTweetReplies)
+            return {
+                ok: true,
+                data: {
+                    ...result.data,
+                    cursor: {
+                        next: cursors.next,
+                        previous: cursors.previous
+                    }
+                },
+                error: null
+            };
         }
         return { ok: false, error: result?.error || 'Failed to search timeline', data: null };
     }

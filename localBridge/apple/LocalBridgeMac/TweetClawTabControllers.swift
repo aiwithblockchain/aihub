@@ -1313,10 +1313,13 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     private func handleSearchTimelineResponse(from jsonString: String) {
         let row = tableView.selectedRow
         guard row >= 0, row < docs.count else {
+            print("[LocalBridgeMac] handleSearchTimelineResponse: invalid row=\(row) docs.count=\(docs.count)")
             return
         }
         let doc = docs[row]
+        print("[LocalBridgeMac] handleSearchTimelineResponse: doc.id=\(doc.id)")
         guard doc.id == "query_search_results" else {
+            print("[LocalBridgeMac] handleSearchTimelineResponse: skipping, not query_search_results")
             return
         }
 
@@ -1347,7 +1350,10 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         var bottomCursor: String?
         var hasResults = false
 
-        if let dataObj = json["data"] as? [String: Any],
+        // 响应格式：{ ok: true, data: { data: { search_by_raw_query: ... } } }
+        // 需要先提取 json["data"]["data"]
+        if let outerData = json["data"] as? [String: Any],
+           let dataObj = outerData["data"] as? [String: Any],
            let searchByRawQuery = dataObj["search_by_raw_query"] as? [String: Any],
            let searchTimeline = searchByRawQuery["search_timeline"] as? [String: Any],
            let timeline = searchTimeline["timeline"] as? [String: Any],
