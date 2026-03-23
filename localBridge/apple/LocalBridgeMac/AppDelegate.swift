@@ -56,6 +56,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        setDockIconVisible(true)
+
         // 先激活应用
         NSApp.activate(ignoringOtherApps: true)
 
@@ -70,6 +72,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             if window.level == .floating {
                 window.level = .floating
             }
+        }
+    }
+
+    func windowWillClose() {
+        setDockIconVisible(false)
+    }
+
+    private func setDockIconVisible(_ isVisible: Bool) {
+        let targetPolicy: NSApplication.ActivationPolicy = isVisible ? .regular : .accessory
+        guard NSApp.activationPolicy() != targetPolicy else { return }
+        NSApp.setActivationPolicy(targetPolicy)
+        if isVisible {
+            NSApp.activate(ignoringOtherApps: true)
         }
     }
 

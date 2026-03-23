@@ -1,6 +1,6 @@
 import AppKit
 
-final class MainWindowController: NSWindowController {
+final class MainWindowController: NSWindowController, NSWindowDelegate {
     init() {
         let contentViewController = ConversationsSplitViewController()
         let window = NSWindow(contentViewController: contentViewController)
@@ -13,8 +13,10 @@ final class MainWindowController: NSWindowController {
         window.titleVisibility = .visible
         window.toolbarStyle = .unified
         window.isReleasedWhenClosed = false
+        window.delegate = nil
 
         super.init(window: window)
+        self.window?.delegate = self
     }
 
     @available(*, unavailable)
@@ -25,6 +27,9 @@ final class MainWindowController: NSWindowController {
     @objc private func quitApp() {
         NSApplication.shared.terminate(nil)
     }
-}
 
+    func windowWillClose(_ notification: Notification) {
+        AppDelegate.shared?.windowWillClose()
+    }
+}
 

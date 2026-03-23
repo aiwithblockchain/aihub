@@ -819,13 +819,7 @@ class ServiceConfigView: NSView {
         localhostPortField.target = self
         localhostPortField.action = #selector(configChanged)
 
-        // 优化点：添加通知监听，在获得焦点时改变边框颜色
-        NotificationCenter.default.addObserver(forName: NSControl.textDidBeginEditingNotification, object: localhostPortField, queue: .main) { _ in
-            fieldContainer.layer?.borderColor = DSV2.primary.withAlphaComponent(0.5).cgColor
-        }
-        NotificationCenter.default.addObserver(forName: NSControl.textDidEndEditingNotification, object: localhostPortField, queue: .main) { _ in
-            fieldContainer.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.3).cgColor
-        }
+        observeTextField(localhostPortField, fieldContainer: fieldContainer)
 
         fieldContainer.addSubview(localhostPortField)
         container.addSubview(label)
@@ -895,13 +889,7 @@ class ServiceConfigView: NSView {
         portField.action = #selector(configChanged)
         lanIPPortFields[ip] = portField
 
-        // 优化点：添加通知监听，在获得焦点时改变边框颜色
-        NotificationCenter.default.addObserver(forName: NSControl.textDidBeginEditingNotification, object: portField, queue: .main) { _ in
-            fieldContainer.layer?.borderColor = DSV2.primary.withAlphaComponent(0.5).cgColor
-        }
-        NotificationCenter.default.addObserver(forName: NSControl.textDidEndEditingNotification, object: portField, queue: .main) { _ in
-            fieldContainer.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.3).cgColor
-        }
+        observeTextField(portField, fieldContainer: fieldContainer)
 
         fieldContainer.addSubview(portField)
         container.addSubview(checkbox)
@@ -952,6 +940,19 @@ class ServiceConfigView: NSView {
         button.widthAnchor.constraint(greaterThanOrEqualToConstant: 200).isActive = true
 
         return button
+    }
+
+    private func observeTextField(_ textField: NSTextField, fieldContainer: NSView) {
+        NotificationCenter.default.addObserver(forName: NSControl.textDidBeginEditingNotification, object: textField, queue: .main) { _ in
+            fieldContainer.layer?.borderColor = DSV2.primary.withAlphaComponent(0.5).cgColor
+        }
+        NotificationCenter.default.addObserver(forName: NSControl.textDidChangeNotification, object: textField, queue: .main) { [weak self] _ in
+            self?.configChanged()
+        }
+        NotificationCenter.default.addObserver(forName: NSControl.textDidEndEditingNotification, object: textField, queue: .main) { [weak self] _ in
+            fieldContainer.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.3).cgColor
+            self?.configChanged()
+        }
     }
 
     private func updateButtonAppearance(enabled: Bool) {

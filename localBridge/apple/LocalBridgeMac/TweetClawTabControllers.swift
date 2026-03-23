@@ -71,6 +71,10 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     private let instancePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let refreshInstancesButton = NSButton(title: "↻", target: nil, action: #selector(refreshInstancesClicked))
     private var instanceSnapshots: [LocalBridgeGoManager.InstanceSnapshot] = []
+    private var isRefreshingInstances = false
+    private var refreshAnimationTimer: Timer?
+    private let refreshFrames = ["↻", "↺", "↻", "↺"]
+    private var refreshFrameIndex = 0
 
     struct ApiDoc: Codable {
         let id: String
@@ -120,28 +124,108 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
 
     /// 从 AppDelegate 加载 tweetClaw 实例列表，更新下拉框
     private func loadInstances() {
-        let all = AppDelegate.shared?.getConnectedInstances() ?? []
-        instanceSnapshots = all.filter { $0.clientName == "tweetClaw" }
+        applyInstances(fetchInstances())
+    }
 
+    private func fetchInstances() -> [LocalBridgeGoManager.InstanceSnapshot] {
+        let all = AppDelegate.shared?.getConnectedInstances() ?? []
+        return all.filter { $0.clientName == "tweetClaw" }
+    }
+
+    private func applyInstances(_ snapshots: [LocalBridgeGoManager.InstanceSnapshot]) {
+        instanceSnapshots = snapshots
         instancePopup.removeAllItems()
+        instancePopup.menu?.removeAllItems()
+
         if instanceSnapshots.isEmpty {
-            let attrTitle = NSAttributedString(string: "无可用实例（自动选择）", attributes: [
-                .foregroundColor: DSV2.error,
-                .font: DSV2.fontMonoSm
-            ])
             let item = NSMenuItem()
-            item.attributedTitle = attrTitle
+            item.attributedTitle = attributedInstanceTitle(
+                "No instance available",
+                color: DSV2.error,
+                font: DSV2.fontMonoSm
+            )
             instancePopup.menu?.addItem(item)
             instancePopup.select(item)
-        } else {
-            for snap in instanceSnapshots {
-                let idShort = String(snap.instanceId.prefix(8))
-                let label = snap.isTemporary
-                    ? "[\(idShort)...] (旧版)"
-                    : "[\(idShort)...]"
-                instancePopup.addItem(withTitle: label)
-            }
+            return
         }
+
+        for snapshot in instanceSnapshots {
+            let item = NSMenuItem()
+            item.attributedTitle = attributedInstanceTitle(displayName(for: snapshot))
+            instancePopup.menu?.addItem(item)
+        }
+
+        instancePopup.selectItem(at: 0)
+    }
+
+    private func displayName(for snapshot: LocalBridgeGoManager.InstanceSnapshot) -> String {
+        if let instanceName = snapshot.instanceName?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !instanceName.isEmpty {
+            return snapshot.isTemporary ? "\(instanceName) (Legacy)" : instanceName
+        }
+
+        if let screenName = snapshot.xScreenName?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !screenName.isEmpty {
+            return snapshot.isTemporary ? "@\(screenName) (Legacy)" : "@\(screenName)"
+        }
+
+        let fallbackId = String(snapshot.instanceId.prefix(8))
+        return snapshot.isTemporary ? "[\(fallbackId)...] (Legacy)" : "[\(fallbackId)...]"
+    }
+
+    private func attributedInstanceTitle(
+        _ title: String,
+        color: NSColor = DSV2.onSurface,
+        font: NSFont = DSV2.fontMonoSm
+    ) -> NSAttributedString {
+        NSAttributedString(string: title, attributes: [
+            .foregroundColor: color,
+            .font: font
+        ])
+    }
+
+    private func setRefreshingInstances(_ isRefreshing: Bool) {
+        isRefreshingInstances = isRefreshing
+        refreshInstancesButton.isEnabled = !isRefreshing
+        instancePopup.isEnabled = !isRefreshing
+        applyRefreshButtonStyle(isRefreshing: isRefreshing)
+
+        if isRefreshing {
+            startRefreshAnimation()
+        } else {
+            stopRefreshAnimation()
+        }
+    }
+
+    private func startRefreshAnimation() {
+        stopRefreshAnimation()
+        refreshFrameIndex = 0
+        updateRefreshButtonSymbol(refreshFrames[refreshFrameIndex], isRefreshing: true)
+        refreshAnimationTimer = Timer.scheduledTimer(withTimeInterval: 0.12, repeats: true) { [weak self] _ in
+            guard let self else { return }
+            self.refreshFrameIndex = (self.refreshFrameIndex + 1) % self.refreshFrames.count
+            self.updateRefreshButtonSymbol(self.refreshFrames[self.refreshFrameIndex], isRefreshing: true)
+        }
+    }
+
+    private func stopRefreshAnimation() {
+        refreshAnimationTimer?.invalidate()
+        refreshAnimationTimer = nil
+        updateRefreshButtonSymbol("↻", isRefreshing: false)
+    }
+
+    private func applyRefreshButtonStyle(isRefreshing: Bool = false) {
+        refreshInstancesButton.layer?.backgroundColor = (isRefreshing ? DSV2.primary.withAlphaComponent(0.18) : DSV2.surfaceContainerHigh).cgColor
+        refreshInstancesButton.layer?.borderColor = (isRefreshing ? DSV2.primary.withAlphaComponent(0.75) : DSV2.outlineVariant.withAlphaComponent(0.35)).cgColor
+        updateRefreshButtonSymbol(isRefreshing ? refreshFrames[refreshFrameIndex] : "↻", isRefreshing: isRefreshing)
+    }
+
+    private func updateRefreshButtonSymbol(_ symbol: String, isRefreshing: Bool) {
+        let attributes: [NSAttributedString.Key: Any] = [
+            .foregroundColor: isRefreshing ? NSColor.white : DSV2.primary,
+            .font: NSFont.systemFont(ofSize: 14, weight: .bold)
+        ]
+        refreshInstancesButton.attributedTitle = NSAttributedString(string: symbol, attributes: attributes)
     }
 
     private func selectedInstanceId() -> String? {
@@ -152,7 +236,16 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     }
 
     @objc private func refreshInstancesClicked() {
-        loadInstances()
+        guard !isRefreshingInstances else { return }
+
+        setRefreshingInstances(true)
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let snapshots = self?.fetchInstances() ?? []
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+                self?.applyInstances(snapshots)
+                self?.setRefreshingInstances(false)
+            }
+        }
     }
     
     private func loadDocs() {
@@ -223,18 +316,20 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         instancePopup.bezelStyle = .rounded
         instancePopup.font = DSV2.fontMonoSm
         instancePopup.contentTintColor = DSV2.onSurface
+        instancePopup.appearance = NSAppearance(named: .darkAqua)
+        instancePopup.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
         refreshInstancesButton.target = self
         refreshInstancesButton.wantsLayer = true
         refreshInstancesButton.isBordered = false
-        refreshInstancesButton.layer?.backgroundColor = DSV2.surface.cgColor
+        refreshInstancesButton.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
         refreshInstancesButton.layer?.cornerRadius = DSV2.radiusButton
         refreshInstancesButton.layer?.borderWidth = 1
-        refreshInstancesButton.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.2).cgColor
-        refreshInstancesButton.attributedTitle = NSAttributedString(string: "↻", attributes: [.foregroundColor: DSV2.onSurfaceVariant, .font: DSV2.fontLabelMd])
+        refreshInstancesButton.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.35).cgColor
+        updateRefreshButtonSymbol("↻", isRefreshing: false)
         refreshInstancesButton.translatesAutoresizingMaskIntoConstraints = false
-        refreshInstancesButton.widthAnchor.constraint(equalToConstant: 28).isActive = true
-        refreshInstancesButton.heightAnchor.constraint(equalToConstant: 28).isActive = true
+        refreshInstancesButton.widthAnchor.constraint(equalToConstant: 32).isActive = true
+        refreshInstancesButton.heightAnchor.constraint(equalToConstant: 32).isActive = true
 
         let instanceRow = NSStackView(views: [instanceLabel, instancePopup, refreshInstancesButton, NSView()])
         instanceRow.orientation = .horizontal
