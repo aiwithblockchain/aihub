@@ -228,13 +228,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 const cleanName = (message.screenName as string).replace('@', '');
                 const json = await fetchUserByScreenName(cleanName);
 
-                // Use UserProfile class for complete field extraction
-                const userProfile = new UserProfile(json);
-                if (!userProfile.isValid) {
-                    throw new Error('User not found or unavailable');
-                }
-
-                sendResponse({ success: true, data: userProfile.toJSON() });
+                // 直接透传原始 JSON，不再解析字段
+                sendResponse({ success: true, data: json });
             } catch (e: any) {
                 sendResponse({ success: false, error: e.message });
             }
