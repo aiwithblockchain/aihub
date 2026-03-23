@@ -270,7 +270,13 @@ class CollapsibleCardContainer: NSView {
                 chevronView.image = NSImage(systemSymbolName: isExpanded ? "chevron.down" : "chevron.right", accessibilityDescription: nil)
             }
 
-            self.superview?.layoutSubtreeIfNeeded()
+            invalidateIntrinsicContentSize()
+            needsLayout = true
+            superview?.needsLayout = true
+        }, completionHandler: { [weak self] in
+            DispatchQueue.main.async {
+                self?.superview?.layoutSubtreeIfNeeded()
+            }
         })
     }
 }

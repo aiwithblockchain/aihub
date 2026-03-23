@@ -156,6 +156,7 @@ private extension SidebarViewController {
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
         scrollView.drawsBackground = false
+        scrollView.contentInsets = NSEdgeInsets(top: 12, left: 0, bottom: 0, right: 0)
         scrollView.documentView = tableView
 
         view.addSubview(scrollView)
@@ -165,7 +166,7 @@ private extension SidebarViewController {
         NSLayoutConstraint.activate([
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
-            scrollView.topAnchor.constraint(equalTo: view.topAnchor),
+            scrollView.topAnchor.constraint(equalTo: view.topAnchor, constant: 8),
             scrollView.bottomAnchor.constraint(equalTo: settingsButton.topAnchor, constant: -10),
 
             settingsButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),

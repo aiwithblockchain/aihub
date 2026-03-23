@@ -2,6 +2,50 @@ import AppKit
 
 // Removed TweetClawHumanViewController - Functionality merged into TweetClawClawViewController
 
+private final class InsetTextFieldCell: NSTextFieldCell {
+    private let horizontalInset: CGFloat = 12
+
+    override func drawingRect(forBounds rect: NSRect) -> NSRect {
+        adjustedRect(for: rect)
+    }
+
+    override func titleRect(forBounds rect: NSRect) -> NSRect {
+        adjustedRect(for: rect)
+    }
+
+    override func edit(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, event: NSEvent?) {
+        super.edit(withFrame: adjustedRect(for: rect), in: controlView, editor: textObj, delegate: delegate, event: event)
+    }
+
+    override func select(withFrame rect: NSRect, in controlView: NSView, editor textObj: NSText, delegate: Any?, start selStart: Int, length selLength: Int) {
+        super.select(withFrame: adjustedRect(for: rect), in: controlView, editor: textObj, delegate: delegate, start: selStart, length: selLength)
+    }
+
+    private func adjustedRect(for rect: NSRect) -> NSRect {
+        let horizontalRect = rect.insetBy(dx: horizontalInset, dy: 0)
+        let naturalHeight = cellSize(forBounds: horizontalRect).height
+        let centeredY = horizontalRect.origin.y + floor((horizontalRect.height - naturalHeight) / 2)
+        return NSRect(
+            x: horizontalRect.origin.x,
+            y: centeredY,
+            width: horizontalRect.width,
+            height: naturalHeight
+        )
+    }
+}
+
+private final class InsetTextField: NSTextField {
+    override init(frame frameRect: NSRect) {
+        super.init(frame: frameRect)
+        cell = InsetTextFieldCell()
+    }
+
+    required init?(coder: NSCoder) {
+        super.init(coder: coder)
+        cell = InsetTextFieldCell()
+    }
+}
+
 final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, NSTableViewDataSource {
     private var resultTextView: NSTextView!
     private let interactiveAreaContainer = NSStackView()
@@ -16,8 +60,8 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     private var resultHeightConstraint: NSLayoutConstraint?
 
     // Shared Interactive Components
-    private let commonIdField = NSTextField()
-    private let commonPathField = NSTextField()
+    private let commonIdField = InsetTextField()
+    private let commonPathField = InsetTextField()
     private let contentEditor = NSTextView()
     private let contentScrollView = NSScrollView()
     private let actionButton = NSButton(title: "Run API", target: nil, action: #selector(actionButtonClicked))
@@ -365,18 +409,23 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
 
     private func styleInputField(_ field: NSTextField) {
         field.wantsLayer = true
-        field.isBezeled = true
-        field.bezelStyle = .roundedBezel
-        field.backgroundColor = NSColor.white
-        field.textColor = NSColor.black
-        field.font = DSV2.fontBodyMd
-        field.alignment = .center
+        field.isBezeled = false
+        field.isBordered = false
+        field.drawsBackground = true
+        field.backgroundColor = DSV2.surfaceContainerHighest
+        field.textColor = DSV2.onSurface
+        field.font = DSV2.fontMonoMd
+        field.alignment = .left
         field.translatesAutoresizingMaskIntoConstraints = false
         field.layer?.borderWidth = 1
-        field.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.6).cgColor
+        field.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.28).cgColor
         field.layer?.cornerRadius = DSV2.radiusInput
         field.heightAnchor.constraint(equalToConstant: 36).isActive = true
         field.focusRingType = .none
+        field.isEditable = true
+        field.isSelectable = true
+        field.maximumNumberOfLines = 1
+        field.lineBreakMode = .byClipping
     }
 
     private func styleButton(_ button: NSButton) {
@@ -639,6 +688,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     
     private func updateInteractiveArea(for doc: ApiDoc) {
         interactiveAreaContainer.arrangedSubviews.forEach { $0.removeFromSuperview() }
+        resetInteractiveInputs()
         
         var inputs: [NSView] = []
         
@@ -712,6 +762,14 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             actionButton.contentTintColor = .white
             actionButton.layer?.backgroundColor = DSV2.primary.cgColor
         }
+    }
+
+    private func resetInteractiveInputs() {
+        commonIdField.stringValue = ""
+        commonIdField.placeholderString = nil
+        commonPathField.stringValue = ""
+        commonPathField.placeholderString = nil
+        contentEditor.string = ""
     }
     
     private func makeInputRow(_ label: String, _ field: NSView) -> NSView {
