@@ -225,6 +225,9 @@ export async function performQuery(op: string, variables: any, retryCount = 0): 
     const csrf = await getCsrfToken();
     const features = await buildFeatures(op);
 
+    // Add transaction ID for GET requests (same as performMutation)
+    const txid = await getTransactionIdFor('GET', target.path);
+
     const params = new URLSearchParams();
     params.append('variables', JSON.stringify(variables));
     params.append('features', JSON.stringify(features));
@@ -234,6 +237,7 @@ export async function performQuery(op: string, variables: any, retryCount = 0): 
     const headers: Record<string, string> = {
         'authorization': bearer,
         'x-csrf-token': csrf as string,
+        'x-client-transaction-id': txid,
         'content-type': 'application/json',
         'x-twitter-active-user': 'yes',
         'x-twitter-auth-type': 'OAuth2Session',

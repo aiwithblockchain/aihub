@@ -1296,9 +1296,9 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         searchNextPageButton.alphaValue = hasNext ? 1.0 : 0.45
 
         // 更新状态标签
-        if let query = currentSearchQuery, hasNext {
+        if currentSearchQuery != nil, hasNext {
             searchStatusLabel.stringValue = "More results available"
-        } else if let query = currentSearchQuery, !hasNext {
+        } else if currentSearchQuery != nil, !hasNext {
             searchStatusLabel.stringValue = "End of results"
         } else {
             searchStatusLabel.stringValue = ""
