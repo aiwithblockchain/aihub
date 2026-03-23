@@ -955,12 +955,59 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     }
 
     @objc private func actionButtonClicked() {
+        // 防止重复点击
+        guard actionButton.isEnabled else { return }
+
         let row = tableView.selectedRow
         guard row >= 0 && row < docs.count else { return }
         let doc = docs[row]
         let instanceId = selectedInstanceId()
-        
-        switch doc.id {
+
+        // 保存原始状态
+        let originalTitle = actionButton.title
+        let originalColor = actionButton.contentTintColor
+
+        // 禁用按钮
+        actionButton.isEnabled = false
+        actionButton.contentTintColor = NSColor.systemGray
+
+        // 创建原生的加载指示器（旋转圆圈）
+        let spinner = NSProgressIndicator()
+        spinner.style = .spinning
+        spinner.controlSize = .small
+        spinner.frame = NSRect(x: 8, y: (actionButton.frame.height - 16) / 2, width: 16, height: 16)
+        actionButton.addSubview(spinner)
+        spinner.startAnimation(nil)
+
+        // 调整按钮文本位置，为 spinner 留出空间
+        actionButton.title = "  Loading..."
+
+        // 延迟执行实际操作，让动画先显示
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
+            guard let self = self else { return }
+
+            // 执行实际操作
+            self.performAction(for: doc.id, instanceId: instanceId)
+
+            // 恢复按钮状态（延迟以显示反馈）
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                spinner.stopAnimation(nil)
+                spinner.removeFromSuperview()
+                self.actionButton.isEnabled = true
+                self.actionButton.title = originalTitle
+                self.actionButton.contentTintColor = originalColor
+
+                // 成功反馈动画：短暂变绿
+                self.actionButton.contentTintColor = NSColor.systemGreen
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
+                    self.actionButton.contentTintColor = originalColor
+                }
+            }
+        }
+    }
+
+    private func performAction(for docId: String, instanceId: String?) {
+        switch docId {
         case "get_api_docs":
             AppDelegate.shared?.fetchAPIDocs()
         case "query_x_status":
@@ -1037,7 +1084,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         case "query_search_results":
             AppDelegate.shared?.sendQuerySearchTimeline(tabId: nil, instanceId: instanceId)
         default:
-            print("Action not implemented for \(doc.id)")
+            print("Action not implemented for \(docId)")
         }
     }
 

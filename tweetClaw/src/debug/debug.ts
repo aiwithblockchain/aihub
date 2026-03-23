@@ -15,13 +15,24 @@ import { validateTweetDetailParams, formatTweetDetailUrl } from '../utils/x-url-
 const style = document.createElement('style');
 style.textContent = `
     /* 强制提升所有 sys-stat 标签的对比度 */
-    .sys-stat span:first-child:not(.val) { 
-        color: #cbd5e0 !important; 
+    .sys-stat span:first-child:not(.val) {
+        color: #cbd5e0 !important;
         opacity: 0.9 !important;
     }
     /* 提升 text-muted 在暗色背景下的可见度 */
-    .text-muted { 
-        color: #a0aec0 !important; 
+    .text-muted {
+        color: #a0aec0 !important;
+    }
+    /* 按钮点击动画 - 旋转加载效果 */
+    @keyframes spin {
+        from { transform: rotate(0deg); }
+        to { transform: rotate(360deg); }
+    }
+    /* 按钮点击动画 - 抖动效果 */
+    @keyframes shake {
+        0%, 100% { transform: translateX(0); }
+        10%, 30%, 50%, 70%, 90% { transform: translateX(-4px); }
+        20%, 40%, 60%, 80% { transform: translateX(4px); }
     }
 `;
 document.head.appendChild(style);
@@ -1493,24 +1504,57 @@ function showToast(message: string, isError: boolean = false, autoCloseTime: num
 }
 
 async function doAction(tabId: number, targetId: string, action: string, btn: HTMLButtonElement) {
+    // 防止重复点击
+    if (btn.disabled) return;
+
     btn.disabled = true;
     const orig = btn.innerText;
-    btn.innerText = '…';
-    
+    const origClass = btn.className;
+
+    // 添加加载动画样式
+    btn.style.position = 'relative';
+    btn.style.opacity = '0.7';
+    btn.style.pointerEvents = 'none';
+    btn.innerHTML = '<span style="display:inline-block;animation:spin 1s linear infinite">⟳</span>';
+
     showToast(`EXECUTING: ${action.toUpperCase()}...`, false);
-    
+
     // 因为 Follow 往往需要 userId，在此我们默认使用 targetId
     // 如果用户填错了类型或者输入框为空，会在底层抛出错误。
     const resp = await sendMsg({ type: 'EXEC_PROXY_ACTION', tabId, tweetId: targetId, userId: targetId, action });
-    
+
+    // 恢复按钮状态
     btn.disabled = false;
     btn.innerText = orig;
-    
+    btn.className = origClass;
+    btn.style.opacity = '';
+    btn.style.pointerEvents = '';
+
     if (resp?.ok) {
+        // 成功动画：短暂变绿
+        btn.style.background = '#22c55e';
+        btn.style.borderColor = '#22c55e';
+        btn.style.color = '#fff';
         showToast(`✅ ${action.toUpperCase()} SUCCESS!`, false, 2000);
+        setTimeout(() => {
+            btn.style.background = '';
+            btn.style.borderColor = '';
+            btn.style.color = '';
+        }, 800);
     } else {
+        // 失败动画：短暂变红并抖动
+        btn.style.background = '#ef4444';
+        btn.style.borderColor = '#ef4444';
+        btn.style.color = '#fff';
+        btn.style.animation = 'shake 0.5s';
         showToast(`❌ ${action.toUpperCase()} FAILED\n\n<span style="font-size:12px;color:#cbd5e0;display:block;margin-top:10px">${resp?.error?.message || 'Unknown error'}</span>`, true, 4000);
         console.error('[TweetClaw-Debug] Action failed:', resp);
+        setTimeout(() => {
+            btn.style.background = '';
+            btn.style.borderColor = '';
+            btn.style.color = '';
+            btn.style.animation = '';
+        }, 800);
     }
 }
 
