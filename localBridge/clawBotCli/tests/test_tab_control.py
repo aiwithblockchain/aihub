@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """
-Test Tab Control APIs (Open, Close, Navigate)
+Test Tab Control APIs (Open Tab, Navigate Tab, Close Tab)
+测试场景 9: 标签页控制测试
 """
 import sys
 import json
@@ -14,14 +15,21 @@ def test_open_tab():
     print("Testing: POST /tweetclaw/open-tab")
     print("="*60)
 
+    path = "home"
+    print(f"Opening tab with path: {path}")
+
     client = APIClient()
-    response = client.open_tab("home")
+    response = client.open_tab(path)
 
     print(json.dumps(response, indent=2, ensure_ascii=False))
 
     if response.get('success'):
-        print(f"✅ Tab opened successfully, tabId: {response.get('tabId')}")
-        return True, response.get('tabId')
+        tab_id = response.get('tabId')
+        url = response.get('url')
+        print(f"✅ Tab opened successfully")
+        print(f"   Tab ID: {tab_id}")
+        print(f"   URL: {url}")
+        return True, tab_id
     else:
         print("❌ Failed to open tab")
         return False, None
@@ -33,9 +41,10 @@ def test_navigate_tab(tab_id=None):
     print("Testing: POST /tweetclaw/navigate-tab")
     print("="*60)
 
-    path = input("Enter path to navigate (default: notifications): ").strip()
-    if not path:
-        path = "notifications"
+    path = "notifications"
+    print(f"Navigating to path: {path}")
+    if tab_id:
+        print(f"Using tab ID: {tab_id}")
 
     client = APIClient()
     response = client.navigate_tab(path, tab_id)
@@ -43,10 +52,12 @@ def test_navigate_tab(tab_id=None):
     print(json.dumps(response, indent=2, ensure_ascii=False))
 
     if response.get('success'):
-        print(f"✅ Navigated successfully to {response.get('url')}")
+        url = response.get('url')
+        print(f"✅ Navigation successful")
+        print(f"   URL: {url}")
         return True
     else:
-        print("❌ Failed to navigate")
+        print("❌ Navigation failed")
         return False
 
 
@@ -57,13 +68,10 @@ def test_close_tab(tab_id):
     print("="*60)
 
     if not tab_id:
-        print("⏭️  Skipped (no tab ID)")
+        print("⏭️  Skipped - No tab ID available")
         return True
 
-    confirm = input(f"Close tab {tab_id}? (yes/no): ").strip().lower()
-    if confirm != "yes":
-        print("⏭️  Skipped")
-        return True
+    print(f"Closing tab ID: {tab_id}")
 
     client = APIClient()
     response = client.close_tab(tab_id)
@@ -79,24 +87,29 @@ def test_close_tab(tab_id):
 
 
 if __name__ == "__main__":
-    print("\n🧪 Testing Tab Control APIs")
+    print("\n🧪 Testing Tab Control APIs (Scenario 9)")
     print("="*60)
 
     results = []
+    tab_id = None
 
-    # Test open tab
+    # Test 1: Open tab
     passed, tab_id = test_open_tab()
     results.append(("Open Tab", passed))
 
     if tab_id:
-        time.sleep(2)  # Wait for tab to fully load
+        # Wait for tab to load
+        print("\n⏳ Waiting 2 seconds for tab to load...")
+        time.sleep(2)
 
-        # Test navigate
+        # Test 2: Navigate tab
         results.append(("Navigate Tab", test_navigate_tab(tab_id)))
 
+        # Wait before closing
+        print("\n⏳ Waiting 1 second before closing...")
         time.sleep(1)
 
-        # Test close
+        # Test 3: Close tab
         results.append(("Close Tab", test_close_tab(tab_id)))
 
     print("\n" + "="*60)
