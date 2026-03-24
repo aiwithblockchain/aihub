@@ -47,45 +47,14 @@ private final class InsetTextField: NSTextField {
 }
 
 final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, NSTableViewDataSource {
-    private var resultTextView: NSTextView!
-    private let interactiveAreaContainer = NSStackView()
     private let tableView = NSTableView()
     private let headerImageView = NSImageView()
     private let headerTitleLabel = NSTextField(labelWithString: "TweetClaw")
     private var detailTextView: NSTextView!
     private var mainRightScrollView: NSScrollView!
-    
-    // 高度约束，用于让文本视图在 StackView 中“撑开”
+
+    // 高度约束，用于让文本视图在 StackView 中"撑开"
     private var detailHeightConstraint: NSLayoutConstraint?
-    private var resultHeightConstraint: NSLayoutConstraint?
-
-    // Shared Interactive Components
-    private let commonIdField = InsetTextField()
-    private let commonPathField = InsetTextField()
-    private let commonCursorField = InsetTextField()
-    private let searchQueryField = InsetTextField()  // 新增：搜索关键词输入框
-    private let contentEditor = NSTextView()
-    private let contentScrollView = NSScrollView()
-    private let actionButton = NSButton(title: "Run API", target: nil, action: #selector(actionButtonClicked))
-    private let previousPageButton = NSButton(title: "Previous Page", target: nil, action: #selector(previousPageClicked))
-    private let nextPageButton = NSButton(title: "Next Page", target: nil, action: #selector(nextPageClicked))
-    private let cursorStatusLabel = NSTextField(labelWithString: "")
-    private var latestRepliesNextCursor: String?
-    private var latestRepliesPreviousCursor: String?
-    private var lastRepliesPaginationDirection: String = "none"
-
-    // Cursor 历史栈：用于实现传统的上一页/下一页功能
-    // Twitter 的 previous cursor 不是用来获取"上一页"的，而是用来获取增量数据
-    // 所以我们需要自己维护一个栈来记录每一页的 cursor
-    private var repliesCursorStack: [String?] = [nil]  // 栈底是 nil（第一页）
-
-    // 搜索状态管理
-    private var currentSearchQuery: String?           // 当前搜索关键词
-    private var currentSearchCursor: String?          // 当前页的 cursor（用于下一页）
-    private let searchNextPageButton = NSButton(title: "Next Page", target: nil, action: #selector(searchNextPageClicked))  // 下一页按钮
-    private let searchStatusLabel = NSTextField(labelWithString: "")  // 搜索状态标签
-    private var searchPaginationContainer: NSView?    // 翻页容器引用
-
 
     // Instance Selector
     private let instanceLabel = NSTextField(labelWithString: "TARGET INSTANCE")
@@ -114,20 +83,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         }
     }
 
-    private struct RepliesCursorEnvelope: Decodable {
-        struct CursorPayload: Decodable {
-            let next: String?
-            let previous: String?
-        }
 
-        struct DataPayload: Decodable {
-            let cursor: CursorPayload?
-        }
-
-        let cursor: CursorPayload?
-        let data: DataPayload?
-    }
-    
     private var docs: [ApiDoc] = []
     
     override func loadView() {
@@ -140,15 +96,6 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         super.viewDidLoad()
         loadDocs()
         setupUI()
-
-        NotificationCenter.default.addObserver(self, selector: #selector(displayResult(_:)), name: NSNotification.Name("QueryXTabsStatusReceived"), object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(displayResult(_:)), name: NSNotification.Name("QueryXBasicInfoReceived"), object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(displayResult(_:)), name: NSNotification.Name("OpenTabReceived"), object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(displayResult(_:)), name: NSNotification.Name("CloseTabReceived"), object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(displayResult(_:)), name: NSNotification.Name("NavigateTabReceived"), object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(displayResult(_:)), name: NSNotification.Name("ExecActionReceived"), object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(displayResult(_:)), name: NSNotification.Name("GetAPIDocsReceived"), object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(displayResult(_:)), name: NSNotification.Name("GetInstancesReceived"), object: nil)
 
         // 注册主题变化通知
         NotificationCenter.default.addObserver(
@@ -170,19 +117,10 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         headerImageView.contentTintColor = DSV2.primary
         instanceLabel.textColor = DSV2.onSurfaceTertiary
 
-        // 更新输入框
-        styleInputField(commonIdField)
-        styleInputField(commonPathField)
-        styleInputField(commonCursorField)
-
         // 更新文本视图
         detailTextView?.textColor = DSV2.tertiary
-        resultTextView?.textColor = DSV2.tertiary
-        contentEditor.textColor = DSV2.onSurface
-        contentEditor.backgroundColor = DSV2.surface
 
         // 更新按钮
-        actionButton.layer?.backgroundColor = DSV2.primary.cgColor
         applyRefreshButtonStyle(isRefreshing: isRefreshingInstances)
 
         // 更新容器背景
@@ -190,14 +128,6 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             detailContainer.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
             detailContainer.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.1).cgColor
         }
-        if let resultContainer = resultTextView?.superview {
-            resultContainer.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
-            resultContainer.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.1).cgColor
-        }
-
-        // 更新 scrollView 背景
-        contentScrollView.layer?.backgroundColor = DSV2.surface.cgColor
-        contentScrollView.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
 
         // 重新加载表格以更新 API 卡片
         tableView.reloadData()
@@ -364,22 +294,6 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     }
     
     private func setupUI() {
-        actionButton.target = self
-        previousPageButton.target = self
-        nextPageButton.target = self
-
-        // 初始化所有输入框为可编辑状态
-        [commonIdField, commonPathField, commonCursorField, searchQueryField].forEach { field in
-            field.isEditable = true
-            field.isEnabled = true
-            field.isSelectable = true
-            field.isBordered = true
-            field.isBezeled = true
-            field.drawsBackground = true
-            field.backgroundColor = NSColor.textBackgroundColor
-            field.textColor = NSColor.textColor
-        }
-
         // --- Header ---
         if #available(macOS 11.0, *) {
             headerImageView.image = NSImage(systemSymbolName: "network", accessibilityDescription: nil)
@@ -391,7 +305,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         headerTitleLabel.textColor = DSV2.onSurface
 
         let headerStack = NSStackView(views: [headerImageView, headerTitleLabel])
-        headerStack.orientation = .horizontal	
+        headerStack.orientation = .horizontal
         headerStack.spacing = 8
         headerStack.alignment = .centerY
         headerStack.translatesAutoresizingMaskIntoConstraints = false
@@ -413,9 +327,9 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         listScrollView.documentView = tableView
         view.addSubview(listScrollView)
 
-        // --- Right Column: Interactive & Documentation ---
-        
-        // 1. Instance Row (Move to Top as requested)
+        // --- Right Column: Documentation Only ---
+
+        // 1. Instance Row (Top)
         instanceLabel.font = DSV2.fontLabelSm
         instanceLabel.textColor = DSV2.onSurfaceTertiary
         instanceLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -449,20 +363,20 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         // 2. Documentation Container
         let detailContainer = DSV2.makeGhostBorderView()
         detailContainer.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
-        
+
         detailTextView = NSTextView()
         detailTextView.isEditable = false
         detailTextView.isSelectable = true
-        detailTextView.drawsBackground = false // 背景由容器提供
+        detailTextView.drawsBackground = false
         detailTextView.font = DSV2.fontMonoMd
         detailTextView.textColor = DSV2.tertiary
         detailTextView.textContainerInset = NSSize(width: DSV2.spacing4, height: DSV2.spacing4)
         detailTextView.isVerticallyResizable = true
         detailTextView.autoresizingMask = [.width]
-        
+
         detailContainer.addSubview(detailTextView)
         detailTextView.translatesAutoresizingMaskIntoConstraints = false
-        
+
         NSLayoutConstraint.activate([
             detailTextView.topAnchor.constraint(equalTo: detailContainer.topAnchor),
             detailTextView.leadingAnchor.constraint(equalTo: detailContainer.leadingAnchor),
@@ -470,45 +384,11 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             detailTextView.bottomAnchor.constraint(equalTo: detailContainer.bottomAnchor),
             detailContainer.heightAnchor.constraint(greaterThanOrEqualToConstant: 100)
         ])
-        
+
         detailHeightConstraint = detailTextView.heightAnchor.constraint(equalToConstant: 100)
         detailHeightConstraint?.isActive = true
 
-        // 3. Interactive Area Container
-        interactiveAreaContainer.orientation = .vertical
-        interactiveAreaContainer.alignment = .centerX
-        interactiveAreaContainer.spacing = DSV2.spacing4
-        interactiveAreaContainer.translatesAutoresizingMaskIntoConstraints = false
-
-        // 4. Result View (Terminal) Container
-        let resultContainer = DSV2.makeGhostBorderView()
-        resultContainer.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
-        
-        resultTextView = NSTextView()
-        resultTextView.isEditable = false
-        resultTextView.isSelectable = true
-        resultTextView.drawsBackground = false
-        resultTextView.font = DSV2.fontMonoMd
-        resultTextView.textColor = DSV2.tertiary
-        resultTextView.textContainerInset = NSSize(width: DSV2.spacing4, height: DSV2.spacing4)
-        resultTextView.isVerticallyResizable = true
-        resultTextView.autoresizingMask = [.width]
-        
-        resultContainer.addSubview(resultTextView)
-        resultTextView.translatesAutoresizingMaskIntoConstraints = false
-        
-        NSLayoutConstraint.activate([
-            resultTextView.topAnchor.constraint(equalTo: resultContainer.topAnchor),
-            resultTextView.leadingAnchor.constraint(equalTo: resultContainer.leadingAnchor),
-            resultTextView.trailingAnchor.constraint(equalTo: resultContainer.trailingAnchor),
-            resultTextView.bottomAnchor.constraint(equalTo: resultContainer.bottomAnchor),
-            resultContainer.heightAnchor.constraint(greaterThanOrEqualToConstant: 100)
-        ])
-
-        resultHeightConstraint = resultTextView.heightAnchor.constraint(equalToConstant: 100)
-        resultHeightConstraint?.isActive = true
-
-        // 5. Main Right Column ScrollView (The Master Container)
+        // 3. Main Right Column ScrollView
         mainRightScrollView = NSScrollView()
         mainRightScrollView.drawsBackground = false
         mainRightScrollView.hasVerticalScroller = true
@@ -520,36 +400,10 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         rightContentContainer.translatesAutoresizingMaskIntoConstraints = false
         mainRightScrollView.documentView = rightContentContainer
 
-        // 6. Right Stack Assembly (Scrollable area)
-        // 添加弹性空间实现垂直居中
-        let topSpacer = NSView()
-        topSpacer.translatesAutoresizingMaskIntoConstraints = false
-        let bottomSpacer = NSView()
-        bottomSpacer.translatesAutoresizingMaskIntoConstraints = false
+        rightContentContainer.addSubview(detailContainer)
+        detailContainer.translatesAutoresizingMaskIntoConstraints = false
 
-        let centeredInteractiveStack = NSStackView(views: [
-            topSpacer,
-            interactiveAreaContainer,
-            bottomSpacer
-        ])
-        centeredInteractiveStack.orientation = .vertical
-        centeredInteractiveStack.distribution = .equalSpacing
-        centeredInteractiveStack.translatesAutoresizingMaskIntoConstraints = false
-
-        let rightStack = NSStackView(views: [
-            detailContainer,
-            centeredInteractiveStack,
-            resultContainer
-        ])
-        rightStack.orientation = .vertical
-        rightStack.alignment = .leading
-        rightStack.spacing = DSV2.spacing6
-        rightStack.edgeInsets = NSEdgeInsets(top: 0, left: 0, bottom: DSV2.spacing8, right: 0) // 给底部留出呼吸空间
-        rightStack.translatesAutoresizingMaskIntoConstraints = false
-        
-        rightContentContainer.addSubview(rightStack)
-        
-        // 7. Outer Container for Fixed Header + Scrollable Area
+        // 4. Outer Container for Fixed Header + Scrollable Area
         let rightColumnOuterStack = NSStackView(views: [
             instanceRow,
             mainRightScrollView
@@ -558,49 +412,8 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         rightColumnOuterStack.alignment = .leading
         rightColumnOuterStack.spacing = DSV2.spacing4
         rightColumnOuterStack.translatesAutoresizingMaskIntoConstraints = false
-        
-        view.addSubview(rightColumnOuterStack)
 
-        // Styling Shared Components
-        styleInputField(commonIdField)
-        styleInputField(commonPathField)
-        styleInputField(commonCursorField)
-        styleTextView(contentEditor, scrollView: contentScrollView)
-        contentScrollView.heightAnchor.constraint(equalToConstant: 200).isActive = true
-        styleButton(actionButton)
-        styleButton(previousPageButton)
-        styleButton(nextPageButton)
-        styleButton(searchNextPageButton)  // 添加搜索翻页按钮样式
-        actionButton.widthAnchor.constraint(equalToConstant: 120).isActive = true
-        actionButton.heightAnchor.constraint(equalToConstant: 36).isActive = true
-        actionButton.contentTintColor = .white
-        actionButton.layer?.backgroundColor = DSV2.primary.cgColor
-        actionButton.target = self
-        previousPageButton.widthAnchor.constraint(equalToConstant: 140).isActive = true
-        previousPageButton.heightAnchor.constraint(equalToConstant: 36).isActive = true
-        previousPageButton.contentTintColor = .white
-        previousPageButton.layer?.backgroundColor = DSV2.secondary.cgColor
-        previousPageButton.target = self
-        nextPageButton.widthAnchor.constraint(equalToConstant: 140).isActive = true
-        nextPageButton.heightAnchor.constraint(equalToConstant: 36).isActive = true
-        nextPageButton.contentTintColor = .white
-        nextPageButton.layer?.backgroundColor = DSV2.secondary.cgColor
-        nextPageButton.target = self
-        searchNextPageButton.widthAnchor.constraint(equalToConstant: 140).isActive = true
-        searchNextPageButton.heightAnchor.constraint(equalToConstant: 36).isActive = true
-        searchNextPageButton.contentTintColor = .white
-        searchNextPageButton.layer?.backgroundColor = DSV2.secondary.cgColor
-        searchNextPageButton.target = self
-        cursorStatusLabel.font = DSV2.fontMonoSm
-        cursorStatusLabel.textColor = DSV2.onSurfaceVariant
-        cursorStatusLabel.alignment = .center
-        cursorStatusLabel.maximumNumberOfLines = 2
-        cursorStatusLabel.lineBreakMode = .byTruncatingMiddle
-        searchStatusLabel.font = DSV2.fontMonoSm
-        searchStatusLabel.textColor = DSV2.onSurfaceVariant
-        searchStatusLabel.alignment = .center
-        searchStatusLabel.maximumNumberOfLines = 2
-        searchStatusLabel.lineBreakMode = .byTruncatingMiddle
+        view.addSubview(rightColumnOuterStack)
 
         headerImageView.contentTintColor = DSV2.primary
 
@@ -613,18 +426,18 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             listScrollView.widthAnchor.constraint(equalToConstant: 220),
             listScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6),
 
-            rightStack.topAnchor.constraint(equalTo: rightContentContainer.topAnchor),
-            rightStack.leadingAnchor.constraint(equalTo: rightContentContainer.leadingAnchor),
-            rightStack.trailingAnchor.constraint(equalTo: rightContentContainer.trailingAnchor),
-            rightStack.bottomAnchor.constraint(equalTo: rightContentContainer.bottomAnchor),
-            rightStack.widthAnchor.constraint(equalTo: mainRightScrollView.contentView.widthAnchor),
+            detailContainer.topAnchor.constraint(equalTo: rightContentContainer.topAnchor, constant: DSV2.spacing4),
+            detailContainer.leadingAnchor.constraint(equalTo: rightContentContainer.leadingAnchor),
+            detailContainer.trailingAnchor.constraint(equalTo: rightContentContainer.trailingAnchor),
+            detailContainer.bottomAnchor.constraint(equalTo: rightContentContainer.bottomAnchor, constant: -DSV2.spacing8),
+            detailContainer.widthAnchor.constraint(equalTo: mainRightScrollView.contentView.widthAnchor),
 
             // Outer Stack Constraints
             rightColumnOuterStack.topAnchor.constraint(equalTo: listScrollView.topAnchor),
             rightColumnOuterStack.leadingAnchor.constraint(equalTo: listScrollView.trailingAnchor, constant: DSV2.spacing4),
             rightColumnOuterStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
             rightColumnOuterStack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6),
-            
+
             instanceRow.widthAnchor.constraint(equalTo: rightColumnOuterStack.widthAnchor),
             mainRightScrollView.widthAnchor.constraint(equalTo: rightColumnOuterStack.widthAnchor)
         ])
@@ -640,54 +453,8 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         selectDefaultRow()
     }
 
-    private func styleInputField(_ field: NSTextField) {
-        field.wantsLayer = true
-        field.isBezeled = false
-        field.isBordered = false
-        field.drawsBackground = true
-        field.backgroundColor = DSV2.surfaceContainerHighest
-        field.textColor = DSV2.onSurface
-        field.font = DSV2.fontMonoMd
-        field.alignment = .left
-        field.translatesAutoresizingMaskIntoConstraints = false
-        field.layer?.borderWidth = 1
-        field.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.28).cgColor
-        field.layer?.cornerRadius = DSV2.radiusInput
-        field.heightAnchor.constraint(equalToConstant: 36).isActive = true
-        field.focusRingType = .none
-        field.isEditable = true
-        field.isSelectable = true
-        field.maximumNumberOfLines = 1
-        field.lineBreakMode = .byClipping
-    }
 
-    private func styleButton(_ button: NSButton) {
-        button.wantsLayer = true
-        button.isBordered = false
-        button.layer?.backgroundColor = DSV2.surfaceContainerHighest.cgColor
-        button.layer?.cornerRadius = DSV2.radiusButton
-        button.layer?.borderWidth = 1
-        button.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.3).cgColor
-        button.contentTintColor = DSV2.onSurface
-        button.font = DSV2.fontLabelMd
-        button.translatesAutoresizingMaskIntoConstraints = false
-    }
 
-    private func styleTextView(_ textView: NSTextView, scrollView: NSScrollView) {
-        scrollView.documentView = textView
-        scrollView.hasVerticalScroller = true
-        scrollView.wantsLayer = true
-        scrollView.layer?.cornerRadius = DSV2.radiusInput
-        scrollView.layer?.borderWidth = 1
-        scrollView.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
-        scrollView.layer?.backgroundColor = DSV2.surface.cgColor
-        scrollView.translatesAutoresizingMaskIntoConstraints = false
-        textView.font = DSV2.fontBodyMd
-        textView.textColor = DSV2.onSurface
-        textView.backgroundColor = DSV2.surface
-        textView.isRichText = false
-        textView.textContainerInset = NSSize(width: DSV2.spacing2, height: DSV2.spacing2)
-    }
 
     private func makeSectionHeader(_ title: String) -> NSTextField {
         let label = NSTextField(labelWithString: title)
@@ -697,43 +464,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         return label
     }
 
-    /// 根据内容自动更新文本视图的高度约束，实现“撑开”效果
-    private func updateTextViewHeight(_ textView: NSTextView?, constraint: NSLayoutConstraint?) {
-        guard let textView = textView, let constraint = constraint else { return }
-        
-        // 强制 LayoutManager 计算布局
-        if let layoutManager = textView.layoutManager, let textContainer = textView.textContainer {
-            layoutManager.ensureLayout(for: textContainer)
-            let usedRect = layoutManager.usedRect(for: textContainer)
-            let newHeight = max(100, usedRect.height + textView.textContainerInset.height * 2)
-            
-            // 更新约束
-            constraint.constant = newHeight
-        }
-    }
-
-    @objc private func displayResult(_ notification: Notification) {
-        guard let userInfo = notification.userInfo,
-              let jsonString = userInfo["dataString"] as? String else { return }
-        DispatchQueue.main.async {
-            let title = userInfo["resultTitle"] as? String ?? notification.name.rawValue
-            print("[LocalBridgeMac] displayResult source=\(title) selectedApi=\(self.selectedApiID() ?? "<nil>") payloadChars=\(jsonString.count)")
-            self.resultTextView?.string = jsonString
-            self.cacheRepliesCursorsIfNeeded(from: jsonString)
-            self.handleSearchTimelineResponse(from: jsonString)
-
-            // 立即计算并撑开高度
-            self.updateTextViewHeight(self.resultTextView, constraint: self.resultHeightConstraint)
-
-            self.resultTextView?.scrollToEndOfDocument(nil)
-
-            // 同时滚动主视图到底部，以便看到最新日志
-            if let documentView = self.mainRightScrollView.documentView {
-                let bottomRect = NSRect(x: 0, y: documentView.frame.height - 1, width: 1, height: 1)
-                documentView.scrollToVisible(bottomRect)
-            }
-        }
-    }
+    /// 根据内容自动更新文本视图的高度约束，实现"撑开"效果
 
     /// 公开方法：强制选中第一行并显示详情，由 DetailViewController 触发
     func selectDefaultRow() {
@@ -746,7 +477,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         }
     }
 
-    /// 强制刷新所有可见 API 卡片的选中/未选中样式，防止样色“粘滞”
+    /// 强制刷新所有可见 API 卡片的选中/未选中样式，防止样色"粘滞"
     func refreshCardStyles() {
         let selectedRow = tableView.selectedRow
         for row in 0..<tableView.numberOfRows {
@@ -866,31 +597,27 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     
     func tableViewSelectionDidChange(_ notification: Notification) {
         refreshCardStyles() // 关键：每当选中项变更，立即刷新所有可见 Cell 的 Layer 样式
-        
+
         let row = tableView.selectedRow
-        resultTextView?.string = "" // 安全检查：切换 API 时清空之前的执行结果
-        updateTextViewHeight(resultTextView, constraint: resultHeightConstraint) // 立即重置高度
-        
+
         guard row >= 0 && row < docs.count else {
             updateDetailView(with: nil)
             return
         }
         updateDetailView(with: docs[row])
-        
+
         // 选中新 API 时，将整个区域滚动到最顶部
         mainRightScrollView?.contentView.scrollToVisible(NSRect.zero)
     }
-    
+
     private func updateDetailView(with doc: ApiDoc?) {
         guard let textView = detailTextView else { return }
-        
+
         guard let doc = doc else {
             textView.string = "Select an API from the left sidebar to view details."
-            updateTextViewHeight(textView, constraint: detailHeightConstraint) // 重置文档区高度
-            interactiveAreaContainer.arrangedSubviews.forEach { $0.removeFromSuperview() }
             return
         }
-        
+
         let attrStr = NSMutableAttributedString()
         // Documentation Rendering (Title, Method, Description, etc.)
         attrStr.append(NSAttributedString(string: "\(doc.name)\n", attributes: [.font: DSV2.fontDisplaySm, .foregroundColor: DSV2.onSurface]))
@@ -907,559 +634,15 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         attrStr.append(NSAttributedString(string: "\(doc.curl)\n\n", attributes: [.font: DSV2.fontMonoSm, .foregroundColor: DSV2.tertiary]))
         attrStr.append(NSAttributedString(string: "RESPONSE FORMAT\n", attributes: [.font: DSV2.fontTitleMd, .foregroundColor: DSV2.tertiary]))
         attrStr.append(NSAttributedString(string: "\(doc.response)\n", attributes: [.font: DSV2.fontMonoSm, .foregroundColor: DSV2.tertiary]))
-        
+
         let style = NSMutableParagraphStyle()
         style.lineSpacing = 4; style.paragraphSpacing = 8
         attrStr.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: attrStr.length))
         textView.textStorage?.setAttributedString(attrStr)
-        
-        // 立即计算并撑开文档区域高度
-        updateTextViewHeight(detailTextView, constraint: detailHeightConstraint)
-        
+
         textView.scrollToBeginningOfDocument(nil)
-
-        // Update Interactive Area
-        updateInteractiveArea(for: doc)
     }
     
-    private func updateInteractiveArea(for doc: ApiDoc) {
-        interactiveAreaContainer.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        resetInteractiveInputs()
-        
-        var inputs: [NSView] = []
-        
-        switch doc.id {
-        case "get_api_docs":
-            actionButton.title = "Get API Docs"
-        case "query_x_status":
-            actionButton.title = "Refresh Status"
-        case "get_instances":
-            actionButton.title = "Get Instances"
-        case "query_x_basic_info":
-            actionButton.title = "Get Basic Info"
-        case "query_home_timeline":
-            actionButton.title = "Get Home Timeline"
-        case "query_search_results":
-            // 确保输入框完全可编辑
-            searchQueryField.isEditable = true
-            searchQueryField.isEnabled = true
-            searchQueryField.isSelectable = true
-            searchQueryField.placeholderString = "Enter search keywords (e.g., open claw)"
-            inputs.append(makeInputRow("Search Query:", searchQueryField))
-            actionButton.title = "Search"
-        case "open_tab":
-            commonPathField.placeholderString = "Enter path (e.g. home) or URL"
-            inputs.append(makeInputRow("Path:", commonPathField))
-            actionButton.title = "Open Tab"
-        case "close_tab":
-            commonIdField.placeholderString = "Enter Tab ID"
-            inputs.append(makeInputRow("Tab ID:", commonIdField))
-            actionButton.title = "Close Tab"
-        case "navigate_tab":
-            commonIdField.placeholderString = "Tab ID (Optional)"
-            commonPathField.placeholderString = "Enter path (e.g. elonmusk)"
-            inputs.append(makeInputRow("Tab ID:", commonIdField))
-            inputs.append(makeInputRow("Path:", commonPathField))
-            actionButton.title = "Navigate"
-        case "like_tweet", "unlike_tweet", "retweet_tweet", "unretweet_tweet", "bookmark_tweet", "unbookmark_tweet", "delete_tweet":
-            commonIdField.placeholderString = "Enter Tweet ID"
-            inputs.append(makeInputRow("Tweet ID:", commonIdField))
-            actionButton.title = doc.name
-        case "follow_user", "unfollow_user":
-            commonIdField.placeholderString = "Enter User ID"
-            inputs.append(makeInputRow("User ID:", commonIdField))
-            actionButton.title = doc.name
-        case "create_tweet":
-            inputs.append(makeSectionHeader("Tweet Content:"))
-            contentScrollView.widthAnchor.constraint(equalToConstant: 450).isActive = true
-            inputs.append(contentScrollView)
-            actionButton.title = "Post Tweet"
-        case "create_reply":
-            commonIdField.placeholderString = "Enter Tweet ID to reply to"
-            inputs.append(makeInputRow("Tweet ID:", commonIdField))
-            inputs.append(makeSectionHeader("Reply Content:"))
-            contentScrollView.widthAnchor.constraint(equalToConstant: 450).isActive = true
-            inputs.append(contentScrollView)
-            actionButton.title = "Post Reply"
-        case "get_tweet", "query_tweet_detail_deprecated":
-            commonIdField.placeholderString = "Enter Tweet ID"
-            inputs.append(makeInputRow("Tweet ID:", commonIdField))
-            actionButton.title = doc.id == "get_tweet" ? "Get Tweet" : "Get Detail"
-        case "get_tweet_replies":
-            commonIdField.placeholderString = "Enter Tweet ID"
-            inputs.append(makeInputRow("Tweet ID:", commonIdField))
-            inputs.append(makeRepliesPaginationControls())
-            actionButton.title = "Get Replies"
-        case "query_user_profile":
-            commonIdField.placeholderString = "Enter @handle (e.g. elonmusk)"
-            inputs.append(makeInputRow("Handle:", commonIdField))
-            actionButton.title = "Get Profile"
-        default:
-            actionButton.title = "Run Request"
-        }
-
-        inputs.forEach { interactiveAreaContainer.addArrangedSubview($0) }
-        interactiveAreaContainer.addArrangedSubview(actionButton)
-
-        // 对于搜索 API，在 Search 按钮之后添加翻页控件
-        if doc.id == "query_search_results" {
-            interactiveAreaContainer.addArrangedSubview(makeSearchPaginationControls())
-        }
-
-        // Final styling for action button based on method
-        if doc.method == "DELETE" {
-            actionButton.contentTintColor = .white
-            actionButton.layer?.backgroundColor = DSV2.error.cgColor
-        } else {
-            actionButton.contentTintColor = .white
-            actionButton.layer?.backgroundColor = DSV2.primary.cgColor
-        }
-    }
-
-    private func resetInteractiveInputs() {
-        commonIdField.stringValue = ""
-        commonIdField.placeholderString = nil
-        commonPathField.stringValue = ""
-        commonPathField.placeholderString = nil
-        commonCursorField.stringValue = ""
-        commonCursorField.placeholderString = nil
-        searchQueryField.stringValue = ""
-        searchQueryField.placeholderString = nil
-        contentEditor.string = ""
-        updateRepliesPaginationControls()
-    }
-    
-    private func makeInputRow(_ label: String, _ field: NSView) -> NSView {
-        let labelField = NSTextField(labelWithString: label)
-        labelField.font = DSV2.fontLabelSm
-        labelField.textColor = DSV2.onSurfaceVariant
-        labelField.widthAnchor.constraint(equalToConstant: 80).isActive = true
-
-        let stack = NSStackView(views: [labelField, field])
-        stack.orientation = .horizontal
-        stack.spacing = 8
-        stack.alignment = .centerY
-        stack.distribution = .fill
-        field.widthAnchor.constraint(equalToConstant: 450).isActive = true
-
-        // 确保输入框在垂直方向上居中
-        if let textField = field as? NSTextField {
-            textField.setContentHuggingPriority(.defaultHigh, for: .vertical)
-            textField.setContentCompressionResistancePriority(.defaultHigh, for: .vertical)
-        }
-
-        return stack
-    }
-
-    @objc private func actionButtonClicked() {
-        // 防止重复点击
-        guard actionButton.isEnabled else { return }
-
-        let row = tableView.selectedRow
-        guard row >= 0 && row < docs.count else { return }
-        let doc = docs[row]
-        let instanceId = selectedInstanceId()
-
-        // 保存原始状态
-        let originalTitle = actionButton.title
-        let originalColor = actionButton.contentTintColor
-
-        // 禁用按钮
-        actionButton.isEnabled = false
-        actionButton.contentTintColor = NSColor.systemGray
-
-        // 创建原生的加载指示器（旋转圆圈）
-        let spinner = NSProgressIndicator()
-        spinner.style = .spinning
-        spinner.controlSize = .small
-        spinner.frame = NSRect(x: 8, y: (actionButton.frame.height - 16) / 2, width: 16, height: 16)
-        actionButton.addSubview(spinner)
-        spinner.startAnimation(nil)
-
-        // 调整按钮文本位置，为 spinner 留出空间
-        actionButton.title = "  Loading..."
-
-        // 延迟执行实际操作，让动画先显示
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) { [weak self] in
-            guard let self = self else { return }
-
-            // 执行实际操作
-            self.performAction(for: doc.id, instanceId: instanceId)
-
-            // 恢复按钮状态（延迟以显示反馈）
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                spinner.stopAnimation(nil)
-                spinner.removeFromSuperview()
-                self.actionButton.isEnabled = true
-                self.actionButton.title = originalTitle
-                self.actionButton.contentTintColor = originalColor
-
-                // 成功反馈动画：短暂变绿
-                self.actionButton.contentTintColor = NSColor.systemGreen
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                    self.actionButton.contentTintColor = originalColor
-                }
-            }
-        }
-    }
-
-    private func performAction(for docId: String, instanceId: String?) {
-        switch docId {
-        case "get_api_docs":
-            AppDelegate.shared?.fetchAPIDocs()
-        case "query_x_status":
-            AppDelegate.shared?.sendQueryXTabsStatus(instanceId: instanceId)
-        case "get_instances":
-            AppDelegate.shared?.fetchInstances()
-        case "query_x_basic_info":
-            AppDelegate.shared?.sendQueryXBasicInfo(instanceId: instanceId)
-        case "open_tab":
-            let path = commonPathField.stringValue.trimmingCharacters(in: .whitespaces)
-            AppDelegate.shared?.sendOpenTab(path: path, instanceId: instanceId)
-        case "close_tab":
-            if let tabId = Int(commonIdField.stringValue.trimmingCharacters(in: .whitespaces)) {
-                AppDelegate.shared?.sendCloseTab(tabId: tabId, instanceId: instanceId)
-            }
-        case "navigate_tab":
-            let path = commonPathField.stringValue.trimmingCharacters(in: .whitespaces)
-            let tabId = Int(commonIdField.stringValue.trimmingCharacters(in: .whitespaces))
-            AppDelegate.shared?.sendNavigateTab(tabId: tabId, path: path, instanceId: instanceId)
-        case "like_tweet":
-            let tid = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
-            AppDelegate.shared?.sendExecAction(action: "like", tweetId: tid, userId: nil, tabId: nil, instanceId: instanceId)
-        case "unlike_tweet":
-            let tid = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
-            AppDelegate.shared?.sendExecAction(action: "unlike", tweetId: tid, userId: nil, tabId: nil, instanceId: instanceId)
-        case "retweet_tweet":
-            let tid = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
-            AppDelegate.shared?.sendExecAction(action: "retweet", tweetId: tid, userId: nil, tabId: nil, instanceId: instanceId)
-        case "unretweet_tweet":
-            let tid = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
-            AppDelegate.shared?.sendExecAction(action: "unretweet", tweetId: tid, userId: nil, tabId: nil, instanceId: instanceId)
-        case "bookmark_tweet":
-            let tid = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
-            AppDelegate.shared?.sendExecAction(action: "bookmark", tweetId: tid, userId: nil, tabId: nil, instanceId: instanceId)
-        case "unbookmark_tweet":
-            let tid = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
-            AppDelegate.shared?.sendExecAction(action: "unbookmark", tweetId: tid, userId: nil, tabId: nil, instanceId: instanceId)
-        case "follow_user":
-            let uid = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
-            AppDelegate.shared?.sendExecAction(action: "follow", tweetId: nil, userId: uid, tabId: nil, instanceId: instanceId)
-        case "unfollow_user":
-            let uid = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
-            AppDelegate.shared?.sendExecAction(action: "unfollow", tweetId: nil, userId: uid, tabId: nil, instanceId: instanceId)
-        case "create_tweet":
-            let txt = contentEditor.string.trimmingCharacters(in: .whitespacesAndNewlines)
-            AppDelegate.shared?.sendExecAction(action: "createTweet", tweetId: nil, userId: nil, tabId: nil, text: txt, instanceId: instanceId)
-        case "create_reply":
-            let tid = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
-            let txt = contentEditor.string.trimmingCharacters(in: .whitespacesAndNewlines)
-            AppDelegate.shared?.sendExecAction(action: "createReply", tweetId: tid, userId: nil, tabId: nil, text: txt, instanceId: instanceId)
-        case "delete_tweet":
-            let tid = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
-            AppDelegate.shared?.sendExecAction(action: "deleteTweet", tweetId: tid, userId: nil, tabId: nil, instanceId: instanceId)
-        case "query_home_timeline":
-            AppDelegate.shared?.sendQueryHomeTimeline(tabId: nil, instanceId: instanceId)
-        case "get_tweet":
-            let tid = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
-            AppDelegate.shared?.sendQueryTweet(tweetId: tid, tabId: nil, instanceId: instanceId)
-        case "get_tweet_replies":
-            let tid = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
-            lastRepliesPaginationDirection = "none" // 初始加载时重置方向
-            AppDelegate.shared?.sendQueryTweetReplies(
-                tweetId: tid,
-                cursor: nil, // 初次获取禁止带有游标，完全依靠 API 生成第一页及后续双游标
-                tabId: nil,
-                instanceId: instanceId
-            )
-        case "query_tweet_detail", "query_tweet_detail_deprecated":
-            let tid = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
-            AppDelegate.shared?.sendQueryTweetDetail(tweetId: tid, tabId: nil, instanceId: instanceId)
-        case "query_user_profile":
-            let handle = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
-            AppDelegate.shared?.sendQueryUserProfile(screenName: handle, tabId: nil, instanceId: instanceId)
-        case "query_search_results":
-            let query = searchQueryField.stringValue.trimmingCharacters(in: .whitespaces)
-            guard !query.isEmpty else {
-                showAlert(title: "Error", message: "Please enter search keywords")
-                return
-            }
-
-            // 新搜索：重置状态（但不设置 currentSearchQuery，等待成功响应后再设置）
-            currentSearchCursor = nil
-            searchPaginationContainer?.isHidden = true
-
-            AppDelegate.shared?.sendQuerySearchTimeline(query: query, cursor: nil, tabId: nil, instanceId: instanceId)
-        default:
-            print("Action not implemented for \(docId)")
-        }
-    }
-
-    @objc private func previousPageClicked() {
-        // 使用 cursor 栈实现上一页功能
-        guard repliesCursorStack.count > 1 else {
-            print("[LocalBridgeMac] Previous Page ignored: already at first page")
-            return
-        }
-
-        // 弹出当前页的 cursor
-        repliesCursorStack.removeLast()
-
-        // 获取上一页的 cursor（栈顶）
-        let previousCursor = repliesCursorStack.last ?? nil
-
-        print("[LocalBridgeMac] Previous Page clicked, stack depth=\(repliesCursorStack.count), cursor=\(previousCursor ?? "<nil>")")
-        lastRepliesPaginationDirection = "previous"
-
-        if let cursor = previousCursor {
-            triggerRepliesRequest(withCursor: cursor)
-        } else {
-            // cursor 为 nil 表示回到第一页
-            triggerRepliesRequest(withCursor: "")
-        }
-    }
-
-    @objc private func nextPageClicked() {
-        guard let cursor = latestRepliesNextCursor, !cursor.isEmpty else {
-            print("[LocalBridgeMac] Next Page ignored: next cursor unavailable selectedApi=\(selectedApiID() ?? "<nil>")")
-            return
-        }
-
-        // 将当前页的 next cursor 入栈
-        repliesCursorStack.append(cursor)
-
-        print("[LocalBridgeMac] Next Page clicked, stack depth=\(repliesCursorStack.count), cursor=\(cursor)")
-        lastRepliesPaginationDirection = "next"
-        triggerRepliesRequest(withCursor: cursor)
-    }
-
-    @objc private func searchNextPageClicked() {
-        guard let query = currentSearchQuery,
-              let cursor = currentSearchCursor else {
-            print("[LocalBridgeMac] Search Next Page ignored: query or cursor unavailable")
-            return
-        }
-
-        let instanceId = selectedInstanceId()
-        print("[LocalBridgeMac] Search Next Page clicked, query=\(query), cursor=\(cursor)")
-        AppDelegate.shared?.sendQuerySearchTimeline(query: query, cursor: cursor, tabId: nil, instanceId: instanceId)
-    }
-
-    private func triggerRepliesRequest(withCursor cursor: String) {
-        let instanceId = selectedInstanceId()
-        let tid = commonIdField.stringValue.trimmingCharacters(in: .whitespaces)
-        let selectedApi = selectedApiID() ?? "<nil>"
-        guard !tid.isEmpty else {
-            print("[LocalBridgeMac] triggerRepliesRequest aborted: tweetId empty selectedApi=\(selectedApi)")
-            return
-        }
-        print("[LocalBridgeMac] triggerRepliesRequest tweetId=\(tid) cursor=\(cursor) instanceId=\(instanceId ?? "<nil>")")
-        AppDelegate.shared?.sendQueryTweetReplies(
-            tweetId: tid,
-            cursor: cursor,
-            tabId: nil,
-            instanceId: instanceId
-        )
-    }
-
-    private func makeRepliesPaginationControls() -> NSView {
-        updateRepliesPaginationControls()
-        let buttonsRow = NSStackView(views: [previousPageButton, nextPageButton])
-        buttonsRow.orientation = .horizontal
-        buttonsRow.spacing = 12
-        buttonsRow.alignment = .centerY
-
-        let container = NSStackView(views: [cursorStatusLabel, buttonsRow])
-        container.orientation = .vertical
-        container.spacing = 8
-        container.alignment = .centerX
-        return container
-    }
-
-    private func makeSearchPaginationControls() -> NSView {
-        // 完全复制 replies API 的实现
-        let buttonsRow = NSStackView(views: [searchNextPageButton])
-        buttonsRow.orientation = .horizontal
-        buttonsRow.spacing = 12
-        buttonsRow.alignment = .centerY
-
-        let container = NSStackView(views: [searchStatusLabel, buttonsRow])
-        container.orientation = .vertical
-        container.spacing = 8
-        container.alignment = .centerX
-
-        // 初始状态隐藏容器
-        container.isHidden = true
-
-        // 保存容器引用
-        searchPaginationContainer = container
-
-        return container
-    }
-
-    private func cacheRepliesCursorsIfNeeded(from jsonString: String) {
-        let row = tableView.selectedRow
-        guard row >= 0, row < docs.count else {
-            print("[LocalBridgeMac] cacheRepliesCursors skipped: no selected row")
-            return
-        }
-        let doc = docs[row]
-        guard doc.id == "get_tweet_replies" else {
-            print("[LocalBridgeMac] cacheRepliesCursors skipped: selectedApi=\(doc.id)")
-            return
-        }
-        guard let data = jsonString.data(using: .utf8),
-              let parsed = try? JSONDecoder().decode(RepliesCursorEnvelope.self, from: data) else {
-            print("[LocalBridgeMac] cacheRepliesCursors decode failed selectedApi=\(doc.id) payloadPrefix=\(String(jsonString.prefix(240)))")
-            return
-        }
-
-        let nextCursor = parsed.cursor?.next ?? parsed.data?.cursor?.next
-        let previousCursor = parsed.cursor?.previous ?? parsed.data?.cursor?.previous
-
-        // 始终更新两个 cursor，因为 Twitter API 返回的是当前页的完整 cursor 信息
-        latestRepliesNextCursor = nextCursor
-        latestRepliesPreviousCursor = previousCursor
-
-        // 如果是首次加载（direction == "none"），重置 cursor 栈
-        if lastRepliesPaginationDirection == "none" {
-            repliesCursorStack = [nil]
-            print("[LocalBridgeMac] cacheRepliesCursors reset cursor stack for initial load")
-        }
-
-        print("[LocalBridgeMac] cacheRepliesCursors updated next=\(latestRepliesNextCursor == nil ? "<nil>" : "yes") previous=\(latestRepliesPreviousCursor == nil ? "<nil>" : "yes") direction=\(lastRepliesPaginationDirection) stackDepth=\(repliesCursorStack.count)")
-        updateRepliesPaginationControls()
-    }
-
-    private func updateRepliesPaginationControls() {
-        // 使用 cursor 栈判断是否可以上一页
-        let hasPrevious = repliesCursorStack.count > 1
-        let hasNext = !(latestRepliesNextCursor ?? "").isEmpty
-        previousPageButton.isEnabled = hasPrevious
-        nextPageButton.isEnabled = hasNext
-        previousPageButton.alphaValue = hasPrevious ? 1.0 : 0.45
-        nextPageButton.alphaValue = hasNext ? 1.0 : 0.45
-        print("[LocalBridgeMac] updateRepliesPaginationControls previousEnabled=\(hasPrevious) nextEnabled=\(hasNext) stackDepth=\(repliesCursorStack.count)")
-    }
-
-    private func updateSearchPaginationControls() {
-        let hasNext = currentSearchCursor != nil && !currentSearchCursor!.isEmpty
-        searchNextPageButton.isEnabled = hasNext
-        searchNextPageButton.alphaValue = hasNext ? 1.0 : 0.45
-
-        // 更新状态标签
-        if currentSearchQuery != nil, hasNext {
-            searchStatusLabel.stringValue = "More results available"
-        } else if currentSearchQuery != nil, !hasNext {
-            searchStatusLabel.stringValue = "End of results"
-        } else {
-            searchStatusLabel.stringValue = ""
-        }
-
-        // 只在有搜索查询且有结果时显示容器
-        searchPaginationContainer?.isHidden = (currentSearchQuery == nil)
-
-        print("[LocalBridgeMac] updateSearchPaginationControls nextEnabled=\(hasNext) query=\(currentSearchQuery ?? "<nil>")")
-    }
-
-    private func handleSearchTimelineResponse(from jsonString: String) {
-        let row = tableView.selectedRow
-        guard row >= 0, row < docs.count else {
-            print("[LocalBridgeMac] handleSearchTimelineResponse: invalid row=\(row) docs.count=\(docs.count)")
-            return
-        }
-        let doc = docs[row]
-        print("[LocalBridgeMac] handleSearchTimelineResponse: doc.id=\(doc.id)")
-        guard doc.id == "query_search_results" else {
-            print("[LocalBridgeMac] handleSearchTimelineResponse: skipping, not query_search_results")
-            return
-        }
-
-        guard let data = jsonString.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            print("[LocalBridgeMac] handleSearchTimelineResponse: failed to parse JSON")
-            currentSearchQuery = nil
-            searchPaginationContainer?.isHidden = true
-            return
-        }
-
-        // 检查是否有错误或 data 为 null
-        if let error = json["error"] as? String {
-            print("[LocalBridgeMac] handleSearchTimelineResponse: API error - \(error)")
-            currentSearchQuery = nil
-            searchPaginationContainer?.isHidden = true
-            return
-        }
-
-        if json["data"] is NSNull || json["data"] == nil {
-            print("[LocalBridgeMac] handleSearchTimelineResponse: data is null")
-            currentSearchQuery = nil
-            searchPaginationContainer?.isHidden = true
-            return
-        }
-
-        // 解析响应，提取 Bottom cursor
-        var bottomCursor: String?
-        var hasResults = false
-
-        // 响应格式：{ ok: true, data: { data: { search_by_raw_query: ... } } }
-        // 需要先提取 json["data"]["data"]
-        if let outerData = json["data"] as? [String: Any],
-           let dataObj = outerData["data"] as? [String: Any],
-           let searchByRawQuery = dataObj["search_by_raw_query"] as? [String: Any],
-           let searchTimeline = searchByRawQuery["search_timeline"] as? [String: Any],
-           let timeline = searchTimeline["timeline"] as? [String: Any],
-           let instructions = timeline["instructions"] as? [[String: Any]] {
-
-            hasResults = true
-
-            // 查找 Bottom cursor
-            for instruction in instructions {
-                if let entries = instruction["entries"] as? [[String: Any]] {
-                    for entry in entries {
-                        if let content = entry["content"] as? [String: Any],
-                           let cursorType = content["cursorType"] as? String,
-                           cursorType == "Bottom",
-                           let value = content["value"] as? String {
-                            bottomCursor = value
-                            break
-                        }
-                    }
-                }
-                if bottomCursor != nil {
-                    break
-                }
-            }
-        }
-
-        // 只有在有结果时才设置 currentSearchQuery 和显示翻页容器
-        if hasResults {
-            currentSearchQuery = searchQueryField.stringValue.trimmingCharacters(in: .whitespaces)
-            currentSearchCursor = bottomCursor
-            updateSearchPaginationControls()
-        } else {
-            currentSearchQuery = nil
-            searchPaginationContainer?.isHidden = true
-        }
-
-        print("[LocalBridgeMac] handleSearchTimelineResponse: hasResults=\(hasResults) bottomCursor=\(bottomCursor ?? "<nil>")")
-    }
-
-    private func selectedApiID() -> String? {
-        let row = tableView.selectedRow
-        guard row >= 0, row < docs.count else { return nil }
-        return docs[row].id
-    }
-
-    private func showAlert(title: String, message: String) {
-        let alert = NSAlert()
-        alert.messageText = title
-        alert.informativeText = message
-        alert.alertStyle = .warning
-        alert.addButton(withTitle: "OK")
-        alert.runModal()
-    }
-
     private func methodColor(_ method: String) -> NSColor {
         switch method.uppercased() {
         case "GET": return DSV2.secondary

@@ -32,42 +32,42 @@
   {
     "id": "query_x_basic_info",
     "name": "Query X Basic Info",
-    "summary": "提取当前登录 X 账号的深度资料，包括显示名、原始 ID 和认证状态。",
+    "summary": "获取当前登录账号的推特原始 GraphQL 响应，供 AI 解析用户身份信息。",
     "method": "GET",
     "path": "/api/v1/x/basic_info",
-    "description": "通过该接口，Bot 可以确认当前登录的 X 账号完整身份信息。返回内容包括显示名、@handle、数字 twitterId、蓝标认证状态、粉丝数、关注数、推文数、简介、注册时间，以及来自 Twitter GraphQL API 的完整原始 raw 对象（包含所有字段）。REST 服务运行在本机 10088 端口。",
+    "description": "返回推特 UserByScreenName GraphQL API 的完整原始响应。响应结构为推特标准格式，包含 data.user.result 对象，其中包含 rest_id（用户ID）、legacy.screen_name（用户名）、legacy.followers_count（粉丝数）、legacy.friends_count（关注数）、is_blue_verified（蓝V认证）等字段。AI 需要自行从原始响应中解析所需字段。不进行任何数据预处理或格式化，完全透传推特 GraphQL 原始响应。",
     "curl": "curl -X GET http://127.0.0.1:10088/api/v1/x/basic_info",
-    "response": "{\"name\":\"your_name\",\"screenName\":\"@your_handle\",\"createdAt\":\"Fri Nov 28 14:14:41 +0000 2014\",\"friendsCount\":12,\"isLoggedIn\":true,\"statusesCount\":23,\"description\":\"your bio\",\"raw\":{\"profile_image_shape\":\"Circle\",\"business_account\":{},\"privacy\":{\"protected\":false},\"is_blue_verified\":false,\"legacy\":{\"needs_phone_verification\":false,\"normal_followers_count\":5,\"description\":\"your bio\",\"entities\":{\"description\":{\"urls\":[]}},\"favourites_count\":7,\"profile_interstitial_type\":\"\",\"statuses_count\":23,\"possibly_sensitive\":false,\"pinned_tweet_ids_str\":[],\"friends_count\":12,\"follow_request_sent\":false,\"is_translator\":false,\"withheld_in_countries\":[],\"want_retweets\":false,\"media_count\":4,\"followers_count\":5,\"translator_type\":\"none\",\"default_profile_image\":false,\"fast_followers_count\":0,\"notifications\":false,\"has_custom_timelines\":false,\"listed_count\":0,\"default_profile\":true},\"super_following\":false,\"super_followed_by\":false,\"legacy_extended_profile\":{},\"__typename\":\"User\",\"id\":\"some_id\",\"creator_subscriptions_count\":0,\"super_follow_eligible\":false,\"relationship_perspectives\":{\"following\":false,\"blocking\":false,\"followed_by\":false,\"blocked_by\":false,\"muting\":false},\"avatar\":{\"image_url\":\"https://pbs.twimg.com/profile_images/123456789/your_avatar.jpg\"},\"dm_permissions\":{\"can_dm\":true},\"media_permissions\":{\"can_media_tag\":true},\"has_graduated_access\":true,\"rest_id\":\"1234567890\",\"highlights_info\":{\"can_highlight_tweets\":false,\"highlighted_tweets\":\"0\"},\"is_profile_translatable\":false,\"has_hidden_subscriptions_on_profile\":false,\"verification\":{\"verified\":false},\"core\":{\"created_at\":\"Fri Nov 28 14:14:41 +0000 2014\",\"name\":\"your_name\",\"screen_name\":\"your_handle\"},\"location\":{\"location\":\"\"},\"verification_info\":{\"is_identity_verified\":false},\"affiliates_highlighted_label\":{}},\"updatedAt\":1773660294813,\"twitterId\":\"1234567890\",\"verified\":false,\"followersCount\":5}"
+    "response": "{\"__typename\":\"User\",\"id\":\"VXNlcjoxMjM0NTY3ODkw\",\"rest_id\":\"1234567890\",\"affiliates_highlighted_label\":{},\"has_graduated_access\":true,\"is_blue_verified\":false,\"profile_image_shape\":\"Circle\",\"legacy\":{\"created_at\":\"Fri Nov 28 14:14:41 +0000 2014\",\"default_profile\":true,\"default_profile_image\":false,\"description\":\"your bio\",\"entities\":{\"description\":{\"urls\":[]}},\"fast_followers_count\":0,\"favourites_count\":7,\"followers_count\":5,\"friends_count\":12,\"has_custom_timelines\":false,\"is_translator\":false,\"listed_count\":0,\"location\":\"\",\"media_count\":4,\"name\":\"your_name\",\"normal_followers_count\":5,\"pinned_tweet_ids_str\":[],\"possibly_sensitive\":false,\"profile_banner_url\":\"https://pbs.twimg.com/profile_banners/1234567890/1234567890\",\"profile_image_url_https\":\"https://pbs.twimg.com/profile_images/1234567890/abc_normal.jpg\",\"profile_interstitial_type\":\"\",\"screen_name\":\"your_handle\",\"statuses_count\":23,\"translator_type\":\"none\",\"verified\":false,\"want_retweets\":false,\"withheld_in_countries\":[]}}"
   },
   {
     "id": "query_home_timeline",
     "name": "Get Home Timeline",
-    "summary": "读取当前浏览器主页正在显示的推文流（Captured Read）。",
+    "summary": "获取主页时间线的推特原始 GraphQL 响应，供 AI 解析推文列表。",
     "method": "GET",
     "path": "/api/v1/x/timeline",
-    "description": "此端点返回当前打开了 /home 的标签页所捕获到的推文列表。属于 B 类捕获读取接口，不会主动触发网络请求，而是读取扩展本地缓存。如果需要最新数据，建议先调用 navigate_tab 跳转或刷新页面。返回数据包含完整的 Tweet/User 原始结构。",
+    "description": "返回推特 HomeLatestTimeline GraphQL API 的完整原始响应。响应结构为推特标准格式，包含 data.home.home_timeline_urt.instructions 数组，其中包含推文条目。每个推文条目位于 entries[].content.itemContent.tweet_results.result，包含 rest_id、legacy.full_text（推文文本）、legacy.favorite_count（点赞数）等字段。AI 需要遍历 instructions 和 entries 数组来提取推文数据。完全透传推特 GraphQL 原始响应，不做任何数据提取或格式化。",
     "curl": "curl -X GET http://127.0.0.1:10088/api/v1/x/timeline",
-    "response": "{\"list\":[{\"rest_id\":\"...\",\"legacy\":{\"full_text\":\"...\"}}],\"tabId\":123}"
+    "response": "{\"data\":{\"home\":{\"home_timeline_urt\":{\"instructions\":[{\"type\":\"TimelineAddEntries\",\"entries\":[{\"entryId\":\"tweet-1234567890\",\"sortIndex\":\"1234567890\",\"content\":{\"entryType\":\"TimelineTimelineItem\",\"__typename\":\"TimelineTimelineItem\",\"itemContent\":{\"itemType\":\"TimelineTweet\",\"__typename\":\"TimelineTweet\",\"tweet_results\":{\"result\":{\"__typename\":\"Tweet\",\"rest_id\":\"1234567890\",\"core\":{\"user_results\":{\"result\":{\"__typename\":\"User\",\"id\":\"VXNlcjoxMjM0\",\"rest_id\":\"1234\",\"legacy\":{\"screen_name\":\"username\"}}}},\"legacy\":{\"created_at\":\"Mon Jan 01 00:00:00 +0000 2024\",\"full_text\":\"Hello World\",\"favorite_count\":10,\"retweet_count\":5}}}}}}]}]}}}}"
   },
   {
     "id": "get_tweet",
     "name": "Get Tweet",
-    "summary": "读取单条推文资源，不包含回复集合。",
+    "summary": "获取单条推文的推特原始 GraphQL 响应，供 AI 解析推文详情。",
     "method": "GET",
     "path": "/api/v1/x/tweets/{tweetId}",
-    "description": "资源模型：tweet。该接口返回指定 tweetId 的主推文资源表示，不包含 replies 集合。URI 使用 /api/v1/x/tweets/{tweetId}，符合资源导向与复数集合命名。可选 query 参数 tabId 用于指定浏览器标签页上下文。成功返回 200；tweetClaw 未连接返回 503；参数错误返回 400；资源不存在返回 404。",
+    "description": "返回推特 TweetDetail GraphQL API 的完整原始响应。响应结构包含 data.threaded_conversation_with_injections_v2.instructions，其中包含推文数据。主推文位于 entries[].content.itemContent.tweet_results.result，包含 rest_id、legacy.full_text（推文文本）、legacy.favorite_count（点赞数）、legacy.retweet_count（转发数）、core.user_results.result（作者信息）等字段。AI 需要遍历 instructions 数组来定位目标推文。完全透传推特 GraphQL 原始响应。可选参数 tabId 用于指定浏览器标签页上下文。",
     "curl": "curl -X GET \"http://127.0.0.1:10088/api/v1/x/tweets/1234567890?tabId=123\"",
-    "response": "{\"id\":\"1234567890\",\"text\":\"Hello World\",\"author\":{\"id\":\"2244994945\",\"screenName\":\"wesley\",\"name\":\"wesley\"},\"favoriteCount\":120,\"replyCount\":5,\"raw\":{}}"
+    "response": "{\"data\":{\"threaded_conversation_with_injections_v2\":{\"instructions\":[{\"type\":\"TimelineAddEntries\",\"entries\":[{\"entryId\":\"tweet-1234567890\",\"content\":{\"entryType\":\"TimelineTimelineItem\",\"itemContent\":{\"itemType\":\"TimelineTweet\",\"tweet_results\":{\"result\":{\"__typename\":\"Tweet\",\"rest_id\":\"1234567890\",\"core\":{\"user_results\":{\"result\":{\"rest_id\":\"123\",\"legacy\":{\"screen_name\":\"username\"}}}},\"legacy\":{\"created_at\":\"Mon Jan 01 00:00:00 +0000 2024\",\"full_text\":\"Hello World\",\"favorite_count\":10,\"retweet_count\":5}}}}}}]}]}}}"
   },
   {
     "id": "get_tweet_replies",
     "name": "Get Tweet Replies",
-    "summary": "读取指定推文的回复集合，支持基于 cursor 的分页。",
+    "summary": "获取推文回复的推特原始 GraphQL 响应，支持 cursor 分页。",
     "method": "GET",
     "path": "/api/v1/x/tweets/{tweetId}/replies",
-    "description": "资源模型：tweet replies collection。该接口返回指定推文下当前页的回复，并返回分页游标。cursor 参数选填，首次请求不传；后续请求传入上次响应中的 cursor.next 获取更老的回复。响应中的 cursor.next 用于获取下一页（更老回复），cursor.previous 用于获取增量数据（通常为 null）。如需实现传统的上一页/下一页 UI，必须在客户端维护 cursor 历史栈：首次请求栈为 [null]，点击下一页时将 cursor.next 入栈并请求，点击上一页时弹出栈顶并用新栈顶的 cursor 重新请求。tabId 参数选填，用于指定浏览器标签页上下文。必须先导航到推文详情页让 tweetClaw 捕获数据后才能调用此接口。成功返回 200；参数错误返回 400；tweetClaw 未连接返回 503；超时返回 504。",
+    "description": "返回推特 TweetDetail GraphQL API 的完整原始响应，包含回复数据。响应结构包含 data.threaded_conversation_with_injections_v2.instructions，其中包含回复推文列表。支持 cursor 参数进行分页，cursor 值从上次响应的 instructions 中提取。AI 需要遍历 instructions 和 entries 数组来提取回复数据。完全透传推特 GraphQL 原始响应。",
     "curl": "curl -X GET \"http://127.0.0.1:10088/api/v1/x/tweets/1234567890/replies?cursor=DAABCgABFxxx==&tabId=123\"",
-    "response": "{\"ok\":true,\"data\":{\"items\":[{\"tweetId\":\"1234567891\",\"text\":\"reply 1\",\"authorHandle\":\"@user1\",\"authorName\":\"User One\"}],\"cursor\":{\"next\":\"DAABCgABFxxx==\",\"previous\":null},\"hasMore\":true,\"requestCursor\":\"DAABCgABFxxx==\",\"source\":\"fetched_page\"},\"error\":null}"
+    "response": "{\"data\":{\"threaded_conversation_with_injections_v2\":{\"instructions\":[{\"type\":\"TimelineAddEntries\",\"entries\":[{\"entryId\":\"conversationthread-1234567891\",\"content\":{\"entryType\":\"TimelineTimelineItem\",\"itemContent\":{\"itemType\":\"TimelineTweet\",\"tweet_results\":{\"result\":{\"__typename\":\"Tweet\",\"rest_id\":\"1234567891\",\"legacy\":{\"full_text\":\"reply text\"}}}}}}]},{\"type\":\"TimelineAddToModule\",\"moduleItems\":[]}]}}}"
   },
   {
     "id": "query_tweet_detail_deprecated",
@@ -82,10 +82,10 @@
   {
     "id": "query_user_profile",
     "name": "Get User Profile",
-    "summary": "获取指定用户的详细公开资料（Active/Captured Read）。",
+    "summary": "获取用户资料的推特原始 GraphQL 响应。",
     "method": "GET",
     "path": "/api/v1/x/users",
-    "description": "获取 X 用户的详细信息，包括昵称、简介、认证状态、粉丝数等。此接口通过 screenName (如 elonmusk) 查询。如果不提供 tabId，则在当前活动页执行。如果对应用户页已在浏览器中捕获，则直接返回缓存；否则将尝试触发一次轻量级的数据提取。返回结构化后的 profile 对象。",
+    "description": "返回推特 UserByScreenName GraphQL API 的完整原始响应。通过 screenName 参数查询用户（如 elonmusk）。响应结构包含 data.user.result，其中包含 rest_id、legacy.screen_name、legacy.followers_count、legacy.description 等字段。AI 需要从原始响应中解析所需字段。完全透传推特 GraphQL 原始响应。",
     "curl": "curl -X GET \"http://127.0.0.1:10088/api/v1/x/users?screenName=elonmusk\"",
     "response": "{\"userId\":\"...\",\"screenName\":\"elonmusk\",\"name\":\"...\",\"description\":\"...\",\"followersCount\":12345,\"verified\":true}"
   },
@@ -102,13 +102,13 @@
   {
     "id": "create_tweet",
     "name": "Create Tweet",
-    "summary": "发布一条新的推文（Post），支持纯文本内容。",
+    "summary": "发布新推文，返回推特原始 GraphQL 响应。",
     "method": "POST",
     "path": "/api/v1/x/tweets",
-    "description": "此端点允许 Bot 在当前的 X 账号下发布一条新推文。开发者需要在 request_body 中提供 'text' 字段。系统会模拟真实的 GraphQL 'CreateTweet' 操作下发指令到浏览器执行。它是 Bot 主动输出内容的核心接口。",
+    "description": "调用推特 CreateTweet GraphQL mutation 发布新推文。请求体需提供 text 字段（推文内容）。返回推特 GraphQL 原始响应，包含 data.create_tweet.tweet_results.result，其中包含新创建推文的 rest_id 和完整数据。AI 需要从响应中解析 rest_id 来获取新推文的 ID。完全透传推特 GraphQL 原始响应。",
     "request_body": "{\n  \"text\": \"Hello World from my Bot!\"\n}",
     "curl": "curl -X POST http://127.0.0.1:10088/api/v1/x/tweets \\\n     -H \"Content-Type: application/json\" \\\n     -d '{\"text\": \"Hello World\"}'",
-    "response": "{\"ok\":true,\"data\":{\"create_tweet\":{\"tweet_results\":{\"result\":{\"rest_id\":\"...\"}}}}}"
+    "response": "{\"data\":{\"create_tweet\":{\"tweet_results\":{\"result\":{\"__typename\":\"Tweet\",\"rest_id\":\"1234567890123456789\",\"core\":{\"user_results\":{\"result\":{\"rest_id\":\"123\",\"legacy\":{\"screen_name\":\"username\"}}}},\"legacy\":{\"created_at\":\"Mon Jan 01 00:00:00 +0000 2024\",\"full_text\":\"Hello World\",\"favorite_count\":0,\"retweet_count\":0}}}}}}"
   },
   {
     "id": "create_reply",

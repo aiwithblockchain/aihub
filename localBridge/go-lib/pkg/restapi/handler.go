@@ -189,13 +189,13 @@ func (h *Handler) bridge(
 func (h *Handler) xStatus(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_x_status")
 	h.bridge(w, "tweetClaw", id, buildMsg(id, "request.query_x_tabs_status", "tweetClaw", types.EmptyPayload{}), 5000,
-		func(data []byte) { writePayload[types.QueryXTabsStatusResponse](w, data) })
+		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) xBasicInfo(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_x_basic")
 	h.bridge(w, "tweetClaw", id, buildMsg(id, "request.query_x_basic_info", "tweetClaw", types.EmptyPayload{}), 5000,
-		func(data []byte) { writePayload[types.QueryXBasicInfoResponse](w, data) })
+		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) timeline(w http.ResponseWriter, r *http.Request) {
@@ -283,7 +283,7 @@ func (h *Handler) execAction(w http.ResponseWriter, r *http.Request, action stri
 	req.Action = action
 	id := newID("http_exec")
 	h.bridge(w, "tweetClaw", id, buildMsg(id, "request.exec_action", "tweetClaw", req), 15000,
-		func(data []byte) { writePayload[types.ExecActionResponse](w, data) })
+		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) openTab(w http.ResponseWriter, r *http.Request) {
@@ -291,7 +291,7 @@ func (h *Handler) openTab(w http.ResponseWriter, r *http.Request) {
 	if err := readJSON(r, &req); err != nil { jsonErr(w, 400, err.Error()); return }
 	id := newID("http_open_tab")
 	h.bridge(w, "tweetClaw", id, buildMsg(id, "request.open_tab", "tweetClaw", req), 5000,
-		func(data []byte) { writePayload[types.OpenTabResponse](w, data) })
+		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) closeTab(w http.ResponseWriter, r *http.Request) {
@@ -299,7 +299,7 @@ func (h *Handler) closeTab(w http.ResponseWriter, r *http.Request) {
 	if err := readJSON(r, &req); err != nil { jsonErr(w, 400, err.Error()); return }
 	id := newID("http_close_tab")
 	h.bridge(w, "tweetClaw", id, buildMsg(id, "request.close_tab", "tweetClaw", req), 5000,
-		func(data []byte) { writePayload[types.CloseTabResponse](w, data) })
+		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) navigateTab(w http.ResponseWriter, r *http.Request) {
@@ -307,7 +307,7 @@ func (h *Handler) navigateTab(w http.ResponseWriter, r *http.Request) {
 	if err := readJSON(r, &req); err != nil { jsonErr(w, 400, err.Error()); return }
 	id := newID("http_nav_tab")
 	h.bridge(w, "tweetClaw", id, buildMsg(id, "request.navigate_tab", "tweetClaw", req), 5000,
-		func(data []byte) { writePayload[types.NavigateTabResponse](w, data) })
+		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) instances(w http.ResponseWriter, _ *http.Request) {
@@ -356,7 +356,7 @@ func (h *Handler) apiDocs(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) aiStatus(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_ai_status")
 	h.bridge(w, "aiClaw", id, buildMsg(id, "request.query_ai_tabs_status", "aiClaw", types.EmptyPayload{}), 5000,
-		func(data []byte) { writePayload[types.QueryAITabsStatusResponse](w, data) })
+		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
@@ -381,7 +381,7 @@ func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 		Timeout: &timeoutMs,
 	}
 	h.bridge(w, "aiClaw", id, buildMsg(id, "request.execute_task", "aiClaw", payload), timeoutMs,
-		func(data []byte) { writePayload[types.ExecuteTaskResultPayload](w, data) })
+		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) newConversation(w http.ResponseWriter, r *http.Request) {
@@ -404,7 +404,7 @@ func (h *Handler) newConversation(w http.ResponseWriter, r *http.Request) {
 		Timeout: &timeoutMs,
 	}
 	h.bridge(w, "aiClaw", id, buildMsg(id, "request.execute_task", "aiClaw", payload), timeoutMs,
-		func(data []byte) { writePayload[types.ExecuteTaskResultPayload](w, data) })
+		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) navigateToPlatform(w http.ResponseWriter, r *http.Request) {
@@ -420,7 +420,7 @@ func (h *Handler) navigateToPlatform(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_navigate")
 	payload := types.NavigateToPlatformPayload{Platform: req.Platform}
 	h.bridge(w, "aiClaw", id, buildMsg(id, "request.navigate_to_platform", "aiClaw", payload), 5000,
-		func(data []byte) { writePayload[types.NavigateResultPayload](w, data) })
+		func(data []byte) { writeRawPayload(w, data) })
 }
 
 // --- 工具函数 ---

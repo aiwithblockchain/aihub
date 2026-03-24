@@ -1,0 +1,100 @@
+"""
+Response validation utilities
+"""
+from typing import Dict, Any, List
+
+
+def is_twitter_raw_response(data: Any) -> bool:
+    """
+    Check if response contains Twitter raw GraphQL structure
+    """
+    if not isinstance(data, dict):
+        return False
+
+    # Common Twitter GraphQL response patterns
+    twitter_indicators = [
+        'data',
+        'legacy',
+        'rest_id',
+        '__typename',
+        'tweet_results',
+        'user_results',
+        'threaded_conversation_with_injections_v2',
+        'home_timeline_urt',
+        'instructions',
+        'entries'
+    ]
+
+    # Check if any indicator exists in the response
+    def check_nested(obj: Any, depth: int = 0) -> bool:
+        if depth > 3:  # Limit recursion depth
+            return False
+
+        if isinstance(obj, dict):
+            for key in obj.keys():
+                if key in twitter_indicators:
+                    return True
+            for value in obj.values():
+                if check_nested(value, depth + 1):
+                    return True
+        elif isinstance(obj, list) and obj:
+            return check_nested(obj[0], depth + 1)
+
+        return False
+
+    return check_nested(data)
+
+
+def validate_response(response: Dict[Any, Any], expected_fields: List[str] = None) -> tuple[bool, str]:
+    """
+    Validate API response
+
+    Returns:
+        (is_valid, message)
+    """
+    # Check for error
+    if 'error' in response:
+        return False, f"Error: {response['error']}"
+
+    # Check if it's Twitter raw response
+    if not is_twitter_raw_response(response):
+        return False, "Response does not contain Twitter raw data structure"
+
+    # Check expected fields if provided
+    if expected_fields:
+        missing = [f for f in expected_fields if f not in response]
+        if missing:
+            return False, f"Missing expected fields: {', '.join(missing)}"
+
+    return True, "Valid Twitter raw response"
+
+
+def print_response_summary(response: Dict[Any, Any], max_depth: int = 2):
+    """
+    Print a summary of the response structure
+    """
+    def summarize(obj: Any, depth: int = 0, prefix: str = "") -> List[str]:
+        if depth >= max_depth:
+            return [f"{prefix}..."]
+
+        lines = []
+        if isinstance(obj, dict):
+            for key, value in list(obj.items())[:5]:  # Limit to first 5 keys
+                if isinstance(value, (dict, list)):
+                    lines.append(f"{prefix}{key}:")
+                    lines.extend(summarize(value, depth + 1, prefix + "  "))
+                else:
+                    lines.append(f"{prefix}{key}: {type(value).__name__}")
+            if len(obj) > 5:
+                lines.append(f"{prefix}... ({len(obj) - 5} more keys)")
+        elif isinstance(obj, list):
+            if obj:
+                lines.append(f"{prefix}[{len(obj)} items]")
+                if isinstance(obj[0], (dict, list)):
+                    lines.extend(summarize(obj[0], depth + 1, prefix + "  "))
+
+        return lines
+
+    print("\nResponse Structure:")
+    for line in summarize(response):
+        print(line)

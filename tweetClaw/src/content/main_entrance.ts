@@ -209,11 +209,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 console.log(`[TweetClaw-CS] Fetching profile for @${screenName}...`);
                 const json = await fetchUserByScreenName(screenName);
 
-                // 用容错递归解析拿到 user result 对象
-                const userResult = findDeepUser(json);
-                if (!userResult) throw new Error('findDeepUser returned null');
-
-                sendResponse({ success: true, raw: userResult });
+                // 直接返回推特原始响应，不做任何解析
+                sendResponse({ success: true, raw: json });
             } catch (e: any) {
                 console.error('[TweetClaw-CS] FETCH_SETTINGS_AND_PROFILE fail:', e);
                 sendResponse({ success: false, error: e.message });
@@ -306,6 +303,128 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 });
             } catch (e: any) {
                 console.error(`[TweetClaw-CS] SEARCH_TIMELINE failed query="${message.query || '<nil>'}" cursor=${message.cursor || '<nil>'}`, e);
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    // ══════════════════════════════════════════════════════════════════
+    // 新增：AI-Oriented 实时 API 调用处理器
+    // ══════════════════════════════════════════════════════════════════
+
+    if (message.type === 'FETCH_HOME_TIMELINE') {
+        (async () => {
+            try {
+                const data = await performQuery('HomeLatestTimeline', {
+                    count: 20,
+                    includePromotedContent: true,
+                    latestControlAvailable: true,
+                    requestContext: 'launch',
+                    withCommunity: true
+                });
+                sendResponse({ success: true, data });
+            } catch (e: any) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    if (message.type === 'FETCH_TWEET') {
+        (async () => {
+            try {
+                const data = await performQuery('TweetDetail', {
+                    focalTweetId: message.tweetId,
+                    with_rux_injections: false,
+                    includePromotedContent: true,
+                    withCommunity: true,
+                    withQuickPromoteEligibilityTweetFields: true,
+                    withBirdwatchNotes: true,
+                    withVoice: true
+                });
+                sendResponse({ success: true, data });
+            } catch (e: any) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    if (message.type === 'FETCH_TWEET_REPLIES') {
+        (async () => {
+            try {
+                const variables: any = {
+                    focalTweetId: message.tweetId,
+                    with_rux_injections: false,
+                    includePromotedContent: true,
+                    withCommunity: true,
+                    withQuickPromoteEligibilityTweetFields: true,
+                    withBirdwatchNotes: true,
+                    withVoice: true,
+                    rankingMode: 'Relevance'
+                };
+                if (message.cursor) {
+                    variables.cursor = message.cursor;
+                }
+                const data = await performQuery('TweetDetail', variables);
+                sendResponse({ success: true, data });
+            } catch (e: any) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    if (message.type === 'FETCH_TWEET_DETAIL') {
+        (async () => {
+            try {
+                const data = await performQuery('TweetDetail', {
+                    focalTweetId: message.tweetId,
+                    with_rux_injections: false,
+                    includePromotedContent: true,
+                    withCommunity: true,
+                    withQuickPromoteEligibilityTweetFields: true,
+                    withBirdwatchNotes: true,
+                    withVoice: true
+                });
+                sendResponse({ success: true, data });
+            } catch (e: any) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    if (message.type === 'FETCH_USER_PROFILE') {
+        (async () => {
+            try {
+                const cleanName = message.screenName.replace('@', '');
+                const data = await fetchUserByScreenName(cleanName);
+                sendResponse({ success: true, data });
+            } catch (e: any) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    if (message.type === 'FETCH_SEARCH_TIMELINE') {
+        (async () => {
+            try {
+                const variables: any = {
+                    rawQuery: message.query || '',
+                    count: message.count || 20,
+                    querySource: 'typed_query',
+                    product: 'Top',
+                    withGrokTranslatedBio: false
+                };
+                if (message.cursor) {
+                    variables.cursor = message.cursor;
+                }
+                const data = await performQuery('SearchTimeline', variables);
+                sendResponse({ success: true, data });
+            } catch (e: any) {
                 sendResponse({ success: false, error: e.message });
             }
         })();

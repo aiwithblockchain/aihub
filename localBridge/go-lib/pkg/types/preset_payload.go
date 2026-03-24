@@ -3,92 +3,24 @@ package types
 // ===========================================================
 // tweetClaw 插件的 Payload 类型
 // ===========================================================
+// 注意：响应类型已移除，所有响应均透传原始 JSON
 
-// ---- X (Twitter) 查询 ----
-
-type XTabInfo struct {
-	TabID  int    `json:"tabId"`
-	URL    string `json:"url"`
-	Active bool   `json:"active"`
-}
-
-type QueryXTabsStatusResponse struct {
-	HasXTabs     bool       `json:"hasXTabs"`
-	IsLoggedIn   bool       `json:"isLoggedIn"`
-	ActiveXTabID *int       `json:"activeXTabId"`
-	ActiveXURL   *string    `json:"activeXUrl"`
-	Tabs         []XTabInfo `json:"tabs"`
-}
-
-type QueryXBasicInfoResponse struct {
-	// Core fields
-	IsLoggedIn     bool        `json:"isLoggedIn"`
-	Name           *string     `json:"name"`
-	ScreenName     *string     `json:"screenName"`
-	TwitterID      *string     `json:"twitterId"`
-	Verified       *bool       `json:"verified"`
-	FollowersCount *int        `json:"followersCount"`
-	FriendsCount   *int        `json:"friendsCount"`
-	StatusesCount  *int        `json:"statusesCount"`
-	Avatar         *string     `json:"avatar"`
-	Description    *string     `json:"description"`
-	CreatedAt      *string     `json:"createdAt"`
-
-	// Extended fields from UserProfile
-	IsFollowing              *bool    `json:"isFollowing"`
-	ListedCount              *int     `json:"listedCount"`
-	FavouritesCount          *int     `json:"favouritesCount"`
-	MediaCount               *int     `json:"mediaCount"`
-	FollowerRatio            *float64 `json:"followerRatio"`
-	IsBlueVerified           *bool    `json:"isBlueVerified"`
-	CanHighlightTweets       *bool    `json:"canHighlightTweets"`
-	HasAffiliateLabel        *bool    `json:"hasAffiliateLabel"`
-	IsSuperFollowEligible    *bool    `json:"isSuperFollowEligible"`
-	HasProfileBanner         *bool    `json:"hasProfileBanner"`
-	HasProfessionalType      *bool    `json:"hasProfessionalType"`
-	HasHiddenSubscriptions   *bool    `json:"hasHiddenSubscriptions"`
-	HasDescription           *bool    `json:"hasDescription"`
-	AccountAgeDays           *int     `json:"accountAgeDays"`
-	AvgTweetsPerDay          *float64 `json:"avgTweetsPerDay"`
-	CreatorSubscriptionsCount *int    `json:"creatorSubscriptionsCount"`
-
-	Raw            interface{} `json:"raw"`
-	UpdatedAt      *int64      `json:"updatedAt"`
-}
-
-// ---- Tab 操作 ----
+// ---- Tab 操作请求 ----
 
 type OpenTabRequest struct {
 	Path string `json:"path"`
 }
-type OpenTabResponse struct {
-	Success bool    `json:"success"`
-	TabID   *int    `json:"tabId"`
-	URL     *string `json:"url"`
-	Error   *string `json:"error"`
-}
 
 type CloseTabRequest struct {
 	TabID int `json:"tabId"`
-}
-type CloseTabResponse struct {
-	Success bool    `json:"success"`
-	Reason  string  `json:"reason"` // "success" | "not_found" | "failed"
-	Error   *string `json:"error"`
 }
 
 type NavigateTabRequest struct {
 	TabID *int   `json:"tabId"`
 	Path  string `json:"path"`
 }
-type NavigateTabResponse struct {
-	Success bool    `json:"success"`
-	TabID   int     `json:"tabId"`
-	URL     string  `json:"url"`
-	Error   *string `json:"error"`
-}
 
-// ---- Exec Action ----
+// ---- Exec Action 请求 ----
 
 type ExecActionRequest struct {
 	Action  string  `json:"action"`   // like / unlike / retweet / follow 等
@@ -97,31 +29,30 @@ type ExecActionRequest struct {
 	TabID   *int    `json:"tabId"`
 	Text    *string `json:"text"`
 }
-type ExecActionResponse struct {
-	OK    bool        `json:"ok"`
-	Data  interface{} `json:"data"`
-	Error *string     `json:"error"`
-}
 
-// ---- Timeline 查询 ----
+// ---- Timeline 查询请求 ----
 
 type QueryTweetDetailRequest struct {
 	TweetID string `json:"tweetId"`
 	TabID   *int   `json:"tabId"`
 }
+
 type QueryTweetRequest struct {
 	TweetID string `json:"tweetId"`
 	TabID   *int   `json:"tabId"`
 }
+
 type QueryTweetRepliesRequest struct {
 	TweetID string `json:"tweetId"`
 	TabID   *int   `json:"tabId"`
 	Cursor  string `json:"cursor,omitempty"`
 }
+
 type QueryUserProfileRequest struct {
 	ScreenName string `json:"screenName"`
 	TabID      *int   `json:"tabId"`
 }
+
 type QuerySearchTimelineRequest struct {
 	TabID  *int   `json:"tabId,omitempty"`
 	Query  string `json:"query,omitempty"`  // 搜索关键词
@@ -132,36 +63,9 @@ type QuerySearchTimelineRequest struct {
 // ===========================================================
 // aiClaw 插件的 Payload 类型
 // ===========================================================
+// 注意：响应类型已移除，所有响应均透传原始 JSON
 
-// ---- AI 标签页状态 ----
-
-type PlatformStatus struct {
-	HasTab     bool `json:"hasTab"`
-	IsLoggedIn bool `json:"isLoggedIn"`
-}
-
-type AIPlatformsInfo struct {
-	ChatGPT PlatformStatus `json:"chatgpt"`
-	Gemini  PlatformStatus `json:"gemini"`
-	Grok    PlatformStatus `json:"grok"`
-}
-
-type AITabInfo struct {
-	TabID    int    `json:"tabId"`
-	URL      string `json:"url"`
-	Platform string `json:"platform"` // chatgpt | gemini | grok
-	Active   bool   `json:"active"`
-}
-
-type QueryAITabsStatusResponse struct {
-	HasAITabs     bool            `json:"hasAITabs"`
-	Platforms     AIPlatformsInfo `json:"platforms"`
-	ActiveAITabID *int            `json:"activeAITabId"`
-	ActiveAIURL   *string         `json:"activeAIUrl"`
-	Tabs          []AITabInfo     `json:"tabs"`
-}
-
-// ---- 任务执行 ----
+// ---- 任务执行请求 ----
 
 type SendMessagePromptPayload struct {
 	Prompt         *string `json:"prompt"`
@@ -177,26 +81,8 @@ type ExecuteTaskRequestPayload struct {
 	Timeout  *int                     `json:"timeout"`
 }
 
-type ExecuteTaskResultPayload struct {
-	TaskID         string  `json:"taskId"`
-	Success        bool    `json:"success"`
-	Platform       string  `json:"platform"`
-	Content        *string `json:"content"`
-	ConversationID *string `json:"conversationId"`
-	Error          *string `json:"error"`
-	ExecutedAt     string  `json:"executedAt"`
-	DurationMs     int     `json:"durationMs"`
-}
-
-// ---- 页面跳转 ----
+// ---- 页面跳转请求 ----
 
 type NavigateToPlatformPayload struct {
 	Platform string `json:"platform"` // chatgpt | gemini | grok
-}
-
-type NavigateResultPayload struct {
-	Success       bool    `json:"success"`
-	Platform      string  `json:"platform"`
-	TabsNavigated int     `json:"tabsNavigated"`
-	Error         *string `json:"error"`
 }
