@@ -31,14 +31,36 @@ final class AIClawHumanViewController: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
-        
+
         NotificationCenter.default.addObserver(self, selector: #selector(handleQueryResult(_:)), name: NSNotification.Name("QueryAITabsStatusReceived"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleSendMessageResult(_:)), name: NSNotification.Name("SendMessageReceived"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(handleNavigateResult(_:)), name: NSNotification.Name("NavigateToPlatformReceived"), object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(handleThemeChange), name: ThemeManager.themeDidChangeNotification, object: nil)
 
         loadInstances()
     }
-    
+
+    @objc private func handleThemeChange() {
+        view.layer?.backgroundColor = DSV2.surface.cgColor
+        headerImageView.contentTintColor = DSV2.primary
+        headerTitleLabel.textColor = DSV2.onSurface
+        messageInputView.textColor = DSV2.onSurface
+        messageInputView.backgroundColor = DSV2.surfaceContainerLowest
+        messageInputView.insertionPointColor = DSV2.primary
+        messageInputScroll.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
+        messageInputScroll.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
+        resultTextView.textColor = DSV2.tertiary
+        applyRefreshButtonStyle(isRefreshing: isRefreshingInstances)
+
+        // 更新左侧卡片背景
+        if let leftCard = view.subviews.first(where: { $0.layer?.cornerRadius == DSV2.radiusCard }) {
+            leftCard.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
+            leftCard.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
+        }
+
+        view.needsDisplay = true
+    }
+
     deinit {
         NotificationCenter.default.removeObserver(self)
     }
@@ -487,6 +509,27 @@ final class AIClawBotViewController: NSViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         setupUI()
+
+        NotificationCenter.default.addObserver(self, selector: #selector(handleThemeChange), name: ThemeManager.themeDidChangeNotification, object: nil)
+    }
+
+    @objc private func handleThemeChange() {
+        view.layer?.backgroundColor = DSV2.surface.cgColor
+        headerImageView.contentTintColor = DSV2.primary
+        titleLabel.textColor = DSV2.onSurface
+        subtitleLabel.textColor = DSV2.onSurfaceTertiary
+
+        // 更新所有卡片
+        for subview in stackView.arrangedSubviews {
+            subview.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
+            subview.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
+        }
+
+        view.needsDisplay = true
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
     }
 
     private func setupUI() {

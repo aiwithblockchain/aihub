@@ -140,7 +140,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         super.viewDidLoad()
         loadDocs()
         setupUI()
-        
+
         NotificationCenter.default.addObserver(self, selector: #selector(displayResult(_:)), name: NSNotification.Name("QueryXTabsStatusReceived"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(displayResult(_:)), name: NSNotification.Name("QueryXBasicInfoReceived"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(displayResult(_:)), name: NSNotification.Name("OpenTabReceived"), object: nil)
@@ -150,7 +150,59 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         NotificationCenter.default.addObserver(self, selector: #selector(displayResult(_:)), name: NSNotification.Name("GetAPIDocsReceived"), object: nil)
         NotificationCenter.default.addObserver(self, selector: #selector(displayResult(_:)), name: NSNotification.Name("GetInstancesReceived"), object: nil)
 
+        // 注册主题变化通知
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleThemeChange),
+            name: ThemeManager.themeDidChangeNotification,
+            object: nil
+        )
+
         loadInstances()
+    }
+
+    @objc private func handleThemeChange() {
+        // 更新主视图背景
+        view.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
+
+        // 更新所有文本颜色
+        headerTitleLabel.textColor = DSV2.onSurface
+        headerImageView.contentTintColor = DSV2.primary
+        instanceLabel.textColor = DSV2.onSurfaceTertiary
+
+        // 更新输入框
+        styleInputField(commonIdField)
+        styleInputField(commonPathField)
+        styleInputField(commonCursorField)
+
+        // 更新文本视图
+        detailTextView?.textColor = DSV2.tertiary
+        resultTextView?.textColor = DSV2.tertiary
+        contentEditor.textColor = DSV2.onSurface
+        contentEditor.backgroundColor = DSV2.surface
+
+        // 更新按钮
+        actionButton.layer?.backgroundColor = DSV2.primary.cgColor
+        applyRefreshButtonStyle(isRefreshing: isRefreshingInstances)
+
+        // 更新容器背景
+        if let detailContainer = detailTextView?.superview {
+            detailContainer.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
+            detailContainer.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.1).cgColor
+        }
+        if let resultContainer = resultTextView?.superview {
+            resultContainer.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
+            resultContainer.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.1).cgColor
+        }
+
+        // 更新 scrollView 背景
+        contentScrollView.layer?.backgroundColor = DSV2.surface.cgColor
+        contentScrollView.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
+
+        // 重新加载表格以更新 API 卡片
+        tableView.reloadData()
+
+        view.needsDisplay = true
     }
 
     deinit {
