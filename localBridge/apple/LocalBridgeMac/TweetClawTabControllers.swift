@@ -374,9 +374,6 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         detailScrollView.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.1).cgColor
         DSV2.applyBrightScroller(to: detailScrollView)
 
-        print("[LAYOUT DEBUG] Creating detailScrollView")
-        print("[LAYOUT DEBUG] detailScrollView.contentInsets = \(detailScrollView.contentInsets)")
-
         detailTextView = NSTextView()
         detailTextView.isEditable = false
         detailTextView.isSelectable = true
@@ -390,8 +387,6 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         detailTextView.textContainer?.widthTracksTextView = true
         detailTextView.textContainer?.containerSize = NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude)
         detailTextView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
-
-        print("[LAYOUT DEBUG] detailTextView.textContainerInset = \(detailTextView.textContainerInset)")
 
         detailScrollView.documentView = detailTextView
 
@@ -601,7 +596,6 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
 
     private func updateDetailView(with doc: ApiDoc?) {
         guard let textView = detailTextView else {
-            print("[DEBUG] detailTextView is nil!")
             return
         }
 
@@ -609,10 +603,6 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             textView.string = "Select an API from the left sidebar to view details."
             return
         }
-
-        print("[DEBUG] Updating detail view for: \(doc.name)")
-        print("[DEBUG] Summary: \(doc.summary)")
-        print("[DEBUG] Description length: \(doc.description.count)")
 
         let attrStr = NSMutableAttributedString()
 
@@ -752,14 +742,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             ]
         ))
 
-        print("[DEBUG] Total attributed string length: \(attrStr.length)")
-
         textView.textStorage?.setAttributedString(attrStr)
-
-        print("[DEBUG] Text view frame: \(textView.frame)")
-        print("[DEBUG] Text view bounds: \(textView.bounds)")
-        print("[DEBUG] Text container size: \(String(describing: textView.textContainer?.containerSize))")
-
         textView.scrollToBeginningOfDocument(nil)
     }
     

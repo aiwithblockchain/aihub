@@ -329,6 +329,9 @@ final class SettingsViewController: NSViewController {
         // 更新标题颜色
         titleLabel.textColor = DSV2.onSurface
 
+        // 更新主题切换按钮
+        themeSegmentedControl?.updateTheme()
+
         // 递归更新所有卡片和子视图
         updateViewColors(view)
 
