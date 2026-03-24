@@ -33,6 +33,7 @@ final class DetailViewController: NSViewController {
 
     @objc private func handleThemeChange() {
         view.layer?.backgroundColor = DSV2.surface.cgColor
+        aiClawSegmentedControl?.updateTheme()
         view.needsDisplay = true
         view.subviews.forEach { $0.needsDisplay = true }
     }

@@ -601,6 +601,10 @@ class SegmentedControl: NSView {
         guard selectedIndex >= 0 && selectedIndex < buttons.count else { return nil }
         return buttons[selectedIndex].title
     }
+
+    func updateTheme() {
+        updateSelection(index: selectedIndex)
+    }
 }
 
 // MARK: - Global UI Component

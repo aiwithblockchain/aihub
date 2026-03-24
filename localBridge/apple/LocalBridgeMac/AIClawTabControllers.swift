@@ -21,6 +21,12 @@ final class AIClawHumanViewController: NSViewController {
 
     private var resultTextView: NSTextView!
     private var resultScrollView: NSScrollView!
+
+    // 按钮引用用于主题更新
+    private var queryButton: NSButton!
+    private var sendButton: NSButton!
+    private var newConvButton: NSButton!
+    private var navigateButton: NSButton!
     
     override func loadView() {
         view = NSView()
@@ -50,7 +56,19 @@ final class AIClawHumanViewController: NSViewController {
         messageInputScroll.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
         messageInputScroll.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
         resultTextView.textColor = DSV2.tertiary
+        resultTextView.backgroundColor = DSV2.surfaceContainerLowest
+        resultScrollView.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
         applyRefreshButtonStyle(isRefreshing: isRefreshingInstances)
+
+        // 更新按钮主题
+        updateButtonTheme(queryButton, style: .gradient)
+        updateButtonTheme(sendButton, style: .gradient)
+        updateButtonTheme(newConvButton, style: .secondary)
+        updateButtonTheme(navigateButton, style: .tertiary)
+
+        // 更新 segmented controls
+        platformSegmented?.updateTheme()
+        messagePlatformSegmented?.updateTheme()
 
         // 更新左侧卡片背景
         if let leftCard = view.subviews.first(where: { $0.layer?.cornerRadius == DSV2.radiusCard }) {
@@ -59,6 +77,45 @@ final class AIClawHumanViewController: NSViewController {
         }
 
         view.needsDisplay = true
+    }
+
+    private enum ButtonStyle {
+        case gradient, secondary, tertiary
+    }
+
+    private func updateButtonTheme(_ button: NSButton?, style: ButtonStyle) {
+        guard let button = button else { return }
+
+        switch style {
+        case .gradient:
+            button.layer?.backgroundColor = DSV2.primaryContainer.cgColor
+            let attributes: [NSAttributedString.Key: Any] = [
+                .foregroundColor: NSColor.white,
+                .font: DSV2.fontLabelMd
+            ]
+            button.attributedTitle = NSAttributedString(string: button.title, attributes: attributes)
+
+        case .secondary:
+            button.layer?.backgroundColor = NSColor.clear.cgColor
+            button.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.2).cgColor
+            let attributes: [NSAttributedString.Key: Any] = [
+                .foregroundColor: DSV2.onSurface,
+                .font: DSV2.fontLabelMd
+            ]
+            button.attributedTitle = NSAttributedString(string: button.title, attributes: attributes)
+
+        case .tertiary:
+            button.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
+            button.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
+            let attributes: [NSAttributedString.Key: Any] = [
+                .foregroundColor: DSV2.onSurfaceVariant,
+                .font: DSV2.fontLabelMd
+            ]
+            button.attributedTitle = NSAttributedString(string: button.title, attributes: attributes)
+            if #available(macOS 11.0, *) {
+                button.contentTintColor = DSV2.onSurfaceVariant
+            }
+        }
     }
 
     deinit {
@@ -159,7 +216,7 @@ final class AIClawHumanViewController: NSViewController {
         platformSegmented.translatesAutoresizingMaskIntoConstraints = false
 
         // Query button - use gradient style
-        let queryButton = DSV2.makeGradientButton(title: "查询状态", target: self, action: #selector(queryClicked))
+        queryButton = DSV2.makeGradientButton(title: "查询状态", target: self, action: #selector(queryClicked))
 
         // Terminal view
         let terminal = DSV2.makeTerminalTextView()
@@ -193,11 +250,11 @@ final class AIClawHumanViewController: NSViewController {
         messageInputScroll.heightAnchor.constraint(equalToConstant: 100).isActive = true
 
         // Action buttons
-        let sendButton = DSV2.makeGradientButton(title: "发送消息", target: self, action: #selector(sendMessageClicked))
-        let newConvButton = DSV2.makeSecondaryButton(title: "新建对话", target: self, action: #selector(newConversationClicked))
+        sendButton = DSV2.makeGradientButton(title: "发送消息", target: self, action: #selector(sendMessageClicked))
+        newConvButton = DSV2.makeSecondaryButton(title: "新建对话", target: self, action: #selector(newConversationClicked))
 
         // Navigate button - styled as tertiary button with home icon
-        let navigateButton = NSButton(title: "跳转首页", target: self, action: #selector(navigateToHomeClicked))
+        navigateButton = NSButton(title: "跳转首页", target: self, action: #selector(navigateToHomeClicked))
         navigateButton.wantsLayer = true
         navigateButton.isBordered = false
         navigateButton.bezelStyle = .rounded
@@ -519,13 +576,65 @@ final class AIClawBotViewController: NSViewController {
         titleLabel.textColor = DSV2.onSurface
         subtitleLabel.textColor = DSV2.onSurfaceTertiary
 
-        // 更新所有卡片
+        // 更新所有卡片及其内部元素
         for subview in stackView.arrangedSubviews {
-            subview.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
-            subview.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
+            updateCardTheme(subview)
         }
 
         view.needsDisplay = true
+    }
+
+    private func updateCardTheme(_ card: NSView) {
+        // 更新卡片背景
+        card.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
+        card.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
+
+        // 递归更新卡片内所有子视图
+        for subview in card.subviews {
+            if let stackView = subview as? NSStackView {
+                updateStackViewTheme(stackView)
+            } else if let textField = subview as? NSTextField {
+                updateTextFieldTheme(textField)
+            } else if subview.subviews.count > 0 {
+                updateCardTheme(subview)
+            }
+        }
+    }
+
+    private func updateStackViewTheme(_ stackView: NSStackView) {
+        for view in stackView.arrangedSubviews {
+            if let textField = view as? NSTextField {
+                updateTextFieldTheme(textField)
+            } else if let nestedStack = view as? NSStackView {
+                updateStackViewTheme(nestedStack)
+            } else {
+                // 更新代码容器背景
+                if view.layer?.cornerRadius == DSV2.radiusInput {
+                    view.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
+                    view.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.1).cgColor
+                }
+                // 递归更新容器内的元素
+                for subview in view.subviews {
+                    if let textField = subview as? NSTextField {
+                        updateTextFieldTheme(textField)
+                    }
+                }
+            }
+        }
+    }
+
+    private func updateTextFieldTheme(_ textField: NSTextField) {
+        // 根据字体类型判断文本类型并应用相应颜色
+        if textField.font == DSV2.fontMonoMd || textField.font == DSV2.fontMonoSm {
+            // 代码文本
+            textField.textColor = DSV2.tertiary
+        } else if textField.font == DSV2.fontBodyMd {
+            // 描述文本
+            textField.textColor = DSV2.onSurfaceVariant
+        } else {
+            // 其他文本
+            textField.textColor = DSV2.onSurface
+        }
     }
 
     deinit {

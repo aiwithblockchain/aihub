@@ -10,6 +10,12 @@ final class BridgeLogsViewController: NSViewController {
     private let logCountLabel = NSTextField(labelWithString: "0 ENTRIES")
     private var autoScroll = true
 
+    // UI 组件引用用于主题更新
+    private var headerBar: NSView!
+    private var titleLabel: NSTextField!
+    private var autoScrollLabel: NSTextField!
+    private var divider: NSView!
+
     override func loadView() {
         view = NSView()
     }
@@ -40,7 +46,43 @@ final class BridgeLogsViewController: NSViewController {
         textView?.backgroundColor = DSV2.surfaceContainerLowest
         scrollView?.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
         scrollView?.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.2).cgColor
+
+        // 更新 header bar
+        headerBar?.layer?.backgroundColor = DSV2.surfaceContainerLow.withAlphaComponent(0.9).cgColor
+        headerBar?.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
+
+        // 更新标签
+        titleLabel?.textColor = DSV2.onSurface
+        autoScrollLabel?.textColor = DSV2.onSurfaceTertiary
+        logCountLabel.textColor = DSV2.onSurfaceVariant
+        logCountLabel.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
+        logCountLabel.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.2).cgColor
+
+        // 更新分隔线
+        divider?.layer?.backgroundColor = DSV2.outlineVariant.withAlphaComponent(0.2).cgColor
+
+        // 更新按钮
+        updateButtonTheme(copyButton, isDestructive: false)
+        updateButtonTheme(clearButton, isDestructive: true)
+
+        // 重新加载日志以更新颜色
+        reloadLogs()
+
         view.needsDisplay = true
+    }
+
+    private func updateButtonTheme(_ button: NSButton, isDestructive: Bool) {
+        if isDestructive {
+            button.layer?.backgroundColor = DSV2.error.withAlphaComponent(0.1).cgColor
+            if #available(macOS 11.0, *) {
+                button.contentTintColor = DSV2.error
+            }
+        } else {
+            button.layer?.backgroundColor = NSColor.clear.cgColor
+            if #available(macOS 11.0, *) {
+                button.contentTintColor = DSV2.onSurfaceVariant
+            }
+        }
     }
 
     deinit {
@@ -54,7 +96,7 @@ final class BridgeLogsViewController: NSViewController {
         view.layer?.backgroundColor = DSV2.surface.cgColor
 
         // Header bar with glass effect
-        let headerBar = NSView()
+        headerBar = NSView()
         headerBar.wantsLayer = true
         headerBar.layer?.backgroundColor = DSV2.surfaceContainerLow.withAlphaComponent(0.9).cgColor
         headerBar.layer?.borderWidth = 1
@@ -62,7 +104,7 @@ final class BridgeLogsViewController: NSViewController {
         headerBar.translatesAutoresizingMaskIntoConstraints = false
 
         // Title
-        let titleLabel = NSTextField(labelWithString: "Bridge Logs")
+        titleLabel = NSTextField(labelWithString: "Bridge Logs")
         titleLabel.font = DSV2.fontTitleSm
         titleLabel.textColor = DSV2.onSurface
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -79,7 +121,7 @@ final class BridgeLogsViewController: NSViewController {
         logCountLabel.translatesAutoresizingMaskIntoConstraints = false
 
         // Auto-scroll toggle
-        let autoScrollLabel = NSTextField(labelWithString: "AUTO-SCROLL")
+        autoScrollLabel = NSTextField(labelWithString: "AUTO-SCROLL")
         autoScrollLabel.font = DSV2.fontLabelSm
         autoScrollLabel.textColor = DSV2.onSurfaceTertiary
         autoScrollLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -103,7 +145,7 @@ final class BridgeLogsViewController: NSViewController {
         autoScrollRow.spacing = DSV2.spacing2
         autoScrollRow.alignment = .centerY
 
-        let divider = NSView()
+        divider = NSView()
         divider.wantsLayer = true
         divider.layer?.backgroundColor = DSV2.outlineVariant.withAlphaComponent(0.2).cgColor
         divider.translatesAutoresizingMaskIntoConstraints = false

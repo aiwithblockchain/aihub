@@ -360,9 +360,22 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         instanceRow.alignment = .centerY
         instanceRow.translatesAutoresizingMaskIntoConstraints = false
 
-        // 2. Documentation Container
-        let detailContainer = DSV2.makeGhostBorderView()
-        detailContainer.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
+        // 2. Documentation Container with ScrollView
+        let detailScrollView = NSScrollView()
+        detailScrollView.hasVerticalScroller = true
+        detailScrollView.hasHorizontalScroller = false
+        detailScrollView.drawsBackground = false
+        detailScrollView.borderType = .noBorder
+        detailScrollView.translatesAutoresizingMaskIntoConstraints = false
+        detailScrollView.wantsLayer = true
+        detailScrollView.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
+        detailScrollView.layer?.cornerRadius = DSV2.radiusCard
+        detailScrollView.layer?.borderWidth = 1
+        detailScrollView.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.1).cgColor
+        DSV2.applyBrightScroller(to: detailScrollView)
+
+        print("[LAYOUT DEBUG] Creating detailScrollView")
+        print("[LAYOUT DEBUG] detailScrollView.contentInsets = \(detailScrollView.contentInsets)")
 
         detailTextView = NSTextView()
         detailTextView.isEditable = false
@@ -372,41 +385,23 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         detailTextView.textColor = DSV2.tertiary
         detailTextView.textContainerInset = NSSize(width: DSV2.spacing4, height: DSV2.spacing4)
         detailTextView.isVerticallyResizable = true
+        detailTextView.isHorizontallyResizable = false
         detailTextView.autoresizingMask = [.width]
+        detailTextView.textContainer?.widthTracksTextView = true
+        detailTextView.textContainer?.containerSize = NSSize(width: 0, height: CGFloat.greatestFiniteMagnitude)
+        detailTextView.maxSize = NSSize(width: CGFloat.greatestFiniteMagnitude, height: CGFloat.greatestFiniteMagnitude)
 
-        detailContainer.addSubview(detailTextView)
-        detailTextView.translatesAutoresizingMaskIntoConstraints = false
+        print("[LAYOUT DEBUG] detailTextView.textContainerInset = \(detailTextView.textContainerInset)")
 
-        NSLayoutConstraint.activate([
-            detailTextView.topAnchor.constraint(equalTo: detailContainer.topAnchor),
-            detailTextView.leadingAnchor.constraint(equalTo: detailContainer.leadingAnchor),
-            detailTextView.trailingAnchor.constraint(equalTo: detailContainer.trailingAnchor),
-            detailTextView.bottomAnchor.constraint(equalTo: detailContainer.bottomAnchor),
-            detailContainer.heightAnchor.constraint(greaterThanOrEqualToConstant: 100)
-        ])
+        detailScrollView.documentView = detailTextView
 
-        detailHeightConstraint = detailTextView.heightAnchor.constraint(equalToConstant: 100)
-        detailHeightConstraint?.isActive = true
+        // Store reference for scrolling
+        mainRightScrollView = detailScrollView
 
-        // 3. Main Right Column ScrollView
-        mainRightScrollView = NSScrollView()
-        mainRightScrollView.drawsBackground = false
-        mainRightScrollView.hasVerticalScroller = true
-        mainRightScrollView.hasHorizontalScroller = false
-        mainRightScrollView.translatesAutoresizingMaskIntoConstraints = false
-        DSV2.applyBrightScroller(to: mainRightScrollView)
-
-        let rightContentContainer = NSView()
-        rightContentContainer.translatesAutoresizingMaskIntoConstraints = false
-        mainRightScrollView.documentView = rightContentContainer
-
-        rightContentContainer.addSubview(detailContainer)
-        detailContainer.translatesAutoresizingMaskIntoConstraints = false
-
-        // 4. Outer Container for Fixed Header + Scrollable Area
+        // 3. Outer Container for Fixed Header + Scrollable Area
         let rightColumnOuterStack = NSStackView(views: [
             instanceRow,
-            mainRightScrollView
+            detailScrollView
         ])
         rightColumnOuterStack.orientation = .vertical
         rightColumnOuterStack.alignment = .leading
@@ -426,12 +421,6 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             listScrollView.widthAnchor.constraint(equalToConstant: 220),
             listScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6),
 
-            detailContainer.topAnchor.constraint(equalTo: rightContentContainer.topAnchor, constant: DSV2.spacing4),
-            detailContainer.leadingAnchor.constraint(equalTo: rightContentContainer.leadingAnchor),
-            detailContainer.trailingAnchor.constraint(equalTo: rightContentContainer.trailingAnchor),
-            detailContainer.bottomAnchor.constraint(equalTo: rightContentContainer.bottomAnchor, constant: -DSV2.spacing8),
-            detailContainer.widthAnchor.constraint(equalTo: mainRightScrollView.contentView.widthAnchor),
-
             // Outer Stack Constraints
             rightColumnOuterStack.topAnchor.constraint(equalTo: listScrollView.topAnchor),
             rightColumnOuterStack.leadingAnchor.constraint(equalTo: listScrollView.trailingAnchor, constant: DSV2.spacing4),
@@ -439,7 +428,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             rightColumnOuterStack.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6),
 
             instanceRow.widthAnchor.constraint(equalTo: rightColumnOuterStack.widthAnchor),
-            mainRightScrollView.widthAnchor.constraint(equalTo: rightColumnOuterStack.widthAnchor)
+            detailScrollView.widthAnchor.constraint(equalTo: rightColumnOuterStack.widthAnchor)
         ])
 
         // 设置代理（放到最后，防止在界面完全初始化前触发选择事件导致的 Crash）
@@ -611,34 +600,165 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     }
 
     private func updateDetailView(with doc: ApiDoc?) {
-        guard let textView = detailTextView else { return }
+        guard let textView = detailTextView else {
+            print("[DEBUG] detailTextView is nil!")
+            return
+        }
 
         guard let doc = doc else {
             textView.string = "Select an API from the left sidebar to view details."
             return
         }
 
+        print("[DEBUG] Updating detail view for: \(doc.name)")
+        print("[DEBUG] Summary: \(doc.summary)")
+        print("[DEBUG] Description length: \(doc.description.count)")
+
         let attrStr = NSMutableAttributedString()
-        // Documentation Rendering (Title, Method, Description, etc.)
-        attrStr.append(NSAttributedString(string: "\(doc.name)\n", attributes: [.font: DSV2.fontDisplaySm, .foregroundColor: DSV2.onSurface]))
-        attrStr.append(NSAttributedString(string: "\(doc.method) ", attributes: [.font: DSV2.fontMonoMd, .foregroundColor: methodColor(doc.method)]))
-        attrStr.append(NSAttributedString(string: "\(doc.path)\n\n", attributes: [.font: DSV2.fontMonoMd, .foregroundColor: DSV2.onSurfaceVariant]))
-        attrStr.append(NSAttributedString(string: "DESCRIPTION\n", attributes: [.font: DSV2.fontTitleMd, .foregroundColor: DSV2.onSurface]))
-        attrStr.append(NSAttributedString(string: "\(doc.description)\n\n", attributes: [.font: DSV2.fontBodyMd, .foregroundColor: DSV2.onSurface]))
 
+        // 定义段落样式
+        let titleParagraphStyle = NSMutableParagraphStyle()
+        titleParagraphStyle.lineSpacing = 2
+        titleParagraphStyle.paragraphSpacing = 16
+
+        let headingParagraphStyle = NSMutableParagraphStyle()
+        headingParagraphStyle.lineSpacing = 2
+        headingParagraphStyle.paragraphSpacing = 8
+        headingParagraphStyle.paragraphSpacingBefore = 12
+
+        let bodyParagraphStyle = NSMutableParagraphStyle()
+        bodyParagraphStyle.lineSpacing = 6
+        bodyParagraphStyle.paragraphSpacing = 16
+
+        let codeParagraphStyle = NSMutableParagraphStyle()
+        codeParagraphStyle.lineSpacing = 4
+        codeParagraphStyle.paragraphSpacing = 16
+
+        // 1. API 名称（大标题）
+        attrStr.append(NSAttributedString(
+            string: "\(doc.name)\n",
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 20, weight: .bold),
+                .foregroundColor: DSV2.onSurface,
+                .paragraphStyle: titleParagraphStyle
+            ]
+        ))
+
+        // 2. HTTP 方法和路径
+        attrStr.append(NSAttributedString(
+            string: "\(doc.method) ",
+            attributes: [
+                .font: NSFont.monospacedSystemFont(ofSize: 13, weight: .semibold),
+                .foregroundColor: methodColor(doc.method)
+            ]
+        ))
+        attrStr.append(NSAttributedString(
+            string: "\(doc.path)\n\n",
+            attributes: [
+                .font: NSFont.monospacedSystemFont(ofSize: 13, weight: .regular),
+                .foregroundColor: DSV2.onSurfaceVariant
+            ]
+        ))
+
+        // 3. SUMMARY（概述）
+        attrStr.append(NSAttributedString(
+            string: "SUMMARY\n",
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
+                .foregroundColor: DSV2.onSurface,
+                .paragraphStyle: headingParagraphStyle
+            ]
+        ))
+        attrStr.append(NSAttributedString(
+            string: "\(doc.summary)\n",
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 13, weight: .regular),
+                .foregroundColor: DSV2.onSurface,
+                .paragraphStyle: bodyParagraphStyle
+            ]
+        ))
+
+        // 4. DESCRIPTION（详细描述）
+        attrStr.append(NSAttributedString(
+            string: "DESCRIPTION\n",
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
+                .foregroundColor: DSV2.onSurface,
+                .paragraphStyle: headingParagraphStyle
+            ]
+        ))
+        attrStr.append(NSAttributedString(
+            string: "\(doc.description)\n",
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 13, weight: .regular),
+                .foregroundColor: DSV2.onSurfaceVariant,
+                .paragraphStyle: bodyParagraphStyle
+            ]
+        ))
+
+        // 5. REQUEST BODY（如果有）
         if let body = doc.body {
-            attrStr.append(NSAttributedString(string: "REQUEST BODY (JSON)\n", attributes: [.font: DSV2.fontTitleMd, .foregroundColor: DSV2.onSurface]))
-            attrStr.append(NSAttributedString(string: "\(body)\n\n", attributes: [.font: DSV2.fontMonoSm, .foregroundColor: DSV2.tertiary]))
+            attrStr.append(NSAttributedString(
+                string: "REQUEST BODY\n",
+                attributes: [
+                    .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
+                    .foregroundColor: DSV2.onSurface,
+                    .paragraphStyle: headingParagraphStyle
+                ]
+            ))
+            attrStr.append(NSAttributedString(
+                string: "\(body)\n",
+                attributes: [
+                    .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .regular),
+                    .foregroundColor: DSV2.tertiary,
+                    .paragraphStyle: codeParagraphStyle
+                ]
+            ))
         }
-        attrStr.append(NSAttributedString(string: "cURL EXAMPLE\n", attributes: [.font: DSV2.fontTitleMd, .foregroundColor: DSV2.onSurface]))
-        attrStr.append(NSAttributedString(string: "\(doc.curl)\n\n", attributes: [.font: DSV2.fontMonoSm, .foregroundColor: DSV2.tertiary]))
-        attrStr.append(NSAttributedString(string: "RESPONSE FORMAT\n", attributes: [.font: DSV2.fontTitleMd, .foregroundColor: DSV2.tertiary]))
-        attrStr.append(NSAttributedString(string: "\(doc.response)\n", attributes: [.font: DSV2.fontMonoSm, .foregroundColor: DSV2.tertiary]))
 
-        let style = NSMutableParagraphStyle()
-        style.lineSpacing = 4; style.paragraphSpacing = 8
-        attrStr.addAttribute(.paragraphStyle, value: style, range: NSRange(location: 0, length: attrStr.length))
+        // 6. cURL EXAMPLE
+        attrStr.append(NSAttributedString(
+            string: "cURL EXAMPLE\n",
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
+                .foregroundColor: DSV2.onSurface,
+                .paragraphStyle: headingParagraphStyle
+            ]
+        ))
+        attrStr.append(NSAttributedString(
+            string: "\(doc.curl)\n",
+            attributes: [
+                .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .regular),
+                .foregroundColor: DSV2.tertiary,
+                .paragraphStyle: codeParagraphStyle
+            ]
+        ))
+
+        // 7. RESPONSE FORMAT
+        attrStr.append(NSAttributedString(
+            string: "RESPONSE FORMAT\n",
+            attributes: [
+                .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
+                .foregroundColor: DSV2.onSurface,
+                .paragraphStyle: headingParagraphStyle
+            ]
+        ))
+        attrStr.append(NSAttributedString(
+            string: "\(doc.response)\n",
+            attributes: [
+                .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .regular),
+                .foregroundColor: DSV2.tertiary,
+                .paragraphStyle: codeParagraphStyle
+            ]
+        ))
+
+        print("[DEBUG] Total attributed string length: \(attrStr.length)")
+
         textView.textStorage?.setAttributedString(attrStr)
+
+        print("[DEBUG] Text view frame: \(textView.frame)")
+        print("[DEBUG] Text view bounds: \(textView.bounds)")
+        print("[DEBUG] Text container size: \(String(describing: textView.textContainer?.containerSize))")
 
         textView.scrollToBeginningOfDocument(nil)
     }

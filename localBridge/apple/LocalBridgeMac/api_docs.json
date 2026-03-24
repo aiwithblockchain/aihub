@@ -70,16 +70,6 @@
     "response": "{\"data\":{\"threaded_conversation_with_injections_v2\":{\"instructions\":[{\"type\":\"TimelineAddEntries\",\"entries\":[{\"entryId\":\"conversationthread-1234567891\",\"content\":{\"entryType\":\"TimelineTimelineItem\",\"itemContent\":{\"itemType\":\"TimelineTweet\",\"tweet_results\":{\"result\":{\"__typename\":\"Tweet\",\"rest_id\":\"1234567891\",\"legacy\":{\"full_text\":\"reply text\"}}}}}}]},{\"type\":\"TimelineAddToModule\",\"moduleItems\":[]}]}}}"
   },
   {
-    "id": "query_tweet_detail_deprecated",
-    "name": "Get Tweet Detail (Deprecated)",
-    "summary": "兼容旧调用方的详情读取接口，返回主推文与回复的混合结构。",
-    "method": "GET",
-    "path": "/api/v1/x/tweets",
-    "description": "兼容接口。通过 query 参数 tweetId 查询旧版 tweet detail 结构。该接口保留用于平滑迁移，建议新调用方改用 /api/v1/x/tweets/{tweetId} 和 /api/v1/x/tweets/{tweetId}/replies。旧接口未来会移除。",
-    "curl": "curl -X GET \"http://127.0.0.1:10088/api/v1/x/tweets?tweetId=1234567890\"",
-    "response": "{\"mainTweet\":{...},\"replies\":[...],\"tabId\":123}"
-  },
-  {
     "id": "query_user_profile",
     "name": "Get User Profile",
     "summary": "获取用户资料的推特原始 GraphQL 响应。",
