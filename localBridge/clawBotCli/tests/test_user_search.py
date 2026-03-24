@@ -70,13 +70,22 @@ def test_search_timeline():
         if 'instructions' in response_str:
             print("✅ Response contains instructions array")
 
-        # Try pagination test
+        # Try pagination test - extract cursor from instructions entries
         try:
+            cursor = None
             if 'data' in response:
-                search_data = response['data'].get('search_by_raw_query', {}).get('search_timeline', {})
+                search_data = response['data'].get('data', {}).get('search_by_raw_query', {}).get('search_timeline', {})
                 timeline = search_data.get('timeline', {})
-                metadata = timeline.get('metadata', {})
-                cursor = metadata.get('cursor')
+                instructions = timeline.get('instructions', [])
+
+                # Find cursor-bottom in entries
+                for instruction in instructions:
+                    if instruction.get('type') == 'TimelineAddEntries':
+                        entries = instruction.get('entries', [])
+                        for entry in entries:
+                            if 'cursor-bottom' in entry.get('entryId', ''):
+                                cursor = entry.get('content', {}).get('value')
+                                break
 
                 if cursor:
                     print(f"\n📄 Testing pagination with cursor...")
@@ -86,6 +95,8 @@ def test_search_timeline():
                         print("✅ Pagination test successful")
                     else:
                         print("⚠️  Pagination returned unexpected response")
+                else:
+                    print("⚠️  No cursor found for pagination test")
         except Exception as e:
             print(f"⚠️  Pagination test skipped: {e}")
 
