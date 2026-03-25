@@ -360,7 +360,8 @@ final class SettingsViewController: NSViewController {
         // 更新标题颜色
         titleLabel.textColor = DSV2.onSurface
 
-        // 更新主题切换按钮
+        // 更新分段按钮外观
+        languageSegmentedControl?.updateTheme()
         themeSegmentedControl?.updateTheme()
 
         // 递归更新所有卡片和子视图
@@ -672,6 +673,7 @@ final class SettingsViewController: NSViewController {
 
             languageSegmentedControl.topAnchor.constraint(equalTo: languageDescLabel.bottomAnchor, constant: 12),
             languageSegmentedControl.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            languageSegmentedControl.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             languageSegmentedControl.widthAnchor.constraint(equalToConstant: 240),
             languageSegmentedControl.bottomAnchor.constraint(equalTo: container.bottomAnchor)
         ])
@@ -681,12 +683,8 @@ final class SettingsViewController: NSViewController {
 
     @objc private func languageChanged() {
         let selectedIndex = languageSegmentedControl.indexOfSelectedItem()
-        print("🌐 [Settings] languageChanged - selectedIndex: \(selectedIndex)")
         let language: LanguageManager.Language = selectedIndex == 0 ? .english : .chinese
-        print("🌐 [Settings] Setting language to: \(language)")
-        print("🌐 [Settings] Current language before: \(LanguageManager.shared.currentLanguage)")
         LanguageManager.shared.setLanguage(language)
-        print("🌐 [Settings] Current language after: \(LanguageManager.shared.currentLanguage)")
     }
 
     private func makeThemeRow() -> NSView {
@@ -747,6 +745,7 @@ final class SettingsViewController: NSViewController {
 
             themeSegmentedControl.topAnchor.constraint(equalTo: themeDescLabel.bottomAnchor, constant: 12),
             themeSegmentedControl.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            themeSegmentedControl.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             themeSegmentedControl.widthAnchor.constraint(equalToConstant: 240),
             themeSegmentedControl.bottomAnchor.constraint(equalTo: container.bottomAnchor)
         ])

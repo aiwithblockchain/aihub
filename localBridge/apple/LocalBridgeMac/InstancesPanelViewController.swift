@@ -49,15 +49,8 @@ final class InstancesPanelViewController: NSViewController {
 
     override func viewWillAppear() {
         super.viewWillAppear()
-        print("🔍 [InstancesPanel] viewWillAppear called")
         // Auto-refresh when entering the panel
         refresh()
-    }
-
-    override func viewDidLayout() {
-        super.viewDidLayout()
-        print("🔍 [InstancesPanel] viewDidLayout - View frame: \(view.frame)")
-        print("🔍 [InstancesPanel] viewDidLayout - Refresh button frame: \(refreshButton.frame)")
     }
 
     @objc private func handleLanguageChange() {
@@ -111,9 +104,7 @@ final class InstancesPanelViewController: NSViewController {
 
     /// 刷新实例列表（DetailViewController 切换到此面板时调用）
     func refresh() {
-        print("🔍 [InstancesPanel] refresh() called")
         instances = AppDelegate.shared?.getConnectedInstances() ?? []
-        print("🔍 [InstancesPanel] Got \(instances.count) instances")
         rebuildGridView()
         updateEmptyState()
     }
@@ -206,15 +197,6 @@ final class InstancesPanelViewController: NSViewController {
         view.addSubview(scrollView)
         view.addSubview(emptyView)
 
-        // Debug: Print refresh button info
-        print("🔍 [InstancesPanel] Refresh button frame: \(refreshButton.frame)")
-        print("🔍 [InstancesPanel] Refresh button title: '\(refreshButton.title)'")
-        print("🔍 [InstancesPanel] Refresh button attributedTitle: '\(refreshButton.attributedTitle.string)'")
-        print("🔍 [InstancesPanel] Refresh button isHidden: \(refreshButton.isHidden)")
-        print("🔍 [InstancesPanel] Refresh button superview: \(refreshButton.superview != nil ? "exists" : "nil")")
-        print("🔍 [InstancesPanel] HeaderStack frame: \(headerStack.frame)")
-        print("🔍 [InstancesPanel] HeaderStack subviews count: \(headerStack.arrangedSubviews.count)")
-
         NSLayoutConstraint.activate([
             headerStack.topAnchor.constraint(equalTo: view.topAnchor, constant: DSV2.spacing6),
             headerStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
@@ -233,14 +215,6 @@ final class InstancesPanelViewController: NSViewController {
             emptyView.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: 40),
             emptyView.widthAnchor.constraint(lessThanOrEqualTo: view.widthAnchor, constant: -40)
         ])
-
-        // Debug: Print layout info after constraints
-        DispatchQueue.main.async {
-            print("🔍 [InstancesPanel] After layout - HeaderStack frame: \(headerStack.frame)")
-            print("🔍 [InstancesPanel] After layout - Refresh button frame: \(self.refreshButton.frame)")
-            print("🔍 [InstancesPanel] After layout - View frame: \(self.view.frame)")
-            print("🔍 [InstancesPanel] After layout - TitleLabel frame: \(self.titleLabel.frame)")
-        }
     }
 
     private func setupGridView() {

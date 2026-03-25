@@ -20,24 +20,28 @@ final class SidebarViewController: NSViewController {
     private func loadConversations() {
         conversations = [
             Conversation(
+                type: .tweetclaw,
                 title: LanguageManager.shared.localized("sidebar.tweetclaw.title"),
                 subtitle: LanguageManager.shared.localized("sidebar.tweetclaw.subtitle"),
                 preview: LanguageManager.shared.localized("sidebar.tweetclaw.preview"),
                 timestamp: LanguageManager.shared.localized("common.now")
             ),
             Conversation(
+                type: .aiclaw,
                 title: LanguageManager.shared.localized("sidebar.aiclaw.title"),
                 subtitle: LanguageManager.shared.localized("sidebar.aiclaw.subtitle"),
                 preview: LanguageManager.shared.localized("sidebar.aiclaw.preview"),
                 timestamp: LanguageManager.shared.localized("common.now")
             ),
             Conversation(
+                type: .logs,
                 title: LanguageManager.shared.localized("sidebar.logs.title"),
                 subtitle: LanguageManager.shared.localized("sidebar.logs.subtitle"),
                 preview: LanguageManager.shared.localized("sidebar.logs.preview"),
                 timestamp: LanguageManager.shared.localized("common.now")
             ),
             Conversation(
+                type: .instances,
                 title: LanguageManager.shared.localized("sidebar.instances.title"),
                 subtitle: LanguageManager.shared.localized("sidebar.instances.subtitle"),
                 preview: LanguageManager.shared.localized("sidebar.instances.preview"),
@@ -105,6 +109,11 @@ final class SidebarViewController: NSViewController {
     @objc private func handleLanguageChange() {
         // 重新加载对话列表
         loadConversations()
+        
+        // 更新底部按钮
+        settingsButton.title = LanguageManager.shared.localized("settings.title")
+        quitButton.title = LanguageManager.shared.localized("app.quit")
+        
         tableView.reloadData()
     }
 
@@ -239,7 +248,7 @@ private extension SidebarViewController {
             settingsButton.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")
         }
 
-        settingsButton.title = "Settings"
+        settingsButton.title = LanguageManager.shared.localized("settings.title")
         settingsButton.bezelStyle = .regularSquare
         settingsButton.isBordered = false
         settingsButton.imagePosition = .imageLeading
@@ -257,7 +266,7 @@ private extension SidebarViewController {
             quitButton.image = NSImage(systemSymbolName: "power", accessibilityDescription: "Quit")
         }
 
-        quitButton.title = "退出"
+        quitButton.title = LanguageManager.shared.localized("app.quit")
         quitButton.bezelStyle = .regularSquare
         quitButton.isBordered = false
         quitButton.imagePosition = .imageLeading
@@ -316,27 +325,31 @@ private final class ConversationCellView: NSTableCellView {
         subtitleLabel.stringValue = conversation.subtitle
         previewLabel.stringValue = conversation.preview
 
-        // Icon selection
+        // Icon selection based on type
         if #available(macOS 11.0, *) {
             let symbolName: String
-            switch conversation.title {
-            case "TweetClaw": symbolName = "network"
-            case "AIClaw": symbolName = "cpu"
-            case "Bridge Logs": symbolName = "doc.text.magnifyingglass"
-            case "已连接实例": symbolName = "antenna.radiowaves.left.and.right"
-            default: symbolName = "gearshape.fill"
+            switch conversation.type {
+            case .tweetclaw: symbolName = "network"
+            case .aiclaw: symbolName = "cpu"
+            case .logs: symbolName = "doc.text.magnifyingglass"
+            case .instances: symbolName = "antenna.radiowaves.left.and.right"
             }
             iconView.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
         }
 
         // Status Dot logic
-        let status = conversation.timestamp
-        statusLabel.stringValue = status
+        statusLabel.stringValue = conversation.timestamp
 
-        if status == "Connected" || status == "Now" {
+        // Status determination based on type and timestamp content
+        // We know what the 'positive' status values are for English & Chinese
+        let status = conversation.timestamp
+        let isNow = status == LanguageManager.shared.localized("common.now")
+        let isConnected = status == LanguageManager.shared.localized("tweetclaw.connected") || status == "Connected"
+        
+        if isNow || isConnected {
             statusDot.layer?.backgroundColor = DSV2.tertiary.cgColor
         } else if status == "Waiting..." {
-            statusDot.layer?.backgroundColor = DSV2.secondary.cgColor
+             statusDot.layer?.backgroundColor = DSV2.secondary.cgColor
         } else {
             statusDot.layer?.backgroundColor = DSV2.onSurfaceTertiary.cgColor
         }

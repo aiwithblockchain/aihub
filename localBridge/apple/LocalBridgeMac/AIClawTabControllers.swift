@@ -20,6 +20,7 @@ final class AIClawBotViewController: NSViewController {
     }
 
     private var docs: [ApiDoc] = []
+    private var copyButtons: [NSButton] = []
 
     override func loadView() {
         view = NSView()
@@ -48,6 +49,10 @@ final class AIClawBotViewController: NSViewController {
 
     @objc private func handleLanguageChange() {
         titleLabel.stringValue = LanguageManager.shared.localized("aiclaw.title")
+        // Update all copy buttons
+        for button in copyButtons {
+            button.title = LanguageManager.shared.localized("common.copy")
+        }
     }
 
     private func loadDocs() {
@@ -202,6 +207,7 @@ final class AIClawBotViewController: NSViewController {
     }
 
     private func addEndpoints() {
+        copyButtons.removeAll()
         for doc in docs {
             let card = makeEndpointCard(
                 method: doc.method,
@@ -258,10 +264,11 @@ final class AIClawBotViewController: NSViewController {
 
         // Copy button with secondary style
         let actionWrapper = TargetActionWrapper(text: curl)
-        let copyBtn = DSV2.makeSecondaryButton(title: "复制", target: actionWrapper, action: #selector(actionWrapper.performCopy))
+        let copyBtn = DSV2.makeSecondaryButton(title: LanguageManager.shared.localized("common.copy"), target: actionWrapper, action: #selector(actionWrapper.performCopy))
         if #available(macOS 11.0, *) {
             copyBtn.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil)
         }
+        copyButtons.append(copyBtn)
 
         let topRow = NSStackView(views: [methodBadge, pathLabel])
         topRow.orientation = NSUserInterfaceLayoutOrientation.horizontal

@@ -49,7 +49,7 @@ struct Localizations {
         ],
         "sidebar.instances.subtitle": [
             "en": "Multi-Profile",
-            "zh": "多账号"
+            "zh": "多配置"
         ],
         "sidebar.instances.preview": [
             "en": "View all online browser extension instances",
@@ -58,7 +58,7 @@ struct Localizations {
 
         // MARK: - AppDelegate
         "app.quit": [
-            "en": "Quit LocalBridge",
+            "en": "Quit",
             "zh": "退出 LocalBridge"
         ],
         "app.open": [
@@ -324,6 +324,10 @@ struct Localizations {
         "common.now": [
             "en": "Now",
             "zh": "现在"
+        ],
+        "common.copy": [
+            "en": "Copy",
+            "zh": "复制"
         ]
     ]
 }
