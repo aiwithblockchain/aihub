@@ -15,8 +15,14 @@ def extract_tweet_id_from_timeline():
     response = client.get_timeline()
 
     try:
-        if 'data' in response and 'home' in response['data']:
-            instructions = response['data']['home']['home_timeline_urt']['instructions']
+        if 'data' in response:
+            data = response['data']
+            if 'data' in data and 'home' in data['data']:
+                instructions = data['data']['home']['home_timeline_urt']['instructions']
+            elif 'home' in data:
+                instructions = data['home']['home_timeline_urt']['instructions']
+            else:
+                return None
             for instruction in instructions:
                 if instruction.get('type') == 'TimelineAddEntries':
                     entries = instruction.get('entries', [])
