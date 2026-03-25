@@ -6,7 +6,52 @@ Test Positive Actions (Like, Retweet, Bookmark, Follow)
 import sys
 import json
 import os
+import argparse
 from utils.api_client import APIClient
+
+
+def get_tweet_and_user_by_id(tweet_id):
+    """Get tweet details and extract user ID from specified tweet"""
+    print(f"\n📋 Fetching tweet details for ID: {tweet_id}...")
+    client = APIClient()
+    response = client.get_tweet(tweet_id)
+
+    user_id = None
+
+    try:
+        if 'data' in response:
+            data = response['data']
+            if 'data' in data:
+                data = data['data']
+
+            threaded_conv = data.get('threaded_conversation_with_injections_v2', {})
+            instructions = threaded_conv.get('instructions', [])
+
+            for instruction in instructions:
+                if instruction.get('type') == 'TimelineAddEntries':
+                    entries = instruction.get('entries', [])
+                    for entry in entries:
+                        content = entry.get('content', {})
+                        items = content.get('items', [])
+                        if items:
+                            item = items[0]
+                            tweet_results = item.get('item', {}).get('itemContent', {}).get('tweet_results', {})
+                        else:
+                            tweet_results = content.get('itemContent', {}).get('tweet_results', {})
+
+                        result = tweet_results.get('result', {})
+                        core = result.get('core', {})
+                        user_results = core.get('user_results', {})
+                        user_result = user_results.get('result', {})
+                        user_id = user_result.get('rest_id')
+
+                        if user_id:
+                            print(f"✅ Found user ID: {user_id}")
+                            return tweet_id, user_id
+    except Exception as e:
+        print(f"⚠️  Failed to extract user ID: {e}")
+
+    return tweet_id, user_id
 
 
 def extract_tweet_and_user_from_timeline():
@@ -57,13 +102,17 @@ def extract_tweet_and_user_from_timeline():
     return tweet_id, user_id
 
 
-def test_positive_actions():
+def test_positive_actions(tweet_id=None):
     """Test all positive actions: Like, Retweet, Bookmark, Follow"""
     print("\n" + "="*60)
     print("Testing: Positive Actions (Like, Retweet, Bookmark, Follow)")
     print("="*60)
 
-    tweet_id, user_id = extract_tweet_and_user_from_timeline()
+    if tweet_id:
+        tweet_id, user_id = get_tweet_and_user_by_id(tweet_id)
+    else:
+        tweet_id, user_id = extract_tweet_and_user_from_timeline()
+
     if not tweet_id or not user_id:
         print("❌ Failed to extract tweet ID or user ID")
         return False
@@ -155,12 +204,16 @@ def test_positive_actions():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Test positive actions on X')
+    parser.add_argument('--tweet-id', type=str, help='Specify tweet ID to test (optional)')
+    args = parser.parse_args()
+
     print("\n🧪 Testing Positive Actions (Scenario 7)")
     print("="*60)
     print("⚠️  WARNING: These tests perform real actions on your X account!")
     print("="*60)
 
-    results = test_positive_actions()
+    results = test_positive_actions(tweet_id=args.tweet_id)
 
     if results:
         print("\n" + "="*60)

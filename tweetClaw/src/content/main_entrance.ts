@@ -86,7 +86,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
         switch (message.action) {
             case 'like':     op = 'FavoriteTweet'; break;
-            case 'retweet':  op = 'CreateRetweet'; vars.dark_request = false; break;
+            case 'retweet':  op = 'CreateRetweet'; break;
             case 'bookmark': op = 'CreateBookmark'; break;
             case 'follow':   op = 'CreateFriendship'; vars = { user_id: message.userId }; break;
             case 'unfollow': op = 'DestroyFriendship'; vars = { user_id: message.userId }; break;
