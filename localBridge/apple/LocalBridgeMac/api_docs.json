@@ -242,5 +242,16 @@
     "request_body": "{\n  \"userId\": \"1234567890\"\n}",
     "curl": "curl -X POST http://127.0.0.1:10088/api/v1/x/unfollows \\\n     -H \"Content-Type: application/json\" \\\n     -d '{\"userId\": \"1234567890\"}'",
     "response": "{\"ok\":true,\"data\":{\"userId\":\"1234567890\",\"following\":false}}"
+  },
+  {
+    "id": "upload_media",
+    "name": "Upload Media",
+    "summary": "上传媒体文件（图片）到 Twitter，返回 media_id 供发推文时使用。",
+    "method": "POST",
+    "path": "/api/v1/x/media/upload",
+    "description": "此接口实现完整的 Twitter 媒体上传流程（INIT → APPEND → FINALIZE 三步）。开发者需要提供 base64 编码的媒体数据和 MIME 类型。系统会自动处理三步上传流程，最终返回 media_id_string，可用于发布带图片的推文。支持常见图片格式（PNG、JPEG、GIF 等）。这是实现多媒体推文发布的核心功能。",
+    "request_body": "{\n  \"mediaData\": \"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ...\",\n  \"mimeType\": \"image/png\"\n}",
+    "curl": "curl -X POST http://127.0.0.1:10088/api/v1/x/media/upload \\\n     -H \"Content-Type: application/json\" \\\n     -d '{\"mediaData\": \"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ...\", \"mimeType\": \"image/png\"}'",
+    "response": "{\"media_id\":\"1234567890123456789\",\"media_id_string\":\"1234567890123456789\"}"
   }
 ]

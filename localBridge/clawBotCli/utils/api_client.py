@@ -2,7 +2,7 @@
 REST API Client for LocalBridge
 """
 import requests
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List
 import sys
 import os
 
@@ -80,13 +80,19 @@ class APIClient:
         return self._request('GET', '/api/v1/x/search', params=params)
 
     # Write APIs
-    def create_tweet(self, text: str) -> Dict[Any, Any]:
-        """Create a new tweet"""
-        return self._request('POST', '/api/v1/x/tweets', json={'text': text})
+    def create_tweet(self, text: str, media_ids: Optional[List[str]] = None) -> Dict[Any, Any]:
+        """Create a new tweet with optional media"""
+        data = {'text': text}
+        if media_ids:
+            data['media_ids'] = media_ids
+        return self._request('POST', '/api/v1/x/tweets', json=data)
 
-    def create_reply(self, tweet_id: str, text: str) -> Dict[Any, Any]:
-        """Reply to a tweet"""
-        return self._request('POST', '/api/v1/x/replies', json={'tweetId': tweet_id, 'text': text})
+    def create_reply(self, tweet_id: str, text: str, media_ids: Optional[List[str]] = None) -> Dict[Any, Any]:
+        """Reply to a tweet with optional media"""
+        data = {'tweetId': tweet_id, 'text': text}
+        if media_ids:
+            data['media_ids'] = media_ids
+        return self._request('POST', '/api/v1/x/replies', json=data)
 
     def like_tweet(self, tweet_id: str, tab_id: Optional[int] = None) -> Dict[Any, Any]:
         """Like a tweet"""
@@ -166,3 +172,46 @@ class APIClient:
         if tab_id:
             data['tabId'] = tab_id
         return self._request('POST', '/tweetclaw/navigate-tab', json=data)
+
+    # Media Upload API
+    def upload_media(self, file_path: str, tab_id: Optional[int] = None) -> str:
+        """
+        Upload media file (image) and return media_id
+
+        Args:
+            file_path: Path to the image file
+            tab_id: Optional tab ID
+
+        Returns:
+            media_id_string for use in tweet creation
+        """
+        import base64
+        import mimetypes
+
+        # Read file and convert to base64
+        with open(file_path, 'rb') as f:
+            file_data = f.read()
+
+        media_data = base64.b64encode(file_data).decode('utf-8')
+
+        # Detect MIME type
+        mime_type, _ = mimetypes.guess_type(file_path)
+        if not mime_type:
+            # Default to PNG if cannot detect
+            mime_type = 'image/png'
+
+        # Prepare request
+        data = {
+            'mediaData': media_data,
+            'mimeType': mime_type
+        }
+        if tab_id:
+            data['tabId'] = tab_id
+
+        # Upload
+        response = self._request('POST', '/api/v1/x/media/upload', json=data)
+
+        if 'error' in response:
+            raise Exception(f"Media upload failed: {response['error']}")
+
+        return response.get('media_id_string', response.get('media_id', ''))

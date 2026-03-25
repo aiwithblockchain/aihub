@@ -96,7 +96,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 vars = {
                     tweet_text: message.text || '',
                     media: {
-                        media_entities: [],
+                        media_entities: (message.media_ids || []).map((id: string) => ({ media_id: id, tagged_users: [] })),
                         possibly_sensitive: false
                     },
                     semantic_annotation_ids: [],
@@ -114,7 +114,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                         exclude_reply_user_ids: []
                     },
                     media: {
-                        media_entities: [],
+                        media_entities: (message.media_ids || []).map((id: string) => ({ media_id: id, tagged_users: [] })),
                         possibly_sensitive: false
                     },
                     semantic_annotation_ids: [],
@@ -425,6 +425,31 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 const data = await performQuery('SearchTimeline', variables);
                 sendResponse({ success: true, data });
             } catch (e: any) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    if (message.type === 'UPLOAD_MEDIA') {
+        (async () => {
+            try {
+                const mediaData = message.mediaData as string;
+                const mimeType = message.mimeType as string;
+
+                if (!mediaData || !mimeType) {
+                    throw new Error('mediaData and mimeType are required');
+                }
+
+                console.log(`[TweetClaw-CS] UPLOAD_MEDIA start, mimeType=${mimeType}`);
+
+                const { uploadMedia } = await import('../x_api/twitter_api');
+                const mediaId = await uploadMedia(mediaData, mimeType);
+
+                console.log(`[TweetClaw-CS] UPLOAD_MEDIA success, media_id=${mediaId}`);
+                sendResponse({ success: true, media_id: mediaId });
+            } catch (e: any) {
+                console.error(`[TweetClaw-CS] UPLOAD_MEDIA failed:`, e);
                 sendResponse({ success: false, error: e.message });
             }
         })();

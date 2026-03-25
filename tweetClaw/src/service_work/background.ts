@@ -28,6 +28,7 @@ interface ExecActionPayload {
     userId?: string;
     tabId?: number;
     text?: string;
+    media_ids?: string[];
 }
 
 interface QueryTimelinePayload {
@@ -71,6 +72,7 @@ localBridge.queryTweetRepliesHandler = queryTweetReplies;
 localBridge.queryTweetDetailHandler = queryTweetDetail;
 localBridge.queryUserProfileHandler = queryUserProfile;
 localBridge.querySearchTimelineHandler = querySearchTimeline;
+localBridge.uploadMediaHandler = uploadMedia;
 
 // ── 初始化默认 QueryID 映射 ───────────────────────────────────────
 async function initDefaultQueryKeys() {
@@ -352,8 +354,8 @@ export async function navigateXTab(payload: NavigateTabRequestPayload): Promise<
  * 执行推特操作（like, retweet, follow 等）- 返回推特原始响应
  */
 export async function execAction(payload: ExecActionPayload): Promise<TwitterResponse> {
-    const { action, tweetId, userId, tabId, text } = payload;
-    console.log(`[TweetClaw-BG] execAction: ${action}`, { tweetId, userId, tabId });
+    const { action, tweetId, userId, tabId, text, media_ids } = payload;
+    console.log(`[TweetClaw-BG] execAction: ${action}`, { tweetId, userId, tabId, media_ids });
 
     let targetTabId = tabId;
     if (!targetTabId) {
@@ -372,7 +374,8 @@ export async function execAction(payload: ExecActionPayload): Promise<TwitterRes
         action,
         tweetId,
         userId,
-        text
+        text,
+        media_ids
     }).catch((e: any) => {
         throw new Error(`Failed to execute action: ${e?.message}`);
     });
@@ -551,6 +554,47 @@ export async function querySearchTimeline(payload: QuerySearchTimelinePayload): 
 
     // 直接返回推特原始 GraphQL 响应
     return result;
+}
+
+/**
+ * 上传媒体文件 - 返回 media_id
+ */
+export async function uploadMedia(payload: any): Promise<any> {
+    const { mediaData, mimeType, tabId } = payload;
+    console.log(`[TweetClaw-BG] uploadMedia called, mimeType=${mimeType}`);
+
+    if (!mediaData || !mimeType) {
+        throw new Error('mediaData and mimeType are required');
+    }
+
+    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
+    let targetTabId: number | undefined = tabId;
+    if (!targetTabId) {
+        const activeTab = xTabs.find(t => t.active) || xTabs[0];
+        targetTabId = activeTab?.id;
+    }
+    if (!targetTabId) {
+        throw new Error('No x.com tab found');
+    }
+
+    // 委托 Content Script 调用推特媒体上传 API
+    const result = await chrome.tabs.sendMessage(targetTabId, {
+        type: 'UPLOAD_MEDIA',
+        mediaData,
+        mimeType
+    }).catch((e: any) => {
+        throw new Error(`Failed to upload media: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Media upload failed');
+    }
+
+    // 返回 media_id
+    return {
+        success: true,
+        media_id: result.media_id
+    };
 }
 
 // 启动时初始化

@@ -23,11 +23,12 @@ type NavigateTabRequest struct {
 // ---- Exec Action 请求 ----
 
 type ExecActionRequest struct {
-	Action  string  `json:"action"`   // like / unlike / retweet / follow 等
-	TweetID *string `json:"tweetId"`
-	UserID  *string `json:"userId"`
-	TabID   *int    `json:"tabId"`
-	Text    *string `json:"text"`
+	Action   string   `json:"action"`   // like / unlike / retweet / follow 等
+	TweetID  *string  `json:"tweetId"`
+	UserID   *string  `json:"userId"`
+	TabID    *int     `json:"tabId"`
+	Text     *string  `json:"text"`
+	MediaIDs []string `json:"media_ids,omitempty"` // 媒体 ID 列表，用于发推文时附加图片/视频
 }
 
 // ---- Timeline 查询请求 ----

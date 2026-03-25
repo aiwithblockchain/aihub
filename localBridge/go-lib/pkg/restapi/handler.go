@@ -44,6 +44,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/x/unfollows",  func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "unfollow") })
 	mux.HandleFunc("/api/v1/x/replies",    func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "reply_tweet") })
 	mux.HandleFunc("/api/v1/x/mytweets",   func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "delete_tweet") })
+	mux.HandleFunc("/api/v1/x/media/upload", h.uploadMedia)
 	mux.HandleFunc("/tweetclaw/open-tab",     h.openTab)
 	mux.HandleFunc("/tweetclaw/close-tab",    h.closeTab)
 	mux.HandleFunc("/tweetclaw/navigate-tab", h.navigateTab)
@@ -474,4 +475,61 @@ func parseTabID(r *http.Request) *int {
 	v, err := strconv.Atoi(s)
 	if err != nil { return nil }
 	return &v
+}
+
+// uploadMedia 处理媒体上传请求
+func (h *Handler) uploadMedia(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+
+	var req struct {
+		MediaData string `json:"mediaData"` // Base64 编码的媒体数据
+		MimeType  string `json:"mimeType"`  // MIME 类型,如 image/png, image/jpeg
+		TabID     *int   `json:"tabId"`     // 可选的 tabId
+	}
+
+	if err := readJSON(r, &req); err != nil {
+		jsonErr(w, 400, err.Error())
+		return
+	}
+
+	if req.MediaData == "" || req.MimeType == "" {
+		jsonErr(w, 400, "mediaData and mimeType are required")
+		return
+	}
+
+	id := newID("http_upload_media")
+	payload := map[string]interface{}{
+		"mediaData": req.MediaData,
+		"mimeType":  req.MimeType,
+	}
+	if req.TabID != nil {
+		payload["tabId"] = *req.TabID
+	}
+
+	h.bridge(w, "tweetClaw", id, buildMsg(id, "request.upload_media", "tweetClaw", payload), defaultTaskTimeoutMs,
+		func(data []byte) {
+			var msg struct {
+				Payload struct {
+					Success bool   `json:"success"`
+					MediaID string `json:"media_id"`
+					Error   string `json:"error"`
+				} `json:"payload"`
+			}
+			if err := json.Unmarshal(data, &msg); err != nil {
+				jsonErr(w, 500, "decode_failed")
+				return
+			}
+			if !msg.Payload.Success {
+				jsonErr(w, 500, msg.Payload.Error)
+				return
+			}
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(map[string]string{
+				"media_id":        msg.Payload.MediaID,
+				"media_id_string": msg.Payload.MediaID,
+			})
+		})
 }

@@ -22,6 +22,9 @@ import json
 import argparse
 import os
 from typing import List, Optional
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from utils.api_client import APIClient
 
 
@@ -80,8 +83,16 @@ def test_create_tweet(text: str, media_ids: Optional[List[str]] = None):
     print(json.dumps(response, indent=2, ensure_ascii=False)[:500] + "...")
 
     # Validate response
-    if 'data' in response and 'create_tweet' in response['data']:
-        tweet_results = response['data']['create_tweet'].get('tweet_results', {})
+    # 支持两种响应格式：
+    # 1. {"ok": true, "data": {"data": {"create_tweet": {...}}}}
+    # 2. {"data": {"create_tweet": {...}}}
+    data = response.get('data', {})
+    if isinstance(data, dict) and 'data' in data:
+        # 格式 1: 嵌套的 data
+        data = data['data']
+
+    if 'create_tweet' in data:
+        tweet_results = data['create_tweet'].get('tweet_results', {})
         result = tweet_results.get('result', {})
         tweet_id = result.get('rest_id')
 

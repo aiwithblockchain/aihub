@@ -298,11 +298,135 @@ export async function fetchUserByRestId(userId: string) {
         userId: userId,
         withSafetyModeUserFields: true
     });
-    
+
     const userResult = data?.data?.user?.result;
     if (!userResult || userResult.__typename === 'UserUnavailable') {
         return null;
     }
-    
+
     return userResult;
+}
+
+/**
+ * 媒体上传 API - 三步流程
+ * 1. INIT: 初始化上传,获取 media_id
+ * 2. APPEND: 上传媒体数据
+ * 3. FINALIZE: 完成上传
+ */
+
+interface MediaUploadInitResponse {
+    media_id: number;
+    media_id_string: string;
+    expires_after_secs: number;
+}
+
+interface MediaUploadFinalizeResponse {
+    media_id: number;
+    media_id_string: string;
+    size: number;
+    expires_after_secs: number;
+    image?: {
+        image_type: string;
+        w: number;
+        h: number;
+    };
+}
+
+/**
+ * 上传媒体文件(图片)
+ * @param mediaData Base64 编码的媒体数据
+ * @param mimeType MIME 类型,如 image/png, image/jpeg
+ * @returns media_id_string
+ */
+export async function uploadMedia(mediaData: string, mimeType: string): Promise<string> {
+    const bearer = await getAuthHeader();
+    const csrf = await getCsrfToken();
+
+    // 将 base64 转换为 Blob
+    const byteString = atob(mediaData);
+    const ab = new ArrayBuffer(byteString.length);
+    const ia = new Uint8Array(ab);
+    for (let i = 0; i < byteString.length; i++) {
+        ia[i] = byteString.charCodeAt(i);
+    }
+    const blob = new Blob([ab], { type: mimeType });
+    const totalBytes = blob.size;
+
+    // 步骤 1: INIT
+    const mediaType = encodeURIComponent(mimeType);
+    const initUrl = `https://upload.x.com/i/media/upload.json?command=INIT&total_bytes=${totalBytes}&media_type=${mediaType}&media_category=tweet_image`;
+
+    const initTxid = await getTransactionIdFor('POST', '/i/media/upload.json');
+
+    const initResponse = await fetch(initUrl, {
+        method: 'POST',
+        headers: {
+            'authorization': bearer,
+            'x-csrf-token': csrf,
+            'x-client-transaction-id': initTxid,
+            'x-twitter-auth-type': 'OAuth2Session',
+        },
+        credentials: 'include'
+    });
+
+    if (!initResponse.ok) {
+        const text = await initResponse.text();
+        throw new Error(`Media upload INIT failed: ${initResponse.status} ${text}`);
+    }
+
+    const initData: MediaUploadInitResponse = await initResponse.json();
+    const mediaId = initData.media_id_string;
+
+    console.log(`[TwitterAPI] Media upload INIT success, media_id=${mediaId}`);
+
+    // 步骤 2: APPEND
+    const appendUrl = `https://upload.x.com/i/media/upload.json?command=APPEND&media_id=${mediaId}&segment_index=0`;
+    const appendTxid = await getTransactionIdFor('POST', '/i/media/upload.json');
+
+    const formData = new FormData();
+    formData.append('media', blob, 'blob');
+
+    const appendResponse = await fetch(appendUrl, {
+        method: 'POST',
+        headers: {
+            'authorization': bearer,
+            'x-csrf-token': csrf,
+            'x-client-transaction-id': appendTxid,
+            'x-twitter-auth-type': 'OAuth2Session',
+        },
+        body: formData,
+        credentials: 'include'
+    });
+
+    if (!appendResponse.ok) {
+        const text = await appendResponse.text();
+        throw new Error(`Media upload APPEND failed: ${appendResponse.status} ${text}`);
+    }
+
+    console.log(`[TwitterAPI] Media upload APPEND success`);
+
+    // 步骤 3: FINALIZE
+    const finalizeUrl = `https://upload.x.com/i/media/upload.json?command=FINALIZE&media_id=${mediaId}`;
+    const finalizeTxid = await getTransactionIdFor('POST', '/i/media/upload.json');
+
+    const finalizeResponse = await fetch(finalizeUrl, {
+        method: 'POST',
+        headers: {
+            'authorization': bearer,
+            'x-csrf-token': csrf,
+            'x-client-transaction-id': finalizeTxid,
+            'x-twitter-auth-type': 'OAuth2Session',
+        },
+        credentials: 'include'
+    });
+
+    if (!finalizeResponse.ok) {
+        const text = await finalizeResponse.text();
+        throw new Error(`Media upload FINALIZE failed: ${finalizeResponse.status} ${text}`);
+    }
+
+    const finalizeData: MediaUploadFinalizeResponse = await finalizeResponse.json();
+    console.log(`[TwitterAPI] Media upload FINALIZE success, media_id=${finalizeData.media_id_string}`);
+
+    return finalizeData.media_id_string;
 }
