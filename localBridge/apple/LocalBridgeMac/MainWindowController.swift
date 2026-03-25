@@ -5,7 +5,7 @@ final class MainWindowController: NSWindowController, NSWindowDelegate {
         let contentViewController = ConversationsSplitViewController()
         let window = NSWindow(contentViewController: contentViewController)
 
-        window.title = "LocalBridge"
+        window.title = "OpenHub"
         window.setContentSize(NSSize(width: 1000, height: 700))
         window.minSize = NSSize(width: 860, height: 560)
         window.center()

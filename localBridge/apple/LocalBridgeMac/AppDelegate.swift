@@ -37,7 +37,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             image.isTemplate = true
             button.image = image
         } else {
-            button.image = NSImage(systemSymbolName: "message.badge", accessibilityDescription: "LocalBridge")
+            button.image = NSImage(systemSymbolName: "message.badge", accessibilityDescription: "OpenHub")
         }
         button.imagePosition = .imageOnly
         button.toolTip = LanguageManager.shared.localized("app.open")

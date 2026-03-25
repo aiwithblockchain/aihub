@@ -62,8 +62,8 @@ struct Localizations {
             "zh": "退出"
         ],
         "app.open": [
-            "en": "Open LocalBridge",
-            "zh": "打开 LocalBridge"
+            "en": "Open OpenHub",
+            "zh": "打开 OpenHub"
         ],
 
         // MARK: - DetailViewController
@@ -216,8 +216,8 @@ struct Localizations {
             "zh": "窗口置顶"
         ],
         "settings.keep_on_top.hint": [
-            "en": "Ensure LocalBridge remains visible above other applications.",
-            "zh": "确保 LocalBridge 保持在其他应用程序之上。"
+            "en": "Ensure OpenHub remains visible above other applications.",
+            "zh": "确保 OpenHub 保持在其他应用程序之上。"
         ],
         "settings.aiclaw_websocket": [
             "en": "AIClaw WebSocket",
@@ -268,8 +268,8 @@ struct Localizations {
             "zh": "刷新"
         ],
         "instances.empty.hint": [
-            "en": "Please ensure browser extension is running and connected to LocalBridge",
-            "zh": "请确保浏览器扩展已启动并连接到 LocalBridge"
+            "en": "Please ensure browser extension is running and connected to OpenHub",
+            "zh": "请确保浏览器扩展已启动并连接到 OpenHub"
         ],
         "instances.client": [
             "en": "Client",
