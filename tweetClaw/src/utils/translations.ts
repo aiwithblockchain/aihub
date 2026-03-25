@@ -21,7 +21,7 @@ export const translations: Record<'zh' | 'en', Translations> = {
 
     // Badges
     'badge.active': '活跃',
-    'badge.coming': '待定',
+    'badge.coming': '待开发',
 
     // Download Banner
     'banner.desc': '访问<strong>官方网站</strong>获取配套应用。',
