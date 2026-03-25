@@ -31,12 +31,13 @@
 		A1000000000000000000003B /* BridgeMessage.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002D /* BridgeMessage.swift */; };
 		A1000000000000000000003C /* LocalBridgeWebSocketServer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002E /* LocalBridgeWebSocketServer.swift */; };
 		A1000000000000000000003E /* SettingsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = A1000000000000000000002F /* SettingsViewController.swift */; };
-		DC05180F1DBA4CB78738E6CF /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AD4AA32E2504CBD8363254C /* ThemeManager.swift */; };
 		A1000000000000000000003F /* TweetClawTabControllers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000046 /* TweetClawTabControllers.swift */; };
 		A10000000000000000000047 /* AIClawTabControllers.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000048 /* AIClawTabControllers.swift */; };
+		DC05180F1DBA4CB78738E6CF /* ThemeManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0AD4AA32E2504CBD8363254C /* ThemeManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
+		0AD4AA32E2504CBD8363254C /* ThemeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManager.swift; sourceTree = "<group>"; };
 		2B8FB1B82F69AECA0005B31B /* tokenRouter.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = tokenRouter.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2B8FB38D2F6A8D040005B31B /* LocalBridgeGoManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBridgeGoManager.swift; sourceTree = "<group>"; };
 		2B8FB3902F6A91180005B31B /* LocalBridge.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = LocalBridge.framework; path = LocalBridgeApple/Frameworks/LocalBridge.framework; sourceTree = "<group>"; };
@@ -64,7 +65,6 @@
 		A1000000000000000000002D /* BridgeMessage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeMessage.swift; sourceTree = "<group>"; };
 		A1000000000000000000002E /* LocalBridgeWebSocketServer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBridgeWebSocketServer.swift; sourceTree = "<group>"; };
 		A1000000000000000000002F /* SettingsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsViewController.swift; sourceTree = "<group>"; };
-		0AD4AA32E2504CBD8363254C /* ThemeManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ThemeManager.swift; sourceTree = "<group>"; };
 		A10000000000000000000046 /* TweetClawTabControllers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TweetClawTabControllers.swift; sourceTree = "<group>"; };
 		A10000000000000000000048 /* AIClawTabControllers.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AIClawTabControllers.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -594,11 +594,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 44;
+				DEVELOPMENT_TEAM = 2XYK8RBB6M;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/LocalBridgeApple/Frameworks",
 				);
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = AIHub;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -620,11 +624,15 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 44;
+				DEVELOPMENT_TEAM = 2XYK8RBB6M;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/LocalBridgeApple/Frameworks",
 				);
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_CFBundleDisplayName = AIHub;
+				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
