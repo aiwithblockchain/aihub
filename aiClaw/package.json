@@ -1,6 +1,6 @@
 {
   "name": "aiClaw",
-  "version": "0.2.11",
+  "version": "0.2.12",
   "description": "Browser extension to interact with ChatGPT, Gemini, and Grok via localBridge.",
   "private": true,
   "scripts": {

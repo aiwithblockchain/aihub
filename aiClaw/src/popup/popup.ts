@@ -1,4 +1,9 @@
+import { t, initI18n } from '../utils/i18n';
+
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize i18n
+    initI18n();
+
     const hostInput = document.getElementById('hostInput') as HTMLInputElement;
     const portInput = document.getElementById('portInput') as HTMLInputElement;
     const nameInput = document.getElementById('nameInput') as HTMLInputElement;
@@ -27,11 +32,11 @@ document.addEventListener('DOMContentLoaded', () => {
         const p = parseInt(portInput.value.trim());
         const name = nameInput.value.trim();
         if (!p || p < 1024 || p > 65535) {
-            alert('Invalid port');
+            alert(t('message.invalid_port'));
             return;
         }
         chrome.storage.local.set({ wsHost: host, wsPort: p, 'bridge.instanceName': name }).then(() => {
-            statusMsg.textContent = 'Saved! Reconnecting...';
+            statusMsg.textContent = t('message.saved');
             // notify background script
             chrome.runtime.sendMessage({ type: 'WS_PORT_CHANGED', host: host, port: p }).then(() => {
                 setTimeout(() => window.close(), 1000);

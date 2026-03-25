@@ -1,5 +1,18 @@
 [
   {
+    "id": "get_ai_api_docs",
+    "name": "Get AI API Docs",
+    "name_zh": "获取 AI API 文档",
+    "method": "GET",
+    "path": "/api/v1/ai/docs",
+    "summary": "Get complete documentation for all implemented AI REST APIs in LocalBridge.",
+    "summary_zh": "获取 LocalBridge 中所有已实现 AI REST API 的完整说明文档。",
+    "description": "Return the complete contents of ai_claw_api_docs.json exactly as exposed by LocalBridge. This endpoint is used for AI capability discovery, allowing callers to dynamically fetch the latest AI API documentation collection currently bundled with the app. Returns 200 and the full documentation array on success; returns 500 on failure.",
+    "description_zh": "原样返回 LocalBridge 当前对外暴露的 ai_claw_api_docs.json 完整内容。该接口用于 AI 能力发现，便于调用方动态获取应用当前内置的 AI API 文档集合。成功时返回 200 和完整文档数组；失败时返回 500。",
+    "curl": "curl -X GET http://127.0.0.1:10088/api/v1/ai/docs",
+    "response": "[{\"id\":\"get_ai_api_docs\",\"name\":\"Get AI API Docs\",\"path\":\"/api/v1/ai/docs\"}, ...]"
+  },
+  {
     "id": "query_ai_status",
     "name": "Query AI Status",
     "name_zh": "查询 AI 状态",

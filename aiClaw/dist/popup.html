@@ -2,7 +2,7 @@
 <html>
 <head>
   <meta charset="utf-8">
-  <title>aiClaw Settings</title>
+  <title data-i18n="page.title">aiClaw Settings</title>
   <style>
     body {
       width: 250px;
@@ -20,22 +20,39 @@
     }
     button:hover { background-color: #059669; }
     #statusMsg { font-size: 13px; color: #10b981; margin-top: 5px; text-align: center; }
+    .help-text {
+      margin-top: 12px;
+      font-size: 12px;
+      line-height: 1.5;
+      color: #4b5563;
+    }
+    .help-text a {
+      color: #10b981;
+      text-decoration: none;
+    }
+    .help-text a:hover {
+      text-decoration: underline;
+    }
   </style>
 </head>
 <body>
-  <h3>🤖 aiClaw Settings</h3>
+  <h3 data-i18n="app.heading">🤖 aiClaw Settings</h3>
   
-  <label>WebSocket Host/IP</label>
+  <label data-i18n="label.host">WebSocket Host/IP</label>
   <input type="text" id="hostInput" value="127.0.0.1">
   
-  <label>WebSocket Port</label>
+  <label data-i18n="label.port">WebSocket Port</label>
   <input type="number" id="portInput" value="8766">
   
-  <label>Instance Name</label>
-  <input type="text" id="nameInput" placeholder="User">
+  <label data-i18n="label.instance_name">Instance Name</label>
+  <input type="text" id="nameInput" data-i18n-placeholder="placeholder.instance_name" placeholder="User">
   
-  <button id="saveBtn">Save & Reconnect</button>
+  <button id="saveBtn" data-i18n="button.save">Save & Reconnect</button>
   <div id="statusMsg"></div>
+  <div class="help-text">
+    <span data-i18n="help.text">本产品需要配合 OpenHub 使用，访问网址是</span>
+    <a href="https://aiwithblockchain.github.io/" target="_blank">https://aiwithblockchain.github.io/</a>
+  </div>
   
   <script src="js/popup.js"></script>
 </body>

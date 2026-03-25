@@ -1209,6 +1209,8 @@ class LocalBridgeWebSocketServer {
                     self.handleXBasicInfoHttpRequest(connection)
                 } else if request.contains("GET /api/v1/ai/status") {
                     self.handleAIStatusHttpRequest(connection)
+                } else if request.contains("GET /api/v1/ai/docs") {
+                    self.handleAIApiDocsHttpRequest(connection)
                 } else if request.contains("POST /api/v1/ai/message") {
                     self.handleSendMessageHttpRequest(connection, requestData: data)
                 } else if request.contains("POST /api/v1/ai/new_conversation") {
@@ -2096,6 +2098,27 @@ class LocalBridgeWebSocketServer {
         }
     }
 
+    private func handleAIApiDocsHttpRequest(_ connection: NWConnection) {
+        var jsonString: String? = nil
+
+        for url in aiApiDocsCandidateURLs() {
+            if let data = try? Data(contentsOf: url) {
+                jsonString = String(data: data, encoding: .utf8)
+                print("[LocalBridgeMac] Loaded ai_claw_api_docs.json from \(url.path)")
+                break
+            }
+        }
+
+        if let body = jsonString {
+            sendHttpResponse(connection, status: "200 OK", body: body)
+        } else {
+            let msg = "[LocalBridgeMac] Error: ai_claw_api_docs.json not found in any candidate location"
+            print(msg)
+            BridgeLogger.shared.log(msg)
+            sendHttpResponse(connection, status: "500 Internal Server Error", body: "{\"error\":\"ai_claw_api_docs.json not found\"}")
+        }
+    }
+
     private func apiDocsCandidateURLs() -> [URL] {
         let fileManager = FileManager.default
         let currentDirectory = URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
@@ -2107,6 +2130,20 @@ class LocalBridgeWebSocketServer {
             currentDirectory.appendingPathComponent("api_docs.json"),
             currentDirectory.appendingPathComponent("LocalBridgeMac/api_docs.json"),
             repoRoot.appendingPathComponent("LocalBridgeMac/api_docs.json")
+        ].compactMap { $0 }
+    }
+
+    private func aiApiDocsCandidateURLs() -> [URL] {
+        let fileManager = FileManager.default
+        let currentDirectory = URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
+        let repoRoot = fileManager.homeDirectoryForCurrentUser
+            .appendingPathComponent("aiwithblockchain/aihub/localBridge/apple", isDirectory: true)
+
+        return [
+            Bundle.main.url(forResource: "ai_claw_api_docs", withExtension: "json"),
+            currentDirectory.appendingPathComponent("ai_claw_api_docs.json"),
+            currentDirectory.appendingPathComponent("LocalBridgeMac/ai_claw_api_docs.json"),
+            repoRoot.appendingPathComponent("LocalBridgeMac/ai_claw_api_docs.json")
         ].compactMap { $0 }
     }
 }
