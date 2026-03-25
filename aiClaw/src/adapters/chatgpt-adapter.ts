@@ -407,6 +407,9 @@ export class ChatGptAdapter extends BasePlatformAdapter {
      * - 取最后一条即为当前回复
      */
     private extractLatestAssistantMessage(msgCountBefore: number): string {
+        console.log(`[aiClaw ChatGPT] ========== Step 9: 开始提取回复 ==========`);
+        console.log(`[aiClaw ChatGPT] 发送前消息数量: ${msgCountBefore}`);
+
         // 尝试多个选择器以适应 ChatGPT DOM 变化
         const selectors = [
             SEL.MSG_ASST,
@@ -419,35 +422,63 @@ export class ChatGptAdapter extends BasePlatformAdapter {
         let messages: NodeListOf<Element> | null = null;
         for (const selector of selectors) {
             const found = document.querySelectorAll(selector);
+            console.log(`[aiClaw ChatGPT] 尝试选择器: ${selector}, 找到: ${found.length} 个元素`);
             if (found.length > 0) {
-                console.log(`[aiClaw ChatGPT] 使用选择器找到消息: ${selector}, 数量: ${found.length}`);
+                console.log(`[aiClaw ChatGPT] ✓ 使用选择器: ${selector}, 数量: ${found.length}`);
                 messages = found;
                 break;
             }
         }
 
         if (!messages || messages.length === 0) {
-            console.warn('[aiClaw ChatGPT] 没有找到 assistant 消息，尝试的选择器:', selectors);
+            console.warn('[aiClaw ChatGPT] ✗ 所有选择器都没找到 assistant 消息');
+            console.warn('[aiClaw ChatGPT] 尝试的选择器:', selectors);
 
             // 尝试从 DOM 中查找包含回复内容的元素
             const allArticles = document.querySelectorAll('article');
             console.log(`[aiClaw ChatGPT] 页面中共有 ${allArticles.length} 个 article 元素`);
 
-            // 打印前几个 article 的属性以便调试
+            // 打印前 5 个 article 的属性以便调试
             allArticles.forEach((article, index) => {
-                if (index < 3) {
+                if (index < 5) {
                     const attrs = Array.from(article.attributes).map(attr => `${attr.name}="${attr.value}"`).join(' ');
+                    const textPreview = (article.textContent || '').trim().slice(0, 50);
                     console.log(`[aiClaw ChatGPT] Article ${index}: <article ${attrs}>`);
+                    console.log(`[aiClaw ChatGPT]   内容预览: "${textPreview}..."`);
+                }
+            });
+
+            // 尝试查找所有可能包含回复的元素
+            const divs = document.querySelectorAll('div[class*="message"], div[class*="response"], div[class*="assistant"]');
+            console.log(`[aiClaw ChatGPT] 找到 ${divs.length} 个可能的消息 div`);
+            divs.forEach((div, index) => {
+                if (index < 3) {
+                    const className = div.className;
+                    const textPreview = (div.textContent || '').trim().slice(0, 50);
+                    console.log(`[aiClaw ChatGPT] Div ${index}: class="${className}"`);
+                    console.log(`[aiClaw ChatGPT]   内容: "${textPreview}..."`);
                 }
             });
 
             return '';
         }
 
+        console.log(`[aiClaw ChatGPT] 当前消息总数: ${messages.length}, 发送前: ${msgCountBefore}`);
+
+        // 打印所有消息的预览
+        messages.forEach((msg, index) => {
+            const textPreview = (msg.textContent || '').trim().slice(0, 50);
+            console.log(`[aiClaw ChatGPT] Message ${index}: "${textPreview}..."`);
+        });
+
         const lastMessage = messages[messages.length - 1];
         const text = (lastMessage.textContent || '').trim();
 
-        console.log(`[aiClaw ChatGPT] 提取回复（共 ${messages.length} 条 assistant 消息，发送前 ${msgCountBefore} 条）: "${text.slice(0, 50)}..."`);
+        console.log(`[aiClaw ChatGPT] ✓ 提取最后一条消息 (索引 ${messages.length - 1})`);
+        console.log(`[aiClaw ChatGPT] 消息长度: ${text.length} 字符`);
+        console.log(`[aiClaw ChatGPT] 消息内容: "${text.slice(0, 100)}..."`);
+        console.log(`[aiClaw ChatGPT] ========== Step 9: 提取完成 ==========`);
+
         return text;
     }
 

@@ -547,6 +547,9 @@ class SegmentedControl: NSView {
             button.translatesAutoresizingMaskIntoConstraints = false
             button.heightAnchor.constraint(equalToConstant: 32).isActive = true
 
+            // CRITICAL: Ensure button can receive mouse events
+            button.layer?.masksToBounds = false
+
             buttons.append(button)
             stackView.addArrangedSubview(button)
         }
@@ -584,7 +587,11 @@ class SegmentedControl: NSView {
                 button.layer?.cornerRadius = DSV2.radiusInput
             } else {
                 button.layer?.backgroundColor = NSColor.clear.cgColor
+                button.layer?.cornerRadius = 0
             }
+
+            // Ensure all buttons remain interactive
+            button.isEnabled = true
         }
     }
 

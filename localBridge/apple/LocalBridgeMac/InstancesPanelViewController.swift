@@ -10,6 +10,8 @@ final class InstancesPanelViewController: NSViewController {
     private var gridView: NSView!
     private var scrollView: NSScrollView!
     private var emptyView: NSStackView!
+    private var emptyTextLabel: NSTextField!
+    private var emptyHintLabel: NSTextField!
 
     // MARK: - Data
 
@@ -45,6 +47,19 @@ final class InstancesPanelViewController: NSViewController {
         updateText()
     }
 
+    override func viewWillAppear() {
+        super.viewWillAppear()
+        print("🔍 [InstancesPanel] viewWillAppear called")
+        // Auto-refresh when entering the panel
+        refresh()
+    }
+
+    override func viewDidLayout() {
+        super.viewDidLayout()
+        print("🔍 [InstancesPanel] viewDidLayout - View frame: \(view.frame)")
+        print("🔍 [InstancesPanel] viewDidLayout - Refresh button frame: \(refreshButton.frame)")
+    }
+
     @objc private func handleLanguageChange() {
         updateText()
     }
@@ -52,11 +67,20 @@ final class InstancesPanelViewController: NSViewController {
     private func updateText() {
         titleLabel.stringValue = LanguageManager.shared.localized("instances.title")
         subtitleLabel.stringValue = "REAL-TIME EXTENSION HEALTH & BRIDGE METRICS"
+
+        // Update refresh button with localized text
         let buttonAttributes: [NSAttributedString.Key: Any] = [
             .foregroundColor: DSV2.onSurface,
             .font: DSV2.fontLabelMd
         ]
-        refreshButton.attributedTitle = NSAttributedString(string: "Refresh", attributes: buttonAttributes)
+        refreshButton.attributedTitle = NSAttributedString(
+            string: LanguageManager.shared.localized("instances.refresh"),
+            attributes: buttonAttributes
+        )
+
+        // Update empty state labels
+        emptyTextLabel?.stringValue = LanguageManager.shared.localized("instances.empty")
+        emptyHintLabel?.stringValue = LanguageManager.shared.localized("instances.empty.hint")
     }
 
     @objc private func handleThemeChange() {
@@ -87,7 +111,9 @@ final class InstancesPanelViewController: NSViewController {
 
     /// 刷新实例列表（DetailViewController 切换到此面板时调用）
     func refresh() {
+        print("🔍 [InstancesPanel] refresh() called")
         instances = AppDelegate.shared?.getConnectedInstances() ?? []
+        print("🔍 [InstancesPanel] Got \(instances.count) instances")
         rebuildGridView()
         updateEmptyState()
     }
@@ -145,21 +171,23 @@ final class InstancesPanelViewController: NSViewController {
             emptyIcon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 36, weight: .thin)
         }
 
-        let emptyText = NSTextField(labelWithString: LanguageManager.shared.localized("instances.empty"))
+        let emptyText = NSTextField(labelWithString: "")
         emptyText.font = DSV2.fontBodyLg
         emptyText.textColor = DSV2.onSurfaceVariant
         emptyText.alignment = .center
         emptyText.isEditable = false
         emptyText.isBordered = false
         emptyText.drawsBackground = false
+        emptyTextLabel = emptyText
 
-        let emptyHint = NSTextField(wrappingLabelWithString: "Please ensure browser extension is running and connected to LocalBridge")
+        let emptyHint = NSTextField(wrappingLabelWithString: "")
         emptyHint.font = DSV2.fontBodySm
         emptyHint.textColor = DSV2.onSurfaceTertiary
         emptyHint.alignment = .center
         emptyHint.isEditable = false
         emptyHint.isBordered = false
         emptyHint.drawsBackground = false
+        emptyHintLabel = emptyHint
 
         emptyView = NSStackView(views: [emptyIcon, emptyText, emptyHint])
         emptyView.orientation = .vertical
@@ -177,6 +205,15 @@ final class InstancesPanelViewController: NSViewController {
         view.addSubview(subtitleLabel)
         view.addSubview(scrollView)
         view.addSubview(emptyView)
+
+        // Debug: Print refresh button info
+        print("🔍 [InstancesPanel] Refresh button frame: \(refreshButton.frame)")
+        print("🔍 [InstancesPanel] Refresh button title: '\(refreshButton.title)'")
+        print("🔍 [InstancesPanel] Refresh button attributedTitle: '\(refreshButton.attributedTitle.string)'")
+        print("🔍 [InstancesPanel] Refresh button isHidden: \(refreshButton.isHidden)")
+        print("🔍 [InstancesPanel] Refresh button superview: \(refreshButton.superview != nil ? "exists" : "nil")")
+        print("🔍 [InstancesPanel] HeaderStack frame: \(headerStack.frame)")
+        print("🔍 [InstancesPanel] HeaderStack subviews count: \(headerStack.arrangedSubviews.count)")
 
         NSLayoutConstraint.activate([
             headerStack.topAnchor.constraint(equalTo: view.topAnchor, constant: DSV2.spacing6),
@@ -196,6 +233,14 @@ final class InstancesPanelViewController: NSViewController {
             emptyView.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: 40),
             emptyView.widthAnchor.constraint(lessThanOrEqualTo: view.widthAnchor, constant: -40)
         ])
+
+        // Debug: Print layout info after constraints
+        DispatchQueue.main.async {
+            print("🔍 [InstancesPanel] After layout - HeaderStack frame: \(headerStack.frame)")
+            print("🔍 [InstancesPanel] After layout - Refresh button frame: \(self.refreshButton.frame)")
+            print("🔍 [InstancesPanel] After layout - View frame: \(self.view.frame)")
+            print("🔍 [InstancesPanel] After layout - TitleLabel frame: \(self.titleLabel.frame)")
+        }
     }
 
     private func setupGridView() {

@@ -59,13 +59,23 @@ final class DetailViewController: NSViewController {
 
     func display(conversation: Conversation) {
         placeholderLabel.isHidden = true
+
+        // Use localized keys to match conversation titles
+        let instancesTitle = LanguageManager.shared.localized("sidebar.instances.title")
+        let logsTitle = LanguageManager.shared.localized("sidebar.logs.title")
+
         clawVC.view.isHidden = conversation.title != "TweetClaw"
         aiClawVC.view.isHidden = conversation.title != "AIClaw"
-        instancesPanelView.view.isHidden = conversation.title != "已连接实例"
-        bridgeLogsVC.view.isHidden = conversation.title != "Bridge Logs"
+        instancesPanelView.view.isHidden = conversation.title != instancesTitle
+        bridgeLogsVC.view.isHidden = conversation.title != logsTitle
 
         if conversation.title == "TweetClaw" {
             clawVC.selectDefaultRow()
+        }
+
+        // Trigger refresh when showing instances panel
+        if conversation.title == instancesTitle {
+            instancesPanelView.refresh()
         }
     }
 }

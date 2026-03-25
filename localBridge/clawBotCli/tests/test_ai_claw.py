@@ -3,7 +3,12 @@
 Test AIClaw APIs
 """
 import sys
+import os
 import json
+
+# Add parent directory to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from utils.api_client import APIClient
 
 def test_ai_status():

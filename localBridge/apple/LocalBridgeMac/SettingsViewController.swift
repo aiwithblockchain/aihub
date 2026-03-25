@@ -281,7 +281,7 @@ final class SettingsViewController: NSViewController {
     private let titleLabel = NSTextField(labelWithString: "")
     private let stayOnTopCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: #selector(toggleStayOnTop))
     private var themeSegmentedControl: SegmentedControl!
-    private var languageSegmentedControl: NSSegmentedControl!
+    private var languageSegmentedControl: SegmentedControl!
 
     // UI labels that need to be updated on language change
     private var subtitleLabel: NSTextField!
@@ -646,14 +646,16 @@ final class SettingsViewController: NSViewController {
         languageDescLabel.translatesAutoresizingMaskIntoConstraints = false
 
         // 创建语言分段控制器
-        languageSegmentedControl = NSSegmentedControl(
-            labels: ["English", "中文"],
-            trackingMode: .selectOne,
+        languageSegmentedControl = DSV2.makeSegmentedControl(
+            items: ["English", "中文"],
             target: self,
             action: #selector(languageChanged)
         )
-        languageSegmentedControl.selectedSegment = LanguageManager.shared.currentLanguage == .english ? 0 : 1
         languageSegmentedControl.translatesAutoresizingMaskIntoConstraints = false
+
+        // 设置当前选中项
+        let currentLanguage = LanguageManager.shared.currentLanguage
+        languageSegmentedControl.selectItem(at: currentLanguage == .english ? 0 : 1)
 
         container.addSubview(languageLabel)
         container.addSubview(languageDescLabel)
@@ -678,9 +680,13 @@ final class SettingsViewController: NSViewController {
     }
 
     @objc private func languageChanged() {
-        let language: LanguageManager.Language =
-            languageSegmentedControl.selectedSegment == 0 ? .english : .chinese
+        let selectedIndex = languageSegmentedControl.indexOfSelectedItem()
+        print("🌐 [Settings] languageChanged - selectedIndex: \(selectedIndex)")
+        let language: LanguageManager.Language = selectedIndex == 0 ? .english : .chinese
+        print("🌐 [Settings] Setting language to: \(language)")
+        print("🌐 [Settings] Current language before: \(LanguageManager.shared.currentLanguage)")
         LanguageManager.shared.setLanguage(language)
+        print("🌐 [Settings] Current language after: \(LanguageManager.shared.currentLanguage)")
     }
 
     private func makeThemeRow() -> NSView {

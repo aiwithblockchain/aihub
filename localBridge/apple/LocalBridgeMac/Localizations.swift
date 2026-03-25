@@ -195,6 +195,14 @@ struct Localizations {
             "en": "No instances connected",
             "zh": "暂无已连接实例"
         ],
+        "instances.refresh": [
+            "en": "Refresh",
+            "zh": "刷新"
+        ],
+        "instances.empty.hint": [
+            "en": "Please ensure browser extension is running and connected to LocalBridge",
+            "zh": "请确保浏览器扩展已启动并连接到 LocalBridge"
+        ],
         "instances.client": [
             "en": "Client",
             "zh": "客户端"
