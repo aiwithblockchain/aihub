@@ -609,8 +609,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = LocalBridgeMac/LocalBridgeMac.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 44;
+				CURRENT_PROJECT_VERSION = 46;
 				DEVELOPMENT_TEAM = 2XYK8RBB6M;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -639,8 +640,9 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
+				CODE_SIGN_ENTITLEMENTS = LocalBridgeMac/LocalBridgeMac.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 44;
+				CURRENT_PROJECT_VERSION = 46;
 				DEVELOPMENT_TEAM = 2XYK8RBB6M;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- 启用 App Sandbox（App Store 必需） -->
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+
+	<!-- 允许传入网络连接（WebSocket 服务器需要） -->
+	<key>com.apple.security.network.server</key>
+	<true/>
+
+	<!-- 允许传出网络连接（可能需要连接外部服务） -->
+	<key>com.apple.security.network.client</key>
+	<true/>
+
+	<!-- 调试时允许附加调试器 -->
+	<key>com.apple.security.get-task-allow</key>
+	<true/>
+</dict>
+</plist>

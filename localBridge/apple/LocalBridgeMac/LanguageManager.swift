@@ -36,9 +36,14 @@ final class LanguageManager {
            let language = Language(rawValue: savedLang) {
             self.currentLanguage = language
         } else {
-            // 默认使用系统语言
-            let systemLang = Locale.current.language.languageCode?.identifier ?? "en"
-            self.currentLanguage = systemLang.hasPrefix("zh") ? .chinese : .english
+            // 默认使用系统语言，确保只使用两字母 ISO 639 代码
+            if let languageCode = Locale.current.language.languageCode?.identifier {
+                // 提取前两个字符作为语言代码
+                let twoLetterCode = String(languageCode.prefix(2))
+                self.currentLanguage = twoLetterCode.hasPrefix("zh") ? .chinese : .english
+            } else {
+                self.currentLanguage = .english
+            }
         }
     }
 

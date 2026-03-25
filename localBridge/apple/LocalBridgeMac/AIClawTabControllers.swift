@@ -10,13 +10,29 @@ final class AIClawBotViewController: NSViewController {
     struct ApiDoc: Codable {
         let id: String
         let name: String
+        let name_zh: String?
         let method: String
         let path: String
         let summary: String
+        let summary_zh: String?
         let description: String
+        let description_zh: String?
         let curl: String
         let response: String?
         let request_body: String?
+        
+        var localizedName: String {
+            if LanguageManager.shared.currentLanguage == .chinese, let val = name_zh, !val.isEmpty { return val }
+            return name
+        }
+        var localizedSummary: String {
+            if LanguageManager.shared.currentLanguage == .chinese, let val = summary_zh, !val.isEmpty { return val }
+            return summary
+        }
+        var localizedDescription: String {
+            if LanguageManager.shared.currentLanguage == .chinese, let val = description_zh, !val.isEmpty { return val }
+            return description
+        }
     }
 
     private var docs: [ApiDoc] = []
@@ -51,10 +67,9 @@ final class AIClawBotViewController: NSViewController {
     @objc private func handleLanguageChange() {
         titleLabel.stringValue = LanguageManager.shared.localized("aiclaw.title")
         subtitleLabel.stringValue = LanguageManager.shared.localized("api.endpoints")
-        // Update all copy buttons
-        for button in copyButtons {
-            button.title = LanguageManager.shared.localized("common.copy")
-        }
+        
+        // Redraw endpoints to apply new language
+        addEndpoints()
     }
 
     private func loadDocs() {
@@ -209,12 +224,15 @@ final class AIClawBotViewController: NSViewController {
     }
 
     private func addEndpoints() {
+        // Clear existing cards
+        stackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
         copyButtons.removeAll()
+        
         for doc in docs {
             let card = makeEndpointCard(
                 method: doc.method,
                 path: doc.path,
-                description: doc.description,
+                description: doc.localizedDescription,
                 curl: doc.curl
             )
             stackView.addArrangedSubview(card)
