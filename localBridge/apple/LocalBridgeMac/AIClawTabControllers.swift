@@ -36,7 +36,6 @@ final class AIClawBotViewController: NSViewController {
     }
 
     private var docs: [ApiDoc] = []
-    private var copyButtons: [NSButton] = []
 
     override func loadView() {
         view = NSView()
@@ -226,7 +225,6 @@ final class AIClawBotViewController: NSViewController {
     private func addEndpoints() {
         // Clear existing cards
         stackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
-        copyButtons.removeAll()
         
         for doc in docs {
             let card = makeEndpointCard(
@@ -282,23 +280,12 @@ final class AIClawBotViewController: NSViewController {
 
         curlContainer.addSubview(curlLabel)
 
-        // Copy button with secondary style
-        let actionWrapper = TargetActionWrapper(text: curl)
-        let copyBtn = DSV2.makeSecondaryButton(title: LanguageManager.shared.localized("common.copy"), target: actionWrapper, action: #selector(actionWrapper.performCopy))
-        if #available(macOS 11.0, *) {
-            copyBtn.image = NSImage(systemSymbolName: "doc.on.doc", accessibilityDescription: nil)
-        }
-        copyButtons.append(copyBtn)
-
         let topRow = NSStackView(views: [methodBadge, pathLabel])
         topRow.orientation = NSUserInterfaceLayoutOrientation.horizontal
         topRow.spacing = DSV2.spacing2
         topRow.alignment = .centerY
 
-        let bottomRow = NSStackView(views: [NSView(), copyBtn])
-        bottomRow.orientation = NSUserInterfaceLayoutOrientation.horizontal
-
-        let cardStack = NSStackView(views: [topRow, descLabel, curlContainer, bottomRow])
+        let cardStack = NSStackView(views: [topRow, descLabel, curlContainer])
         cardStack.orientation = NSUserInterfaceLayoutOrientation.vertical
         cardStack.alignment = NSLayoutConstraint.Attribute.leading
         cardStack.spacing = DSV2.spacing4
@@ -319,20 +306,9 @@ final class AIClawBotViewController: NSViewController {
 
             topRow.widthAnchor.constraint(equalTo: cardStack.widthAnchor),
             descLabel.widthAnchor.constraint(equalTo: cardStack.widthAnchor),
-            curlContainer.widthAnchor.constraint(equalTo: cardStack.widthAnchor),
-            bottomRow.widthAnchor.constraint(equalTo: cardStack.widthAnchor)
+            curlContainer.widthAnchor.constraint(equalTo: cardStack.widthAnchor)
         ])
 
         return card
-    }
-}
-
-// Helper to handle copy action from button
-private class TargetActionWrapper: NSObject {
-    let text: String
-    init(text: String) { self.text = text }
-    @objc func performCopy() {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
     }
 }
