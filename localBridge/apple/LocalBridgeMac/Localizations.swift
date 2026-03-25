@@ -59,7 +59,7 @@ struct Localizations {
         // MARK: - AppDelegate
         "app.quit": [
             "en": "Quit",
-            "zh": "退出 LocalBridge"
+            "zh": "退出"
         ],
         "app.open": [
             "en": "Open LocalBridge",
@@ -92,6 +92,38 @@ struct Localizations {
         "api.ai_title": [
             "en": "AI Platform API",
             "zh": "AI 平台 API"
+        ],
+        "api.endpoints": [
+            "en": "API ENDPOINTS",
+            "zh": "API 端点"
+        ],
+        "api.method": [
+            "en": "Method",
+            "zh": "方法"
+        ],
+        "api.path": [
+            "en": "Path",
+            "zh": "路径"
+        ],
+        "api.summary": [
+            "en": "SUMMARY",
+            "zh": "摘要"
+        ],
+        "api.description": [
+            "en": "DESCRIPTION",
+            "zh": "描述"
+        ],
+        "api.request_body": [
+            "en": "REQUEST BODY",
+            "zh": "请求体"
+        ],
+        "api.curl_example": [
+            "en": "cURL EXAMPLE",
+            "zh": "cURL 示例"
+        ],
+        "api.response_format": [
+            "en": "RESPONSE FORMAT",
+            "zh": "响应格式"
         ],
 
         // MARK: - Settings
@@ -171,6 +203,34 @@ struct Localizations {
             "en": "OK",
             "zh": "确定"
         ],
+        "settings.subtitle": [
+            "en": "Manage your instance protocols and local environment behaviors.",
+            "zh": "管理实例协议和本地环境行为。"
+        ],
+        "settings.general": [
+            "en": "General",
+            "zh": "通用"
+        ],
+        "settings.keep_on_top": [
+            "en": "Keep window on top",
+            "zh": "窗口置顶"
+        ],
+        "settings.keep_on_top.hint": [
+            "en": "Ensure LocalBridge remains visible above other applications.",
+            "zh": "确保 LocalBridge 保持在其他应用程序之上。"
+        ],
+        "settings.aiclaw_websocket": [
+            "en": "AIClaw WebSocket",
+            "zh": "AIClaw WebSocket"
+        ],
+        "settings.tweetclaw_websocket": [
+            "en": "TweetClaw WebSocket",
+            "zh": "TweetClaw WebSocket"
+        ],
+        "settings.lan_ip_addresses": [
+            "en": "LAN IP ADDRESSES (OPTIONAL)",
+            "zh": "局域网 IP 地址（可选）"
+        ],
 
         // MARK: - Bridge Logs
         "logs.title": [
@@ -184,6 +244,14 @@ struct Localizations {
         "logs.empty": [
             "en": "No logs yet",
             "zh": "暂无日志"
+        ],
+        "logs.auto_scroll": [
+            "en": "AUTO-SCROLL",
+            "zh": "自动滚动"
+        ],
+        "logs.entries": [
+            "en": "ENTRIES",
+            "zh": "条记录"
         ],
 
         // MARK: - Instances Panel
@@ -219,6 +287,50 @@ struct Localizations {
             "en": "Last Seen",
             "zh": "最后活跃"
         ],
+        "instances.subtitle": [
+            "en": "REAL-TIME EXTENSION HEALTH & BRIDGE METRICS",
+            "zh": "实时扩展运行状况与桥接指标"
+        ],
+        "instances.active": [
+            "en": "ACTIVE",
+            "zh": "活跃"
+        ],
+        "instances.idle": [
+            "en": "IDLE",
+            "zh": "空闲"
+        ],
+        "instances.latency": [
+            "en": "LATENCY",
+            "zh": "延迟"
+        ],
+        "instances.connected_since": [
+            "en": "CONNECTED SINCE",
+            "zh": "连接时间"
+        ],
+        "instances.refreshed": [
+            "en": "Refreshed",
+            "zh": "已刷新"
+        ],
+        "instances.time_ago": [
+            "en": "%@%@ ago",
+            "zh": "%@%@前"
+        ],
+        "instances.unit_s": [
+            "en": "s",
+            "zh": "秒"
+        ],
+        "instances.unit_m": [
+            "en": "m",
+            "zh": "分"
+        ],
+        "instances.unit_h": [
+            "en": "h",
+            "zh": "时"
+        ],
+        "instances.unit_d": [
+            "en": "d",
+            "zh": "天"
+        ],
 
         // MARK: - TweetClaw Tab
         "tweetclaw.title": [
@@ -248,6 +360,18 @@ struct Localizations {
         "tweetclaw.not_logged_in": [
             "en": "Not Logged In",
             "zh": "未登录"
+        ],
+        "tweetclaw.target_instance": [
+            "en": "TARGET INSTANCE",
+            "zh": "目标实例"
+        ],
+        "tweetclaw.no_instance": [
+            "en": "No instance available",
+            "zh": "无可用实例"
+        ],
+        "tweetclaw.api_placeholder": [
+            "en": "Select an API from the left sidebar to view details.",
+            "zh": "从左侧列表选择 API 查看详情。"
         ],
 
         // MARK: - AIClaw Tab
@@ -328,6 +452,10 @@ struct Localizations {
         "common.copy": [
             "en": "Copy",
             "zh": "复制"
+        ],
+        "common.legacy": [
+            "en": "(Legacy)",
+            "zh": "(旧版)"
         ]
     ]
 }

@@ -287,10 +287,14 @@ final class SettingsViewController: NSViewController {
     private var subtitleLabel: NSTextField!
     private var generalCardTitle: NSTextField!
     private var checkboxLabel: NSTextField!
+    private var checkboxHint: NSTextField!
     private var themeLabel: NSTextField!
     private var themeDescLabel: NSTextField!
     private var languageLabel: NSTextField!
     private var languageDescLabel: NSTextField!
+    private var aiClawCardTitle: NSTextField!
+    private var tweetClawCardTitle: NSTextField!
+    private var restAPICardTitle: NSTextField!
 
     // 配置数据
     private var currentConfig: BridgeConfig = BridgeConfig.load()
@@ -341,7 +345,17 @@ final class SettingsViewController: NSViewController {
 
     private func updateAllText() {
         titleLabel.stringValue = LanguageManager.shared.localized("settings.title")
-        subtitleLabel?.stringValue = "Manage your instance protocols and local environment behaviors."
+        subtitleLabel?.stringValue = LanguageManager.shared.localized("settings.subtitle")
+        checkboxLabel?.stringValue = LanguageManager.shared.localized("settings.keep_on_top")
+        checkboxHint?.stringValue = LanguageManager.shared.localized("settings.keep_on_top.hint")
+        generalCardTitle?.stringValue = LanguageManager.shared.localized("settings.general").uppercased()
+        aiClawCardTitle?.stringValue = LanguageManager.shared.localized("settings.aiclaw_websocket")
+        tweetClawCardTitle?.stringValue = LanguageManager.shared.localized("settings.tweetclaw_websocket")
+        restAPICardTitle?.stringValue = LanguageManager.shared.localized("settings.rest_api")
+        languageLabel?.stringValue = LanguageManager.shared.localized("settings.language")
+        languageDescLabel?.stringValue = LanguageManager.shared.localized("settings.language.description")
+        themeLabel?.stringValue = LanguageManager.shared.localized("settings.theme")
+        themeDescLabel?.stringValue = LanguageManager.shared.localized("settings.theme.description")
     }
 
     override func viewWillAppear() {
@@ -413,7 +427,7 @@ final class SettingsViewController: NSViewController {
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
         // Subtitle
-        subtitleLabel = NSTextField(labelWithString: "Manage your instance protocols and local environment behaviors.")
+        subtitleLabel = NSTextField(labelWithString: LanguageManager.shared.localized("settings.subtitle"))
         subtitleLabel.font = DSV2.fontBodyMd
         subtitleLabel.textColor = DSV2.onSurfaceVariant
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -428,16 +442,16 @@ final class SettingsViewController: NSViewController {
 
         // 创建卡片
         let generalCard = makeSettingsCard(
-            title: "General",
+            title: LanguageManager.shared.localized("settings.general"),
             icon: "tune",
             iconColor: DSV2.primary,
             views: [makeCheckboxRow(), makeLanguageRow(), makeThemeRow()]
         )
 
         // 创建服务配置卡片
-        let aiClawCard = makeServiceCard(serviceName: "aiClaw", title: "AIClaw WebSocket", icon: "network", defaultPort: 10087)
-        let tweetClawCard = makeServiceCard(serviceName: "tweetClaw", title: "TweetClaw WebSocket", icon: "network", defaultPort: 10086)
-        let restAPICard = makeServiceCard(serviceName: "restAPI", title: "REST API", icon: "server.rack", defaultPort: 10088)
+        let aiClawCard = makeServiceCard(serviceName: "aiClaw", title: LanguageManager.shared.localized("settings.aiclaw_websocket"), icon: "network", defaultPort: 10087)
+        let tweetClawCard = makeServiceCard(serviceName: "tweetClaw", title: LanguageManager.shared.localized("settings.tweetclaw_websocket"), icon: "network", defaultPort: 10086)
+        let restAPICard = makeServiceCard(serviceName: "restAPI", title: LanguageManager.shared.localized("settings.rest_api"), icon: "server.rack", defaultPort: 10088)
 
         let contentStack = NSStackView(views: [
             titleLabel,
@@ -507,12 +521,37 @@ final class SettingsViewController: NSViewController {
 
         serviceViews[serviceName] = configView
 
-        return makeCollapsibleCard(
+        let card = makeCollapsibleCard(
             title: title.uppercased(),
             icon: icon,
             iconColor: DSV2.secondary,
             contentView: configView
         )
+
+        // Store references to service card titles by finding the title label in the card
+        if let titleLabel = findTitleLabel(in: card) {
+            if serviceName == "aiClaw" {
+                aiClawCardTitle = titleLabel
+            } else if serviceName == "tweetClaw" {
+                tweetClawCardTitle = titleLabel
+            } else if serviceName == "restAPI" {
+                restAPICardTitle = titleLabel
+            }
+        }
+
+        return card
+    }
+
+    private func findTitleLabel(in view: NSView) -> NSTextField? {
+        if let textField = view as? NSTextField, textField.font?.pointSize == 12 {
+            return textField
+        }
+        for subview in view.subviews {
+            if let found = findTitleLabel(in: subview) {
+                return found
+            }
+        }
+        return nil
     }
 
     private func getServiceConfig(_ serviceName: String) -> ServiceConfig {
@@ -573,7 +612,7 @@ final class SettingsViewController: NSViewController {
         let textContainer = NSView()
         textContainer.translatesAutoresizingMaskIntoConstraints = false
 
-        checkboxLabel = NSTextField(labelWithString: "Keep window on top")
+        checkboxLabel = NSTextField(labelWithString: LanguageManager.shared.localized("settings.keep_on_top"))
         checkboxLabel.font = DSV2.fontBodyMd
         checkboxLabel.textColor = DSV2.onSurface
         checkboxLabel.isBordered = false
@@ -581,16 +620,16 @@ final class SettingsViewController: NSViewController {
         checkboxLabel.drawsBackground = false
         checkboxLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        let hint = NSTextField(labelWithString: "Ensure LocalBridge remains visible above other applications.")
-        hint.font = NSFont.systemFont(ofSize: 11, weight: .regular)
-        hint.textColor = DSV2.onSurfaceVariant
-        hint.isBordered = false
-        hint.isEditable = false
-        hint.drawsBackground = false
-        hint.translatesAutoresizingMaskIntoConstraints = false
+        checkboxHint = NSTextField(labelWithString: LanguageManager.shared.localized("settings.keep_on_top.hint"))
+        checkboxHint.font = NSFont.systemFont(ofSize: 11, weight: .regular)
+        checkboxHint.textColor = DSV2.onSurfaceVariant
+        checkboxHint.isBordered = false
+        checkboxHint.isEditable = false
+        checkboxHint.drawsBackground = false
+        checkboxHint.translatesAutoresizingMaskIntoConstraints = false
 
         textContainer.addSubview(checkboxLabel)
-        textContainer.addSubview(hint)
+        textContainer.addSubview(checkboxHint)
 
         rowContainer.addSubview(stayOnTopCheckbox)
         rowContainer.addSubview(textContainer)
@@ -612,10 +651,10 @@ final class SettingsViewController: NSViewController {
             checkboxLabel.leadingAnchor.constraint(equalTo: textContainer.leadingAnchor),
             checkboxLabel.trailingAnchor.constraint(equalTo: textContainer.trailingAnchor),
 
-            hint.topAnchor.constraint(equalTo: checkboxLabel.bottomAnchor, constant: 4),
-            hint.leadingAnchor.constraint(equalTo: textContainer.leadingAnchor),
-            hint.trailingAnchor.constraint(equalTo: textContainer.trailingAnchor),
-            hint.bottomAnchor.constraint(equalTo: textContainer.bottomAnchor),
+            checkboxHint.topAnchor.constraint(equalTo: checkboxLabel.bottomAnchor, constant: 4),
+            checkboxHint.leadingAnchor.constraint(equalTo: textContainer.leadingAnchor),
+            checkboxHint.trailingAnchor.constraint(equalTo: textContainer.trailingAnchor),
+            checkboxHint.bottomAnchor.constraint(equalTo: textContainer.bottomAnchor),
 
             rowContainer.topAnchor.constraint(equalTo: container.topAnchor),
             rowContainer.leadingAnchor.constraint(equalTo: container.leadingAnchor),
@@ -792,6 +831,11 @@ final class SettingsViewController: NSViewController {
         titleLabel.isEditable = false
         titleLabel.drawsBackground = false
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        // Store reference to general card title
+        if icon == "tune" {
+            generalCardTitle = titleLabel
+        }
 
         let headerStack = NSStackView(views: [iconView, titleLabel])
         headerStack.orientation = .horizontal
@@ -989,7 +1033,7 @@ class ServiceConfigView: NSView {
             contentStack.addArrangedSubview(separator)
             separator.widthAnchor.constraint(equalToConstant: 600).isActive = true
 
-            let lanLabel = NSTextField(labelWithString: "LAN IP ADDRESSES (OPTIONAL)")
+            let lanLabel = NSTextField(labelWithString: LanguageManager.shared.localized("settings.lan_ip_addresses"))
             lanLabel.font = NSFont.systemFont(ofSize: 11, weight: .semibold)
             lanLabel.textColor = DSV2.onSurfaceVariant
             lanLabel.isBordered = false

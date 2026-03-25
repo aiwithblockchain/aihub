@@ -108,11 +108,11 @@
     "name": "Search Timeline",
     "name_zh": "搜索时间线",
     "summary": "Search tweets by keywords with pagination support. Supports both active search and cached result reading.",
-    "summary_zh": "Search tweets by keywords with pagination support. Supports both active search and cached result reading.",
+    "summary_zh": "根据关键词搜索推文，支持分页。支持主动搜索和读取缓存结果。",
     "method": "GET",
     "path": "/api/v1/x/search",
     "description": "Search Twitter timeline by keywords. Supports pagination via cursor. Returns raw Twitter API response including tweets and next page cursor. If query parameter is omitted, falls back to reading cached search results from browser (legacy behavior).",
-    "description_zh": "Search Twitter timeline by keywords. Supports pagination via cursor. Returns raw Twitter API response including tweets and next page cursor. If query parameter is omitted, falls back to reading cached search results from browser (legacy behavior).",
+    "description_zh": "根据关键词搜索推文时间线。支持通过 cursor 进行分页。返回包含推文和下一页 cursor 的原始推特 API 响应。如果省略查询参数，则回退到从浏览器读取缓存的搜索结果（旧版行为）。",
     "curl": "curl \"http://127.0.0.1:10088/api/v1/x/search?query=open%20claw&count=20\"",
     "response": "{\"data\":{\"search_by_raw_query\":{\"search_timeline\":{\"timeline\":{\"instructions\":[...],\"metadata\":{\"cursor\":\"DAACCgACHEGUyk_AJxAKAAMcQZTKT7_Y8AgABAAAAAIL...\"}}}}}}"
   },

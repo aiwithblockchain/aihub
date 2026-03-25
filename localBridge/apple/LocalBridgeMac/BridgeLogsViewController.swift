@@ -7,7 +7,7 @@ final class BridgeLogsViewController: NSViewController {
     private let clearButton = NSButton(title: "", target: nil, action: #selector(clearClicked))
     private let copyButton = NSButton(title: "", target: nil, action: #selector(copyClicked))
     private let autoScrollCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: #selector(toggleAutoScroll))
-    private let logCountLabel = NSTextField(labelWithString: "0 ENTRIES")
+    private let logCountLabel = NSTextField(labelWithString: "0 \(LanguageManager.shared.localized("logs.entries"))")
     private var autoScroll = true
 
     // UI 组件引用用于主题更新
@@ -50,7 +50,10 @@ final class BridgeLogsViewController: NSViewController {
 
     @objc private func handleLanguageChange() {
         titleLabel.stringValue = LanguageManager.shared.localized("logs.title")
+        autoScrollLabel.stringValue = LanguageManager.shared.localized("logs.auto_scroll")
         clearButton.toolTip = LanguageManager.shared.localized("logs.clear")
+        copyButton.toolTip = LanguageManager.shared.localized("common.copy")
+        reloadLogs()
     }
 
     @objc private func handleThemeChange() {
@@ -134,7 +137,7 @@ final class BridgeLogsViewController: NSViewController {
         logCountLabel.translatesAutoresizingMaskIntoConstraints = false
 
         // Auto-scroll toggle
-        autoScrollLabel = NSTextField(labelWithString: "AUTO-SCROLL")
+        autoScrollLabel = NSTextField(labelWithString: LanguageManager.shared.localized("logs.auto_scroll"))
         autoScrollLabel.font = DSV2.fontLabelSm
         autoScrollLabel.textColor = DSV2.onSurfaceTertiary
         autoScrollLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -144,7 +147,7 @@ final class BridgeLogsViewController: NSViewController {
         autoScrollCheckbox.translatesAutoresizingMaskIntoConstraints = false
 
         // Action buttons
-        setupActionButton(copyButton, icon: "doc.on.doc", tooltip: "Copy")
+        setupActionButton(copyButton, icon: "doc.on.doc", tooltip: LanguageManager.shared.localized("common.copy"))
         setupActionButton(clearButton, icon: "trash", tooltip: LanguageManager.shared.localized("logs.clear"), isDestructive: true)
 
         // Layout
@@ -244,7 +247,7 @@ final class BridgeLogsViewController: NSViewController {
         }
 
         textView.textStorage?.setAttributedString(attributedString)
-        logCountLabel.stringValue = "\(lines.count) ENTRIES"
+        logCountLabel.stringValue = "\(lines.count) \(LanguageManager.shared.localized("logs.entries"))"
 
         if autoScroll {
             textView.scrollToEndOfDocument(nil)

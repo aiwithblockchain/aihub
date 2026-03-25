@@ -45,10 +45,12 @@ final class AIClawBotViewController: NSViewController {
 
         // 初始化文本
         titleLabel.stringValue = LanguageManager.shared.localized("aiclaw.title")
+        subtitleLabel.stringValue = LanguageManager.shared.localized("api.endpoints")
     }
 
     @objc private func handleLanguageChange() {
         titleLabel.stringValue = LanguageManager.shared.localized("aiclaw.title")
+        subtitleLabel.stringValue = LanguageManager.shared.localized("api.endpoints")
         // Update all copy buttons
         for button in copyButtons {
             button.title = LanguageManager.shared.localized("common.copy")

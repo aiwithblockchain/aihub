@@ -135,7 +135,7 @@ final class APIDocViewController: NSViewController {
         apiListStackView.edgeInsets = NSEdgeInsets(top: DS.spacingM, left: DS.spacingM, bottom: DS.spacingM, right: DS.spacingM)
 
         // 添加 X API 标题
-        let xTitleLabel = NSTextField(labelWithString: "X (Twitter) API")
+        let xTitleLabel = NSTextField(labelWithString: LanguageManager.shared.localized("api.x_title"))
         xTitleLabel.font = DS.fontTitle
         xTitleLabel.textColor = DS.colorTextPrimary
         apiListStackView.addArrangedSubview(xTitleLabel)
@@ -156,7 +156,7 @@ final class APIDocViewController: NSViewController {
         }
 
         // 添加 AI API 标题
-        let aiTitleLabel = NSTextField(labelWithString: "AI Platform API")
+        let aiTitleLabel = NSTextField(labelWithString: LanguageManager.shared.localized("api.ai_title"))
         aiTitleLabel.font = DS.fontTitle
         aiTitleLabel.textColor = DS.colorTextPrimary
         apiListStackView.addArrangedSubview(aiTitleLabel)
@@ -300,18 +300,18 @@ final class APIDocViewController: NSViewController {
 
         \(summary)
 
-        Method: \(method)
-        Path: \(path)
+        \(LanguageManager.shared.localized("api.method")): \(method)
+        \(LanguageManager.shared.localized("api.path")): \(path)
 
-        Description:
+        \(LanguageManager.shared.localized("api.description")):
         \(description)
 
-        Example:
+        \(LanguageManager.shared.localized("api.curl_example")):
         \(curl)
         """
 
         if let requestBody = endpoint["request_body"] as? String {
-            detailText += "\n\nRequest Body:\n\(requestBody)"
+            detailText += "\n\n\(LanguageManager.shared.localized("api.request_body")):\n\(requestBody)"
         }
 
         codePreviewTextView.string = detailText
@@ -342,20 +342,21 @@ final class APIDocViewController: NSViewController {
             let path = endpoint["path"] as? String ?? ""
             let curl = endpoint["curl"] as? String ?? ""
 
-            codePreviewTextView.string = """
+            let detailText = """
             \(name)
 
             \(summary)
 
-            Method: \(method)
-            Path: \(path)
+            \(LanguageManager.shared.localized("api.method")): \(method)
+            \(LanguageManager.shared.localized("api.path")): \(path)
 
-            Description:
+            \(LanguageManager.shared.localized("api.description")):
             \(description)
 
-            Example:
+            \(LanguageManager.shared.localized("api.curl_example")):
             \(curl)
             """
+            codePreviewTextView.string = detailText
 
             // 高亮第一个卡片
             if let firstCard = apiListStackView.arrangedSubviews.first(where: { ($0 as? NSButton)?.tag == 0 }) as? NSButton {

@@ -57,7 +57,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     private var detailHeightConstraint: NSLayoutConstraint?
 
     // Instance Selector
-    private let instanceLabel = NSTextField(labelWithString: "TARGET INSTANCE")
+    private let instanceLabel = NSTextField(labelWithString: LanguageManager.shared.localized("tweetclaw.target_instance"))
     private let instancePopup = NSPopUpButton(frame: .zero, pullsDown: false)
     private let refreshInstancesButton = NSButton(title: "↻", target: nil, action: #selector(refreshInstancesClicked))
     private var instanceSnapshots: [LocalBridgeGoManager.InstanceSnapshot] = []
@@ -69,17 +69,50 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     struct ApiDoc: Codable {
         let id: String
         let name: String
+        let name_zh: String?
         let summary: String        // Concise functional description
+        let summary_zh: String?
         let method: String
         let path: String
         let description: String
+        let description_zh: String?
         let body: String?
+        let body_zh: String?
         let curl: String
         let response: String
         
         enum CodingKeys: String, CodingKey {
-            case id, name, summary, method, path, description, curl, response
+            case id, name, name_zh, summary, summary_zh, method, path, description, description_zh, curl, response
             case body = "request_body"
+            case body_zh = "request_body_zh"
+        }
+
+        var localizedName: String {
+            if LanguageManager.shared.currentLanguage == .chinese, let nameZh = name_zh, !nameZh.isEmpty {
+                return nameZh
+            }
+            return name
+        }
+
+        var localizedSummary: String {
+            if LanguageManager.shared.currentLanguage == .chinese, let summaryZh = summary_zh, !summaryZh.isEmpty {
+                return summaryZh
+            }
+            return summary
+        }
+
+        var localizedDescription: String {
+            if LanguageManager.shared.currentLanguage == .chinese, let descZh = description_zh, !descZh.isEmpty {
+                return descZh
+            }
+            return description
+        }
+
+        var localizedBody: String? {
+            if LanguageManager.shared.currentLanguage == .chinese, let bodyZh = body_zh, !bodyZh.isEmpty {
+                return bodyZh
+            }
+            return body
         }
     }
 
@@ -121,6 +154,18 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
 
     @objc private func handleLanguageChange() {
         headerTitleLabel.stringValue = LanguageManager.shared.localized("tweetclaw.title")
+        instanceLabel.stringValue = LanguageManager.shared.localized("tweetclaw.target_instance")
+        
+        // Refresh instance popup if empty
+        if instanceSnapshots.isEmpty {
+            applyInstances([])
+        }
+        
+        // Refresh API card list
+        tableView.reloadData()
+        
+        // Refresh detail view
+        updateSelectedDetail()
     }
 
     @objc private func handleThemeChange() {
@@ -172,7 +217,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         if instanceSnapshots.isEmpty {
             let item = NSMenuItem()
             item.attributedTitle = attributedInstanceTitle(
-                "No instance available",
+                LanguageManager.shared.localized("tweetclaw.no_instance"),
                 color: DSV2.error,
                 font: DSV2.fontMonoSm
             )
@@ -191,18 +236,20 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     }
 
     private func displayName(for snapshot: LocalBridgeGoManager.InstanceSnapshot) -> String {
+        let legacySuffix = " \(LanguageManager.shared.localized("common.legacy"))"
+        
         if let instanceName = snapshot.instanceName?.trimmingCharacters(in: .whitespacesAndNewlines),
            !instanceName.isEmpty {
-            return snapshot.isTemporary ? "\(instanceName) (Legacy)" : instanceName
+            return snapshot.isTemporary ? "\(instanceName)\(legacySuffix)" : instanceName
         }
 
         if let screenName = snapshot.xScreenName?.trimmingCharacters(in: .whitespacesAndNewlines),
            !screenName.isEmpty {
-            return snapshot.isTemporary ? "@\(screenName) (Legacy)" : "@\(screenName)"
+            return snapshot.isTemporary ? "@\(screenName)\(legacySuffix)" : "@\(screenName)"
         }
 
         let fallbackId = String(snapshot.instanceId.prefix(8))
-        return snapshot.isTemporary ? "[\(fallbackId)...] (Legacy)" : "[\(fallbackId)...]"
+        return snapshot.isTemporary ? "[\(fallbackId)...]\(legacySuffix)" : "[\(fallbackId)...]"
     }
 
     private func attributedInstanceTitle(
@@ -582,12 +629,12 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         }
 
         if let nameLabel = cell?.viewWithTag(101) as? NSTextField {
-            nameLabel.stringValue = doc.name
+            nameLabel.stringValue = doc.localizedName
             nameLabel.textColor = isSelected ? DSV2.primary : DSV2.onSurface
         }
 
         if let summaryLabel = cell?.viewWithTag(102) as? NSTextField {
-            summaryLabel.stringValue = doc.summary
+            summaryLabel.stringValue = doc.localizedSummary
             summaryLabel.textColor = isSelected ? DSV2.primary.withAlphaComponent(0.8) : DSV2.onSurfaceVariant
         }
 
@@ -615,7 +662,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         }
 
         guard let doc = doc else {
-            textView.string = "Select an API from the left sidebar to view details."
+            textView.string = LanguageManager.shared.localized("tweetclaw.api_placeholder")
             return
         }
 
@@ -641,7 +688,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
 
         // 1. API 名称（大标题）
         attrStr.append(NSAttributedString(
-            string: "\(doc.name)\n",
+            string: "\(doc.localizedName)\n",
             attributes: [
                 .font: NSFont.systemFont(ofSize: 20, weight: .bold),
                 .foregroundColor: DSV2.onSurface,
@@ -667,7 +714,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
 
         // 3. SUMMARY（概述）
         attrStr.append(NSAttributedString(
-            string: "SUMMARY\n",
+            string: "\(LanguageManager.shared.localized("api.summary"))\n",
             attributes: [
                 .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
                 .foregroundColor: DSV2.onSurface,
@@ -675,7 +722,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             ]
         ))
         attrStr.append(NSAttributedString(
-            string: "\(doc.summary)\n",
+            string: "\(doc.localizedSummary)\n",
             attributes: [
                 .font: NSFont.systemFont(ofSize: 13, weight: .regular),
                 .foregroundColor: DSV2.onSurface,
@@ -685,7 +732,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
 
         // 4. DESCRIPTION（详细描述）
         attrStr.append(NSAttributedString(
-            string: "DESCRIPTION\n",
+            string: "\(LanguageManager.shared.localized("api.description"))\n",
             attributes: [
                 .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
                 .foregroundColor: DSV2.onSurface,
@@ -693,7 +740,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             ]
         ))
         attrStr.append(NSAttributedString(
-            string: "\(doc.description)\n",
+            string: "\(doc.localizedDescription)\n",
             attributes: [
                 .font: NSFont.systemFont(ofSize: 13, weight: .regular),
                 .foregroundColor: DSV2.onSurfaceVariant,
@@ -702,9 +749,9 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         ))
 
         // 5. REQUEST BODY（如果有）
-        if let body = doc.body {
+        if let body = doc.localizedBody {
             attrStr.append(NSAttributedString(
-                string: "REQUEST BODY\n",
+                string: "\(LanguageManager.shared.localized("api.request_body"))\n",
                 attributes: [
                     .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
                     .foregroundColor: DSV2.onSurface,
@@ -723,7 +770,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
 
         // 6. cURL EXAMPLE
         attrStr.append(NSAttributedString(
-            string: "cURL EXAMPLE\n",
+            string: "\(LanguageManager.shared.localized("api.curl_example"))\n",
             attributes: [
                 .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
                 .foregroundColor: DSV2.onSurface,
@@ -741,7 +788,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
 
         // 7. RESPONSE FORMAT
         attrStr.append(NSAttributedString(
-            string: "RESPONSE FORMAT\n",
+            string: "\(LanguageManager.shared.localized("api.response_format"))\n",
             attributes: [
                 .font: NSFont.systemFont(ofSize: 13, weight: .semibold),
                 .foregroundColor: DSV2.onSurface,

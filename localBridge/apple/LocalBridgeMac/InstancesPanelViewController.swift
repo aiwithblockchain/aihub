@@ -59,7 +59,7 @@ final class InstancesPanelViewController: NSViewController {
 
     private func updateText() {
         titleLabel.stringValue = LanguageManager.shared.localized("instances.title")
-        subtitleLabel.stringValue = "REAL-TIME EXTENSION HEALTH & BRIDGE METRICS"
+        subtitleLabel.stringValue = LanguageManager.shared.localized("instances.subtitle")
 
         // Update refresh button with localized text
         let buttonAttributes: [NSAttributedString.Key: Any] = [
@@ -144,7 +144,8 @@ final class InstancesPanelViewController: NSViewController {
             .foregroundColor: DSV2.onSurface,
             .font: DSV2.fontLabelMd
         ]
-        refreshButton.attributedTitle = NSAttributedString(string: "刷新", attributes: buttonAttributes)
+        let buttonTitle = LanguageManager.shared.localized("instances.refresh")
+        refreshButton.attributedTitle = NSAttributedString(string: buttonTitle, attributes: buttonAttributes)
 
         if #available(macOS 11.0, *) {
             refreshButton.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "Refresh")
@@ -353,7 +354,8 @@ final class InstancesPanelViewController: NSViewController {
         statusDot.layer?.cornerRadius = 4
         statusBadge.addSubview(statusDot)
 
-        let statusText = NSTextField(labelWithString: isActive ? "ACTIVE" : "IDLE")
+        let statusTextValue = isActive ? LanguageManager.shared.localized("instances.active") : LanguageManager.shared.localized("instances.idle")
+        let statusText = NSTextField(labelWithString: statusTextValue)
         statusText.font = NSFont.systemFont(ofSize: 9, weight: .bold)
         statusText.textColor = isActive ? DSV2.tertiary : DSV2.onSurfaceVariant
         statusText.isBordered = false
@@ -434,12 +436,13 @@ final class InstancesPanelViewController: NSViewController {
         let metricWidth: CGFloat = (cardWidth - 2 * padding) / 3
 
         // 指标1：延迟/最后活跃
+        let latencyTitle = isActive ? LanguageManager.shared.localized("instances.latency") : LanguageManager.shared.localized("instances.last_seen")
         createMetric(
             in: card,
             x: padding,
             y: metricsY,
             width: metricWidth,
-            title: isActive ? "LATENCY" : "LAST SEEN",
+            title: latencyTitle,
             value: isActive ? "24ms" : timeAgoString(from: instance.lastSeenAt),
             valueColor: isActive ? DSV2.secondary : DSV2.onSurfaceVariant
         )
@@ -450,19 +453,21 @@ final class InstancesPanelViewController: NSViewController {
             x: padding + metricWidth,
             y: metricsY,
             width: metricWidth,
-            title: "CONNECTED SINCE",
+            title: LanguageManager.shared.localized("instances.connected_since"),
             value: shortTimeFormatter.string(from: instance.connectedAt),
             valueColor: DSV2.onSurfaceVariant
         )
 
         // 指标3：状态信息
+        let typeTitle = instance.isTemporary ? LanguageManager.shared.localized("instances.type") : LanguageManager.shared.localized("instances.status")
+        let typeValue = instance.isTemporary ? LanguageManager.shared.localized("common.legacy") : LanguageManager.shared.localized("instances.active")
         createMetric(
             in: card,
             x: padding + metricWidth * 2,
             y: metricsY,
             width: metricWidth,
-            title: instance.isTemporary ? "TYPE" : "STATUS",
-            value: instance.isTemporary ? "Legacy" : "Active",
+            title: typeTitle,
+            value: typeValue,
             valueColor: DSV2.onSurfaceVariant
         )
 
@@ -491,14 +496,16 @@ final class InstancesPanelViewController: NSViewController {
 
     private func timeAgoString(from date: Date) -> String {
         let seconds = Int(Date().timeIntervalSince(date))
+        let format = LanguageManager.shared.localized("instances.time_ago")
+        
         if seconds < 60 {
-            return "\(seconds)s ago"
+            return String(format: format, "\(seconds)", LanguageManager.shared.localized("instances.unit_s"))
         } else if seconds < 3600 {
-            return "\(seconds / 60)m ago"
+            return String(format: format, "\(seconds / 60)", LanguageManager.shared.localized("instances.unit_m"))
         } else if seconds < 86400 {
-            return "\(seconds / 3600)h ago"
+            return String(format: format, "\(seconds / 3600)", LanguageManager.shared.localized("instances.unit_h"))
         } else {
-            return "\(seconds / 86400)d ago"
+            return String(format: format, "\(seconds / 86400)", LanguageManager.shared.localized("instances.unit_d"))
         }
     }
 
@@ -520,7 +527,7 @@ final class InstancesPanelViewController: NSViewController {
         refresh()
 
         // 短暂改变按钮文字给用户反馈
-        refreshButton.title = "Refreshed"
+        refreshButton.title = LanguageManager.shared.localized("instances.refreshed")
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
             self?.updateText()
         }
