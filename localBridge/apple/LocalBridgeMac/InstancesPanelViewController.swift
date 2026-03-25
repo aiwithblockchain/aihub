@@ -4,9 +4,9 @@ final class InstancesPanelViewController: NSViewController {
 
     // MARK: - UI Elements
 
-    private let titleLabel = NSTextField(labelWithString: "已连接实例")
-    private let subtitleLabel = NSTextField(labelWithString: "以下为当前通过 WebSocket 连接到 LocalBridge 的浏览器扩展实例")
-    private let refreshButton = NSButton(title: "刷新", target: nil, action: #selector(refreshClicked))
+    private let titleLabel = NSTextField(labelWithString: "")
+    private let subtitleLabel = NSTextField(labelWithString: "")
+    private let refreshButton = NSButton(title: "", target: nil, action: #selector(refreshClicked))
     private var gridView: NSView!
     private var scrollView: NSScrollView!
     private var emptyView: NSStackView!
@@ -32,6 +32,31 @@ final class InstancesPanelViewController: NSViewController {
             name: ThemeManager.themeDidChangeNotification,
             object: nil
         )
+
+        // 注册语言变化通知
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleLanguageChange),
+            name: LanguageManager.languageDidChangeNotification,
+            object: nil
+        )
+
+        // 初始化文本
+        updateText()
+    }
+
+    @objc private func handleLanguageChange() {
+        updateText()
+    }
+
+    private func updateText() {
+        titleLabel.stringValue = LanguageManager.shared.localized("instances.title")
+        subtitleLabel.stringValue = "REAL-TIME EXTENSION HEALTH & BRIDGE METRICS"
+        let buttonAttributes: [NSAttributedString.Key: Any] = [
+            .foregroundColor: DSV2.onSurface,
+            .font: DSV2.fontLabelMd
+        ]
+        refreshButton.attributedTitle = NSAttributedString(string: "Refresh", attributes: buttonAttributes)
     }
 
     @objc private func handleThemeChange() {
@@ -45,11 +70,7 @@ final class InstancesPanelViewController: NSViewController {
         // 更新刷新按钮
         refreshButton.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.1).cgColor
         refreshButton.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
-        let buttonAttributes: [NSAttributedString.Key: Any] = [
-            .foregroundColor: DSV2.onSurface,
-            .font: DSV2.fontLabelMd
-        ]
-        refreshButton.attributedTitle = NSAttributedString(string: "刷新", attributes: buttonAttributes)
+        updateText()
         refreshButton.contentTintColor = DSV2.onSurface
 
         // 重新构建网格视图以更新实例卡片
@@ -109,7 +130,7 @@ final class InstancesPanelViewController: NSViewController {
         refreshButton.attributedTitle = NSAttributedString(string: "刷新", attributes: buttonAttributes)
 
         if #available(macOS 11.0, *) {
-            refreshButton.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "刷新")
+            refreshButton.image = NSImage(systemSymbolName: "arrow.clockwise", accessibilityDescription: "Refresh")
             refreshButton.imagePosition = .imageLeading
             refreshButton.contentTintColor = DSV2.onSurface
         }
@@ -124,7 +145,7 @@ final class InstancesPanelViewController: NSViewController {
             emptyIcon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 36, weight: .thin)
         }
 
-        let emptyText = NSTextField(labelWithString: "暂无已连接的实例")
+        let emptyText = NSTextField(labelWithString: LanguageManager.shared.localized("instances.empty"))
         emptyText.font = DSV2.fontBodyLg
         emptyText.textColor = DSV2.onSurfaceVariant
         emptyText.alignment = .center
@@ -132,7 +153,7 @@ final class InstancesPanelViewController: NSViewController {
         emptyText.isBordered = false
         emptyText.drawsBackground = false
 
-        let emptyHint = NSTextField(wrappingLabelWithString: "请确保浏览器扩展已启动并连接到 LocalBridge")
+        let emptyHint = NSTextField(wrappingLabelWithString: "Please ensure browser extension is running and connected to LocalBridge")
         emptyHint.font = DSV2.fontBodySm
         emptyHint.textColor = DSV2.onSurfaceTertiary
         emptyHint.alignment = .center
@@ -480,9 +501,9 @@ final class InstancesPanelViewController: NSViewController {
         refresh()
 
         // 短暂改变按钮文字给用户反馈
-        refreshButton.title = "已刷新 ✓"
+        refreshButton.title = "Refreshed"
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-            self?.refreshButton.title = "刷新"
+            self?.updateText()
         }
     }
 

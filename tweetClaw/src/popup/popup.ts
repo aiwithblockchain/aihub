@@ -1,4 +1,9 @@
+import { initI18n, t } from '../utils/i18n';
+
 document.addEventListener('DOMContentLoaded', () => {
+    // Initialize i18n
+    initI18n();
+
     const mainView = document.getElementById('mainView') as HTMLDivElement;
     const xSettingsView = document.getElementById('xSettingsView') as HTMLDivElement;
     const btnX = document.getElementById('btnX') as HTMLElement;
@@ -41,13 +46,13 @@ document.addEventListener('DOMContentLoaded', () => {
             if (res) {
                 statusDot.className = res.connected ? 'dot connected' : 'dot disconnected';
                 connectionUrl.textContent = res.url;
-                const statusText = res.connected ? 'Connected to LocalBridgeMac' : 'Waiting for LocalBridgeMac…';
+                const statusText = res.connected ? t('x.status.connected') : t('x.status.waiting');
                 const version = res.serverInfo?.serverVersion ? ` v${res.serverInfo.serverVersion}` : '';
                 connectionVersion.textContent = statusText + version;
             }
         }).catch(() => {
             statusDot.className = 'dot disconnected';
-            connectionVersion.textContent = 'Unable to reach background';
+            connectionVersion.textContent = t('x.status.unreachable');
         });
     }
 
@@ -61,29 +66,29 @@ document.addEventListener('DOMContentLoaded', () => {
         const port = parseInt(portInput.value.trim());
 
         if (!host) {
-            alert('Please enter an IP address');
+            alert(t('alert.invalid_ip'));
             return;
         }
 
         if (!port || port < 1024 || port > 65535) {
-            alert('Invalid port number (must be 1024 – 65535)');
+            alert(t('alert.invalid_port'));
             return;
         }
 
         // Validate IP format (basic check)
         const ipPattern = /^[\w\.\-]+$/;
         if (!ipPattern.test(host)) {
-            alert('Invalid IP address format');
+            alert(t('alert.invalid_ip_format'));
             return;
         }
 
         chrome.storage.local.set({ wsHost: host, wsPort: port }).then(() => {
             chrome.runtime.sendMessage({ type: 'UPDATE_WS_CONFIG', host, port }).then(() => {
                 // Show success feedback
-                saveBtn.textContent = 'Saved!';
+                saveBtn.textContent = t('form.save.success');
                 saveBtn.style.background = '#22c55e';
                 setTimeout(() => {
-                    saveBtn.textContent = 'Save & Reconnect';
+                    saveBtn.textContent = t('form.save.button');
                     saveBtn.style.background = '#1d9bf0';
                     refreshStatus();
                 }, 1500);
@@ -116,22 +121,22 @@ document.addEventListener('DOMContentLoaded', () => {
         const name = nameInput.value.trim();
 
         if (!name) {
-            alert('Please enter a name');
+            alert(t('alert.invalid_name'));
             return;
         }
 
         if (name.length > 20) {
-            alert('Name must be 20 characters or less');
+            alert(t('alert.name_too_long'));
             return;
         }
 
         chrome.storage.local.set({ 'bridge.instanceName': name }).then(() => {
             chrome.runtime.sendMessage({ type: 'UPDATE_INSTANCE_NAME', name }).then(() => {
                 // Show success feedback
-                saveNameBtn.textContent = 'Saved!';
+                saveNameBtn.textContent = t('name.save.success');
                 saveNameBtn.style.background = '#22c55e';
                 setTimeout(() => {
-                    saveNameBtn.textContent = 'Save Name & Reconnect';
+                    saveNameBtn.textContent = t('name.save.button');
                     saveNameBtn.style.background = '#1d9bf0';
                     refreshStatus();
                 }, 1500);

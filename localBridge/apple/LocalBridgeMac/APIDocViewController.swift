@@ -8,58 +8,9 @@ final class APIDocViewController: NSViewController {
     private let codePreviewScrollView = NSScrollView()
     private var codePreviewTextView: NSTextView!
 
-    private let apiEndpoints: [(method: String, path: String, description: String, code: String)] = [
-        ("GET", "/api/status", "查询扩展状态", """
-        // 查询扩展状态
-        fetch('http://localhost:8080/api/status')
-          .then(res => res.json())
-          .then(data => console.log(data));
-        """),
-        ("POST", "/api/tweet/create", "发布推文", """
-        // 发布推文
-        fetch('http://localhost:8080/api/tweet/create', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: 'Hello World!'
-          })
-        });
-        """),
-        ("GET", "/api/tweet/:id", "获取推文详情", """
-        // 获取推文详情
-        const tweetId = '1234567890';
-        fetch(`http://localhost:8080/api/tweet/${tweetId}`)
-          .then(res => res.json())
-          .then(data => console.log(data));
-        """),
-        ("POST", "/api/tweet/like", "点赞推文", """
-        // 点赞推文
-        fetch('http://localhost:8080/api/tweet/like', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            tweetId: '1234567890'
-          })
-        });
-        """),
-        ("GET", "/api/ai/tabs", "查询 AI 平台标签页", """
-        // 查询 AI 平台标签页
-        fetch('http://localhost:8080/api/ai/tabs')
-          .then(res => res.json())
-          .then(data => console.log(data));
-        """),
-        ("POST", "/api/ai/message", "发送 AI 消息", """
-        // 发送 AI 消息
-        fetch('http://localhost:8080/api/ai/message', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            platform: 'chatgpt',
-            message: 'Hello AI!'
-          })
-        });
-        """)
-    ]
+    // API 文档数据
+    private var apiEndpoints: [[String: Any]] = []
+    private var aiAPIEndpoints: [[String: Any]] = []
 
     override func loadView() {
         view = NSView()
@@ -67,6 +18,10 @@ final class APIDocViewController: NSViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+
+        // 加载 API 文档
+        loadAPIDocumentation()
+
         setupUI()
         selectFirstAPI()
 
@@ -77,14 +32,69 @@ final class APIDocViewController: NSViewController {
             name: ThemeManager.themeDidChangeNotification,
             object: nil
         )
+
+        // 注册语言变更通知
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleLanguageChange),
+            name: LanguageManager.languageDidChangeNotification,
+            object: nil
+        )
     }
 
     @objc private func handleThemeChange() {
         view.needsDisplay = true
     }
 
+    @objc private func handleLanguageChange() {
+        reloadAPIDocumentation()
+    }
+
     deinit {
         NotificationCenter.default.removeObserver(self)
+    }
+
+    /// 根据当前语言获取本地化字段值
+    private func getLocalizedField(_ dict: [String: Any], key: String) -> String {
+        let lang = LanguageManager.shared.currentLanguage
+
+        // 如果是中文,优先使用中文字段
+        if lang == .chinese {
+            if let zhValue = dict["\(key)_zh"] as? String, !zhValue.isEmpty {
+                return zhValue
+            }
+        }
+
+        // Fallback到英文字段
+        return dict[key] as? String ?? ""
+    }
+
+    /// 加载 API 文档
+    private func loadAPIDocumentation() {
+        // 加载 X API 文档
+        if let xAPIPath = Bundle.main.path(forResource: "api_docs", ofType: "json"),
+           let xAPIData = try? Data(contentsOf: URL(fileURLWithPath: xAPIPath)),
+           let xAPIs = try? JSONSerialization.jsonObject(with: xAPIData) as? [[String: Any]] {
+            apiEndpoints = xAPIs
+        }
+
+        // 加载 AI API 文档
+        if let aiAPIPath = Bundle.main.path(forResource: "ai_claw_api_docs", ofType: "json"),
+           let aiAPIData = try? Data(contentsOf: URL(fileURLWithPath: aiAPIPath)),
+           let aiAPIs = try? JSONSerialization.jsonObject(with: aiAPIData) as? [[String: Any]] {
+            aiAPIEndpoints = aiAPIs
+        }
+    }
+
+    /// 重新加载 API 文档
+    private func reloadAPIDocumentation() {
+        // 清空现有视图
+        apiListStackView.arrangedSubviews.forEach { $0.removeFromSuperview() }
+
+        // 重新加载
+        loadAPIDocumentation()
+        setupAPIList()
+        selectFirstAPI()
     }
 
     private func setupUI() {
@@ -124,24 +134,46 @@ final class APIDocViewController: NSViewController {
         apiListStackView.spacing = DS.spacingS
         apiListStackView.edgeInsets = NSEdgeInsets(top: DS.spacingM, left: DS.spacingM, bottom: DS.spacingM, right: DS.spacingM)
 
-        // 添加标题
-        let titleLabel = NSTextField(labelWithString: "API 端点")
-        titleLabel.font = DS.fontTitle
-        titleLabel.textColor = DS.colorTextPrimary
-        apiListStackView.addArrangedSubview(titleLabel)
+        // 添加 X API 标题
+        let xTitleLabel = NSTextField(labelWithString: "X (Twitter) API")
+        xTitleLabel.font = DS.fontTitle
+        xTitleLabel.textColor = DS.colorTextPrimary
+        apiListStackView.addArrangedSubview(xTitleLabel)
 
         // 添加分隔线
-        let separator = NSBox()
-        separator.boxType = .separator
-        separator.translatesAutoresizingMaskIntoConstraints = false
-        apiListStackView.addArrangedSubview(separator)
+        let separator1 = NSBox()
+        separator1.boxType = .separator
+        separator1.translatesAutoresizingMaskIntoConstraints = false
+        apiListStackView.addArrangedSubview(separator1)
         NSLayoutConstraint.activate([
-            separator.widthAnchor.constraint(equalTo: apiListStackView.widthAnchor, constant: -2 * DS.spacingM)
+            separator1.widthAnchor.constraint(equalTo: apiListStackView.widthAnchor, constant: -2 * DS.spacingM)
         ])
 
-        // 添加 API 卡片
+        // 添加 X API 卡片
         for (index, endpoint) in apiEndpoints.enumerated() {
-            let card = createAPICard(method: endpoint.method, path: endpoint.path, description: endpoint.description, index: index)
+            let card = createAPICard(endpoint: endpoint, index: index)
+            apiListStackView.addArrangedSubview(card)
+        }
+
+        // 添加 AI API 标题
+        let aiTitleLabel = NSTextField(labelWithString: "AI Platform API")
+        aiTitleLabel.font = DS.fontTitle
+        aiTitleLabel.textColor = DS.colorTextPrimary
+        apiListStackView.addArrangedSubview(aiTitleLabel)
+
+        // 添加分隔线
+        let separator2 = NSBox()
+        separator2.boxType = .separator
+        separator2.translatesAutoresizingMaskIntoConstraints = false
+        apiListStackView.addArrangedSubview(separator2)
+        NSLayoutConstraint.activate([
+            separator2.widthAnchor.constraint(equalTo: apiListStackView.widthAnchor, constant: -2 * DS.spacingM)
+        ])
+
+        // 添加 AI API 卡片
+        let xAPICount = apiEndpoints.count
+        for (index, endpoint) in aiAPIEndpoints.enumerated() {
+            let card = createAPICard(endpoint: endpoint, index: xAPICount + index)
             apiListStackView.addArrangedSubview(card)
         }
 
@@ -151,7 +183,7 @@ final class APIDocViewController: NSViewController {
         apiListScrollView.translatesAutoresizingMaskIntoConstraints = false
     }
 
-    private func createAPICard(method: String, path: String, description: String, index: Int) -> NSView {
+    private func createAPICard(endpoint: [String: Any], index: Int) -> NSView {
         let card = NSButton()
         card.isBordered = false
         card.wantsLayer = true
@@ -163,6 +195,10 @@ final class APIDocViewController: NSViewController {
         card.tag = index
         card.target = self
         card.action = #selector(apiCardClicked(_:))
+
+        let method = endpoint["method"] as? String ?? "GET"
+        let path = endpoint["path"] as? String ?? ""
+        let name = getLocalizedField(endpoint, key: "name")
 
         // 方法标签
         let methodLabel = NSTextField(labelWithString: method)
@@ -179,31 +215,33 @@ final class APIDocViewController: NSViewController {
             methodLabel.backgroundColor = DS.colorGET
         } else if method == "POST" {
             methodLabel.backgroundColor = DS.colorPOST
+        } else if method == "DELETE" {
+            methodLabel.backgroundColor = NSColor(red: 0.9, green: 0.3, blue: 0.3, alpha: 1.0)
         }
 
         methodLabel.translatesAutoresizingMaskIntoConstraints = false
 
         // 路径标签
         let pathLabel = NSTextField(labelWithString: path)
-        pathLabel.font = DS.fontBody
-        pathLabel.textColor = DS.colorTextPrimary
+        pathLabel.font = DS.fontCaption
+        pathLabel.textColor = DS.colorTextSecond
         pathLabel.isBordered = false
         pathLabel.isEditable = false
         pathLabel.drawsBackground = false
         pathLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        // 描述标签
-        let descLabel = NSTextField(labelWithString: description)
-        descLabel.font = DS.fontCaption
-        descLabel.textColor = DS.colorTextSecond
-        descLabel.isBordered = false
-        descLabel.isEditable = false
-        descLabel.drawsBackground = false
-        descLabel.translatesAutoresizingMaskIntoConstraints = false
+        // 名称标签
+        let nameLabel = NSTextField(labelWithString: name)
+        nameLabel.font = DS.fontBody
+        nameLabel.textColor = DS.colorTextPrimary
+        nameLabel.isBordered = false
+        nameLabel.isEditable = false
+        nameLabel.drawsBackground = false
+        nameLabel.translatesAutoresizingMaskIntoConstraints = false
 
         card.addSubview(methodLabel)
         card.addSubview(pathLabel)
-        card.addSubview(descLabel)
+        card.addSubview(nameLabel)
 
         NSLayoutConstraint.activate([
             card.widthAnchor.constraint(equalToConstant: 268),
@@ -214,13 +252,13 @@ final class APIDocViewController: NSViewController {
             methodLabel.widthAnchor.constraint(equalToConstant: 50),
             methodLabel.heightAnchor.constraint(equalToConstant: 18),
 
-            pathLabel.topAnchor.constraint(equalTo: methodLabel.bottomAnchor, constant: DS.spacingS),
+            pathLabel.topAnchor.constraint(equalTo: methodLabel.bottomAnchor, constant: 4),
             pathLabel.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: DS.spacingS),
             pathLabel.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -DS.spacingS),
 
-            descLabel.topAnchor.constraint(equalTo: pathLabel.bottomAnchor, constant: 4),
-            descLabel.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: DS.spacingS),
-            descLabel.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -DS.spacingS)
+            nameLabel.topAnchor.constraint(equalTo: pathLabel.bottomAnchor, constant: 4),
+            nameLabel.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: DS.spacingS),
+            nameLabel.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -DS.spacingS)
         ])
 
         return card
@@ -243,10 +281,40 @@ final class APIDocViewController: NSViewController {
 
     @objc private func apiCardClicked(_ sender: NSButton) {
         let index = sender.tag
-        guard apiEndpoints.indices.contains(index) else { return }
 
-        let endpoint = apiEndpoints[index]
-        codePreviewTextView.string = endpoint.code
+        let allEndpoints = apiEndpoints + aiAPIEndpoints
+        guard allEndpoints.indices.contains(index) else { return }
+
+        let endpoint = allEndpoints[index]
+
+        // 构建详细信息文本
+        let name = getLocalizedField(endpoint, key: "name")
+        let summary = getLocalizedField(endpoint, key: "summary")
+        let description = getLocalizedField(endpoint, key: "description")
+        let method = endpoint["method"] as? String ?? ""
+        let path = endpoint["path"] as? String ?? ""
+        let curl = endpoint["curl"] as? String ?? ""
+
+        var detailText = """
+        \(name)
+
+        \(summary)
+
+        Method: \(method)
+        Path: \(path)
+
+        Description:
+        \(description)
+
+        Example:
+        \(curl)
+        """
+
+        if let requestBody = endpoint["request_body"] as? String {
+            detailText += "\n\nRequest Body:\n\(requestBody)"
+        }
+
+        codePreviewTextView.string = detailText
 
         // 高亮选中的卡片
         for case let card as NSButton in apiListStackView.arrangedSubviews where card.tag >= 0 {
@@ -263,8 +331,31 @@ final class APIDocViewController: NSViewController {
     }
 
     private func selectFirstAPI() {
-        if !apiEndpoints.isEmpty {
-            codePreviewTextView.string = apiEndpoints[0].code
+        let allEndpoints = apiEndpoints + aiAPIEndpoints
+        if !allEndpoints.isEmpty {
+            let endpoint = allEndpoints[0]
+
+            let name = getLocalizedField(endpoint, key: "name")
+            let summary = getLocalizedField(endpoint, key: "summary")
+            let description = getLocalizedField(endpoint, key: "description")
+            let method = endpoint["method"] as? String ?? ""
+            let path = endpoint["path"] as? String ?? ""
+            let curl = endpoint["curl"] as? String ?? ""
+
+            codePreviewTextView.string = """
+            \(name)
+
+            \(summary)
+
+            Method: \(method)
+            Path: \(path)
+
+            Description:
+            \(description)
+
+            Example:
+            \(curl)
+            """
 
             // 高亮第一个卡片
             if let firstCard = apiListStackView.arrangedSubviews.first(where: { ($0 as? NSButton)?.tag == 0 }) as? NSButton {

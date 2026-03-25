@@ -251,23 +251,23 @@
     <div class="header">
       <img src="images/logo_48.png" alt="TweetClaw">
       <div class="header-text">
-        <h1>TweetClaw</h1>
-        <p>Omni-Bridge for AI Agents</p>
+        <h1 data-i18n="app.title">TweetClaw</h1>
+        <p data-i18n="app.subtitle">Omni-Bridge for AI Agents</p>
       </div>
     </div>
 
-    <div class="section-label" style="padding: 14px 16px 0;">Supported Platforms</div>
+    <div class="section-label" style="padding: 14px 16px 0;" data-i18n="platforms.title">Supported Platforms</div>
     <div class="platform-list">
       <!-- X (Twitter) -->
       <div class="platform-card" id="btnX">
         <div class="platform-info">
           <div class="platform-icon">𝕏</div>
           <div class="platform-name">
-            <h3>X (Twitter)</h3>
-            <p>Active Bridge</p>
+            <h3 data-i18n="platform.x.name">X (Twitter)</h3>
+            <p data-i18n="platform.x.status">Active Bridge</p>
           </div>
         </div>
-        <div class="platform-badge badge-active">Active</div>
+        <div class="platform-badge badge-active" data-i18n="badge.active">Active</div>
       </div>
 
       <!-- Reddit -->
@@ -275,11 +275,11 @@
         <div class="platform-info">
           <div class="platform-icon">🤖</div>
           <div class="platform-name">
-            <h3>Reddit</h3>
-            <p>Coming Soon</p>
+            <h3 data-i18n="platform.reddit.name">Reddit</h3>
+            <p data-i18n="platform.reddit.status">Coming Soon</p>
           </div>
         </div>
-        <div class="platform-badge badge-coming">Pending</div>
+        <div class="platform-badge badge-coming" data-i18n="badge.coming">Pending</div>
       </div>
 
       <!-- Discord -->
@@ -287,11 +287,11 @@
         <div class="platform-info">
           <div class="platform-icon">💬</div>
           <div class="platform-name">
-            <h3>Discord</h3>
-            <p>Coming Soon</p>
+            <h3 data-i18n="platform.discord.name">Discord</h3>
+            <p data-i18n="platform.discord.status">Coming Soon</p>
           </div>
         </div>
-        <div class="platform-badge badge-coming">Pending</div>
+        <div class="platform-badge badge-coming" data-i18n="badge.coming">Pending</div>
       </div>
 
       <!-- Xiaohongshu -->
@@ -299,26 +299,26 @@
         <div class="platform-info">
           <div class="platform-icon">📕</div>
           <div class="platform-name">
-            <h3>Xiaohongshu</h3>
-            <p>Coming Soon</p>
+            <h3 data-i18n="platform.xiaohongshu.name">Xiaohongshu</h3>
+            <p data-i18n="platform.xiaohongshu.status">Coming Soon</p>
           </div>
         </div>
-        <div class="platform-badge badge-coming">Pending</div>
+        <div class="platform-badge badge-coming" data-i18n="badge.coming">Pending</div>
       </div>
     </div>
 
     <!-- Companion Banner -->
     <div class="section">
       <div class="download-banner">
-        <div class="desc">
+        <div class="desc" data-i18n="banner.desc">
           Visit <strong>official website</strong> for companion app.
         </div>
-        <a class="dl-btn" href="https://aiwithblockchain.github.io/" target="_blank" rel="noopener">Visit</a>
+        <a class="dl-btn" href="https://aiwithblockchain.github.io/" target="_blank" rel="noopener" data-i18n="banner.button">Visit</a>
       </div>
     </div>
 
     <div class="footer">
-      <a href="#" id="debugLink">Open Debug Interface</a>
+      <a href="#" id="debugLink" data-i18n="footer.debug">Open Debug Interface</a>
     </div>
   </div>
 
@@ -328,12 +328,12 @@
       <button class="back-btn" id="btnBack">
         <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
       </button>
-      <h2>X (Twitter) Configuration</h2>
+      <h2 data-i18n="x.config.title">X (Twitter) Configuration</h2>
     </div>
 
     <!-- Connection Status -->
     <div class="section">
-      <div class="section-label">Bridge Status</div>
+      <div class="section-label" data-i18n="x.status.title">Bridge Status</div>
 
       <!-- Single Connection Display -->
       <div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 12px;">
@@ -347,43 +347,43 @@
 
         <!-- IP Input -->
         <div style="margin-bottom: 10px;">
-          <label style="font-size: 11px; color: #64748b; display: block; margin-bottom: 4px;">IP Address</label>
-          <input type="text" id="hostInput" placeholder="127.0.0.1" style="width: 100%; background: #0f1117; border: 1px solid #30363d; border-radius: 6px; color: #e2e8f0; padding: 8px 10px; font-size: 13px; outline: none; box-sizing: border-box;">
+          <label style="font-size: 11px; color: #64748b; display: block; margin-bottom: 4px;" data-i18n="form.ip.label">IP Address</label>
+          <input type="text" id="hostInput" data-i18n-placeholder="form.ip.placeholder" placeholder="127.0.0.1" style="width: 100%; background: #0f1117; border: 1px solid #30363d; border-radius: 6px; color: #e2e8f0; padding: 8px 10px; font-size: 13px; outline: none; box-sizing: border-box;">
         </div>
 
         <!-- Port Input -->
         <div style="margin-bottom: 10px;">
-          <label style="font-size: 11px; color: #64748b; display: block; margin-bottom: 4px;">Port</label>
-          <input type="number" id="portInput" placeholder="10086" min="1024" max="65535" style="width: 100%; background: #0f1117; border: 1px solid #30363d; border-radius: 6px; color: #e2e8f0; padding: 8px 10px; font-size: 13px; outline: none; box-sizing: border-box;">
+          <label style="font-size: 11px; color: #64748b; display: block; margin-bottom: 4px;" data-i18n="form.port.label">Port</label>
+          <input type="number" id="portInput" data-i18n-placeholder="form.port.placeholder" placeholder="10086" min="1024" max="65535" style="width: 100%; background: #0f1117; border: 1px solid #30363d; border-radius: 6px; color: #e2e8f0; padding: 8px 10px; font-size: 13px; outline: none; box-sizing: border-box;">
         </div>
 
         <!-- Save Button -->
-        <button id="saveBtn" style="width: 100%; background: #1d9bf0; border: none; border-radius: 6px; color: #fff; font-size: 13px; font-weight: 600; padding: 10px; cursor: pointer; transition: all 0.2s;">Save &amp; Reconnect</button>
+        <button id="saveBtn" style="width: 100%; background: #1d9bf0; border: none; border-radius: 6px; color: #fff; font-size: 13px; font-weight: 600; padding: 10px; cursor: pointer; transition: all 0.2s;" data-i18n="form.save.button">Save &amp; Reconnect</button>
       </div>
     </div>
 
     <!-- Display Name -->
     <div class="section">
-      <div class="section-label">Display Name</div>
+      <div class="section-label" data-i18n="name.title">Display Name</div>
       <div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 12px;">
         <div style="margin-bottom: 10px;">
-          <label style="font-size: 11px; color: #64748b; display: block; margin-bottom: 4px;">Your Name</label>
-          <input type="text" id="nameInput" placeholder="User-1234" maxlength="20" style="width: 100%; background: #0f1117; border: 1px solid #30363d; border-radius: 6px; color: #e2e8f0; padding: 8px 10px; font-size: 13px; outline: none; box-sizing: border-box;">
+          <label style="font-size: 11px; color: #64748b; display: block; margin-bottom: 4px;" data-i18n="name.label">Your Name</label>
+          <input type="text" id="nameInput" data-i18n-placeholder="name.placeholder" placeholder="User-1234" maxlength="20" style="width: 100%; background: #0f1117; border: 1px solid #30363d; border-radius: 6px; color: #e2e8f0; padding: 8px 10px; font-size: 13px; outline: none; box-sizing: border-box;">
         </div>
-        <button id="saveNameBtn" style="width: 100%; background: #1d9bf0; border: none; border-radius: 6px; color: #fff; font-size: 13px; font-weight: 600; padding: 10px; cursor: pointer; transition: all 0.2s;">Save Name &amp; Reconnect</button>
+        <button id="saveNameBtn" style="width: 100%; background: #1d9bf0; border: none; border-radius: 6px; color: #fff; font-size: 13px; font-weight: 600; padding: 10px; cursor: pointer; transition: all 0.2s;" data-i18n="name.save.button">Save Name &amp; Reconnect</button>
       </div>
     </div>
 
     <!-- Capabilities -->
     <div class="section">
-      <div class="section-label">Capabilities</div>
+      <div class="section-label" data-i18n="capabilities.title">Capabilities</div>
       <ul class="features">
-        <li><span class="icon">🔗</span> Bind X browser session to local AI agents</li>
-        <li><span class="icon">📖</span> Read home timeline &amp; search results</li>
-        <li><span class="icon">👤</span> Fetch user profile information</li>
-        <li><span class="icon">⚡</span> Execute actions (like, retweet, follow, post)</li>
-        <li><span class="icon">🌐</span> Open and navigate X tabs on demand</li>
-        <li><span class="icon">💎</span> Saves AI token costs via local bridging</li>
+        <li><span class="icon">🔗</span> <span data-i18n="capabilities.bind">Bind X browser session to local AI agents</span></li>
+        <li><span class="icon">📖</span> <span data-i18n="capabilities.read">Read home timeline &amp; search results</span></li>
+        <li><span class="icon">👤</span> <span data-i18n="capabilities.profile">Fetch user profile information</span></li>
+        <li><span class="icon">⚡</span> <span data-i18n="capabilities.actions">Execute actions (like, retweet, follow, post)</span></li>
+        <li><span class="icon">🌐</span> <span data-i18n="capabilities.navigate">Open and navigate X tabs on demand</span></li>
+        <li><span class="icon">💎</span> <span data-i18n="capabilities.save">Saves AI token costs via local bridging</span></li>
       </ul>
     </div>
   </div>

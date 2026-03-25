@@ -15,32 +15,36 @@ final class SidebarViewController: NSViewController {
         conversations.first
     }
 
-    private let conversations: [Conversation] = [
-        Conversation(
-            title: "TweetClaw",
-            subtitle: "WebSocket Extension",
-            preview: "Connected to Chrome Extension. Ready for commands.",
-            timestamp: "Now"
-        ),
-        Conversation(
-            title: "AIClaw",
-            subtitle: "AI Platform Hub",
-            preview: "Monitor ChatGPT, Gemini, Grok tabs and status.",
-            timestamp: "Now"
-        ),
-        Conversation(
-            title: "Bridge Logs",
-            subtitle: "System",
-            preview: "Waiting for local service connection...",
-            timestamp: "周四"
-        ),
-        Conversation(
-            title: "已连接实例",
-            subtitle: "Multi-Profile",
-            preview: "查看所有在线的浏览器扩展实例",
-            timestamp: "Now"
-        )
-    ]
+    private var conversations: [Conversation] = []
+
+    private func loadConversations() {
+        conversations = [
+            Conversation(
+                title: LanguageManager.shared.localized("sidebar.tweetclaw.title"),
+                subtitle: LanguageManager.shared.localized("sidebar.tweetclaw.subtitle"),
+                preview: LanguageManager.shared.localized("sidebar.tweetclaw.preview"),
+                timestamp: LanguageManager.shared.localized("common.now")
+            ),
+            Conversation(
+                title: LanguageManager.shared.localized("sidebar.aiclaw.title"),
+                subtitle: LanguageManager.shared.localized("sidebar.aiclaw.subtitle"),
+                preview: LanguageManager.shared.localized("sidebar.aiclaw.preview"),
+                timestamp: LanguageManager.shared.localized("common.now")
+            ),
+            Conversation(
+                title: LanguageManager.shared.localized("sidebar.logs.title"),
+                subtitle: LanguageManager.shared.localized("sidebar.logs.subtitle"),
+                preview: LanguageManager.shared.localized("sidebar.logs.preview"),
+                timestamp: LanguageManager.shared.localized("common.now")
+            ),
+            Conversation(
+                title: LanguageManager.shared.localized("sidebar.instances.title"),
+                subtitle: LanguageManager.shared.localized("sidebar.instances.subtitle"),
+                preview: LanguageManager.shared.localized("sidebar.instances.preview"),
+                timestamp: LanguageManager.shared.localized("common.now")
+            )
+        ]
+    }
 
     private let tableView = NSTableView(frame: .zero)
     private let settingsButton = NSButton()
@@ -52,6 +56,7 @@ final class SidebarViewController: NSViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        loadConversations()
         configureView()
         configureTableView()
         configureSettingsButton()
@@ -63,6 +68,14 @@ final class SidebarViewController: NSViewController {
             self,
             selector: #selector(handleThemeChange),
             name: ThemeManager.themeDidChangeNotification,
+            object: nil
+        )
+
+        // 注册语言变更通知
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleLanguageChange),
+            name: LanguageManager.languageDidChangeNotification,
             object: nil
         )
     }
@@ -87,6 +100,12 @@ final class SidebarViewController: NSViewController {
         }
 
         view.needsDisplay = true
+    }
+
+    @objc private func handleLanguageChange() {
+        // 重新加载对话列表
+        loadConversations()
+        tableView.reloadData()
     }
 
     deinit {

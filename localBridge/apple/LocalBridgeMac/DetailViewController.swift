@@ -4,13 +4,10 @@ final class DetailViewController: NSViewController {
     // TweetClaw
     private let clawVC = TweetClawClawViewController()
 
-    // AIClaw tab view
-    private let aiClawTabView = NSTabView()
-    private var aiClawSegmentedControl: SegmentedControl!
-    private let aiHumanVC = AIClawHumanViewController()
+    // AIClaw - only Bot view (API docs)
     private let aiClawVC = AIClawBotViewController()
-    
-    private let placeholderLabel = NSTextField(labelWithString: "选择左侧列表项查看内容")
+
+    private let placeholderLabel = NSTextField(labelWithString: "")
     private let instancesPanelView = InstancesPanelViewController()
     private let bridgeLogsVC = BridgeLogsViewController()
 
@@ -29,11 +26,29 @@ final class DetailViewController: NSViewController {
             name: ThemeManager.themeDidChangeNotification,
             object: nil
         )
+
+        // 注册语言变化通知
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleLanguageChange),
+            name: LanguageManager.languageDidChangeNotification,
+            object: nil
+        )
+
+        // 初始化文本
+        updateText()
+    }
+
+    @objc private func handleLanguageChange() {
+        updateText()
+    }
+
+    private func updateText() {
+        placeholderLabel.stringValue = LanguageManager.shared.localized("detail.placeholder")
     }
 
     @objc private func handleThemeChange() {
         view.layer?.backgroundColor = DSV2.surface.cgColor
-        aiClawSegmentedControl?.updateTheme()
         view.needsDisplay = true
         view.subviews.forEach { $0.needsDisplay = true }
     }
@@ -45,11 +60,10 @@ final class DetailViewController: NSViewController {
     func display(conversation: Conversation) {
         placeholderLabel.isHidden = true
         clawVC.view.isHidden = conversation.title != "TweetClaw"
-        aiClawTabView.isHidden = conversation.title != "AIClaw"
-        aiClawSegmentedControl.isHidden = conversation.title != "AIClaw"
+        aiClawVC.view.isHidden = conversation.title != "AIClaw"
         instancesPanelView.view.isHidden = conversation.title != "已连接实例"
         bridgeLogsVC.view.isHidden = conversation.title != "Bridge Logs"
-        
+
         if conversation.title == "TweetClaw" {
             clawVC.selectDefaultRow()
         }
@@ -72,21 +86,11 @@ private extension DetailViewController {
         view.addSubview(clawVC.view)
         clawVC.view.isHidden = true
 
-        // AIClaw tabs
-        let aiHumanItem = NSTabViewItem(viewController: aiHumanVC)
-        let aiClawItem = NSTabViewItem(viewController: aiClawVC)
-        aiClawTabView.addTabViewItem(aiHumanItem)
-        aiClawTabView.addTabViewItem(aiClawItem)
-        aiClawTabView.tabViewType = .noTabsNoBorder // 隐藏默认标签，解决类名显示问题
-        aiClawTabView.translatesAutoresizingMaskIntoConstraints = false
-        
-        aiClawSegmentedControl = SegmentedControl(items: ["For Human", "For Claw"], target: self, action: #selector(aiClawSegmentChanged))
-        aiClawSegmentedControl.translatesAutoresizingMaskIntoConstraints = false
-        
-        view.addSubview(aiClawTabView)
-        view.addSubview(aiClawSegmentedControl)
-        aiClawTabView.isHidden = true
-        aiClawSegmentedControl.isHidden = true
+        // AIClaw - only Bot view (API docs)
+        addChild(aiClawVC)
+        aiClawVC.view.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(aiClawVC.view)
+        aiClawVC.view.isHidden = true
 
         // Instances Panel
         addChild(instancesPanelView)
@@ -108,14 +112,11 @@ private extension DetailViewController {
             clawVC.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             clawVC.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             clawVC.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-            
-            aiClawSegmentedControl.topAnchor.constraint(equalTo: view.topAnchor, constant: DSV2.spacing6),
-            aiClawSegmentedControl.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            
-            aiClawTabView.topAnchor.constraint(equalTo: aiClawSegmentedControl.bottomAnchor, constant: DSV2.spacing4),
-            aiClawTabView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            aiClawTabView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            aiClawTabView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+
+            aiClawVC.view.topAnchor.constraint(equalTo: view.topAnchor),
+            aiClawVC.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            aiClawVC.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            aiClawVC.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
 
             instancesPanelView.view.topAnchor.constraint(equalTo: view.topAnchor),
             instancesPanelView.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
@@ -127,9 +128,5 @@ private extension DetailViewController {
             bridgeLogsVC.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             bridgeLogsVC.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
-    }
-
-    @objc func aiClawSegmentChanged(_ sender: SegmentedControl) {
-        aiClawTabView.selectTabViewItem(at: sender.indexOfSelectedItem())
     }
 }

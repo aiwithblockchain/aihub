@@ -13,7 +13,7 @@ class CustomAlert {
             alert.messageText = title
             alert.informativeText = message
             alert.alertStyle = .informational
-            alert.addButton(withTitle: "确定")
+            alert.addButton(withTitle: LanguageManager.shared.localized("settings.confirm"))
             alert.runModal()
             return
         }
@@ -87,7 +87,7 @@ private class CustomAlertOverlay: NSView {
 
         // 确定按钮
         let confirmButton = DSV2.makeGradientButton(
-            title: "确定",
+            title: LanguageManager.shared.localized("settings.confirm"),
             target: self,
             action: #selector(closeAlert)
         )
@@ -278,9 +278,19 @@ class CollapsibleCardContainer: NSView {
 }
 
 final class SettingsViewController: NSViewController {
-    private let titleLabel = NSTextField(labelWithString: "设置")
-    private let stayOnTopCheckbox = NSButton(checkboxWithTitle: "窗口保持在最前面", target: nil, action: #selector(toggleStayOnTop))
+    private let titleLabel = NSTextField(labelWithString: "")
+    private let stayOnTopCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: #selector(toggleStayOnTop))
     private var themeSegmentedControl: SegmentedControl!
+    private var languageSegmentedControl: NSSegmentedControl!
+
+    // UI labels that need to be updated on language change
+    private var subtitleLabel: NSTextField!
+    private var generalCardTitle: NSTextField!
+    private var checkboxLabel: NSTextField!
+    private var themeLabel: NSTextField!
+    private var themeDescLabel: NSTextField!
+    private var languageLabel: NSTextField!
+    private var languageDescLabel: NSTextField!
 
     // 配置数据
     private var currentConfig: BridgeConfig = BridgeConfig.load()
@@ -311,6 +321,27 @@ final class SettingsViewController: NSViewController {
             name: ThemeManager.themeDidChangeNotification,
             object: nil
         )
+
+        // 监听语言变化
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleLanguageChange),
+            name: LanguageManager.languageDidChangeNotification,
+            object: nil
+        )
+    }
+
+    deinit {
+        NotificationCenter.default.removeObserver(self)
+    }
+
+    @objc private func handleLanguageChange() {
+        updateAllText()
+    }
+
+    private func updateAllText() {
+        titleLabel.stringValue = LanguageManager.shared.localized("settings.title")
+        subtitleLabel?.stringValue = "Manage your instance protocols and local environment behaviors."
     }
 
     override func viewWillAppear() {
@@ -377,11 +408,11 @@ final class SettingsViewController: NSViewController {
         // Title
         titleLabel.font = NSFont.systemFont(ofSize: 28, weight: .bold)
         titleLabel.textColor = DSV2.onSurface
-        titleLabel.stringValue = "App Configuration"
+        titleLabel.stringValue = LanguageManager.shared.localized("settings.title")
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
         // Subtitle
-        let subtitleLabel = NSTextField(labelWithString: "Manage your instance protocols and local environment behaviors.")
+        subtitleLabel = NSTextField(labelWithString: "Manage your instance protocols and local environment behaviors.")
         subtitleLabel.font = DSV2.fontBodyMd
         subtitleLabel.textColor = DSV2.onSurfaceVariant
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -399,7 +430,7 @@ final class SettingsViewController: NSViewController {
             title: "General",
             icon: "tune",
             iconColor: DSV2.primary,
-            views: [makeCheckboxRow(), makeThemeRow()]
+            views: [makeCheckboxRow(), makeLanguageRow(), makeThemeRow()]
         )
 
         // 创建服务配置卡片
@@ -519,8 +550,8 @@ final class SettingsViewController: NSViewController {
 
         // 显示成功提示
         CustomAlert.showSuccess(
-            title: "保存成功",
-            message: "\(serviceName) 配置已保存，服务已在后台重启。",
+            title: LanguageManager.shared.localized("settings.saved"),
+            message: LanguageManager.shared.localized("settings.saved.message"),
             parentWindow: view.window
         )
 
@@ -541,13 +572,13 @@ final class SettingsViewController: NSViewController {
         let textContainer = NSView()
         textContainer.translatesAutoresizingMaskIntoConstraints = false
 
-        let label = NSTextField(labelWithString: "Keep window on top")
-        label.font = DSV2.fontBodyMd
-        label.textColor = DSV2.onSurface
-        label.isBordered = false
-        label.isEditable = false
-        label.drawsBackground = false
-        label.translatesAutoresizingMaskIntoConstraints = false
+        checkboxLabel = NSTextField(labelWithString: "Keep window on top")
+        checkboxLabel.font = DSV2.fontBodyMd
+        checkboxLabel.textColor = DSV2.onSurface
+        checkboxLabel.isBordered = false
+        checkboxLabel.isEditable = false
+        checkboxLabel.drawsBackground = false
+        checkboxLabel.translatesAutoresizingMaskIntoConstraints = false
 
         let hint = NSTextField(labelWithString: "Ensure LocalBridge remains visible above other applications.")
         hint.font = NSFont.systemFont(ofSize: 11, weight: .regular)
@@ -557,7 +588,7 @@ final class SettingsViewController: NSViewController {
         hint.drawsBackground = false
         hint.translatesAutoresizingMaskIntoConstraints = false
 
-        textContainer.addSubview(label)
+        textContainer.addSubview(checkboxLabel)
         textContainer.addSubview(hint)
 
         rowContainer.addSubview(stayOnTopCheckbox)
@@ -576,11 +607,11 @@ final class SettingsViewController: NSViewController {
             textContainer.topAnchor.constraint(equalTo: rowContainer.topAnchor),
             textContainer.bottomAnchor.constraint(equalTo: rowContainer.bottomAnchor),
 
-            label.topAnchor.constraint(equalTo: textContainer.topAnchor),
-            label.leadingAnchor.constraint(equalTo: textContainer.leadingAnchor),
-            label.trailingAnchor.constraint(equalTo: textContainer.trailingAnchor),
+            checkboxLabel.topAnchor.constraint(equalTo: textContainer.topAnchor),
+            checkboxLabel.leadingAnchor.constraint(equalTo: textContainer.leadingAnchor),
+            checkboxLabel.trailingAnchor.constraint(equalTo: textContainer.trailingAnchor),
 
-            hint.topAnchor.constraint(equalTo: label.bottomAnchor, constant: 4),
+            hint.topAnchor.constraint(equalTo: checkboxLabel.bottomAnchor, constant: 4),
             hint.leadingAnchor.constraint(equalTo: textContainer.leadingAnchor),
             hint.trailingAnchor.constraint(equalTo: textContainer.trailingAnchor),
             hint.bottomAnchor.constraint(equalTo: textContainer.bottomAnchor),
@@ -594,29 +625,91 @@ final class SettingsViewController: NSViewController {
         return container
     }
 
+    private func makeLanguageRow() -> NSView {
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        languageLabel = NSTextField(labelWithString: LanguageManager.shared.localized("settings.language"))
+        languageLabel.font = DSV2.fontBodyMd
+        languageLabel.textColor = DSV2.onSurface
+        languageLabel.isBordered = false
+        languageLabel.isEditable = false
+        languageLabel.drawsBackground = false
+        languageLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        languageDescLabel = NSTextField(labelWithString: LanguageManager.shared.localized("settings.language.description"))
+        languageDescLabel.font = NSFont.systemFont(ofSize: 11, weight: .regular)
+        languageDescLabel.textColor = DSV2.onSurfaceVariant
+        languageDescLabel.isBordered = false
+        languageDescLabel.isEditable = false
+        languageDescLabel.drawsBackground = false
+        languageDescLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        // 创建语言分段控制器
+        languageSegmentedControl = NSSegmentedControl(
+            labels: ["English", "中文"],
+            trackingMode: .selectOne,
+            target: self,
+            action: #selector(languageChanged)
+        )
+        languageSegmentedControl.selectedSegment = LanguageManager.shared.currentLanguage == .english ? 0 : 1
+        languageSegmentedControl.translatesAutoresizingMaskIntoConstraints = false
+
+        container.addSubview(languageLabel)
+        container.addSubview(languageDescLabel)
+        container.addSubview(languageSegmentedControl)
+
+        NSLayoutConstraint.activate([
+            languageLabel.topAnchor.constraint(equalTo: container.topAnchor),
+            languageLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            languageLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+
+            languageDescLabel.topAnchor.constraint(equalTo: languageLabel.bottomAnchor, constant: 4),
+            languageDescLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            languageDescLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+
+            languageSegmentedControl.topAnchor.constraint(equalTo: languageDescLabel.bottomAnchor, constant: 12),
+            languageSegmentedControl.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            languageSegmentedControl.widthAnchor.constraint(equalToConstant: 240),
+            languageSegmentedControl.bottomAnchor.constraint(equalTo: container.bottomAnchor)
+        ])
+
+        return container
+    }
+
+    @objc private func languageChanged() {
+        let language: LanguageManager.Language =
+            languageSegmentedControl.selectedSegment == 0 ? .english : .chinese
+        LanguageManager.shared.setLanguage(language)
+    }
+
     private func makeThemeRow() -> NSView {
         let container = NSView()
         container.translatesAutoresizingMaskIntoConstraints = false
 
-        let label = NSTextField(labelWithString: "Theme")
-        label.font = DSV2.fontBodyMd
-        label.textColor = DSV2.onSurface
-        label.isBordered = false
-        label.isEditable = false
-        label.drawsBackground = false
-        label.translatesAutoresizingMaskIntoConstraints = false
+        themeLabel = NSTextField(labelWithString: LanguageManager.shared.localized("settings.theme"))
+        themeLabel.font = DSV2.fontBodyMd
+        themeLabel.textColor = DSV2.onSurface
+        themeLabel.isBordered = false
+        themeLabel.isEditable = false
+        themeLabel.drawsBackground = false
+        themeLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        let hint = NSTextField(labelWithString: "Choose your preferred color theme or follow system settings.")
-        hint.font = NSFont.systemFont(ofSize: 11, weight: .regular)
-        hint.textColor = DSV2.onSurfaceVariant
-        hint.isBordered = false
-        hint.isEditable = false
-        hint.drawsBackground = false
-        hint.translatesAutoresizingMaskIntoConstraints = false
+        themeDescLabel = NSTextField(labelWithString: LanguageManager.shared.localized("settings.theme.description"))
+        themeDescLabel.font = NSFont.systemFont(ofSize: 11, weight: .regular)
+        themeDescLabel.textColor = DSV2.onSurfaceVariant
+        themeDescLabel.isBordered = false
+        themeDescLabel.isEditable = false
+        themeDescLabel.drawsBackground = false
+        themeDescLabel.translatesAutoresizingMaskIntoConstraints = false
 
         // 创建主题分段控制器
         themeSegmentedControl = DSV2.makeSegmentedControl(
-            items: ["Dark", "Light", "Auto"],
+            items: [
+                LanguageManager.shared.localized("settings.theme.dark"),
+                LanguageManager.shared.localized("settings.theme.light"),
+                LanguageManager.shared.localized("settings.theme.auto")
+            ],
             target: self,
             action: #selector(themeChanged)
         )
@@ -633,20 +726,20 @@ final class SettingsViewController: NSViewController {
             themeSegmentedControl.selectItem(at: 2)
         }
 
-        container.addSubview(label)
-        container.addSubview(hint)
+        container.addSubview(themeLabel)
+        container.addSubview(themeDescLabel)
         container.addSubview(themeSegmentedControl)
 
         NSLayoutConstraint.activate([
-            label.topAnchor.constraint(equalTo: container.topAnchor),
-            label.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            label.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            themeLabel.topAnchor.constraint(equalTo: container.topAnchor),
+            themeLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            themeLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor),
 
-            hint.topAnchor.constraint(equalTo: label.bottomAnchor, constant: 4),
-            hint.leadingAnchor.constraint(equalTo: container.leadingAnchor),
-            hint.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            themeDescLabel.topAnchor.constraint(equalTo: themeLabel.bottomAnchor, constant: 4),
+            themeDescLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            themeDescLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor),
 
-            themeSegmentedControl.topAnchor.constraint(equalTo: hint.bottomAnchor, constant: 12),
+            themeSegmentedControl.topAnchor.constraint(equalTo: themeDescLabel.bottomAnchor, constant: 12),
             themeSegmentedControl.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             themeSegmentedControl.widthAnchor.constraint(equalToConstant: 240),
             themeSegmentedControl.bottomAnchor.constraint(equalTo: container.bottomAnchor)
@@ -1061,7 +1154,7 @@ class ServiceConfigView: NSView {
     }
 
     private func makeSaveButton() -> NSButton {
-        let button = NSButton(title: "Save and Restart", target: self, action: #selector(saveClicked))
+        let button = NSButton(title: LanguageManager.shared.localized("settings.save"), target: self, action: #selector(saveClicked))
         button.translatesAutoresizingMaskIntoConstraints = false
         button.wantsLayer = true
         button.isBordered = false
@@ -1127,7 +1220,7 @@ class ServiceConfigView: NSView {
             .foregroundColor: enabled ? NSColor.white : DSV2.onSurfaceVariant.withAlphaComponent(0.5),
             .font: NSFont.systemFont(ofSize: 13, weight: .bold)
         ]
-        saveButton.attributedTitle = NSAttributedString(string: "Save and Restart", attributes: attributes)
+        saveButton.attributedTitle = NSAttributedString(string: LanguageManager.shared.localized("settings.save"), attributes: attributes)
     }
 
     @objc private func configChanged() {

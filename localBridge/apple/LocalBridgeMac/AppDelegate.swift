@@ -15,8 +15,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
 
         goServer.start()
-        
+
         NotificationCenter.default.addObserver(self, selector: #selector(restartWebSocketServer), name: NSNotification.Name("RestartWebSocketServer"), object: nil)
+
+        // 监听语言变化
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleLanguageChange),
+            name: LanguageManager.languageDidChangeNotification,
+            object: nil
+        )
         
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         self.statusItem = statusItem
@@ -32,10 +40,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             button.image = NSImage(systemSymbolName: "message.badge", accessibilityDescription: "LocalBridge")
         }
         button.imagePosition = .imageOnly
-        button.toolTip = "Open LocalBridge"
+        button.toolTip = LanguageManager.shared.localized("app.open")
         button.target = self
         button.action = #selector(openMainWindow)
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+    }
+
+    @objc private func handleLanguageChange() {
+        statusItem?.button?.toolTip = LanguageManager.shared.localized("app.open")
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -49,7 +61,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
            event.type == .rightMouseUp ||
            (event.type == .leftMouseUp && event.modifierFlags.contains(.control)) {
             let menu = NSMenu()
-            menu.addItem(NSMenuItem(title: "退出 LocalBridge", action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
+            menu.addItem(NSMenuItem(title: LanguageManager.shared.localized("app.quit"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q"))
             statusItem?.menu = menu
             statusItem?.button?.performClick(nil)
             statusItem?.menu = nil

@@ -38,6 +38,19 @@ final class BridgeLogsViewController: NSViewController {
             name: ThemeManager.themeDidChangeNotification,
             object: nil
         )
+
+        // 注册语言变化通知
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleLanguageChange),
+            name: LanguageManager.languageDidChangeNotification,
+            object: nil
+        )
+    }
+
+    @objc private func handleLanguageChange() {
+        titleLabel.stringValue = LanguageManager.shared.localized("logs.title")
+        clearButton.toolTip = LanguageManager.shared.localized("logs.clear")
     }
 
     @objc private func handleThemeChange() {
@@ -104,7 +117,7 @@ final class BridgeLogsViewController: NSViewController {
         headerBar.translatesAutoresizingMaskIntoConstraints = false
 
         // Title
-        titleLabel = NSTextField(labelWithString: "Bridge Logs")
+        titleLabel = NSTextField(labelWithString: LanguageManager.shared.localized("logs.title"))
         titleLabel.font = DSV2.fontTitleSm
         titleLabel.textColor = DSV2.onSurface
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
@@ -132,7 +145,7 @@ final class BridgeLogsViewController: NSViewController {
 
         // Action buttons
         setupActionButton(copyButton, icon: "doc.on.doc", tooltip: "Copy")
-        setupActionButton(clearButton, icon: "trash", tooltip: "Clear", isDestructive: true)
+        setupActionButton(clearButton, icon: "trash", tooltip: LanguageManager.shared.localized("logs.clear"), isDestructive: true)
 
         // Layout
         let titleRow = NSStackView(views: [titleLabel, logCountLabel])

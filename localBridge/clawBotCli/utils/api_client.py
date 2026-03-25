@@ -215,3 +215,23 @@ class APIClient:
             raise Exception(f"Media upload failed: {response['error']}")
 
         return response.get('media_id_string', response.get('media_id', ''))
+
+    # AI Claw APIs
+    def get_ai_status(self) -> Dict[Any, Any]:
+        """Get AI tabs status"""
+        return self._request('GET', '/api/v1/ai/status')
+
+    def send_ai_message(self, platform: str, prompt: str, conversation_id: Optional[str] = None) -> Dict[Any, Any]:
+        """Send message to AI platform"""
+        data = {'platform': platform, 'prompt': prompt}
+        if conversation_id:
+            data['conversationId'] = conversation_id
+        return self._request('POST', '/api/v1/ai/message', json=data)
+
+    def new_ai_conversation(self, platform: str) -> Dict[Any, Any]:
+        """Create new AI conversation"""
+        return self._request('POST', '/api/v1/ai/new_conversation', json={'platform': platform})
+
+    def navigate_ai_platform(self, platform: str) -> Dict[Any, Any]:
+        """Navigate AI platform to home"""
+        return self._request('POST', '/api/v1/ai/navigate', json={'platform': platform})

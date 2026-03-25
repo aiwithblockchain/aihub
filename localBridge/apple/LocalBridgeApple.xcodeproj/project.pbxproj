@@ -17,6 +17,9 @@
 		69B055D32F691DC20076AC1D /* InstancesPanelViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69B055D22F691DC20076AC1D /* InstancesPanelViewController.swift */; };
 		69B055D62F692B160076AC1D /* BridgeLogsViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69B055D52F692B160076AC1D /* BridgeLogsViewController.swift */; };
 		69B055D72F692B160076AC1D /* BridgeLogger.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69B055D42F692B160076AC1D /* BridgeLogger.swift */; };
+		69C2BE0E2F73D3C900173318 /* ai_claw_api_docs.json in Resources */ = {isa = PBXBuildFile; fileRef = 69C2BE0D2F73D3C900173318 /* ai_claw_api_docs.json */; };
+		69C2BE112F73E78D00173318 /* Localizations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69C2BE102F73E78D00173318 /* Localizations.swift */; };
+		69C2BE122F73E78D00173318 /* LanguageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69C2BE0F2F73E78D00173318 /* LanguageManager.swift */; };
 		A10000000000000000000030 /* LocalBridgeiOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000022 /* LocalBridgeiOSApp.swift */; };
 		A10000000000000000000031 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000023 /* ContentView.swift */; };
 		A10000000000000000000032 /* LocalBridgeMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000024 /* LocalBridgeMacApp.swift */; };
@@ -49,6 +52,9 @@
 		69B055D22F691DC20076AC1D /* InstancesPanelViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = InstancesPanelViewController.swift; sourceTree = "<group>"; };
 		69B055D42F692B160076AC1D /* BridgeLogger.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeLogger.swift; sourceTree = "<group>"; };
 		69B055D52F692B160076AC1D /* BridgeLogsViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BridgeLogsViewController.swift; sourceTree = "<group>"; };
+		69C2BE0D2F73D3C900173318 /* ai_claw_api_docs.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ai_claw_api_docs.json; sourceTree = "<group>"; };
+		69C2BE0F2F73E78D00173318 /* LanguageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageManager.swift; sourceTree = "<group>"; };
+		69C2BE102F73E78D00173318 /* Localizations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localizations.swift; sourceTree = "<group>"; };
 		A10000000000000000000020 /* LocalBridgeiOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LocalBridgeiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000021 /* LocalBridgeMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LocalBridgeMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000022 /* LocalBridgeiOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBridgeiOSApp.swift; sourceTree = "<group>"; };
@@ -143,12 +149,15 @@
 			children = (
 				69B055D22F691DC20076AC1D /* InstancesPanelViewController.swift */,
 				69B055D02F680B9C0076AC1D /* api_docs.json */,
+				69C2BE0D2F73D3C900173318 /* ai_claw_api_docs.json */,
 				A1000000000000000000002C /* Assets.xcassets */,
 				A10000000000000000000024 /* LocalBridgeMacApp.swift */,
 				A10000000000000000000025 /* AppDelegate.swift */,
 				A10000000000000000000026 /* MainWindowController.swift */,
 				6983CFE12F6B7E3300CC7BF2 /* DesignSystem.swift */,
 				A10000000000000000000027 /* ConversationsSplitViewController.swift */,
+				69C2BE0F2F73E78D00173318 /* LanguageManager.swift */,
+				69C2BE102F73E78D00173318 /* Localizations.swift */,
 				A10000000000000000000028 /* SidebarViewController.swift */,
 				A10000000000000000000029 /* DetailViewController.swift */,
 				A1000000000000000000002A /* Conversation.swift */,
@@ -290,6 +299,7 @@
 			files = (
 				A1000000000000000000003A /* Assets.xcassets in Resources */,
 				69B055D12F680B9C0076AC1D /* api_docs.json in Resources */,
+				69C2BE0E2F73D3C900173318 /* ai_claw_api_docs.json in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -321,6 +331,8 @@
 				6983D0162F6BD50900CC7BF2 /* DesignSystemV2.swift in Sources */,
 				A10000000000000000000034 /* MainWindowController.swift in Sources */,
 				A10000000000000000000035 /* ConversationsSplitViewController.swift in Sources */,
+				69C2BE112F73E78D00173318 /* Localizations.swift in Sources */,
+				69C2BE122F73E78D00173318 /* LanguageManager.swift in Sources */,
 				69B055D32F691DC20076AC1D /* InstancesPanelViewController.swift in Sources */,
 				69B055D62F692B160076AC1D /* BridgeLogsViewController.swift in Sources */,
 				69B055D72F692B160076AC1D /* BridgeLogger.swift in Sources */,

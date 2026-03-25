@@ -49,7 +49,7 @@ private final class InsetTextField: NSTextField {
 final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, NSTableViewDataSource {
     private let tableView = NSTableView()
     private let headerImageView = NSImageView()
-    private let headerTitleLabel = NSTextField(labelWithString: "TweetClaw")
+    private let headerTitleLabel = NSTextField(labelWithString: "")
     private var detailTextView: NSTextView!
     private var mainRightScrollView: NSScrollView!
 
@@ -105,7 +105,22 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             object: nil
         )
 
+        // 注册语言变化通知
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleLanguageChange),
+            name: LanguageManager.languageDidChangeNotification,
+            object: nil
+        )
+
+        // 初始化文本
+        headerTitleLabel.stringValue = LanguageManager.shared.localized("tweetclaw.title")
+
         loadInstances()
+    }
+
+    @objc private func handleLanguageChange() {
+        headerTitleLabel.stringValue = LanguageManager.shared.localized("tweetclaw.title")
     }
 
     @objc private func handleThemeChange() {
