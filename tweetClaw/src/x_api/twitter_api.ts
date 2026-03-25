@@ -352,9 +352,13 @@ export async function uploadMedia(mediaData: string, mimeType: string): Promise<
     const blob = new Blob([ab], { type: mimeType });
     const totalBytes = blob.size;
 
+    // 根据 MIME 类型确定 media_category
+    const isVideo = mimeType.startsWith('video/');
+    const mediaCategory = isVideo ? 'tweet_video' : 'tweet_image';
+
     // 步骤 1: INIT
     const mediaType = encodeURIComponent(mimeType);
-    const initUrl = `https://upload.x.com/i/media/upload.json?command=INIT&total_bytes=${totalBytes}&media_type=${mediaType}&media_category=tweet_image`;
+    const initUrl = `https://upload.x.com/i/media/upload.json?command=INIT&total_bytes=${totalBytes}&media_type=${mediaType}&media_category=${mediaCategory}`;
 
     const initTxid = await getTransactionIdFor('POST', '/i/media/upload.json');
 
@@ -427,6 +431,53 @@ export async function uploadMedia(mediaData: string, mimeType: string): Promise<
 
     const finalizeData: MediaUploadFinalizeResponse = await finalizeResponse.json();
     console.log(`[TwitterAPI] Media upload FINALIZE success, media_id=${finalizeData.media_id_string}`);
+
+    // 步骤 4: 如果是视频,需要轮询 STATUS 等待处理完成
+    if (isVideo) {
+        console.log(`[TwitterAPI] Video detected, waiting for processing...`);
+        let processingComplete = false;
+        let attempts = 0;
+        const maxAttempts = 60; // 最多等待 60 次 (约 5 分钟)
+
+        while (!processingComplete && attempts < maxAttempts) {
+            attempts++;
+            await new Promise(resolve => setTimeout(resolve, 5000)); // 等待 5 秒
+
+            const statusUrl = `https://upload.x.com/i/media/upload.json?command=STATUS&media_id=${mediaId}`;
+            const statusTxid = await getTransactionIdFor('GET', '/i/media/upload.json');
+
+            const statusResponse = await fetch(statusUrl, {
+                method: 'GET',
+                headers: {
+                    'authorization': bearer,
+                    'x-csrf-token': csrf,
+                    'x-client-transaction-id': statusTxid,
+                    'x-twitter-auth-type': 'OAuth2Session',
+                },
+                credentials: 'include'
+            });
+
+            if (!statusResponse.ok) {
+                console.warn(`[TwitterAPI] STATUS check failed: ${statusResponse.status}`);
+                break;
+            }
+
+            const statusData: any = await statusResponse.json();
+            console.log(`[TwitterAPI] Video processing status: ${statusData.processing_info?.state || 'unknown'}`);
+
+            if (statusData.processing_info?.state === 'succeeded') {
+                processingComplete = true;
+                console.log(`[TwitterAPI] Video processing completed successfully`);
+            } else if (statusData.processing_info?.state === 'failed') {
+                throw new Error(`Video processing failed: ${statusData.processing_info?.error?.message || 'unknown error'}`);
+            }
+            // 如果是 'pending' 或 'in_progress',继续轮询
+        }
+
+        if (!processingComplete) {
+            console.warn(`[TwitterAPI] Video processing timeout after ${attempts} attempts`);
+        }
+    }
 
     return finalizeData.media_id_string;
 }
