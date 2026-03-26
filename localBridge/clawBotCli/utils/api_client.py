@@ -8,7 +8,7 @@ import os
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from config import API_BASE_URL, API_TIMEOUT
+from config import API_BASE_URL, API_TIMEOUT, MEDIA_UPLOAD_TIMEOUT
 
 
 class APIClient:
@@ -176,10 +176,10 @@ class APIClient:
     # Media Upload API
     def upload_media(self, file_path: str, tab_id: Optional[int] = None) -> str:
         """
-        Upload media file (image) and return media_id
+        Upload media file (image/video) and return media_id
 
         Args:
-            file_path: Path to the image file
+            file_path: Path to the media file
             tab_id: Optional tab ID
 
         Returns:
@@ -208,8 +208,8 @@ class APIClient:
         if tab_id:
             data['tabId'] = tab_id
 
-        # Upload
-        response = self._request('POST', '/api/v1/x/media/upload', json=data)
+        # Upload with extended timeout for large files (videos)
+        response = self._request('POST', '/api/v1/x/media/upload', json=data, timeout=MEDIA_UPLOAD_TIMEOUT)
 
         if 'error' in response:
             raise Exception(f"Media upload failed: {response['error']}")

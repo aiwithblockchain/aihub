@@ -115,18 +115,18 @@ def test_tweet_connectivity(client):
     return True, tab_id
 
 
-def get_pinned_tweet(client, tab_id):
+def get_pinned_tweet(client, tab_id, username):
     """
-    Step 3: Navigate to openclaw profile and get pinned tweet
+    Step 3: Navigate to user profile and get pinned tweet
     Returns: (success, tweet_id, tweet_text) or (False, None, None)
     """
     print("\n" + "="*60)
-    print("📍 Step 3: Fetching Pinned Tweet from @openclaw")
+    print(f"📍 Step 3: Fetching Pinned Tweet from @{username}")
     print("="*60)
 
-    # Navigate to openclaw profile
-    print("\n🔄 Navigating to https://x.com/openclaw...")
-    nav_result = client.navigate_tab("openclaw", tab_id)
+    # Navigate to user profile
+    print(f"\n🔄 Navigating to https://x.com/{username}...")
+    nav_result = client.navigate_tab(username, tab_id)
     if not nav_result.get('success'):
         print(f"❌ Navigation failed: {nav_result.get('error', 'Unknown error')}")
         return False, None, None
@@ -136,7 +136,7 @@ def get_pinned_tweet(client, tab_id):
 
     # Get user profile
     print("\n🔄 Fetching user profile...")
-    profile = client.get_user_profile("openclaw", tab_id)
+    profile = client.get_user_profile(username, tab_id)
     if 'error' in profile:
         print(f"❌ Failed to get profile: {profile['error']}")
         return False, None, None
@@ -156,7 +156,7 @@ def get_pinned_tweet(client, tab_id):
             print(f"✅ Found pinned tweet ID: {tweet_id}")
         else:
             print("⚠️  No pinned tweet found")
-            print("   Note: The script expects a pinned tweet from @openclaw")
+            print(f"   Note: The script expects a pinned tweet from @{username}")
             return False, None, None
     except Exception as e:
         print(f"❌ Failed to extract tweet ID: {e}")
@@ -321,11 +321,21 @@ def reply_to_tweet(client, tweet_id, reply_text):
 
 def main():
     """Main workflow"""
+    import argparse
+
+    parser = argparse.ArgumentParser(description='OpenClaw Test Script - Analyze and reply to pinned tweets')
+    parser.add_argument('--username', '-u',
+                       default='openclaw',
+                       help='Twitter username to fetch pinned tweet from (default: openclaw)')
+    args = parser.parse_args()
+
+    username = args.username
+
     print("\n🤖 OpenClaw Test Script")
     print("="*60)
     print("This script will:")
     print("1. Test aiClaw and tweetClaw connectivity")
-    print("2. Fetch pinned tweet from @openclaw")
+    print(f"2. Fetch pinned tweet from @{username}")
     print("3. Analyze with AI")
     print("4. Post a reply")
     print("="*60)
@@ -343,7 +353,7 @@ def main():
         return 1
 
     # Step 3: Get pinned tweet
-    success, tweet_id, tweet_text = get_pinned_tweet(client, tab_id)
+    success, tweet_id, tweet_text = get_pinned_tweet(client, tab_id, username)
     if not success:
         return 1
 
