@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "TweetClaw",
-  "version": "0.4.52",
-  "description": "TweetClaw: Powerful agentic tool for X web session binding.",
+  "version": "0.4.53",
+  "description": "Connects your X (Twitter) browser session to local applications via WebSocket bridge for programmatic interaction.",
   "background": {
     "service_worker": "js/background.js"
   },
