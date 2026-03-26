@@ -2,6 +2,8 @@ import { __DBK_query_id_map, __DBK_bearer_token } from '../capture/consts';
 import { buildFeatures, extractMissingFeature } from './feature_manager';
 import { getTransactionIdFor } from './txid';
 
+const FALLBACK_BEARER_TOKEN = 'Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
+
 /**
  * Twitter API Client
  * Designed to run in Content Script (for cookies) and Background (for harvesting).
@@ -9,7 +11,11 @@ import { getTransactionIdFor } from './txid';
 
 async function getAuthHeader(): Promise<string> {
     const res = await chrome.storage.local.get(__DBK_bearer_token);
-    return (res[__DBK_bearer_token] as string) || "";
+    const harvested = res[__DBK_bearer_token] as string | undefined;
+    if (harvested && harvested.startsWith('Bearer ')) {
+        return harvested;
+    }
+    return FALLBACK_BEARER_TOKEN;
 }
 
 async function getCsrfToken(): Promise<string> {
@@ -172,9 +178,7 @@ export async function fetchUserByScreenName(screenName: string): Promise<any> {
     const url = `https://x.com/i/api/graphql/${STABLE_HASH}/UserByScreenName?${params.toString()}`;
 
     // 优先使用动态 harvested 的 Bearer Token，fallback 到写死的默认值
-    const bearerFromStorage = await getAuthHeader();
-    const FALLBACK_BEARER = 'Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRCOuH5E6I8xnZz4puTs%3D1Zv7ttfk8LF81IUq16cHjhLTvJu4FA33AGWWjCpTnA';
-    const bearer = bearerFromStorage || FALLBACK_BEARER;
+    const bearer = await getAuthHeader();
 
     // CSRF Token（仅限内容脚本上下文，document.cookie 可访问）
     const csrfToken = await getCsrfToken();
@@ -332,6 +336,9 @@ interface MediaUploadFinalizeResponse {
     };
 }
 
+// Keep each multipart APPEND safely below upload.x.com's request size ceiling.
+const MEDIA_APPEND_CHUNK_SIZE_BYTES = 4 * 1024 * 1024;
+
 /**
  * 上传媒体文件(图片)
  * @param mediaData Base64 编码的媒体数据
@@ -384,30 +391,38 @@ export async function uploadMedia(mediaData: string, mimeType: string): Promise<
     console.log(`[TwitterAPI] Media upload INIT success, media_id=${mediaId}`);
 
     // 步骤 2: APPEND
-    const appendUrl = `https://upload.x.com/i/media/upload.json?command=APPEND&media_id=${mediaId}&segment_index=0`;
-    const appendTxid = await getTransactionIdFor('POST', '/i/media/upload.json');
+    const totalSegments = Math.max(1, Math.ceil(totalBytes / MEDIA_APPEND_CHUNK_SIZE_BYTES));
+    console.log(`[TwitterAPI] Media upload APPEND start, totalBytes=${totalBytes}, segments=${totalSegments}`);
 
-    const formData = new FormData();
-    formData.append('media', blob, 'blob');
+    for (let segmentIndex = 0; segmentIndex < totalSegments; segmentIndex++) {
+        const start = segmentIndex * MEDIA_APPEND_CHUNK_SIZE_BYTES;
+        const end = Math.min(start + MEDIA_APPEND_CHUNK_SIZE_BYTES, totalBytes);
+        const chunk = blob.slice(start, end, mimeType);
+        const appendUrl = `https://upload.x.com/i/media/upload.json?command=APPEND&media_id=${mediaId}&segment_index=${segmentIndex}`;
+        const appendTxid = await getTransactionIdFor('POST', '/i/media/upload.json');
 
-    const appendResponse = await fetch(appendUrl, {
-        method: 'POST',
-        headers: {
-            'authorization': bearer,
-            'x-csrf-token': csrf,
-            'x-client-transaction-id': appendTxid,
-            'x-twitter-auth-type': 'OAuth2Session',
-        },
-        body: formData,
-        credentials: 'include'
-    });
+        const formData = new FormData();
+        formData.append('media', chunk, `chunk-${segmentIndex}`);
 
-    if (!appendResponse.ok) {
-        const text = await appendResponse.text();
-        throw new Error(`Media upload APPEND failed: ${appendResponse.status} ${text}`);
+        const appendResponse = await fetch(appendUrl, {
+            method: 'POST',
+            headers: {
+                'authorization': bearer,
+                'x-csrf-token': csrf,
+                'x-client-transaction-id': appendTxid,
+                'x-twitter-auth-type': 'OAuth2Session',
+            },
+            body: formData,
+            credentials: 'include'
+        });
+
+        if (!appendResponse.ok) {
+            const text = await appendResponse.text();
+            throw new Error(`Media upload APPEND failed at segment ${segmentIndex}/${totalSegments - 1}: ${appendResponse.status} ${text}`);
+        }
+
+        console.log(`[TwitterAPI] Media upload APPEND success, segment=${segmentIndex + 1}/${totalSegments}, bytes=${chunk.size}`);
     }
-
-    console.log(`[TwitterAPI] Media upload APPEND success`);
 
     // 步骤 3: FINALIZE
     const finalizeUrl = `https://upload.x.com/i/media/upload.json?command=FINALIZE&media_id=${mediaId}`;
