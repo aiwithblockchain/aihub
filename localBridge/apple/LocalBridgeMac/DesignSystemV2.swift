@@ -612,6 +612,21 @@ class SegmentedControl: NSView {
     func updateTheme() {
         updateSelection(index: selectedIndex)
     }
+
+    func updateItems(_ newItems: [String]) {
+        guard newItems.count == buttons.count else {
+            print("Warning: updateItems called with different number of items")
+            return
+        }
+
+        for (index, button) in buttons.enumerated() {
+            let attributes: [NSAttributedString.Key: Any] = [
+                .foregroundColor: index == selectedIndex ? DSV2.onSurface : DSV2.onSurfaceVariant,
+                .font: DSV2.fontLabelMd
+            ]
+            button.attributedTitle = NSAttributedString(string: newItems[index], attributes: attributes)
+        }
+    }
 }
 
 // MARK: - Global UI Component

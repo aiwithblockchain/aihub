@@ -356,6 +356,13 @@ final class SettingsViewController: NSViewController {
         languageDescLabel?.stringValue = LanguageManager.shared.localized("settings.language.description")
         themeLabel?.stringValue = LanguageManager.shared.localized("settings.theme")
         themeDescLabel?.stringValue = LanguageManager.shared.localized("settings.theme.description")
+
+        // Update theme segmented control button labels
+        themeSegmentedControl?.updateItems([
+            LanguageManager.shared.localized("settings.theme.dark"),
+            LanguageManager.shared.localized("settings.theme.light"),
+            LanguageManager.shared.localized("settings.theme.auto")
+        ])
     }
 
     override func viewWillAppear() {
