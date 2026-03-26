@@ -405,6 +405,10 @@ export class ChatGptAdapter extends BasePlatformAdapter {
      * - 发送前有 N 条 assistant 消息
      * - 发送后新增一条（id 以 "request-placeholder-" 开头的临时消息，生成完成后换成真实 id）
      * - 取最后一条即为当前回复
+     *
+     * 关键修复：ChatGPT 使用虚拟滚动/懒加载机制
+     * - 不在视口内的消息内容会被卸载，textContent 变为 "..."
+     * - 必须先滚动到视口内，触发内容加载
      */
     private extractLatestAssistantMessage(msgCountBefore: number): string {
         console.log(`[aiClaw ChatGPT] ========== Step 9: 开始提取回复 ==========`);
@@ -471,12 +475,42 @@ export class ChatGptAdapter extends BasePlatformAdapter {
             console.log(`[aiClaw ChatGPT] Message ${index}: "${textPreview}..."`);
         });
 
-        const lastMessage = messages[messages.length - 1];
-        const text = (lastMessage.textContent || '').trim();
+        const lastMessage = messages[messages.length - 1] as HTMLElement;
+
+        // 关键修复：滚动到视口内，触发 ChatGPT 加载完整内容
+        console.log(`[aiClaw ChatGPT] 滚动最后一条消息到视口...`);
+        lastMessage.scrollIntoView({ behavior: 'smooth', block: 'center' });
+
+        // 等待内容加载并重试提取（最多 3 次）
+        let text = (lastMessage.textContent || '').trim();
+        let retries = 0;
+        const maxRetries = 3;
+
+        while ((text === '...' || text.length === 0) && retries < maxRetries) {
+            console.log(`[aiClaw ChatGPT] 内容为占位符 "${text}"，等待加载... (重试 ${retries + 1}/${maxRetries})`);
+
+            // 同步等待（使用 busy-wait，因为在同步上下文中）
+            const waitStart = Date.now();
+            while (Date.now() - waitStart < 300) {
+                // 忙等待 300ms
+            }
+
+            // 重新滚动确保在视口内
+            lastMessage.scrollIntoView({ behavior: 'auto', block: 'center' });
+
+            // 再次提取
+            text = (lastMessage.textContent || '').trim();
+            retries++;
+        }
 
         console.log(`[aiClaw ChatGPT] ✓ 提取最后一条消息 (索引 ${messages.length - 1})`);
         console.log(`[aiClaw ChatGPT] 消息长度: ${text.length} 字符`);
         console.log(`[aiClaw ChatGPT] 消息内容: "${text.slice(0, 100)}..."`);
+
+        if (text === '...' || text.length === 0) {
+            console.warn(`[aiClaw ChatGPT] ⚠️ 经过 ${retries} 次重试后仍然只提取到占位符`);
+        }
+
         console.log(`[aiClaw ChatGPT] ========== Step 9: 提取完成 ==========`);
 
         return text;
