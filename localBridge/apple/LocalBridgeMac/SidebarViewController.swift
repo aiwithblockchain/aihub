@@ -52,6 +52,7 @@ final class SidebarViewController: NSViewController {
 
     private let tableView = NSTableView(frame: .zero)
     private let settingsButton = NSButton()
+    private let helpButton = NSButton()
     private let quitButton = NSButton()
 
     override func loadView() {
@@ -64,6 +65,7 @@ final class SidebarViewController: NSViewController {
         configureView()
         configureTableView()
         configureSettingsButton()
+        configureHelpButton()
         configureQuitButton()
         configureLayout()
 
@@ -90,6 +92,7 @@ final class SidebarViewController: NSViewController {
 
         // 更新按钮颜色
         settingsButton.contentTintColor = DSV2.onSurfaceVariant
+        helpButton.contentTintColor = DSV2.onSurfaceVariant
         quitButton.contentTintColor = DSV2.onSurfaceVariant
 
         // 更新所有可见的 cell
@@ -109,11 +112,12 @@ final class SidebarViewController: NSViewController {
     @objc private func handleLanguageChange() {
         // 重新加载对话列表
         loadConversations()
-        
+
         // 更新底部按钮
         settingsButton.title = LanguageManager.shared.localized("settings.title")
+        helpButton.title = LanguageManager.shared.localized("app.help")
         quitButton.title = LanguageManager.shared.localized("app.quit")
-        
+
         tableView.reloadData()
     }
 
@@ -223,6 +227,7 @@ private extension SidebarViewController {
 
         view.addSubview(scrollView)
         view.addSubview(settingsButton)
+        view.addSubview(helpButton)
         view.addSubview(quitButton)
 
         NSLayoutConstraint.activate([
@@ -233,8 +238,13 @@ private extension SidebarViewController {
 
             settingsButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
             settingsButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
-            settingsButton.bottomAnchor.constraint(equalTo: quitButton.topAnchor, constant: -8),
+            settingsButton.bottomAnchor.constraint(equalTo: helpButton.topAnchor, constant: -8),
             settingsButton.heightAnchor.constraint(equalToConstant: 32),
+
+            helpButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
+            helpButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
+            helpButton.bottomAnchor.constraint(equalTo: quitButton.topAnchor, constant: -8),
+            helpButton.heightAnchor.constraint(equalToConstant: 32),
 
             quitButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
             quitButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
@@ -261,6 +271,24 @@ private extension SidebarViewController {
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
     }
 
+    func configureHelpButton() {
+        if #available(macOS 11.0, *) {
+            helpButton.image = NSImage(systemSymbolName: "questionmark.circle", accessibilityDescription: "Help")
+        }
+
+        helpButton.title = LanguageManager.shared.localized("app.help")
+        helpButton.bezelStyle = .regularSquare
+        helpButton.isBordered = false
+        helpButton.imagePosition = .imageLeading
+        helpButton.alignment = .left
+        helpButton.font = DSV2.fontBodySm
+        helpButton.contentTintColor = DSV2.onSurfaceVariant
+
+        helpButton.target = self
+        helpButton.action = #selector(openHelpWebsite)
+        helpButton.translatesAutoresizingMaskIntoConstraints = false
+    }
+
     func configureQuitButton() {
         if #available(macOS 11.0, *) {
             quitButton.image = NSImage(systemSymbolName: "power", accessibilityDescription: "Quit")
@@ -283,6 +311,12 @@ private extension SidebarViewController {
         tableView.deselectAll(nil)
         refreshSelectionForAllVisibleRows()
         delegate?.sidebarViewControllerDidSelectSettings(self)
+    }
+
+    @objc func openHelpWebsite(_ sender: NSButton) {
+        if let url = URL(string: "https://aiwithblockchain.github.io/") {
+            NSWorkspace.shared.open(url)
+        }
     }
 
     @objc func quitApplication(_ sender: NSButton) {

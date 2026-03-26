@@ -61,6 +61,10 @@ struct Localizations {
             "en": "Quit",
             "zh": "退出"
         ],
+        "app.help": [
+            "en": "Help",
+            "zh": "帮助"
+        ],
         "app.open": [
             "en": "Open OpenHub",
             "zh": "打开 OpenHub"
