@@ -56,7 +56,7 @@
 		69C2BE0F2F73E78D00173318 /* LanguageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageManager.swift; sourceTree = "<group>"; };
 		69C2BE102F73E78D00173318 /* Localizations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localizations.swift; sourceTree = "<group>"; };
 		A10000000000000000000020 /* LocalBridgeiOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LocalBridgeiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A10000000000000000000021 /* LocalBridgeMac.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LocalBridgeMac.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000021 /* OpeHub.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpeHub.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000022 /* LocalBridgeiOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBridgeiOSApp.swift; sourceTree = "<group>"; };
 		A10000000000000000000023 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A10000000000000000000024 /* LocalBridgeMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBridgeMacApp.swift; sourceTree = "<group>"; };
@@ -128,7 +128,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000020 /* LocalBridgeiOS.app */,
-				A10000000000000000000021 /* LocalBridgeMac.app */,
+				A10000000000000000000021 /* OpeHub.app */,
 				2B8FB1B82F69AECA0005B31B /* tokenRouter.app */,
 			);
 			name = Products;
@@ -233,7 +233,7 @@
 			);
 			name = LocalBridgeMac;
 			productName = LocalBridgeMac;
-			productReference = A10000000000000000000021 /* LocalBridgeMac.app */;
+			productReference = A10000000000000000000021 /* OpeHub.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -415,7 +415,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = OpenHub;
+				INFOPLIST_KEY_CFBundleDisplayName = OpeHub;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -495,7 +495,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = OpenHub;
+				INFOPLIST_KEY_CFBundleDisplayName = OpeHub;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -561,7 +561,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_ASSET_PATHS = "\"\"";
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = OpenHub;
+				INFOPLIST_KEY_CFBundleDisplayName = OpeHub;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -632,6 +632,7 @@
 					"-lc++",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.aihub.localbridge.mac;
+				PRODUCT_NAME = OpeHub;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 			};
@@ -650,7 +651,7 @@
 					"$(PROJECT_DIR)/LocalBridgeApple/Frameworks",
 				);
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = OpenHub;
+				INFOPLIST_KEY_CFBundleDisplayName = OpeHub;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
@@ -664,6 +665,7 @@
 					"-lc++",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.aihub.localbridge.mac;
+				PRODUCT_NAME = OpeHub;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 			};
