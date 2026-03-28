@@ -74,6 +74,14 @@ localBridge.queryUserProfileHandler = queryUserProfile;
 localBridge.querySearchTimelineHandler = querySearchTimeline;
 localBridge.uploadMediaHandler = uploadMedia;
 
+// ── Listen for reconnect alarms ──────────────────────────────────
+chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === 'tweetclaw-reconnect') {
+        console.log('[TweetClaw-BG] Reconnect alarm triggered');
+        localBridge.handleReconnectAlarm();
+    }
+});
+
 // ── 初始化默认 QueryID 映射 ───────────────────────────────────────
 async function initDefaultQueryKeys() {
     const res = await chrome.storage.local.get(__DBK_query_id_map);

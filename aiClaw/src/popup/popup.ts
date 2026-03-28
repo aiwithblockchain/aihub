@@ -8,6 +8,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const portInput = document.getElementById('portInput') as HTMLInputElement;
     const nameInput = document.getElementById('nameInput') as HTMLInputElement;
     const saveBtn = document.getElementById('saveBtn') as HTMLButtonElement;
+    const reconnectBtn = document.getElementById('reconnectBtn') as HTMLButtonElement;
     const statusMsg = document.getElementById('statusMsg') as HTMLDivElement;
     
     // Load config
@@ -43,6 +44,21 @@ document.addEventListener('DOMContentLoaded', () => {
             }).catch(() => {
                 setTimeout(() => window.close(), 1000);
             });
+        });
+    });
+
+    reconnectBtn.addEventListener('click', () => {
+        statusMsg.textContent = t('message.reconnecting');
+        chrome.runtime.sendMessage({ type: 'MANUAL_RECONNECT' }).then((response) => {
+            if (response && response.ok) {
+                statusMsg.textContent = t('message.reconnect_triggered');
+                setTimeout(() => {
+                    statusMsg.textContent = '';
+                }, 2000);
+            }
+        }).catch((err) => {
+            statusMsg.textContent = t('message.reconnect_failed');
+            console.error('Reconnect failed:', err);
         });
     });
 });

@@ -4,12 +4,14 @@ import { getOrCreateInstanceId, getOrCreateInstanceName } from './instance-id';
 export class LocalBridgeSocket {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
-  private reconnectTimer: any = null;
   private heartbeatInterval: any = null;
   private serverInfo: ServerHelloAckPayload | null = null;
   private lastPongTimestamp = 0;
   private instanceId: string = '';
   private instanceName: string = '';
+  private maxReconnectAttempts = 5;
+  private hasLoggedOfflineNotice = false;
+  private static readonly RECONNECT_ALARM_NAME = 'tweetclaw-reconnect';
   
   public queryXTabsHandler: (() => Promise<any>) | null = null;
   public queryXBasicInfoHandler: (() => Promise<any>) | null = null;
@@ -43,21 +45,25 @@ export class LocalBridgeSocket {
   public getCurrentUrl(): string {
     return this.WS_URL;
   }
+
+  public handleReconnectAlarm() {
+    console.log('[tweetClaw] Reconnect alarm triggered');
+    this.reconnectAttempts++;
+    this.connect();
+  }
   
   public reconnect(host: string, port: number) {
     console.log(`[tweetClaw] reconnecting to ${host}:${port}`);
     this.WS_URL = `ws://${host}:${port}/ws`;
     this.isConnecting = false;
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
+    this.clearReconnectAlarm();
     if (this.ws) {
       this.ws.onclose = null; // prevent standard reconnect loop
       this.ws.close();
       this.ws = null;
     }
     this.reconnectAttempts = 0;
+    this.hasLoggedOfflineNotice = false; // Reset offline notice flag
     this.connect();
   }
   
@@ -125,25 +131,37 @@ export class LocalBridgeSocket {
   }
   
   private scheduleReconnect() {
-    if (this.reconnectTimer) return;
-    
-    const delay = this.getReconnectDelay();
-    console.log(`[tweetClaw] websocket reconnect scheduled in ${delay}ms`);
-    
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = null;
-      this.reconnectAttempts++;
-      this.connect();
-    }, delay);
+    // Stop reconnecting after max attempts to avoid excessive connection attempts
+    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
+      if (!this.hasLoggedOfflineNotice) {
+        console.log('[tweetClaw] Local bridge server is offline. Extension will work in limited mode. Start your local server to enable full functionality.');
+        this.hasLoggedOfflineNotice = true;
+      }
+      this.clearReconnectAlarm();
+      return;
+    }
+
+    const delayInMinutes = this.getReconnectDelayInMinutes();
+    console.log(`[tweetClaw] websocket reconnect scheduled in ${delayInMinutes} minute(s) (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
+
+    // Use Chrome Alarms API for reliable reconnection
+    if (typeof chrome !== 'undefined' && chrome.alarms) {
+      chrome.alarms.create(LocalBridgeSocket.RECONNECT_ALARM_NAME, {
+        delayInMinutes: delayInMinutes
+      });
+    }
+  }
+
+  private clearReconnectAlarm() {
+    if (typeof chrome !== 'undefined' && chrome.alarms) {
+      chrome.alarms.clear(LocalBridgeSocket.RECONNECT_ALARM_NAME);
+    }
   }
   
-  private getReconnectDelay(): number {
-    switch (this.reconnectAttempts) {
-      case 0: return 1000;
-      case 1: return 2000;
-      case 2: return 5000;
-      default: return 10000;
-    }
+  private getReconnectDelayInMinutes(): number {
+    // Chrome Alarms API minimum is 0.5 minutes (30 seconds)
+    // Using 1 minute for all reconnection attempts
+    return 1;
   }
   
   private sendHello() {

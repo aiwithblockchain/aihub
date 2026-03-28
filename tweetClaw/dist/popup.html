@@ -357,8 +357,11 @@
           <input type="number" id="portInput" data-i18n-placeholder="form.port.placeholder" placeholder="10086" min="1024" max="65535" style="width: 100%; background: #0f1117; border: 1px solid #30363d; border-radius: 6px; color: #e2e8f0; padding: 8px 10px; font-size: 13px; outline: none; box-sizing: border-box;">
         </div>
 
-        <!-- Save Button -->
-        <button id="saveBtn" style="width: 100%; background: #1d9bf0; border: none; border-radius: 6px; color: #fff; font-size: 13px; font-weight: 600; padding: 10px; cursor: pointer; transition: all 0.2s;" data-i18n="form.save.button">Save &amp; Reconnect</button>
+        <!-- Buttons -->
+        <div style="display: flex; gap: 8px;">
+          <button id="reconnectBtn" style="flex: 1; background: #22c55e; border: none; border-radius: 6px; color: #fff; font-size: 13px; font-weight: 600; padding: 10px; cursor: pointer; transition: all 0.2s;" data-i18n="form.reconnect.button">Reconnect</button>
+          <button id="saveBtn" style="flex: 1; background: #1d9bf0; border: none; border-radius: 6px; color: #fff; font-size: 13px; font-weight: 600; padding: 10px; cursor: pointer; transition: all 0.2s;" data-i18n="form.save.button">Save &amp; Reconnect</button>
+        </div>
       </div>
     </div>
 
