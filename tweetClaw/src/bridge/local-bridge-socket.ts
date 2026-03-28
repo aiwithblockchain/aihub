@@ -9,8 +9,6 @@ export class LocalBridgeSocket {
   private lastPongTimestamp = 0;
   private instanceId: string = '';
   private instanceName: string = '';
-  private maxReconnectAttempts = 5;
-  private hasLoggedOfflineNotice = false;
   private static readonly RECONNECT_ALARM_NAME = 'tweetclaw-reconnect';
   
   public queryXTabsHandler: (() => Promise<any>) | null = null;
@@ -63,7 +61,6 @@ export class LocalBridgeSocket {
       this.ws = null;
     }
     this.reconnectAttempts = 0;
-    this.hasLoggedOfflineNotice = false; // Reset offline notice flag
     this.connect();
   }
   
@@ -131,18 +128,8 @@ export class LocalBridgeSocket {
   }
   
   private scheduleReconnect() {
-    // Stop reconnecting after max attempts to avoid excessive connection attempts
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      if (!this.hasLoggedOfflineNotice) {
-        console.log('[tweetClaw] Local bridge server is offline. Extension will work in limited mode. Start your local server to enable full functionality.');
-        this.hasLoggedOfflineNotice = true;
-      }
-      this.clearReconnectAlarm();
-      return;
-    }
-
     const delayInMinutes = this.getReconnectDelayInMinutes();
-    console.log(`[tweetClaw] websocket reconnect scheduled in ${delayInMinutes} minute(s) (attempt ${this.reconnectAttempts + 1}/${this.maxReconnectAttempts})`);
+    console.log(`[tweetClaw] websocket reconnect scheduled in ${delayInMinutes} minute(s) (attempt ${this.reconnectAttempts + 1})`);
 
     // Use Chrome Alarms API for reliable reconnection
     if (typeof chrome !== 'undefined' && chrome.alarms) {
