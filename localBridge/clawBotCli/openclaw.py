@@ -1,14 +1,118 @@
 #!/usr/bin/env python3
 """
-OpenClaw Test Script
+OpenClaw Test Script - AI驱动的Twitter自动回复工具
 测试 aiClaw 和 tweetClaw 的集成工作流
 
-工作流程：
-1. 测试 aiClaw 联通性和登录状态
+=== 使用方式 ===
+
+基本用法：
+    python openclaw.py                    # 默认获取 @openclaw 的置顶推文并回复
+    python openclaw.py -u username        # 获取指定用户的置顶推文并回复
+    python openclaw.py --username elonmusk  # 完整参数形式
+
+=== 功能说明 ===
+
+本脚本实现了一个完整的 AI 驱动的 Twitter 互动工作流：
+1. 测试 aiClaw 联通性和登录状态（支持 ChatGPT/Gemini/Grok）
 2. 测试 tweetClaw 联通性和 X.com 登录状态
-3. 导航到 https://x.com/openclaw 并获取置顶推文
+3. 导航到指定用户主页并获取置顶推文
 4. 将推文内容发送给 AI 进行分析
-5. 使用 AI 生成的内容回复推文
+5. 使用 AI 生成的内容自动回复推文
+
+=== 使用示例 ===
+
+示例 1: 回复 @openclaw 的置顶推文
+    $ python openclaw.py
+
+    输出：
+    🤖 OpenClaw Test Script
+    ============================================================
+    This script will:
+    1. Test aiClaw and tweetClaw connectivity
+    2. Fetch pinned tweet from @openclaw
+    3. Analyze with AI
+    4. Post a reply
+    ============================================================
+
+示例 2: 回复特定用户的置顶推文
+    $ python openclaw.py -u elonmusk
+
+    # 脚本会自动：
+    # - 检查 AI 平台（ChatGPT/Gemini/Grok）是否已登录
+    # - 检查 X.com 是否已登录
+    # - 获取 @elonmusk 的置顶推文
+    # - 让 AI 分析推文内容
+    # - 生成并发布回复（包含 https://aiwithblockchain.github.io/ 链接）
+
+示例 3: 回复中文用户
+    $ python openclaw.py -u username_cn
+
+    # AI 会根据原推文语言自动调整回复语言
+
+=== 前置条件 ===
+
+1. 浏览器扩展：
+   - 安装并启用 aiClaw 扩展（用于 AI 平台交互）
+   - 安装并启用 tweetClaw 扩展（用于 Twitter 交互）
+
+2. 登录状态：
+   - 至少登录一个 AI 平台（ChatGPT、Gemini 或 Grok）
+   - 登录 X.com（Twitter）账号
+   - 在浏览器中打开对应的标签页
+
+3. Python 依赖：
+   - 确保 utils.api_client 模块可用
+   - Python 3.6+
+
+=== 注意事项 ===
+
+- 回复内容会自动控制在 280 字符以内（Twitter 限制）
+- 如果目标用户没有置顶推文，脚本会提示并退出
+- AI 分析和生成回复可能需要 30-60 秒
+- 脚本会在发布前显示回复内容供确认
+- 所有操作都有详细的进度提示和错误处理
+
+=== 工作流程详解 ===
+
+Step 1: 测试 aiClaw 连接
+    - 检查 AI 平台标签页是否打开
+    - 验证登录状态（ChatGPT/Gemini/Grok）
+    - 选择一个已登录的平台用于后续分析
+
+Step 2: 测试 TweetClaw 连接
+    - 检查 tweetClaw 扩展实例
+    - 验证 X.com 登录状态
+    - 获取可用的标签页 ID
+
+Step 3: 获取置顶推文
+    - 导航到目标用户主页
+    - 提取置顶推文 ID
+    - 获取完整推文内容
+
+Step 4: AI 分析
+    - 将推文发送给选定的 AI 平台
+    - AI 分析推文内容并生成回复
+    - 回复包含项目链接和相关信息
+
+Step 5: 发布回复
+    - 显示生成的回复内容
+    - 检查字符数限制
+    - 发布回复到原推文
+
+=== 错误处理 ===
+
+脚本包含完整的错误处理机制：
+- 连接失败：提示检查扩展安装和运行状态
+- 未登录：提示登录相应平台
+- 无置顶推文：提示用户并退出
+- AI 响应超时：提供故障排查建议
+- 字符超限：自动截断至 280 字符
+
+=== 退出码 ===
+
+0 - 成功完成所有步骤
+1 - 执行过程中出现错误或用户中断
+
 """
 import sys
 import os
