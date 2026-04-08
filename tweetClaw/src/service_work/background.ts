@@ -58,6 +58,147 @@ interface QuerySearchTimelinePayload {
     tabId?: number;
 }
 
+interface UploadSession {
+    mediaData: string;
+    mimeType: string;
+    totalBytes: number;
+    createdAt: number;
+}
+
+const MEDIA_TRANSFER_CHUNK_BYTES = 3 * 1024 * 1024;
+const MEDIA_TRANSFER_CHUNK_BASE64_CHARS = (MEDIA_TRANSFER_CHUNK_BYTES / 3) * 4;
+const uploadSessions = new Map<string, UploadSession>();
+const UPLOAD_WEBREQUEST_FILTER: chrome.webRequest.RequestFilter = {
+    urls: ['https://upload.x.com/i/media/upload.json*']
+};
+
+function summarizeHeaders(headers?: chrome.webRequest.HttpHeader[]): string {
+    if (!headers?.length) return '<empty>';
+    return headers
+        .filter((header) => {
+            const name = (header.name || '').toLowerCase();
+            return [
+                'content-type',
+                'content-length',
+                'origin',
+                'referer',
+                'x-csrf-token',
+                'x-client-transaction-id',
+                'x-twitter-active-user',
+                'x-twitter-auth-type'
+            ].includes(name);
+        })
+        .map((header) => `${header.name}=${header.value ?? '<binary>'}`)
+        .join(', ') || '<filtered-empty>';
+}
+
+function initUploadNetworkDebugging() {
+    if (chrome.webRequest.onBeforeRequest.hasListener(logUploadBeforeRequest)) {
+        return;
+    }
+
+    chrome.webRequest.onBeforeRequest.addListener(
+        logUploadBeforeRequest,
+        UPLOAD_WEBREQUEST_FILTER,
+        ['requestBody']
+    );
+    chrome.webRequest.onBeforeSendHeaders.addListener(
+        logUploadBeforeSendHeaders,
+        UPLOAD_WEBREQUEST_FILTER,
+        ['requestHeaders', 'extraHeaders']
+    );
+    chrome.webRequest.onHeadersReceived.addListener(
+        logUploadHeadersReceived,
+        UPLOAD_WEBREQUEST_FILTER,
+        ['responseHeaders', 'extraHeaders']
+    );
+    chrome.webRequest.onCompleted.addListener(
+        logUploadCompleted,
+        UPLOAD_WEBREQUEST_FILTER
+    );
+    chrome.webRequest.onErrorOccurred.addListener(
+        logUploadError,
+        UPLOAD_WEBREQUEST_FILTER
+    );
+    console.log('[TweetClaw-BG] upload webRequest debugging enabled');
+}
+
+function logUploadBeforeRequest(details: any): chrome.webRequest.BlockingResponse {
+    const rawBytes = details.requestBody?.raw?.reduce((sum: number, item: any) => sum + (item.bytes?.byteLength || 0), 0) ?? 0;
+    console.log(
+        `[TweetClaw-BG] upload request beforeRequest, requestId=${details.requestId}, method=${details.method}, tabId=${details.tabId}, type=${details.type}, initiator=${details.initiator || '<empty>'}, rawBytes=${rawBytes}, timeStamp=${Math.round(details.timeStamp)}`
+    );
+    return {};
+}
+
+function logUploadBeforeSendHeaders(details: any): chrome.webRequest.BlockingResponse {
+    console.log(
+        `[TweetClaw-BG] upload request beforeSendHeaders, requestId=${details.requestId}, method=${details.method}, tabId=${details.tabId}, headers=${summarizeHeaders(details.requestHeaders)}, timeStamp=${Math.round(details.timeStamp)}`
+    );
+    return {};
+}
+
+function logUploadHeadersReceived(details: any): chrome.webRequest.BlockingResponse {
+    console.log(
+        `[TweetClaw-BG] upload request headersReceived, requestId=${details.requestId}, statusCode=${details.statusCode}, statusLine=${details.statusLine}, ip=${details.ip || '<empty>'}, fromCache=${details.fromCache}, headers=${summarizeHeaders(details.responseHeaders)}, timeStamp=${Math.round(details.timeStamp)}`
+    );
+    return {};
+}
+
+function logUploadCompleted(details: any) {
+    console.log(
+        `[TweetClaw-BG] upload request completed, requestId=${details.requestId}, statusCode=${details.statusCode}, ip=${details.ip || '<empty>'}, fromCache=${details.fromCache}, timeStamp=${Math.round(details.timeStamp)}`
+    );
+}
+
+function logUploadError(details: any) {
+    console.error(
+        `[TweetClaw-BG] upload request error, requestId=${details.requestId}, error=${details.error}, method=${details.method}, tabId=${details.tabId}, type=${details.type}, initiator=${details.initiator || '<empty>'}, timeStamp=${Math.round(details.timeStamp)}`
+    );
+}
+
+function estimateDecodedBytes(base64: string): number {
+    const padding = base64.endsWith('==') ? 2 : (base64.endsWith('=') ? 1 : 0);
+    return Math.floor((base64.length * 3) / 4) - padding;
+}
+
+function createUploadSession(mediaData: string, mimeType: string): { sessionId: string; totalBytes: number } {
+    const sessionId = `upload_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    const totalBytes = estimateDecodedBytes(mediaData);
+    uploadSessions.set(sessionId, {
+        mediaData,
+        mimeType,
+        totalBytes,
+        createdAt: Date.now()
+    });
+    console.log(`[TweetClaw-BG] upload session created, sessionId=${sessionId}, mimeType=${mimeType}, totalBytes=${totalBytes}, base64Length=${mediaData.length}`);
+    return { sessionId, totalBytes };
+}
+
+function getUploadSessionChunk(sessionId: string, chunkIndex: number) {
+    const session = uploadSessions.get(sessionId);
+    if (!session) {
+        return null;
+    }
+
+    const start = chunkIndex * MEDIA_TRANSFER_CHUNK_BASE64_CHARS;
+    const end = Math.min(start + MEDIA_TRANSFER_CHUNK_BASE64_CHARS, session.mediaData.length);
+    if (start >= session.mediaData.length) {
+        return null;
+    }
+
+    return {
+        chunkBase64: session.mediaData.slice(start, end),
+        totalBytes: session.totalBytes,
+        mimeType: session.mimeType
+    };
+}
+
+function releaseUploadSession(sessionId: string) {
+    console.log(`[TweetClaw-BG] upload session released, sessionId=${sessionId}`);
+    uploadSessions.delete(sessionId);
+}
+
 // Initialize LocalBridge Socket
 const localBridge = new LocalBridgeSocket();
 localBridge.queryXTabsHandler = queryXTabsStatus;
@@ -73,6 +214,7 @@ localBridge.queryTweetDetailHandler = queryTweetDetail;
 localBridge.queryUserProfileHandler = queryUserProfile;
 localBridge.querySearchTimelineHandler = querySearchTimeline;
 localBridge.uploadMediaHandler = uploadMedia;
+initUploadNetworkDebugging();
 
 // ── Listen for reconnect alarms ──────────────────────────────────
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -188,6 +330,27 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             await harvestBearer(message.bearerToken);
         })();
         return;
+    }
+
+    if (message.type === 'GET_UPLOAD_SESSION_CHUNK') {
+        const { uploadSessionId, chunkIndex } = message;
+        console.log(`[TweetClaw-BG] chunk request, sessionId=${uploadSessionId}, chunkIndex=${chunkIndex}`);
+        const chunk = getUploadSessionChunk(uploadSessionId, chunkIndex);
+        if (!chunk) {
+            console.warn(`[TweetClaw-BG] chunk request failed, sessionId=${uploadSessionId}, chunkIndex=${chunkIndex}`);
+            sendResponse({ success: false, error: 'Upload session chunk not found' });
+            return true;
+        }
+        console.log(`[TweetClaw-BG] chunk response, sessionId=${uploadSessionId}, chunkIndex=${chunkIndex}, chunkBase64Length=${chunk.chunkBase64.length}`);
+        sendResponse({ success: true, ...chunk });
+        return true;
+    }
+
+    if (message.type === 'RELEASE_UPLOAD_SESSION') {
+        console.log(`[TweetClaw-BG] release session request, sessionId=${message.uploadSessionId}`);
+        releaseUploadSession(message.uploadSessionId);
+        sendResponse({ success: true });
+        return true;
     }
 
     return false;
@@ -569,8 +732,8 @@ export async function querySearchTimeline(payload: QuerySearchTimelinePayload): 
  */
 export async function uploadMedia(payload: any): Promise<any> {
     const { mediaData, mimeType, tabId } = payload;
-    const estimatedBytes = Math.floor((mediaData?.length || 0) * 3 / 4);
-    console.log(`[TweetClaw-BG] uploadMedia called, mimeType=${mimeType}`);
+    const estimatedBytes = estimateDecodedBytes(mediaData || '');
+    console.log(`[TweetClaw-BG] uploadMedia called, mimeType=${mimeType}, estimatedBytes=${estimatedBytes}, requestedTabId=${tabId ?? 'auto'}`);
 
     if (!mediaData || !mimeType) {
         throw new Error('mediaData and mimeType are required');
@@ -586,19 +749,28 @@ export async function uploadMedia(payload: any): Promise<any> {
         throw new Error('No x.com tab found');
     }
 
-    // 委托 Content Script 调用推特媒体上传 API
-    const result = await chrome.tabs.sendMessage(targetTabId, {
-        type: 'UPLOAD_MEDIA',
-        mediaData,
-        mimeType
-    }).catch((e: any) => {
-        const rawMessage = e?.message || String(e);
-        if (rawMessage.includes('Message exceeded maximum allowed size of 64MiB')) {
-            const maxBytes = 64 * 1024 * 1024;
-            throw new Error(`Media upload request is too large for Chrome extension messaging (limit: 64MiB). Current payload: ${estimatedBytes} bytes (${mimeType}).`);
-        }
-        throw new Error(`Failed to upload media: ${rawMessage}`);
-    });
+    console.log(`[TweetClaw-BG] uploadMedia target tab resolved, tabId=${targetTabId}`);
+
+    const { sessionId } = createUploadSession(mediaData, mimeType);
+
+    let result: any;
+    try {
+        // 委托 Content Script 通过分块方式拉取媒体内容，并在页面上下文执行上传请求
+        console.log(`[TweetClaw-BG] uploadMedia sending session to content, tabId=${targetTabId}, sessionId=${sessionId}`);
+        result = await chrome.tabs.sendMessage(targetTabId, {
+            type: 'UPLOAD_MEDIA_FROM_SESSION',
+            uploadSessionId: sessionId,
+            mimeType,
+            totalBytes: estimatedBytes
+        }).catch((e: any) => {
+            const rawMessage = e?.message || String(e);
+            console.error(`[TweetClaw-BG] uploadMedia sendMessage failed, sessionId=${sessionId}, error=${rawMessage}`, e);
+            throw new Error(`Failed to upload media: ${rawMessage}`);
+        });
+        console.log(`[TweetClaw-BG] uploadMedia content response, sessionId=${sessionId}, success=${Boolean(result?.success)}, error=${result?.error || ''}`);
+    } finally {
+        releaseUploadSession(sessionId);
+    }
 
     if (!result?.success) {
         throw new Error(result?.error || 'Media upload failed');

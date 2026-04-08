@@ -7,6 +7,7 @@ export class LocalBridgeSocket {
   private heartbeatInterval: any = null;
   private serverInfo: ServerHelloAckPayload | null = null;
   private lastPongTimestamp = 0;
+  private lastServerMessageTimestamp = 0;
   private instanceId: string = '';
   private instanceName: string = '';
   private static readonly RECONNECT_ALARM_NAME = 'tweetclaw-reconnect';
@@ -95,6 +96,7 @@ export class LocalBridgeSocket {
         this.isConnecting = false;
         this.reconnectAttempts = 0;
         this.lastPongTimestamp = Date.now();
+        this.lastServerMessageTimestamp = Date.now();
         // 确保 instanceId 已加载，并且每次重连时获取最新的 instanceName
         if (!this.instanceId) {
             this.instanceId = await getOrCreateInstanceId();
@@ -177,6 +179,7 @@ export class LocalBridgeSocket {
   private handleMessage(data: string) {
     try {
       const msg = JSON.parse(data) as BaseMessage;
+      this.lastServerMessageTimestamp = Date.now();
       if (msg.type !== MESSAGE_TYPES.PONG && msg.type !== MESSAGE_TYPES.PING) {
         console.log(`[tweetClaw] received message: ${msg.type}`);
       }
@@ -186,6 +189,7 @@ export class LocalBridgeSocket {
           this.handleHelloAck(msg as BaseMessage<ServerHelloAckPayload>);
           break;
         case MESSAGE_TYPES.PONG:
+          console.log(`[tweetClaw] received pong: id=${msg.id}`);
           this.lastPongTimestamp = Date.now();
           break;
         case MESSAGE_TYPES.REQUEST_QUERY_X_TABS_STATUS:
@@ -498,8 +502,10 @@ export class LocalBridgeSocket {
     this.heartbeatInterval = setInterval(() => {
       // Check for timeout (60 seconds)
       const now = Date.now();
-      if (this.lastPongTimestamp > 0 && now - this.lastPongTimestamp > 60000) {
-        console.error('[tweetClaw] pong timeout, closing socket');
+      const sinceLastPong = this.lastPongTimestamp > 0 ? now - this.lastPongTimestamp : Number.POSITIVE_INFINITY;
+      const sinceLastServerMessage = this.lastServerMessageTimestamp > 0 ? now - this.lastServerMessageTimestamp : Number.POSITIVE_INFINITY;
+      if (Math.min(sinceLastPong, sinceLastServerMessage) > 60000) {
+        console.error(`[tweetClaw] pong timeout, closing socket (sinceLastPongMs=${sinceLastPong}, sinceLastServerMessageMs=${sinceLastServerMessage})`);
         this.ws?.close();
         return;
       }
@@ -525,6 +531,7 @@ export class LocalBridgeSocket {
         heartbeatIntervalMs: 20000
       }
     };
+    console.log(`[tweetClaw] sending ping: id=${ping.id}`);
     this.send(ping);
   }
   

@@ -9,7 +9,7 @@ const FALLBACK_BEARER_TOKEN = 'Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRC
  * Designed to run in Content Script (for cookies) and Background (for harvesting).
  */
 
-async function getAuthHeader(): Promise<string> {
+export async function getAuthHeader(): Promise<string> {
     const res = await chrome.storage.local.get(__DBK_bearer_token);
     const harvested = res[__DBK_bearer_token] as string | undefined;
     if (harvested && harvested.startsWith('Bearer ')) {
@@ -18,7 +18,7 @@ async function getAuthHeader(): Promise<string> {
     return FALLBACK_BEARER_TOKEN;
 }
 
-async function getCsrfToken(): Promise<string> {
+export async function getCsrfToken(): Promise<string> {
     // Content script: read from document.cookie
     // Background: read from chrome.cookies
     if (typeof document !== 'undefined' && document.cookie) {

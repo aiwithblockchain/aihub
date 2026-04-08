@@ -1,7 +1,10 @@
 import { MsgType } from '../capture/consts';
-import { performMutation, performLegacyREST, fetchUserByScreenName, performQuery } from '../x_api/twitter_api';
+import { performMutation, performLegacyREST, fetchUserByScreenName, performQuery, getAuthHeader, getCsrfToken } from '../x_api/twitter_api';
 import { findDeepUser } from '../capture/extractor';
 import { UserProfile } from '../object/user_info';
+import { getTransactionIdFor } from '../x_api/txid';
+
+const MEDIA_TRANSFER_CHUNK_BYTES = 3 * 1024 * 1024;
 
 /**
  * main_entrance.ts - Content Script Supervisor
@@ -73,6 +76,207 @@ window.addEventListener('message', (event) => {
         });
     }
 });
+
+function base64ToBlob(base64: string, mimeType: string): Blob {
+    const byteString = atob(base64);
+    const buffer = new ArrayBuffer(byteString.length);
+    const bytes = new Uint8Array(buffer);
+    for (let i = 0; i < byteString.length; i++) {
+        bytes[i] = byteString.charCodeAt(i);
+    }
+    return new Blob([buffer], { type: mimeType });
+}
+
+async function getUploadSessionChunk(uploadSessionId: string, chunkIndex: number): Promise<string> {
+    console.log(`[TweetClaw-CS] requesting upload chunk, sessionId=${uploadSessionId}, chunkIndex=${chunkIndex}`);
+    const response = await chrome.runtime.sendMessage({
+        type: 'GET_UPLOAD_SESSION_CHUNK',
+        uploadSessionId,
+        chunkIndex
+    });
+
+    if (!response?.success || !response.chunkBase64) {
+        console.error(`[TweetClaw-CS] upload chunk failed, sessionId=${uploadSessionId}, chunkIndex=${chunkIndex}, error=${response?.error || 'unknown'}`);
+        throw new Error(response?.error || 'Failed to get upload session chunk');
+    }
+
+    console.log(`[TweetClaw-CS] upload chunk received, sessionId=${uploadSessionId}, chunkIndex=${chunkIndex}, chunkBase64Length=${response.chunkBase64.length}`);
+    return response.chunkBase64 as string;
+}
+
+async function releaseUploadSession(uploadSessionId: string): Promise<void> {
+    console.log(`[TweetClaw-CS] releasing upload session, sessionId=${uploadSessionId}`);
+    await chrome.runtime.sendMessage({
+        type: 'RELEASE_UPLOAD_SESSION',
+        uploadSessionId
+    }).catch(() => {});
+}
+
+async function pageUploadProxy(payload: any): Promise<any> {
+    const requestId = `upload_proxy_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    console.log(`[TweetClaw-CS] page proxy dispatch, requestId=${requestId}, kind=${payload.kind}, method=${payload.method}, url=${payload.url}`);
+
+    return new Promise((resolve, reject) => {
+        const timeoutMs = payload.kind === 'append' ? 120000 : 30000;
+        const timeout = setTimeout(() => {
+            document.removeEventListener('tweetclaw:upload-proxy-response', onMessage as EventListener);
+            console.error(`[TweetClaw-CS] page proxy timeout, requestId=${requestId}, kind=${payload.kind}, url=${payload.url}`);
+            reject(new Error('Timed out waiting for page upload proxy response'));
+        }, timeoutMs);
+
+        function onMessage(event: Event) {
+            const detail = (event as CustomEvent).detail;
+            if (!detail || detail.requestId !== requestId) return;
+
+            clearTimeout(timeout);
+            document.removeEventListener('tweetclaw:upload-proxy-response', onMessage as EventListener);
+            console.log(`[TweetClaw-CS] page proxy response, requestId=${requestId}, ok=${Boolean(detail.ok)}, status=${detail.status ?? 'n/a'}`);
+
+            if (detail.ok) {
+                resolve(detail);
+                return;
+            }
+
+            reject(new Error(detail.error || `Upload proxy request failed (${detail.status ?? 'unknown'})`));
+        }
+
+        document.addEventListener('tweetclaw:upload-proxy-response', onMessage as EventListener);
+        document.dispatchEvent(new CustomEvent('tweetclaw:upload-proxy-request', {
+            detail: {
+                requestId,
+                payload
+            }
+        }));
+    });
+}
+
+async function uploadMediaFromSession(uploadSessionId: string, mimeType: string, totalBytes: number): Promise<string> {
+    console.log(`[TweetClaw-CS] uploadMediaFromSession start, sessionId=${uploadSessionId}, mimeType=${mimeType}, totalBytes=${totalBytes}`);
+    const bearer = await getAuthHeader();
+    const csrf = await getCsrfToken();
+    const isVideo = mimeType.startsWith('video/');
+    const mediaCategory = isVideo ? 'tweet_video' : 'tweet_image';
+
+    const initUrl = `https://upload.x.com/i/media/upload.json?command=INIT&total_bytes=${totalBytes}&media_type=${encodeURIComponent(mimeType)}&media_category=${mediaCategory}`;
+    const initTxid = await getTransactionIdFor('POST', '/i/media/upload.json');
+
+    const initResult = await pageUploadProxy({
+        kind: 'raw',
+        url: initUrl,
+        method: 'POST',
+        headers: {
+            'authorization': bearer,
+            'x-csrf-token': csrf,
+            'x-client-transaction-id': initTxid,
+            'x-twitter-auth-type': 'OAuth2Session'
+        }
+    });
+
+    if (!initResult.ok) {
+        throw new Error(`Media upload INIT failed: ${initResult.status} ${initResult.text || ''}`);
+    }
+
+    const initData = initResult.json;
+    const mediaId = initData?.media_id_string;
+    if (!mediaId) {
+        throw new Error('Media upload INIT did not return media_id_string');
+    }
+    console.log(`[TweetClaw-CS] uploadMediaFromSession INIT success, sessionId=${uploadSessionId}, mediaId=${mediaId}`);
+
+    const totalSegments = Math.max(1, Math.ceil(totalBytes / MEDIA_TRANSFER_CHUNK_BYTES));
+    console.log(`[TweetClaw-CS] uploadMediaFromSession APPEND start, sessionId=${uploadSessionId}, totalSegments=${totalSegments}`);
+    for (let segmentIndex = 0; segmentIndex < totalSegments; segmentIndex++) {
+        const chunkBase64 = await getUploadSessionChunk(uploadSessionId, segmentIndex);
+        const appendTxid = await getTransactionIdFor('POST', '/i/media/upload.json');
+        console.log(`[TweetClaw-CS] uploadMediaFromSession APPEND request, sessionId=${uploadSessionId}, segment=${segmentIndex + 1}/${totalSegments}`);
+
+        const appendResult = await pageUploadProxy({
+            kind: 'append',
+            url: 'https://upload.x.com/i/media/upload.json',
+            method: 'POST',
+            headers: {
+                'authorization': bearer,
+                'x-csrf-token': csrf,
+                'x-client-transaction-id': appendTxid,
+                'x-twitter-auth-type': 'OAuth2Session'
+            },
+            command: 'APPEND',
+            mediaId,
+            segmentIndex,
+            mimeType,
+            chunkBase64
+        });
+
+        if (!appendResult.ok) {
+            throw new Error(`Media upload APPEND failed at segment ${segmentIndex}/${totalSegments - 1}: ${appendResult.status} ${appendResult.text || ''}`);
+        }
+        console.log(`[TweetClaw-CS] uploadMediaFromSession APPEND success, sessionId=${uploadSessionId}, segment=${segmentIndex + 1}/${totalSegments}`);
+    }
+
+    const finalizeUrl = `https://upload.x.com/i/media/upload.json?command=FINALIZE&media_id=${mediaId}`;
+    const finalizeTxid = await getTransactionIdFor('POST', '/i/media/upload.json');
+    console.log(`[TweetClaw-CS] uploadMediaFromSession FINALIZE start, sessionId=${uploadSessionId}, mediaId=${mediaId}`);
+    const finalizeResult = await pageUploadProxy({
+        kind: 'raw',
+        url: finalizeUrl,
+        method: 'POST',
+        headers: {
+            'authorization': bearer,
+            'x-csrf-token': csrf,
+            'x-client-transaction-id': finalizeTxid,
+            'x-twitter-auth-type': 'OAuth2Session'
+        }
+    });
+
+    if (!finalizeResult.ok) {
+        throw new Error(`Media upload FINALIZE failed: ${finalizeResult.status} ${finalizeResult.text || ''}`);
+    }
+
+    const finalizeData = finalizeResult.json;
+    console.log(`[TweetClaw-CS] uploadMediaFromSession FINALIZE success, sessionId=${uploadSessionId}, mediaId=${finalizeData?.media_id_string || mediaId}`);
+
+    if (isVideo) {
+        let processingComplete = false;
+        let attempts = 0;
+        const maxAttempts = 60;
+        console.log(`[TweetClaw-CS] uploadMediaFromSession STATUS polling start, sessionId=${uploadSessionId}, mediaId=${mediaId}`);
+
+        while (!processingComplete && attempts < maxAttempts) {
+            attempts++;
+            await new Promise(resolve => setTimeout(resolve, 5000));
+
+            const statusUrl = `https://upload.x.com/i/media/upload.json?command=STATUS&media_id=${mediaId}`;
+            const statusTxid = await getTransactionIdFor('GET', '/i/media/upload.json');
+            const statusResult = await pageUploadProxy({
+                kind: 'raw',
+                url: statusUrl,
+                method: 'GET',
+                headers: {
+                    'authorization': bearer,
+                    'x-csrf-token': csrf,
+                    'x-client-transaction-id': statusTxid,
+                    'x-twitter-auth-type': 'OAuth2Session'
+                }
+            });
+
+            if (!statusResult.ok) {
+                console.warn(`[TweetClaw-CS] uploadMediaFromSession STATUS failed, sessionId=${uploadSessionId}, attempt=${attempts}, status=${statusResult.status}`);
+                break;
+            }
+
+            const statusData = statusResult.json;
+            console.log(`[TweetClaw-CS] uploadMediaFromSession STATUS, sessionId=${uploadSessionId}, attempt=${attempts}, state=${statusData?.processing_info?.state || 'unknown'}`);
+            if (statusData?.processing_info?.state === 'succeeded') {
+                processingComplete = true;
+            } else if (statusData?.processing_info?.state === 'failed') {
+                throw new Error(`Video processing failed: ${statusData.processing_info?.error?.message || 'unknown error'}`);
+            }
+        }
+    }
+
+    console.log(`[TweetClaw-CS] uploadMediaFromSession complete, sessionId=${uploadSessionId}, mediaId=${finalizeData?.media_id_string || mediaId}`);
+    return finalizeData?.media_id_string || mediaId;
+}
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === MsgType.PING || message.type === 'TC_PING') {
@@ -451,6 +655,30 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             } catch (e: any) {
                 console.error(`[TweetClaw-CS] UPLOAD_MEDIA failed:`, e);
                 sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    if (message.type === 'UPLOAD_MEDIA_FROM_SESSION') {
+        (async () => {
+            const uploadSessionId = message.uploadSessionId as string;
+            const mimeType = message.mimeType as string;
+            const totalBytes = Number(message.totalBytes || 0);
+
+            try {
+                if (!uploadSessionId || !mimeType || !totalBytes) {
+                    throw new Error('uploadSessionId, mimeType and totalBytes are required');
+                }
+
+                console.log(`[TweetClaw-CS] UPLOAD_MEDIA_FROM_SESSION received, sessionId=${uploadSessionId}, mimeType=${mimeType}, totalBytes=${totalBytes}`);
+                const mediaId = await uploadMediaFromSession(uploadSessionId, mimeType, totalBytes);
+                sendResponse({ success: true, media_id: mediaId });
+            } catch (e: any) {
+                console.error(`[TweetClaw-CS] UPLOAD_MEDIA_FROM_SESSION failed, sessionId=${uploadSessionId}, error=${e?.message || String(e)}`, e);
+                sendResponse({ success: false, error: e.message });
+            } finally {
+                await releaseUploadSession(uploadSessionId);
             }
         })();
         return true;

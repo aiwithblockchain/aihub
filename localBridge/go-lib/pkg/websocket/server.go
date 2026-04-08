@@ -158,6 +158,7 @@ func (s *Server) handleMessage(data []byte, conn *gorillaws.Conn) {
 		log.Printf("[WS] malformed message: %v", err)
 		return
 	}
+	s.touchConn(conn)
 
 	switch peek.Type {
 	case types.ClientHello:
@@ -221,17 +222,10 @@ func (s *Server) handleClientHello(data []byte, conn *gorillaws.Conn) {
 }
 
 func (s *Server) handlePing(peek types.PeekMessage, conn *gorillaws.Conn) {
-	s.mu.Lock()
-	for _, sessions := range s.sessions {
-		for _, sess := range sessions {
-			if sess.Conn == conn {
-				sess.LastSeenAt = time.Now()
-				break
-			}
-		}
-	}
+	s.mu.RLock()
 	clientName := s.connClientNameLocked(conn)
-	s.mu.Unlock()
+	s.mu.RUnlock()
+	log.Printf("[WS] received ping: id=%s from=%s", peek.ID, clientName)
 	s.sendPong(conn, peek.ID, clientName)
 }
 
@@ -246,6 +240,19 @@ func (s *Server) removeConn(conn *gorillaws.Conn) {
 					delete(s.sessions, clientName)
 				}
 				log.Printf("[WS] removed: %s/%s", clientName, instanceID)
+				return
+			}
+		}
+	}
+}
+
+func (s *Server) touchConn(conn *gorillaws.Conn) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, sessions := range s.sessions {
+		for _, sess := range sessions {
+			if sess.Conn == conn {
+				sess.LastSeenAt = time.Now()
 				return
 			}
 		}
@@ -387,8 +394,10 @@ func (s *Server) sendHelloAck(conn *gorillaws.Conn, replyID, target string) {
 			HeartbeatIntervalMs: HeartbeatMs,
 		},
 	}
-	data, _ := json.Marshal(ack)
-	conn.WriteMessage(gorillaws.TextMessage, data)
+	if err := s.writeJSONToConn(conn, ack); err != nil {
+		log.Printf("[WS] failed to send hello_ack to %s: %v", target, err)
+		return
+	}
 	log.Printf("[WS] sent hello_ack to %s", target)
 }
 
@@ -399,6 +408,38 @@ func (s *Server) sendPong(conn *gorillaws.Conn, replyID, target string) {
 		Timestamp: time.Now().UnixMilli(),
 		Payload:   types.EmptyPayload{},
 	}
-	data, _ := json.Marshal(pong)
-	conn.WriteMessage(gorillaws.TextMessage, data)
+	if err := s.writeJSONToConn(conn, pong); err != nil {
+		log.Printf("[WS] failed to send pong to %s: %v", target, err)
+		return
+	}
+	log.Printf("[WS] sent pong: id=%s to=%s", replyID, target)
+}
+
+func (s *Server) writeJSONToConn(conn *gorillaws.Conn, v interface{}) error {
+	data, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+
+	var sess *ClientSession
+	s.mu.RLock()
+	for _, sessions := range s.sessions {
+		for _, candidate := range sessions {
+			if candidate.Conn == conn {
+				sess = candidate
+				break
+			}
+		}
+		if sess != nil {
+			break
+		}
+	}
+	s.mu.RUnlock()
+
+	if sess != nil {
+		sess.wmu.Lock()
+		defer sess.wmu.Unlock()
+	}
+
+	return conn.WriteMessage(gorillaws.TextMessage, data)
 }
