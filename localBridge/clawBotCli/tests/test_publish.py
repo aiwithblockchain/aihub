@@ -60,6 +60,18 @@ def upload_media_file(client: APIClient, file_path: str) -> Optional[str]:
         return None
 
 
+def explain_media_upload_failure(file_path: str):
+    file_size = os.path.getsize(file_path)
+    print(f"   文件大小: {file_size} bytes")
+    print("   原因: 请查看上面的直接错误信息")
+    if file_size > 64 * 1024 * 1024:
+        print("   推断: 当前失败发生在 Chrome 扩展消息通道，单条消息超过 64MiB 上限")
+        print("   建议: 不要一次性把整段视频 base64 通过 tabs.sendMessage 发送给 content script")
+        print("   建议: 改为分块传输、共享存储中转，或在页面上下文直接处理文件")
+    else:
+        print("   建议: 根据上面的错误信息继续排查上传流程")
+
+
 def test_create_tweet(text: str, media_ids: Optional[List[str]] = None):
     """Test POST /api/v1/x/tweets"""
     print("\n" + "="*60)
@@ -222,8 +234,7 @@ def main():
             media_ids.append(media_id)
         else:
             print("\n❌ 任务失败: 无法上传图片")
-            print("   原因: 后端不支持媒体上传 API")
-            print("   建议: 需要修改服务代码实现 Twitter media upload API")
+            explain_media_upload_failure(args.image)
             sys.exit(1)
 
     # 处理多张图片
@@ -239,8 +250,7 @@ def main():
                 media_ids.append(media_id)
             else:
                 print(f"\n❌ 任务失败: 无法上传图片 {image_path}")
-                print("   原因: 后端不支持媒体上传 API")
-                print("   建议: 需要修改服务代码实现 Twitter media upload API")
+                explain_media_upload_failure(image_path)
                 sys.exit(1)
 
     # 处理视频
@@ -250,8 +260,7 @@ def main():
             media_ids.append(media_id)
         else:
             print("\n❌ 任务失败: 无法上传视频")
-            print("   原因: 后端不支持媒体上传 API")
-            print("   建议: 需要修改服务代码实现 Twitter media upload API")
+            explain_media_upload_failure(args.video)
             sys.exit(1)
 
     # 人工确认

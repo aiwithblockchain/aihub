@@ -3,6 +3,7 @@ REST API Client for LocalBridge
 """
 import requests
 from typing import Optional, Dict, Any, List
+import json
 import sys
 import os
 
@@ -27,6 +28,23 @@ class APIClient:
             response = requests.request(method, url, **kwargs)
             response.raise_for_status()
             return response.json()
+        except requests.exceptions.HTTPError as e:
+            error_message = str(e)
+            response = e.response
+            if response is not None:
+                try:
+                    payload = response.json()
+                    if isinstance(payload, dict) and payload.get('error'):
+                        error_message = payload['error']
+                    elif isinstance(payload, dict) and payload.get('message'):
+                        error_message = payload['message']
+                    else:
+                        error_message = json.dumps(payload, ensure_ascii=False)
+                except ValueError:
+                    body = response.text.strip()
+                    if body:
+                        error_message = body
+            return {"error": error_message, "status_code": response.status_code if response is not None else None}
         except requests.exceptions.RequestException as e:
             return {"error": str(e)}
 

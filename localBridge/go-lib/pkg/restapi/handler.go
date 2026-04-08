@@ -512,10 +512,13 @@ func (h *Handler) uploadMedia(w http.ResponseWriter, r *http.Request) {
 	h.bridge(w, "tweetClaw", id, buildMsg(id, "request.upload_media", "tweetClaw", payload), defaultTaskTimeoutMs,
 		func(data []byte) {
 			var msg struct {
+				Type string `json:"type"`
 				Payload struct {
 					Success bool   `json:"success"`
 					MediaID string `json:"media_id"`
 					Error   string `json:"error"`
+					Code    string `json:"code"`
+					Message string `json:"message"`
 				} `json:"payload"`
 			}
 			if err := json.Unmarshal(data, &msg); err != nil {
@@ -523,7 +526,14 @@ func (h *Handler) uploadMedia(w http.ResponseWriter, r *http.Request) {
 				return
 			}
 			if !msg.Payload.Success {
-				jsonErr(w, 500, msg.Payload.Error)
+				errMsg := msg.Payload.Error
+				if errMsg == "" {
+					errMsg = msg.Payload.Message
+				}
+				if errMsg == "" {
+					errMsg = "media_upload_failed"
+				}
+				jsonErr(w, 500, errMsg)
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")

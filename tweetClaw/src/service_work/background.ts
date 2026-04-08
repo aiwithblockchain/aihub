@@ -569,6 +569,7 @@ export async function querySearchTimeline(payload: QuerySearchTimelinePayload): 
  */
 export async function uploadMedia(payload: any): Promise<any> {
     const { mediaData, mimeType, tabId } = payload;
+    const estimatedBytes = Math.floor((mediaData?.length || 0) * 3 / 4);
     console.log(`[TweetClaw-BG] uploadMedia called, mimeType=${mimeType}`);
 
     if (!mediaData || !mimeType) {
@@ -591,7 +592,12 @@ export async function uploadMedia(payload: any): Promise<any> {
         mediaData,
         mimeType
     }).catch((e: any) => {
-        throw new Error(`Failed to upload media: ${e?.message}`);
+        const rawMessage = e?.message || String(e);
+        if (rawMessage.includes('Message exceeded maximum allowed size of 64MiB')) {
+            const maxBytes = 64 * 1024 * 1024;
+            throw new Error(`Media upload request is too large for Chrome extension messaging (limit: 64MiB). Current payload: ${estimatedBytes} bytes (${mimeType}).`);
+        }
+        throw new Error(`Failed to upload media: ${rawMessage}`);
     });
 
     if (!result?.success) {

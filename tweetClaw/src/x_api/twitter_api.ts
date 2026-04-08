@@ -398,10 +398,15 @@ export async function uploadMedia(mediaData: string, mimeType: string): Promise<
         const start = segmentIndex * MEDIA_APPEND_CHUNK_SIZE_BYTES;
         const end = Math.min(start + MEDIA_APPEND_CHUNK_SIZE_BYTES, totalBytes);
         const chunk = blob.slice(start, end, mimeType);
-        const appendUrl = `https://upload.x.com/i/media/upload.json?command=APPEND&media_id=${mediaId}&segment_index=${segmentIndex}`;
+        const appendUrl = 'https://upload.x.com/i/media/upload.json';
         const appendTxid = await getTransactionIdFor('POST', '/i/media/upload.json');
 
         const formData = new FormData();
+        // Keep APPEND control fields in the multipart body.
+        // This matches X's browser-side usage more closely than query-only params.
+        formData.append('command', 'APPEND');
+        formData.append('media_id', mediaId);
+        formData.append('segment_index', String(segmentIndex));
         formData.append('media', chunk, `chunk-${segmentIndex}`);
 
         const appendResponse = await fetch(appendUrl, {
