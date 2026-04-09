@@ -28,8 +28,9 @@ var upgrader = gorillaws.Upgrader{
 
 // ClientSession 单个实例会话（含内部 Conn）
 type ClientSession struct {
-	ClientName    string
-	InstanceID    string
+	SessionID     string       // 内部唯一标识,用于区分具体 session 实例
+	ClientName    string       // 逻辑实例身份
+	InstanceID    string       // 逻辑实例身份
 	InstanceName  string
 	Conn          *gorillaws.Conn
 	ConnectedAt   time.Time
@@ -37,7 +38,40 @@ type ClientSession struct {
 	Capabilities  []string
 	ClientVersion string
 	XScreenName   string
-	wmu           sync.Mutex // 保护 Conn 写并发
+	
+	sendQueue     chan []byte
+	writerDone    chan struct{}
+	closeCh       chan struct{}
+	closeOnce     sync.Once
+	mu            sync.Mutex  // 保护 LastSeenAt
+}
+
+func (s *ClientSession) writerLoop(server *Server) {
+	defer close(s.writerDone)
+	for {
+		select {
+		case msg := <-s.sendQueue:
+			if err := s.Conn.WriteMessage(gorillaws.TextMessage, msg); err != nil {
+				log.Printf("[WS] write error: %v", err)
+				// 写失败时通知 server 进入统一关闭路径
+				go server.closeSession(s)
+				return
+			}
+		case <-s.closeCh:
+			return
+		}
+	}
+}
+
+func (s *ClientSession) Send(data []byte) error {
+	select {
+	case s.sendQueue <- data:
+		return nil
+	case <-s.closeCh:
+		return fmt.Errorf("session closed")
+	default:
+		return fmt.Errorf("send queue full")
+	}
 }
 
 // InstanceSnapshot 对外只读快照（不含 Conn 引用）
@@ -58,6 +92,7 @@ type Server struct {
 	mu               sync.RWMutex
 	sessions         map[string]map[string]*ClientSession // [clientName][instanceId]
 	pendingCallbacks map[string]func([]byte)
+	callbackSessions map[string]string  // msgID -> sessionID
 	httpServers      []*http.Server
 	stopCh           chan struct{}
 }
@@ -66,6 +101,7 @@ func NewServer() *Server {
 	return &Server{
 		sessions:         make(map[string]map[string]*ClientSession),
 		pendingCallbacks: make(map[string]func([]byte)),
+		callbackSessions: make(map[string]string),
 		stopCh:           make(chan struct{}),
 	}
 }
@@ -113,39 +149,50 @@ func (s *Server) Start(addresses []ListenAddress) error {
 }
 
 func (s *Server) Stop() {
+	// 第一阶段: 锁内摘取 session 快照并切换全局状态
 	s.mu.Lock()
-	defer s.mu.Unlock()
-	
 	select {
 	case <-s.stopCh:
+		s.mu.Unlock()
+		return
 	default:
 		close(s.stopCh)
 	}
 	
+	var allSessions []*ClientSession
+	for _, sessions := range s.sessions {
+		for _, sess := range sessions {
+			allSessions = append(allSessions, sess)
+		}
+	}
+	s.mu.Unlock()
+	
+	// 第二阶段: 锁外关闭 HTTP 服务器
 	for _, srv := range s.httpServers {
 		_ = srv.Close()
 	}
 	
-	for _, sessions := range s.sessions {
-		for _, sess := range sessions {
-			_ = sess.Conn.Close()
-		}
+	// 第三阶段: 锁外逐个关闭 session (closeSession 内部会获取锁)
+	for _, sess := range allSessions {
+		s.closeSession(sess)
 	}
+	
+	// 第四阶段: 清理全局状态
+	s.mu.Lock()
 	s.sessions = make(map[string]map[string]*ClientSession)
 	s.pendingCallbacks = make(map[string]func([]byte))
+	s.callbackSessions = make(map[string]string)
+	s.mu.Unlock()
 }
 
 // handleConn 每个 WS 连接的读循环（单独 goroutine）
 func (s *Server) handleConn(conn *gorillaws.Conn) {
-	defer func() {
-		conn.Close()
-		s.removeConn(conn)
-	}()
 	log.Printf("[WS] new connection from %s", conn.RemoteAddr())
 	for {
 		_, data, err := conn.ReadMessage()
 		if err != nil {
 			log.Printf("[WS] read error (%s): %v", conn.RemoteAddr(), err)
+			s.closeSessionByConn(conn)
 			return
 		}
 		s.handleMessage(data, conn)
@@ -158,6 +205,7 @@ func (s *Server) handleMessage(data []byte, conn *gorillaws.Conn) {
 		log.Printf("[WS] malformed message: %v", err)
 		return
 	}
+	// 任意入站消息都刷新 LastSeenAt
 	s.touchConn(conn)
 
 	switch peek.Type {
@@ -173,6 +221,7 @@ func (s *Server) handleMessage(data []byte, conn *gorillaws.Conn) {
 		cb, ok := s.pendingCallbacks[peek.ID]
 		if ok {
 			delete(s.pendingCallbacks, peek.ID)
+			delete(s.callbackSessions, peek.ID)
 		}
 		s.mu.Unlock()
 		if ok {
@@ -191,21 +240,23 @@ func (s *Server) handleClientHello(data []byte, conn *gorillaws.Conn) {
 	instanceID := msg.Payload.InstanceID
 	instanceName := msg.Payload.InstanceName
 	if instanceID == "" {
-		// 旧版扩展没有 instanceId，生成带 "tmp-" 前缀的临时 ID
 		instanceID = "tmp-" + uuid.New().String()
 	}
 	log.Printf("[WS] hello: clientName=%s, instanceId=%s, instanceName=%s", clientName, instanceID, instanceName)
 
+	// 第一阶段:锁内摘取旧 session 并注册新 session
 	s.mu.Lock()
 	if s.sessions[clientName] == nil {
 		s.sessions[clientName] = make(map[string]*ClientSession)
 	}
-	// 同一实例重连：关闭旧连接（不影响同 clientName 下其他 instanceId）
+	var oldSession *ClientSession
 	if old, exists := s.sessions[clientName][instanceID]; exists {
-		old.Conn.Close()
-		log.Printf("[WS] replaced old session: %s/%s", clientName, instanceID)
+		oldSession = old
+		log.Printf("[WS] will replace old session: %s/%s (sessionID=%s)", clientName, instanceID, old.SessionID)
 	}
+	
 	sess := &ClientSession{
+		SessionID:     uuid.New().String(),
 		ClientName:    clientName,
 		InstanceID:    instanceID,
 		InstanceName:  instanceName,
@@ -214,45 +265,114 @@ func (s *Server) handleClientHello(data []byte, conn *gorillaws.Conn) {
 		LastSeenAt:    time.Now(),
 		Capabilities:  msg.Payload.Capabilities,
 		ClientVersion: msg.Payload.ClientVersion,
+		sendQueue:     make(chan []byte, 100),
+		writerDone:    make(chan struct{}),
+		closeCh:       make(chan struct{}),
 	}
 	s.sessions[clientName][instanceID] = sess
 	s.mu.Unlock()
 
-	s.sendHelloAck(conn, msg.ID, clientName)
+	// 第二阶段:锁外关闭旧 session
+	if oldSession != nil {
+		s.closeSession(oldSession)
+	}
+
+	// 启动 writerLoop
+	go sess.writerLoop(s)
+
+	// 发送 hello_ack
+	s.sendHelloAck(sess, msg.ID, clientName)
 }
 
 func (s *Server) handlePing(peek types.PeekMessage, conn *gorillaws.Conn) {
 	s.mu.RLock()
+	var targetSess *ClientSession
 	clientName := s.connClientNameLocked(conn)
+	for _, sessions := range s.sessions {
+		for _, sess := range sessions {
+			if sess.Conn == conn {
+				targetSess = sess
+				break
+			}
+		}
+		if targetSess != nil {
+			break
+		}
+	}
 	s.mu.RUnlock()
 	log.Printf("[WS] received ping: id=%s from=%s", peek.ID, clientName)
-	s.sendPong(conn, peek.ID, clientName)
+	if targetSess != nil {
+		s.sendPong(targetSess, peek.ID, clientName)
+	}
 }
 
-func (s *Server) removeConn(conn *gorillaws.Conn) {
+func (s *Server) removeSession(sess *ClientSession) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	for clientName, sessions := range s.sessions {
-		for instanceID, sess := range sessions {
-			if sess.Conn == conn {
-				delete(sessions, instanceID)
-				if len(sessions) == 0 {
-					delete(s.sessions, clientName)
-				}
-				log.Printf("[WS] removed: %s/%s", clientName, instanceID)
-				return
+	
+	// 按 sessionID 精确匹配删除,避免误删新 session
+	if sessions, ok := s.sessions[sess.ClientName]; ok {
+		if current, exists := sessions[sess.InstanceID]; exists && current.SessionID == sess.SessionID {
+			delete(sessions, sess.InstanceID)
+			if len(sessions) == 0 {
+				delete(s.sessions, sess.ClientName)
 			}
+			log.Printf("[WS] removed: %s/%s (sessionID=%s)", sess.ClientName, sess.InstanceID, sess.SessionID)
 		}
 	}
 }
 
-func (s *Server) touchConn(conn *gorillaws.Conn) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
+func (s *Server) closeSession(sess *ClientSession) {
+	sess.closeOnce.Do(func() {
+		// 1. 先关闭底层连接,打断正在进行的 I/O
+		sess.Conn.Close()
+		
+		// 2. 关闭 closeCh,通知 writerLoop 退出
+		close(sess.closeCh)
+		
+		// 3. 等待 writerLoop 退出 (有界等待,因为连接已关闭)
+		select {
+		case <-sess.writerDone:
+		case <-time.After(5 * time.Second):
+			log.Printf("[WS] writerLoop timeout for %s/%s", sess.ClientName, sess.InstanceID)
+		}
+		
+		// 4. 清理回调和注册
+		s.cleanupSessionCallbacks(sess.SessionID)
+		s.removeSession(sess)
+	})
+}
+
+func (s *Server) closeSessionByConn(conn *gorillaws.Conn) {
+	s.mu.RLock()
+	var targetSess *ClientSession
 	for _, sessions := range s.sessions {
 		for _, sess := range sessions {
 			if sess.Conn == conn {
+				targetSess = sess
+				break
+			}
+		}
+		if targetSess != nil {
+			break
+		}
+	}
+	s.mu.RUnlock()
+	
+	if targetSess != nil {
+		s.closeSession(targetSess)
+	}
+}
+
+func (s *Server) touchConn(conn *gorillaws.Conn) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, sessions := range s.sessions {
+		for _, sess := range sessions {
+			if sess.Conn == conn {
+				sess.mu.Lock()
 				sess.LastSeenAt = time.Now()
+				sess.mu.Unlock()
 				return
 			}
 		}
@@ -308,15 +428,14 @@ func (s *Server) SendJSON(sess *ClientSession, v interface{}) error {
 	if err != nil {
 		return err
 	}
-	sess.wmu.Lock()
-	defer sess.wmu.Unlock()
-	return sess.Conn.WriteMessage(gorillaws.TextMessage, data)
+	return sess.Send(data)
 }
 
 // RegisterCallback 注册一次性 msgID 回调（REST 层使用）
-func (s *Server) RegisterCallback(msgID string, cb func([]byte)) {
+func (s *Server) RegisterCallback(msgID string, sess *ClientSession, cb func([]byte)) {
 	s.mu.Lock()
 	s.pendingCallbacks[msgID] = cb
+	s.callbackSessions[msgID] = sess.SessionID
 	s.mu.Unlock()
 }
 
@@ -324,7 +443,43 @@ func (s *Server) RegisterCallback(msgID string, cb func([]byte)) {
 func (s *Server) RemoveCallback(msgID string) {
 	s.mu.Lock()
 	delete(s.pendingCallbacks, msgID)
+	delete(s.callbackSessions, msgID)
 	s.mu.Unlock()
+}
+
+func (s *Server) cleanupSessionCallbacks(sessionID string) {
+	s.mu.Lock()
+	var toFail []struct {
+		msgID string
+		cb    func([]byte)
+	}
+	
+	for msgID, sid := range s.callbackSessions {
+		if sid == sessionID {
+			if cb, ok := s.pendingCallbacks[msgID]; ok {
+				toFail = append(toFail, struct {
+					msgID string
+					cb    func([]byte)
+				}{msgID, cb})
+				delete(s.pendingCallbacks, msgID)
+				delete(s.callbackSessions, msgID)
+			}
+		}
+	}
+	s.mu.Unlock()
+	
+	for _, item := range toFail {
+		errResp := map[string]interface{}{
+			"id": item.msgID,
+			"type": "response.error",
+			"payload": map[string]interface{}{
+				"code":    "session_disconnected",
+				"message": "WebSocket session disconnected",
+			},
+		}
+		data, _ := json.Marshal(errResp)
+		item.cb(data)
+	}
 }
 
 // GetInstances 返回所有在线实例的只读快照
@@ -361,19 +516,22 @@ func (s *Server) runHeartbeat() {
 			return
 		case <-ticker.C:
 			now := time.Now()
-			var stale []*gorillaws.Conn
+			var stale []*ClientSession
 			s.mu.RLock()
 			for _, sessions := range s.sessions {
 				for _, sess := range sessions {
-					if now.Sub(sess.LastSeenAt) > heartbeatTimeout {
-						stale = append(stale, sess.Conn)
+					sess.mu.Lock()
+					lastSeen := sess.LastSeenAt
+					sess.mu.Unlock()
+					if now.Sub(lastSeen) > heartbeatTimeout {
+						stale = append(stale, sess)
 					}
 				}
 			}
 			s.mu.RUnlock()
-			for _, conn := range stale {
-				log.Printf("[WS] heartbeat timeout: %s", conn.RemoteAddr())
-				conn.Close()
+			for _, sess := range stale {
+				log.Printf("[WS] heartbeat timeout: %s/%s", sess.ClientName, sess.InstanceID)
+				s.closeSession(sess)
 			}
 		}
 	}
@@ -381,7 +539,7 @@ func (s *Server) runHeartbeat() {
 
 // --- 内部发送 ---
 
-func (s *Server) sendHelloAck(conn *gorillaws.Conn, replyID, target string) {
+func (s *Server) sendHelloAck(sess *ClientSession, replyID, target string) {
 	ack := types.Message[types.ServerHelloAckPayload]{
 		ID: replyID, Type: types.ServerHelloAck,
 		Source: ServerName, Target: target,
@@ -394,52 +552,25 @@ func (s *Server) sendHelloAck(conn *gorillaws.Conn, replyID, target string) {
 			HeartbeatIntervalMs: HeartbeatMs,
 		},
 	}
-	if err := s.writeJSONToConn(conn, ack); err != nil {
+	data, _ := json.Marshal(ack)
+	if err := sess.Send(data); err != nil {
 		log.Printf("[WS] failed to send hello_ack to %s: %v", target, err)
 		return
 	}
 	log.Printf("[WS] sent hello_ack to %s", target)
 }
 
-func (s *Server) sendPong(conn *gorillaws.Conn, replyID, target string) {
+func (s *Server) sendPong(sess *ClientSession, replyID, target string) {
 	pong := types.Message[types.EmptyPayload]{
 		ID: replyID, Type: types.Pong,
 		Source: ServerName, Target: target,
 		Timestamp: time.Now().UnixMilli(),
 		Payload:   types.EmptyPayload{},
 	}
-	if err := s.writeJSONToConn(conn, pong); err != nil {
+	data, _ := json.Marshal(pong)
+	if err := sess.Send(data); err != nil {
 		log.Printf("[WS] failed to send pong to %s: %v", target, err)
 		return
 	}
 	log.Printf("[WS] sent pong: id=%s to=%s", replyID, target)
-}
-
-func (s *Server) writeJSONToConn(conn *gorillaws.Conn, v interface{}) error {
-	data, err := json.Marshal(v)
-	if err != nil {
-		return err
-	}
-
-	var sess *ClientSession
-	s.mu.RLock()
-	for _, sessions := range s.sessions {
-		for _, candidate := range sessions {
-			if candidate.Conn == conn {
-				sess = candidate
-				break
-			}
-		}
-		if sess != nil {
-			break
-		}
-	}
-	s.mu.RUnlock()
-
-	if sess != nil {
-		sess.wmu.Lock()
-		defer sess.wmu.Unlock()
-	}
-
-	return conn.WriteMessage(gorillaws.TextMessage, data)
 }

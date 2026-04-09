@@ -127,7 +127,7 @@ func (h *Handler) pluginInvoke(w http.ResponseWriter, r *http.Request) {
 	}
 
 	done := make(chan struct{}, 1)
-	h.ws.RegisterCallback(id, func(data []byte) {
+	h.ws.RegisterCallback(id, sess, func(data []byte) {
 		// 返回插件响应的 payload，去掉外层消息封装
 		writeRawPayload(w, data)
 		done <- struct{}{}
@@ -168,7 +168,7 @@ func (h *Handler) bridge(
 		timeoutMs = 5000
 	}
 	done := make(chan struct{}, 1)
-	h.ws.RegisterCallback(msgID, func(data []byte) {
+	h.ws.RegisterCallback(msgID, sess, func(data []byte) {
 		onResp(data)
 		done <- struct{}{}
 	})
