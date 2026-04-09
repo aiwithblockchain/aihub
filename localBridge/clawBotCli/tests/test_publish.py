@@ -30,10 +30,16 @@ from utils.api_client import APIClient
 
 def upload_media_file(client: APIClient, file_path: str) -> Optional[str]:
     """
-    上传媒体文件并返回 media_id
-
-    注意：此功能需要后端支持 media upload API
-    如果后端未实现，将返回 None 并提示错误
+    基于 Task 生命周期上传媒体文件并获取 media_id
+    
+    该方法负责协调任务客户端、上传器和进度显示组件，执行完整的视频上传链路。
+    
+    Args:
+        client: 现有的 API 客户端实例
+        file_path: 待上传的媒体文件本地路径
+        
+    Returns:
+        Optional[str]: 极速获取的 media_id，若上传失败或用户取消则返回 None
     """
     if not os.path.exists(file_path):
         print(f"❌ 文件不存在: {file_path}")
@@ -43,16 +49,25 @@ def upload_media_file(client: APIClient, file_path: str) -> Optional[str]:
     print(f"📤 上传媒体文件: {file_path} ({file_size} bytes)")
 
     try:
-        # 尝试调用 upload_media API
-        if hasattr(client, 'upload_media'):
-            media_id = client.upload_media(file_path)
-            if media_id:
-                print(f"✅ 媒体上传成功，media_id: {media_id}")
-                return media_id
+        # 延迟导入：仅在实际需要上传时才加载这些模块，
+        # 避免影响其他仅使用 APIClient 的测试脚本
+        from utils.task_client import TaskClient
+        from utils.chunked_uploader import ChunkedUploader
+        from utils.progress_display import ProgressDisplay
+        from utils.api_client import MediaUploadTask
 
-        # 如果没有 upload_media 方法，返回错误
-        print("❌ 错误: API 客户端不支持 upload_media 方法")
-        print("   后端需要实现 Twitter media upload API")
+        task_client = TaskClient()
+        uploader = ChunkedUploader(task_client)
+        progress = ProgressDisplay()
+        
+        task = MediaUploadTask(task_client, uploader, progress)
+        media_id = task.upload_video(video_path=file_path)
+        
+        if media_id:
+            print(f"✅ 媒体上传成功，media_id: {media_id}")
+            return media_id
+            
+        print("❌ 错误: API 客户端未能返回 media_id")
         return None
 
     except Exception as e:
@@ -60,20 +75,14 @@ def upload_media_file(client: APIClient, file_path: str) -> Optional[str]:
         return None
 
 
-def explain_media_upload_failure(file_path: str):
-    file_size = os.path.getsize(file_path)
-    print(f"   文件大小: {file_size} bytes")
-    print("   原因: 请查看上面的直接错误信息")
-    if file_size > 64 * 1024 * 1024:
-        print("   推断: 当前失败发生在 Chrome 扩展消息通道，单条消息超过 64MiB 上限")
-        print("   建议: 不要一次性把整段视频 base64 通过 tabs.sendMessage 发送给 content script")
-        print("   建议: 改为分块传输、共享存储中转，或在页面上下文直接处理文件")
-    else:
-        print("   建议: 根据上面的错误信息继续排查上传流程")
-
-
 def test_create_tweet(text: str, media_ids: Optional[List[str]] = None):
-    """Test POST /api/v1/x/tweets"""
+    """
+    测试推文发布接口 (POST /api/v1/x/tweets)
+    
+    Args:
+        text: 推文正文内容
+        media_ids: 可选的已上传媒体 ID 列表
+    """
     print("\n" + "="*60)
     print("Testing: POST /api/v1/x/tweets")
     print("="*60)
@@ -125,7 +134,14 @@ def test_create_tweet(text: str, media_ids: Optional[List[str]] = None):
 
 
 def test_create_reply(tweet_id: str, text: str, media_ids: Optional[List[str]] = None):
-    """Test POST /api/v1/x/replies"""
+    """
+    测试回复推文接口 (POST /api/v1/x/replies)
+    
+    Args:
+        tweet_id: 需要回复的目的推文 ID
+        text: 回复的正文内容
+        media_ids: 可选的已上传媒体 ID 列表
+    """
     print("\n" + "="*60)
     print("Testing: POST /api/v1/x/replies")
     print("="*60)
@@ -234,7 +250,6 @@ def main():
             media_ids.append(media_id)
         else:
             print("\n❌ 任务失败: 无法上传图片")
-            explain_media_upload_failure(args.image)
             sys.exit(1)
 
     # 处理多张图片
@@ -250,7 +265,6 @@ def main():
                 media_ids.append(media_id)
             else:
                 print(f"\n❌ 任务失败: 无法上传图片 {image_path}")
-                explain_media_upload_failure(image_path)
                 sys.exit(1)
 
     # 处理视频
@@ -260,7 +274,6 @@ def main():
             media_ids.append(media_id)
         else:
             print("\n❌ 任务失败: 无法上传视频")
-            explain_media_upload_failure(args.video)
             sys.exit(1)
 
     # 人工确认
