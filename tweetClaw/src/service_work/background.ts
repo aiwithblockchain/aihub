@@ -232,13 +232,13 @@ chrome.storage.local.get(['wsHost', 'wsPort']).then(async res => {
         localBridgeBaseUrl: `http://${host}:${port}`,
         clientName: 'tweetClaw',
         instanceId: instanceId,
-        fetchTimeoutMs: res.fetchTimeoutMs || 30000,
-        uploadTimeoutMs: res.uploadTimeoutMs || 60000
+        fetchTimeoutMs: (res.fetchTimeoutMs as number) || 30000,
+        uploadTimeoutMs: (res.uploadTimeoutMs as number) || 60000
     });
     
     // Auto configure log level if specified
     if (res.logLevel) {
-        logger.setLevel(res.logLevel);
+        logger.setLevel(res.logLevel as any);
     }
     
     taskExecutorReady = true;

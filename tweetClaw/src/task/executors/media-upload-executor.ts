@@ -61,7 +61,7 @@ export class MediaUploadExecutor implements BusinessExecutor {
         formData.append('media_id', mediaId);
         formData.append('segment_index', String(segmentIndex));
         // Use a Blob to convert Uint8Array properly for FormData
-        formData.append('media', new Blob([chunk], { type: mimeType }), `chunk-${segmentIndex}`);
+        formData.append('media', new Blob([chunk as any], { type: mimeType }), `chunk-${segmentIndex}`);
 
         const appendResponse = await fetch(appendUrl, {
             method: 'POST',

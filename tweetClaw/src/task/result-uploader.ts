@@ -32,7 +32,7 @@ export class ResultUploaderImpl implements ResultUploader {
               'X-Client-Name': this.config.clientName,
               'X-Instance-ID': this.config.instanceId
             },
-            body: data,
+            body: new Blob([data as any]),
             signal: controller.signal
           }
         );
