@@ -10,6 +10,7 @@ import (
 
 	gorillaws "github.com/gorilla/websocket"
 	"github.com/google/uuid"
+	"github.com/hyperorchid/localbridge/pkg/task"
 	"github.com/hyperorchid/localbridge/pkg/types"
 )
 
@@ -95,6 +96,7 @@ type Server struct {
 	callbackSessions map[string]string  // msgID -> sessionID
 	httpServers      []*http.Server
 	stopCh           chan struct{}
+	taskManager      *task.Manager
 }
 
 func NewServer() *Server {
@@ -103,6 +105,67 @@ func NewServer() *Server {
 		pendingCallbacks: make(map[string]func([]byte)),
 		callbackSessions: make(map[string]string),
 		stopCh:           make(chan struct{}),
+	}
+}
+
+func (s *Server) SetTaskManager(m *task.Manager) {
+	s.taskManager = m
+}
+
+func (s *Server) handleTaskEvent(data []byte, conn *gorillaws.Conn) {
+	if s.taskManager == nil {
+		return
+	}
+	s.mu.RLock()
+	var clientName, instanceId string
+	for cn, sessions := range s.sessions {
+		for id, sess := range sessions {
+			if sess.Conn == conn {
+				clientName = cn
+				instanceId = id
+				break
+			}
+		}
+		if clientName != "" {
+			break
+		}
+	}
+	s.mu.RUnlock()
+
+	var raw types.PeekMessage
+	if err := json.Unmarshal(data, &raw); err != nil {
+		return
+	}
+
+	switch raw.Type {
+	case "event.task_progress":
+		var ev types.Message[types.TaskProgressEvent]
+		if err := json.Unmarshal(data, &ev); err == nil {
+			if _, err := s.taskManager.EnsureOwner(ev.Payload.TaskID, clientName, instanceId); err == nil {
+				s.taskManager.MarkRunning(ev.Payload.TaskID, ev.Payload.Phase, ev.Payload.Progress)
+			}
+		}
+	case "event.task_failed":
+		var ev types.Message[types.TaskFailedEvent]
+		if err := json.Unmarshal(data, &ev); err == nil {
+			if _, err := s.taskManager.EnsureOwner(ev.Payload.TaskID, clientName, instanceId); err == nil {
+				s.taskManager.MarkFailed(ev.Payload.TaskID, ev.Payload.Phase, ev.Payload.ErrorCode, ev.Payload.ErrorMessage)
+			}
+		}
+	case "event.task_completed":
+		var ev types.Message[types.TaskCompletedEvent]
+		if err := json.Unmarshal(data, &ev); err == nil {
+			if _, err := s.taskManager.EnsureOwner(ev.Payload.TaskID, clientName, instanceId); err == nil {
+				s.taskManager.MarkCompleted(ev.Payload.TaskID, ev.Payload.ResultRef)
+			}
+		}
+	case "event.task_cancelled":
+		var ev types.Message[types.TaskCancelledEvent]
+		if err := json.Unmarshal(data, &ev); err == nil {
+			if _, err := s.taskManager.EnsureOwner(ev.Payload.TaskID, clientName, instanceId); err == nil {
+				s.taskManager.MarkCancelled(ev.Payload.TaskID, ev.Payload.Phase)
+			}
+		}
 	}
 }
 
@@ -214,6 +277,9 @@ func (s *Server) handleMessage(data []byte, conn *gorillaws.Conn) {
 
 	case types.Ping:
 		s.handlePing(peek, conn)
+		
+	case "event.task_progress", "event.task_failed", "event.task_completed", "event.task_cancelled":
+		s.handleTaskEvent(data, conn)
 
 	default:
 		// 所有 response.* 消息：触发对应的 pendingCallback（REST 层注册）
@@ -339,6 +405,11 @@ func (s *Server) closeSession(sess *ClientSession) {
 		
 		// 4. 清理回调和注册
 		s.cleanupSessionCallbacks(sess.SessionID)
+		
+		if s.taskManager != nil {
+			s.taskManager.HandleSessionDisconnect(sess.ClientName, sess.InstanceID)
+		}
+		
 		s.removeSession(sess)
 	})
 }

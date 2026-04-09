@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hyperorchid/localbridge/pkg/task"
 	"github.com/hyperorchid/localbridge/pkg/types"
 	"github.com/hyperorchid/localbridge/pkg/websocket"
 )
@@ -20,6 +21,20 @@ const defaultTaskTimeoutMs = 210_000 // 与 Swift defaultExecuteTaskTimeoutMs �
 type Handler struct{ ws *websocket.Server }
 
 func (h *Handler) Register(mux *http.ServeMux) {
+	// ★ 初始化 Long Task 模块
+	baseDir := os.ExpandEnv("$HOME/Library/Application Support/AIHub/tasks")
+	taskManager := task.NewManager()
+	dataStore := task.NewDataStore(baseDir)
+	resultStore := task.NewResultStore(baseDir)
+	h.ws.SetTaskManager(taskManager)
+	
+	taskHandler := NewTaskHandler(h.ws, taskManager, dataStore, resultStore)
+	cleaner := task.NewCleaner(taskManager, dataStore, resultStore)
+	cleaner.Start()
+	
+	mux.HandleFunc("/api/v1/tasks", taskHandler.CreateTask)
+	mux.HandleFunc("/api/v1/tasks/", taskHandler.TaskDispatch)
+
 	// ★ 通用桥接端点（所有插件均可使用）
 	mux.HandleFunc("/api/v1/plugins",        h.pluginList)    // GET: 插件发现
 	mux.HandleFunc("/api/v1/plugins/",       h.pluginInvoke)  // POST /api/v1/plugins/{clientName}/invoke
