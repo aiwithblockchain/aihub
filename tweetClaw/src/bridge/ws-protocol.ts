@@ -32,6 +32,12 @@ export type MessageType =
   | 'response.query_search_timeline'
   | 'request.upload_media'
   | 'response.upload_media'
+  | 'request.start_task'
+  | 'request.cancel_task'
+  | 'event.task_progress'
+  | 'event.task_failed'
+  | 'event.task_completed'
+  | 'event.task_cancelled'
   | 'response.error';
 
 export const MESSAGE_TYPES: Record<string, MessageType> = {
@@ -65,6 +71,12 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_QUERY_SEARCH_TIMELINE: 'response.query_search_timeline',
   REQUEST_UPLOAD_MEDIA: 'request.upload_media',
   RESPONSE_UPLOAD_MEDIA: 'response.upload_media',
+  REQUEST_START_TASK: 'request.start_task',
+  REQUEST_CANCEL_TASK: 'request.cancel_task',
+  EVENT_TASK_PROGRESS: 'event.task_progress',
+  EVENT_TASK_FAILED: 'event.task_failed',
+  EVENT_TASK_COMPLETED: 'event.task_completed',
+  EVENT_TASK_CANCELLED: 'event.task_cancelled',
   RESPONSE_ERROR: 'response.error',
 };
 

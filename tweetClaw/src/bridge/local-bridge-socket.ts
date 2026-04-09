@@ -25,6 +25,8 @@ export class LocalBridgeSocket {
   public queryUserProfileHandler: ((payload: any) => Promise<any>) | null = null;
   public querySearchTimelineHandler: ((payload: any) => Promise<any>) | null = null;
   public uploadMediaHandler: ((payload: any) => Promise<any>) | null = null;
+  public startTaskHandler: ((payload: any) => Promise<any>) | null = null;
+  public cancelTaskHandler: ((payload: any) => Promise<any>) | null = null;
   
   private WS_URL = 'ws://127.0.0.1:10086/ws'; // Default
   
@@ -230,6 +232,12 @@ export class LocalBridgeSocket {
           break;
         case MESSAGE_TYPES.REQUEST_UPLOAD_MEDIA:
           this.handleGenericQuery(msg, this.uploadMediaHandler, MESSAGE_TYPES.RESPONSE_UPLOAD_MEDIA);
+          break;
+        case MESSAGE_TYPES.REQUEST_START_TASK:
+          if (this.startTaskHandler) this.startTaskHandler(msg.payload);
+          break;
+        case MESSAGE_TYPES.REQUEST_CANCEL_TASK:
+          if (this.cancelTaskHandler) this.cancelTaskHandler(msg.payload);
           break;
         default:
           console.warn(`[tweetClaw] unknown message type: ${msg.type}`);

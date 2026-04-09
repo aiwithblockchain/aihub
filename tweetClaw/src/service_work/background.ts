@@ -14,6 +14,9 @@ import {
     NavigateTabRequestPayload,
     NavigateTabResponsePayload
 } from '../bridge/ws-protocol';
+import { TaskExecutor } from '../task/task-executor';
+import { getOrCreateInstanceId } from '../bridge/instance-id';
+import { logger } from '../task/logger';
 
 // ── Type Definitions ──────────────────────────────────────────────────
 interface TwitterResponse {
@@ -215,6 +218,56 @@ localBridge.queryUserProfileHandler = queryUserProfile;
 localBridge.querySearchTimelineHandler = querySearchTimeline;
 localBridge.uploadMediaHandler = uploadMedia;
 initUploadNetworkDebugging();
+
+// Initialize Task Executor
+let taskExecutor: TaskExecutor | null = null;
+let taskExecutorReady = false;
+
+chrome.storage.local.get(['wsHost', 'wsPort']).then(async res => {
+    const host = res.wsHost || '127.0.0.1';
+    const port = res.wsPort || 10086;
+    const instanceId = await getOrCreateInstanceId();
+    
+    taskExecutor = new TaskExecutor(localBridge, {
+        localBridgeBaseUrl: `http://${host}:${port}`,
+        clientName: 'tweetClaw',
+        instanceId: instanceId,
+        fetchTimeoutMs: res.fetchTimeoutMs || 30000,
+        uploadTimeoutMs: res.uploadTimeoutMs || 60000
+    });
+    
+    // Auto configure log level if specified
+    if (res.logLevel) {
+        logger.setLevel(res.logLevel);
+    }
+    
+    taskExecutorReady = true;
+
+    localBridge.startTaskHandler = async (payload) => {
+        if (!taskExecutorReady) {
+            logger.warn('[TaskExecutor] Not ready yet, ignoring start_task');
+            return;
+        }
+        if (taskExecutor) {
+            // fire and forget since TaskExecutor manages its own lifecycle
+            taskExecutor.startTask(payload).catch(e => logger.error('[TaskExecutor] start hook error', e));
+        }
+    };
+    
+    localBridge.cancelTaskHandler = async (payload) => {
+        if (!taskExecutorReady) return;
+        if (taskExecutor) {
+            taskExecutor.cancelTask(payload.taskId).catch(e => logger.error('[TaskExecutor] cancel hook error', e));
+        }
+    };
+});
+
+// hook reconnect to flush TaskExecutor cancelling stale runs
+const originalHandleReconnect = localBridge.handleReconnectAlarm.bind(localBridge);
+localBridge.handleReconnectAlarm = function() {
+    if (taskExecutor) taskExecutor.handleDisconnect();
+    originalHandleReconnect();
+};
 
 // ── Listen for reconnect alarms ──────────────────────────────────
 chrome.alarms.onAlarm.addListener((alarm) => {
