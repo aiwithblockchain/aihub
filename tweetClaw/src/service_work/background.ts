@@ -175,7 +175,6 @@ localBridge.queryTweetRepliesHandler = queryTweetReplies;
 localBridge.queryTweetDetailHandler = queryTweetDetail;
 localBridge.queryUserProfileHandler = queryUserProfile;
 localBridge.querySearchTimelineHandler = querySearchTimeline;
-localBridge.uploadMediaHandler = uploadMedia;
 initUploadNetworkDebugging();
 
 // Initialize Background Task Coordinator
@@ -782,57 +781,6 @@ export async function querySearchTimeline(payload: QuerySearchTimelinePayload): 
 /**
  * 上传媒体文件 - 返回 media_id
  */
-export async function uploadMedia(payload: any): Promise<any> {
-    const { mediaData, mimeType, tabId } = payload;
-    console.log(`[TweetClaw-BG] uploadMedia called, mimeType=${mimeType}, requestedTabId=${tabId ?? 'auto'}`);
-
-    if (!mediaData || !mimeType) {
-        throw new Error('mediaData and mimeType are required');
-    }
-
-    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    let targetTabId: number | undefined = tabId;
-    if (!targetTabId) {
-        const activeTab = xTabs.find(t => t.active) || xTabs[0];
-        targetTabId = activeTab?.id;
-    }
-    if (!targetTabId) {
-        throw new Error('No x.com tab found');
-    }
-
-    console.log(`[TweetClaw-BG] uploadMedia target tab resolved, tabId=${targetTabId}`);
-
-    const session = backgroundSessionStore.createSessionFromBase64(mediaData, mimeType);
-
-    let result: any;
-    try {
-        // 委托 Content Script 通过分块方式拉取媒体内容，并在页面上下文执行上传请求
-        console.log(`[TweetClaw-BG] uploadMedia sending session to content, tabId=${targetTabId}, sessionId=${session.sessionId}`);
-        result = await chrome.tabs.sendMessage(targetTabId, {
-            type: 'UPLOAD_MEDIA_FROM_SESSION',
-            uploadSessionId: session.sessionId,
-            mimeType,
-            totalBytes: session.totalBytes
-        }).catch((e: any) => {
-            const rawMessage = e?.message || String(e);
-            console.error(`[TweetClaw-BG] uploadMedia sendMessage failed, sessionId=${session.sessionId}, error=${rawMessage}`, e);
-            throw new Error(`Failed to upload media: ${rawMessage}`);
-        });
-        console.log(`[TweetClaw-BG] uploadMedia content response, sessionId=${session.sessionId}, success=${Boolean(result?.success)}, error=${result?.error || ''}`);
-    } finally {
-        releaseUploadSession(session.sessionId);
-    }
-
-    if (!result?.success) {
-        throw new Error(result?.error || 'Media upload failed');
-    }
-
-    // 返回 media_id
-    return {
-        success: true,
-        media_id: result.media_id
-    };
-}
 
 // 启动时初始化
 initDefaultQueryKeys();

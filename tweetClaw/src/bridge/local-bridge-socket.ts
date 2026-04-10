@@ -24,7 +24,6 @@ export class LocalBridgeSocket {
   public queryTweetDetailHandler: ((payload: any) => Promise<any>) | null = null;
   public queryUserProfileHandler: ((payload: any) => Promise<any>) | null = null;
   public querySearchTimelineHandler: ((payload: any) => Promise<any>) | null = null;
-  public uploadMediaHandler: ((payload: any) => Promise<any>) | null = null;
   public startTaskHandler: ((payload: any) => Promise<any>) | null = null;
   public cancelTaskHandler: ((payload: any) => Promise<any>) | null = null;
   
@@ -229,9 +228,6 @@ export class LocalBridgeSocket {
           break;
         case MESSAGE_TYPES.REQUEST_QUERY_SEARCH_TIMELINE:
           this.handleGenericQuery(msg, this.querySearchTimelineHandler, MESSAGE_TYPES.RESPONSE_QUERY_SEARCH_TIMELINE);
-          break;
-        case MESSAGE_TYPES.REQUEST_UPLOAD_MEDIA:
-          this.handleGenericQuery(msg, this.uploadMediaHandler, MESSAGE_TYPES.RESPONSE_UPLOAD_MEDIA);
           break;
         case MESSAGE_TYPES.REQUEST_START_TASK:
           if (this.startTaskHandler) this.startTaskHandler(msg.payload);
