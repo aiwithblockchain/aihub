@@ -63,94 +63,6 @@ interface QuerySearchTimelinePayload {
 }
 
 const backgroundSessionStore = new BackgroundSessionStore();
-const UPLOAD_WEBREQUEST_FILTER: chrome.webRequest.RequestFilter = {
-    urls: ['https://upload.x.com/i/media/upload.json*']
-};
-
-function summarizeHeaders(headers?: chrome.webRequest.HttpHeader[]): string {
-    if (!headers?.length) return '<empty>';
-    return headers
-        .filter((header) => {
-            const name = (header.name || '').toLowerCase();
-            return [
-                'content-type',
-                'content-length',
-                'origin',
-                'referer',
-                'x-csrf-token',
-                'x-client-transaction-id',
-                'x-twitter-active-user',
-                'x-twitter-auth-type'
-            ].includes(name);
-        })
-        .map((header) => `${header.name}=${header.value ?? '<binary>'}`)
-        .join(', ') || '<filtered-empty>';
-}
-
-function initUploadNetworkDebugging() {
-    if (chrome.webRequest.onBeforeRequest.hasListener(logUploadBeforeRequest)) {
-        return;
-    }
-
-    chrome.webRequest.onBeforeRequest.addListener(
-        logUploadBeforeRequest,
-        UPLOAD_WEBREQUEST_FILTER,
-        ['requestBody']
-    );
-    chrome.webRequest.onBeforeSendHeaders.addListener(
-        logUploadBeforeSendHeaders,
-        UPLOAD_WEBREQUEST_FILTER,
-        ['requestHeaders', 'extraHeaders']
-    );
-    chrome.webRequest.onHeadersReceived.addListener(
-        logUploadHeadersReceived,
-        UPLOAD_WEBREQUEST_FILTER,
-        ['responseHeaders', 'extraHeaders']
-    );
-    chrome.webRequest.onCompleted.addListener(
-        logUploadCompleted,
-        UPLOAD_WEBREQUEST_FILTER
-    );
-    chrome.webRequest.onErrorOccurred.addListener(
-        logUploadError,
-        UPLOAD_WEBREQUEST_FILTER
-    );
-    console.log('[TweetClaw-BG] upload webRequest debugging enabled');
-}
-
-function logUploadBeforeRequest(details: any): chrome.webRequest.BlockingResponse {
-    const rawBytes = details.requestBody?.raw?.reduce((sum: number, item: any) => sum + (item.bytes?.byteLength || 0), 0) ?? 0;
-    console.log(
-        `[TweetClaw-BG] upload request beforeRequest, requestId=${details.requestId}, method=${details.method}, tabId=${details.tabId}, type=${details.type}, initiator=${details.initiator || '<empty>'}, rawBytes=${rawBytes}, timeStamp=${Math.round(details.timeStamp)}`
-    );
-    return {};
-}
-
-function logUploadBeforeSendHeaders(details: any): chrome.webRequest.BlockingResponse {
-    console.log(
-        `[TweetClaw-BG] upload request beforeSendHeaders, requestId=${details.requestId}, method=${details.method}, tabId=${details.tabId}, headers=${summarizeHeaders(details.requestHeaders)}, timeStamp=${Math.round(details.timeStamp)}`
-    );
-    return {};
-}
-
-function logUploadHeadersReceived(details: any): chrome.webRequest.BlockingResponse {
-    console.log(
-        `[TweetClaw-BG] upload request headersReceived, requestId=${details.requestId}, statusCode=${details.statusCode}, statusLine=${details.statusLine}, ip=${details.ip || '<empty>'}, fromCache=${details.fromCache}, headers=${summarizeHeaders(details.responseHeaders)}, timeStamp=${Math.round(details.timeStamp)}`
-    );
-    return {};
-}
-
-function logUploadCompleted(details: any) {
-    console.log(
-        `[TweetClaw-BG] upload request completed, requestId=${details.requestId}, statusCode=${details.statusCode}, ip=${details.ip || '<empty>'}, fromCache=${details.fromCache}, timeStamp=${Math.round(details.timeStamp)}`
-    );
-}
-
-function logUploadError(details: any) {
-    console.error(
-        `[TweetClaw-BG] upload request error, requestId=${details.requestId}, error=${details.error}, method=${details.method}, tabId=${details.tabId}, type=${details.type}, initiator=${details.initiator || '<empty>'}, timeStamp=${Math.round(details.timeStamp)}`
-    );
-}
 
 function getUploadSessionChunk(sessionId: string, chunkIndex: number) {
     return backgroundSessionStore.getChunk(sessionId, chunkIndex);
@@ -175,7 +87,6 @@ localBridge.queryTweetRepliesHandler = queryTweetReplies;
 localBridge.queryTweetDetailHandler = queryTweetDetail;
 localBridge.queryUserProfileHandler = queryUserProfile;
 localBridge.querySearchTimelineHandler = querySearchTimeline;
-initUploadNetworkDebugging();
 
 // Initialize Background Task Coordinator
 let taskCoordinator: BackgroundTaskCoordinator | null = null;
