@@ -3,8 +3,11 @@ import { performMutation, performLegacyREST, fetchUserByScreenName, performQuery
 import { findDeepUser } from '../capture/extractor';
 import { UserProfile } from '../object/user_info';
 import { getTransactionIdFor } from '../x_api/txid';
+import { ContentTaskRunner } from './content-task-runner';
+import { StartTaskUploadFromBgSessionMessage } from '../task/types';
 
 const MEDIA_TRANSFER_CHUNK_BYTES = 3 * 1024 * 1024;
+const contentTaskRunner = new ContentTaskRunner();
 
 /**
  * main_entrance.ts - Content Script Supervisor
@@ -681,6 +684,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 await releaseUploadSession(uploadSessionId);
             }
         })();
+        return true;
+    }
+
+    if (message.type === 'START_TASK_UPLOAD_FROM_BG_SESSION') {
+        try {
+            const taskMessage = message as StartTaskUploadFromBgSessionMessage;
+            if (!taskMessage.taskId || !taskMessage.uploadSessionId || !taskMessage.mimeType || !taskMessage.totalBytes) {
+                throw new Error('taskId, uploadSessionId, mimeType and totalBytes are required');
+            }
+
+            contentTaskRunner.startTaskFromBackground(taskMessage);
+            sendResponse({ success: true });
+        } catch (e: any) {
+            console.error('[TweetClaw-CS] START_TASK_UPLOAD_FROM_BG_SESSION rejected:', e);
+            sendResponse({ success: false, error: e?.message || String(e) });
+        }
+        return true;
+    }
+
+    if (message.type === 'CANCEL_CONTENT_TASK') {
+        contentTaskRunner.cancelTask(String(message.taskId || ''));
+        sendResponse({ success: true });
         return true;
     }
 

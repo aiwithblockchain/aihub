@@ -14,6 +14,8 @@ import (
 	"github.com/hyperorchid/localbridge/pkg/websocket"
 )
 
+const backgroundToContentTransferChunkBytes = 30 * 1024 * 1024
+
 type TaskHandler struct {
 	ws          *websocket.Server
 	manager     *task.Manager
@@ -182,7 +184,7 @@ func (h *TaskHandler) StartTask(w http.ResponseWriter, r *http.Request, taskID s
 		writeError(w, http.StatusConflict, "INVALID_STATE", err.Error())
 		return
 	}
-	
+
 	meta, err := h.dataStore.GetInputMetadata(taskID)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "START_FAILED", "Failed to retrieve input metadata")
@@ -199,6 +201,15 @@ func (h *TaskHandler) StartTask(w http.ResponseWriter, r *http.Request, taskID s
 		if meta.ContentType != "" {
 			params["contentType"] = meta.ContentType
 		}
+	}
+	if _, exists := params["executionEnv"]; !exists {
+		params["executionEnv"] = "content"
+	}
+	if _, exists := params["deliveryMode"]; !exists {
+		params["deliveryMode"] = "bg_session_to_content_session"
+	}
+	if _, exists := params["transferChunkBytes"]; !exists {
+		params["transferChunkBytes"] = backgroundToContentTransferChunkBytes
 	}
 
 	startReq := types.StartTaskRequest{
@@ -223,7 +234,7 @@ func (h *TaskHandler) StartTask(w http.ResponseWriter, r *http.Request, taskID s
 		writeError(w, http.StatusServiceUnavailable, "PLUGIN_OFFLINE", err.Error())
 		return
 	}
-    
+
 	if err := h.ws.SendJSON(sess, msg); err != nil {
 		h.manager.MarkFailed(taskID, "start", "SEND_FAILED", err.Error())
 		writeError(w, http.StatusServiceUnavailable, "SEND_FAILED", err.Error())
