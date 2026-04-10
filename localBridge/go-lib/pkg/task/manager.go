@@ -46,7 +46,7 @@ func (m *Manager) CreateTask(req CreateTaskRequest) (*Task, error) {
 
 	taskID := "task_" + uuid.New().String()
 	now := time.Now()
-	
+
 	task := &Task{
 		TaskID:          taskID,
 		TaskKind:        req.TaskKind,
@@ -60,7 +60,7 @@ func (m *Manager) CreateTask(req CreateTaskRequest) (*Task, error) {
 		CreatedAt:       now,
 		UpdatedAt:       now,
 	}
-	
+
 	m.tasks[taskID] = task
 	return task, nil
 }
@@ -99,11 +99,11 @@ func (m *Manager) MarkReceivingInput(taskID string) error {
 	if !exists {
 		return fmt.Errorf("task %s not found", taskID)
 	}
-	
+
 	if task.State != TaskCreated && task.State != TaskReceivingInput {
 		return fmt.Errorf("invalid state transition: %s -> %s", task.State, TaskReceivingInput)
 	}
-	
+
 	task.State = TaskReceivingInput
 	task.UpdatedAt = time.Now()
 	return nil
@@ -116,11 +116,11 @@ func (m *Manager) MarkReady(taskID string, inputRef string) error {
 	if !exists {
 		return fmt.Errorf("task %s not found", taskID)
 	}
-	
+
 	if task.State != TaskCreated && task.State != TaskReceivingInput {
 		return fmt.Errorf("invalid state transition: %s -> %s", task.State, TaskReady)
 	}
-	
+
 	task.State = TaskReady
 	task.InputRef = inputRef
 	task.UpdatedAt = time.Now()
@@ -134,11 +134,11 @@ func (m *Manager) MarkStarting(taskID string) error {
 	if !exists {
 		return fmt.Errorf("task %s not found", taskID)
 	}
-	
+
 	if task.State != TaskReady {
 		return fmt.Errorf("invalid state transition: %s -> %s", task.State, TaskStarting)
 	}
-	
+
 	task.State = TaskStarting
 	task.UpdatedAt = time.Now()
 	return nil
@@ -151,11 +151,11 @@ func (m *Manager) MarkRunning(taskID, phase string, progress float64) error {
 	if !exists {
 		return fmt.Errorf("task %s not found", taskID)
 	}
-	
+
 	if task.State != TaskStarting && task.State != TaskRunning {
 		return fmt.Errorf("invalid state transition: %s -> %s", task.State, TaskRunning)
 	}
-	
+
 	task.State = TaskRunning
 	if phase != "" {
 		task.Phase = phase
@@ -176,11 +176,18 @@ func (m *Manager) SetResultRef(taskID, resultRef string) error {
 	if !exists {
 		return fmt.Errorf("task %s not found", taskID)
 	}
-	if task.State != TaskRunning {
+	if task.State != TaskStarting && task.State != TaskRunning {
 		return fmt.Errorf("cannot set resultRef: invalid state %s", task.State)
 	}
 	task.ResultRef = resultRef
-	task.UpdatedAt = time.Now()
+	now := time.Now()
+	if task.State == TaskStarting {
+		task.State = TaskRunning
+		if task.StartedAt == nil {
+			task.StartedAt = &now
+		}
+	}
+	task.UpdatedAt = now
 	return nil
 }
 
@@ -191,21 +198,24 @@ func (m *Manager) MarkCompleted(taskID, resultRef string) error {
 	if !exists {
 		return fmt.Errorf("task %s not found", taskID)
 	}
-	
-	if task.State != TaskRunning {
+
+	if task.State != TaskStarting && task.State != TaskRunning {
 		return fmt.Errorf("invalid state transition: %s -> %s", task.State, TaskCompleted)
 	}
-	
+
 	if task.ResultRef != "" && task.ResultRef != resultRef {
 		return fmt.Errorf("resultRef mismatch: %s != %s", task.ResultRef, resultRef)
 	}
 	if resultRef != "" {
 		task.ResultRef = resultRef
 	}
-	
+
 	task.State = TaskCompleted
 	task.Phase = "done"
 	now := time.Now()
+	if task.StartedAt == nil {
+		task.StartedAt = &now
+	}
 	task.CompletedAt = &now
 	task.UpdatedAt = now
 	return nil
@@ -218,11 +228,11 @@ func (m *Manager) MarkFailed(taskID, phase, code, message string) error {
 	if !exists {
 		return fmt.Errorf("task %s not found", taskID)
 	}
-	
+
 	if task.State == TaskCompleted || task.State == TaskCancelled || task.State == TaskFailed {
 		return fmt.Errorf("invalid state transition: %s -> %s", task.State, TaskFailed)
 	}
-	
+
 	task.State = TaskFailed
 	if phase != "" {
 		task.Phase = phase
@@ -242,11 +252,11 @@ func (m *Manager) MarkCancelled(taskID, phase string) error {
 	if !exists {
 		return fmt.Errorf("task %s not found", taskID)
 	}
-	
+
 	if task.State == TaskCompleted || task.State == TaskFailed || task.State == TaskCancelled {
 		return fmt.Errorf("invalid state transition: %s -> %s", task.State, TaskCancelled)
 	}
-	
+
 	task.State = TaskCancelled
 	if phase != "" {
 		task.Phase = phase
@@ -260,7 +270,7 @@ func (m *Manager) MarkCancelled(taskID, phase string) error {
 func (m *Manager) HandleSessionDisconnect(clientName, instanceID string) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
-	
+
 	for _, task := range m.tasks {
 		if task.OwnerClientName == clientName && task.OwnerInstanceID == instanceID {
 			if task.State == TaskStarting || task.State == TaskRunning {

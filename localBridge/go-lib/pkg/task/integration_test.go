@@ -298,3 +298,62 @@ func TestStartTaskInjectsContentExecutionMetadata(t *testing.T) {
 		t.Fatalf("expected totalBytes=5, got %#v", got)
 	}
 }
+
+func TestUploadResultAllowedWhileTaskStillStarting(t *testing.T) {
+	baseDir := os.ExpandEnv("$HOME/Library/Application Support/AIHub/tasks_test_starting_result")
+	defer os.RemoveAll(baseDir)
+
+	manager := task.NewManager()
+	dataStore := task.NewDataStore(baseDir)
+	resultStore := task.NewResultStore(baseDir)
+	ws := websocket.NewServer()
+	ws.SetTaskManager(manager)
+	taskHandler := restapi.NewTaskHandler(ws, manager, dataStore, resultStore)
+
+	req := task.CreateTaskRequest{
+		ClientName: "tweetClaw",
+		InstanceID: "instance-1",
+		TaskKind:   "x.media_upload",
+		InputMode:  "chunked",
+	}
+	tModel, err := manager.CreateTask(req)
+	if err != nil {
+		t.Fatalf("CreateTask failed: %v", err)
+	}
+	if err := manager.MarkReady(tModel.TaskID, "task-store://"+tModel.TaskID); err != nil {
+		t.Fatalf("MarkReady failed: %v", err)
+	}
+	if err := manager.MarkStarting(tModel.TaskID); err != nil {
+		t.Fatalf("MarkStarting failed: %v", err)
+	}
+
+	hreq := httptest.NewRequest(http.MethodPost, "/api/v1/tasks/"+tModel.TaskID+"/result", bytes.NewReader([]byte("result_val")))
+	hreq.Header.Set("X-Client-Name", "tweetClaw")
+	hreq.Header.Set("X-Instance-ID", "instance-1")
+	hreq.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	taskHandler.UploadResult(w, hreq, tModel.TaskID)
+
+	if w.Result().StatusCode != 200 {
+		t.Fatalf("UploadResult failed from starting state: %s", w.Body.String())
+	}
+
+	var uploadRes map[string]interface{}
+	json.NewDecoder(w.Body).Decode(&uploadRes)
+	ref := uploadRes["resultRef"].(string)
+
+	taskAfterUpload, err := manager.GetTask(tModel.TaskID)
+	if err != nil {
+		t.Fatalf("GetTask failed: %v", err)
+	}
+	if taskAfterUpload.State != task.TaskRunning {
+		t.Fatalf("expected task state to advance to running after result upload, got %s", taskAfterUpload.State)
+	}
+	if taskAfterUpload.ResultRef != ref {
+		t.Fatalf("expected resultRef to be stored, got %q", taskAfterUpload.ResultRef)
+	}
+
+	if err := manager.MarkCompleted(tModel.TaskID, ref); err != nil {
+		t.Fatalf("MarkCompleted failed after upload from starting state: %v", err)
+	}
+}

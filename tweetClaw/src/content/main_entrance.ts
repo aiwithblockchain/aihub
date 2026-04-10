@@ -1,5 +1,13 @@
 import { MsgType } from '../capture/consts';
-import { performMutation, performLegacyREST, fetchUserByScreenName, performQuery, getAuthHeader, getCsrfToken } from '../x_api/twitter_api';
+import {
+    performMutation,
+    performLegacyREST,
+    fetchUserByScreenName,
+    performQuery,
+    getAuthHeader,
+    getCsrfToken,
+    MEDIA_APPEND_CHUNK_SIZE_BYTES
+} from '../x_api/twitter_api';
 import { findDeepUser } from '../capture/extractor';
 import { UserProfile } from '../object/user_info';
 import { getTransactionIdFor } from '../x_api/txid';
@@ -186,34 +194,54 @@ async function uploadMediaFromSession(uploadSessionId: string, mimeType: string,
     }
     console.log(`[TweetClaw-CS] uploadMediaFromSession INIT success, sessionId=${uploadSessionId}, mediaId=${mediaId}`);
 
-    const totalSegments = Math.max(1, Math.ceil(totalBytes / MEDIA_TRANSFER_CHUNK_BYTES));
-    console.log(`[TweetClaw-CS] uploadMediaFromSession APPEND start, sessionId=${uploadSessionId}, totalSegments=${totalSegments}`);
-    for (let segmentIndex = 0; segmentIndex < totalSegments; segmentIndex++) {
-        const chunkBase64 = await getUploadSessionChunk(uploadSessionId, segmentIndex);
-        const appendTxid = await getTransactionIdFor('POST', '/i/media/upload.json');
-        console.log(`[TweetClaw-CS] uploadMediaFromSession APPEND request, sessionId=${uploadSessionId}, segment=${segmentIndex + 1}/${totalSegments}`);
-
-        const appendResult = await pageUploadProxy({
-            kind: 'append',
-            url: 'https://upload.x.com/i/media/upload.json',
-            method: 'POST',
-            headers: {
-                'authorization': bearer,
-                'x-csrf-token': csrf,
-                'x-client-transaction-id': appendTxid,
-                'x-twitter-auth-type': 'OAuth2Session'
-            },
-            command: 'APPEND',
-            mediaId,
-            segmentIndex,
-            mimeType,
-            chunkBase64
-        });
-
-        if (!appendResult.ok) {
-            throw new Error(`Media upload APPEND failed at segment ${segmentIndex}/${totalSegments - 1}: ${appendResult.status} ${appendResult.text || ''}`);
+    const totalTransferChunks = Math.max(1, Math.ceil(totalBytes / MEDIA_TRANSFER_CHUNK_BYTES));
+    const totalSegments = Math.max(1, Math.ceil(totalBytes / MEDIA_APPEND_CHUNK_SIZE_BYTES));
+    let segmentIndex = 0;
+    console.log(`[TweetClaw-CS] uploadMediaFromSession APPEND start, sessionId=${uploadSessionId}, totalTransferChunks=${totalTransferChunks}, totalSegments=${totalSegments}`);
+    for (let transferChunkIndex = 0; transferChunkIndex < totalTransferChunks; transferChunkIndex++) {
+        const chunkBase64 = await getUploadSessionChunk(uploadSessionId, transferChunkIndex);
+        const chunkBinary = atob(chunkBase64);
+        const chunkBytes = new Uint8Array(chunkBinary.length);
+        for (let i = 0; i < chunkBinary.length; i++) {
+            chunkBytes[i] = chunkBinary.charCodeAt(i);
         }
-        console.log(`[TweetClaw-CS] uploadMediaFromSession APPEND success, sessionId=${uploadSessionId}, segment=${segmentIndex + 1}/${totalSegments}`);
+
+        for (let start = 0; start < chunkBytes.length; start += MEDIA_APPEND_CHUNK_SIZE_BYTES) {
+            const end = Math.min(start + MEDIA_APPEND_CHUNK_SIZE_BYTES, chunkBytes.length);
+            const appendChunk = chunkBytes.slice(start, end);
+            let appendBase64 = '';
+            const blockSize = 0x8000;
+            for (let offset = 0; offset < appendChunk.length; offset += blockSize) {
+                const block = appendChunk.subarray(offset, offset + blockSize);
+                appendBase64 += String.fromCharCode(...block);
+            }
+            const encodedChunk = btoa(appendBase64);
+            const appendTxid = await getTransactionIdFor('POST', '/i/media/upload.json');
+            console.log(`[TweetClaw-CS] uploadMediaFromSession APPEND request, sessionId=${uploadSessionId}, segment=${segmentIndex + 1}/${totalSegments}`);
+
+            const appendResult = await pageUploadProxy({
+                kind: 'append',
+                url: 'https://upload.x.com/i/media/upload.json',
+                method: 'POST',
+                headers: {
+                    'authorization': bearer,
+                    'x-csrf-token': csrf,
+                    'x-client-transaction-id': appendTxid,
+                    'x-twitter-auth-type': 'OAuth2Session'
+                },
+                command: 'APPEND',
+                mediaId,
+                segmentIndex,
+                mimeType,
+                chunkBase64: encodedChunk
+            });
+
+            if (!appendResult.ok) {
+                throw new Error(`Media upload APPEND failed at segment ${segmentIndex}/${totalSegments - 1}: ${appendResult.status} ${appendResult.text || ''}`);
+            }
+            console.log(`[TweetClaw-CS] uploadMediaFromSession APPEND success, sessionId=${uploadSessionId}, segment=${segmentIndex + 1}/${totalSegments}`);
+            segmentIndex += 1;
+        }
     }
 
     const finalizeUrl = `https://upload.x.com/i/media/upload.json?command=FINALIZE&media_id=${mediaId}`;

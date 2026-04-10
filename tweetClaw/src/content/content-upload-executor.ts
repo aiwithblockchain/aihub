@@ -1,6 +1,11 @@
 import { ExecutorCallbacks, ContentUploadSession } from '../task/types';
 import { logger } from '../task/logger';
-import { getAuthHeader, getCsrfToken, uploadMedia } from '../x_api/twitter_api';
+import {
+  getAuthHeader,
+  getCsrfToken,
+  uploadMedia,
+  MEDIA_APPEND_CHUNK_SIZE_BYTES
+} from '../x_api/twitter_api';
 import { getTransactionIdFor } from '../x_api/txid';
 
 export const DIRECT_UPLOAD_THRESHOLD_BYTES = 64 * 1024 * 1024;
@@ -83,6 +88,19 @@ function buildTaskResult(mediaId: string): Uint8Array {
   return new TextEncoder().encode(JSON.stringify({ mediaId }));
 }
 
+function splitBlobIntoSegments(blob: Blob, segmentBytes: number, mimeType: string): Blob[] {
+  if (blob.size === 0) {
+    return [new Blob([], { type: mimeType })];
+  }
+
+  const segments: Blob[] = [];
+  for (let start = 0; start < blob.size; start += segmentBytes) {
+    const end = Math.min(start + segmentBytes, blob.size);
+    segments.push(blob.slice(start, end, mimeType));
+  }
+  return segments;
+}
+
 export class ContentUploadExecutor {
   private pageUploadProxy: PageUploadProxy;
   private uploadMediaFn: typeof uploadMedia;
@@ -138,7 +156,17 @@ export class ContentUploadExecutor {
     const isVideo = session.mimeType.startsWith('video/');
     const mediaCategory = isVideo ? 'tweet_video' : 'tweet_image';
     const appendTimeoutMs = toNumberOrDefault(params.appendTimeoutMs, DEFAULT_APPEND_TIMEOUT_MS);
-    logger.info(`[ContentUploadExecutor] large upload start, taskId=${session.taskId}, bytes=${session.totalBytes}, chunks=${session.chunks.length}, mimeType=${session.mimeType}`);
+    const appendChunkBytes = Math.max(
+      1,
+      toNumberOrDefault(params.appendChunkBytes, MEDIA_APPEND_CHUNK_SIZE_BYTES)
+    );
+    const appendSegmentCount = session.chunks.reduce(
+      (total, chunk) => total + Math.max(1, Math.ceil(chunk.size / appendChunkBytes)),
+      0
+    );
+    logger.info(
+      `[ContentUploadExecutor] large upload start, taskId=${session.taskId}, bytes=${session.totalBytes}, chunks=${session.chunks.length}, appendChunkBytes=${appendChunkBytes}, appendSegments=${appendSegmentCount}, mimeType=${session.mimeType}`
+    );
 
     callbacks.checkCancellation();
     callbacks.onProgress('init', 0.2);
@@ -166,38 +194,48 @@ export class ContentUploadExecutor {
       throw new Error('Media upload INIT did not return media_id_string');
     }
 
-    for (let segmentIndex = 0; segmentIndex < session.chunks.length; segmentIndex++) {
+    let appendSegmentIndex = 0;
+    for (let chunkIndex = 0; chunkIndex < session.chunks.length; chunkIndex++) {
       callbacks.checkCancellation();
-      const chunk = session.chunks[segmentIndex];
-      const appendTxid = await this.getTransactionIdForFn('POST', '/i/media/upload.json');
-      const chunkBase64 = await blobToBase64(chunk);
-      const appendStartedAt = Date.now();
+      const chunk = session.chunks[chunkIndex];
+      const appendSegments = splitBlobIntoSegments(chunk, appendChunkBytes, session.mimeType);
 
-      const appendResult = await this.pageUploadProxy({
-        kind: 'append',
-        url: 'https://upload.x.com/i/media/upload.json',
-        method: 'POST',
-        headers: {
-          authorization: bearer,
-          'x-csrf-token': csrf,
-          'x-client-transaction-id': appendTxid,
-          'x-twitter-auth-type': 'OAuth2Session'
-        },
-        command: 'APPEND',
-        mediaId,
-        segmentIndex,
-        mimeType: session.mimeType,
-        chunkBase64,
-        timeoutMs: appendTimeoutMs
-      });
+      for (const appendSegment of appendSegments) {
+        callbacks.checkCancellation();
+        const appendTxid = await this.getTransactionIdForFn('POST', '/i/media/upload.json');
+        const chunkBase64 = await blobToBase64(appendSegment);
+        const appendStartedAt = Date.now();
 
-      if (!appendResult.ok) {
-        throw new Error(`Media upload APPEND failed at segment ${segmentIndex}: ${appendResult.status} ${appendResult.text || ''}`);
+        const appendResult = await this.pageUploadProxy({
+          kind: 'append',
+          url: 'https://upload.x.com/i/media/upload.json',
+          method: 'POST',
+          headers: {
+            authorization: bearer,
+            'x-csrf-token': csrf,
+            'x-client-transaction-id': appendTxid,
+            'x-twitter-auth-type': 'OAuth2Session'
+          },
+          command: 'APPEND',
+          mediaId,
+          segmentIndex: appendSegmentIndex,
+          mimeType: session.mimeType,
+          chunkBase64,
+          timeoutMs: appendTimeoutMs
+        });
+
+        if (!appendResult.ok) {
+          throw new Error(`Media upload APPEND failed at segment ${appendSegmentIndex}: ${appendResult.status} ${appendResult.text || ''}`);
+        }
+
+        appendSegmentIndex += 1;
+        callbacks.onProgress('append', 0.2 + (0.7 * appendSegmentIndex / appendSegmentCount));
+        logger.debug(
+          `[ContentUploadExecutor] append complete, taskId=${session.taskId}, segment=${appendSegmentIndex}/${appendSegmentCount}, bytes=${appendSegment.size}, sourceChunk=${chunkIndex + 1}/${session.chunks.length}, elapsedMs=${Date.now() - appendStartedAt}`
+        );
       }
 
-      callbacks.onChunkUploaded?.(segmentIndex, chunk.size);
-      callbacks.onProgress('append', 0.2 + (0.7 * (segmentIndex + 1) / session.chunks.length));
-      logger.debug(`[ContentUploadExecutor] append complete, taskId=${session.taskId}, segment=${segmentIndex + 1}/${session.chunks.length}, bytes=${chunk.size}, elapsedMs=${Date.now() - appendStartedAt}`);
+      callbacks.onChunkUploaded?.(chunkIndex, chunk.size);
     }
 
     callbacks.checkCancellation();

@@ -60,6 +60,8 @@ describe('ContentUploadExecutor', () => {
       .mockResolvedValueOnce({ ok: true, text: '', json: {} })
       .mockResolvedValueOnce({ ok: true, text: '', json: {} })
       .mockResolvedValueOnce({ ok: true, text: '', json: {} })
+      .mockResolvedValueOnce({ ok: true, text: '', json: {} })
+      .mockResolvedValueOnce({ ok: true, text: '', json: {} })
       .mockResolvedValueOnce({ ok: true, text: '', json: { processing_info: { state: 'succeeded' } } });
 
     const executor = new ContentUploadExecutor({
@@ -87,6 +89,7 @@ describe('ContentUploadExecutor', () => {
       ready: true
     }, {
       appendTimeoutMs: 43210,
+      appendChunkBytes: 2,
       videoPollingAttempts: 2,
       videoPollingDelayMs: 0
     }, {
@@ -95,12 +98,16 @@ describe('ContentUploadExecutor', () => {
       checkCancellation: vi.fn()
     });
 
-    expect(pageUploadProxy).toHaveBeenCalledTimes(5);
+    expect(pageUploadProxy).toHaveBeenCalledTimes(7);
     expect(pageUploadProxy.mock.calls[0][0].url).toContain('command=INIT');
     expect(pageUploadProxy.mock.calls[1][0].kind).toBe('append');
+    expect(pageUploadProxy.mock.calls[1][0].segmentIndex).toBe(0);
+    expect(pageUploadProxy.mock.calls[2][0].segmentIndex).toBe(1);
+    expect(pageUploadProxy.mock.calls[3][0].segmentIndex).toBe(2);
+    expect(pageUploadProxy.mock.calls[4][0].segmentIndex).toBe(3);
     expect(pageUploadProxy.mock.calls[1][0].timeoutMs).toBe(43210);
-    expect(pageUploadProxy.mock.calls[3][0].url).toContain('command=FINALIZE');
-    expect(pageUploadProxy.mock.calls[4][0].url).toContain('command=STATUS');
+    expect(pageUploadProxy.mock.calls[5][0].url).toContain('command=FINALIZE');
+    expect(pageUploadProxy.mock.calls[6][0].url).toContain('command=STATUS');
     expect(onChunkUploaded).toHaveBeenCalledTimes(2);
     expect(new TextDecoder().decode(result)).toContain('media-large');
   });

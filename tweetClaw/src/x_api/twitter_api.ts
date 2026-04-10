@@ -337,7 +337,7 @@ interface MediaUploadFinalizeResponse {
 }
 
 // Keep each multipart APPEND safely below upload.x.com's request size ceiling.
-const MEDIA_APPEND_CHUNK_SIZE_BYTES = 4 * 1024 * 1024;
+export const MEDIA_APPEND_CHUNK_SIZE_BYTES = 4 * 1024 * 1024;
 
 /**
  * 上传媒体文件(图片)

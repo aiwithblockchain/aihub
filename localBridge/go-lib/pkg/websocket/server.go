@@ -8,8 +8,8 @@ import (
 	"sync"
 	"time"
 
-	gorillaws "github.com/gorilla/websocket"
 	"github.com/google/uuid"
+	gorillaws "github.com/gorilla/websocket"
 	"github.com/hyperorchid/localbridge/pkg/task"
 	"github.com/hyperorchid/localbridge/pkg/types"
 )
@@ -29,9 +29,9 @@ var upgrader = gorillaws.Upgrader{
 
 // ClientSession 单个实例会话（含内部 Conn）
 type ClientSession struct {
-	SessionID     string       // 内部唯一标识,用于区分具体 session 实例
-	ClientName    string       // 逻辑实例身份
-	InstanceID    string       // 逻辑实例身份
+	SessionID     string // 内部唯一标识,用于区分具体 session 实例
+	ClientName    string // 逻辑实例身份
+	InstanceID    string // 逻辑实例身份
 	InstanceName  string
 	Conn          *gorillaws.Conn
 	ConnectedAt   time.Time
@@ -39,12 +39,12 @@ type ClientSession struct {
 	Capabilities  []string
 	ClientVersion string
 	XScreenName   string
-	
-	sendQueue     chan []byte
-	writerDone    chan struct{}
-	closeCh       chan struct{}
-	closeOnce     sync.Once
-	mu            sync.Mutex  // 保护 LastSeenAt
+
+	sendQueue  chan []byte
+	writerDone chan struct{}
+	closeCh    chan struct{}
+	closeOnce  sync.Once
+	mu         sync.Mutex // 保护 LastSeenAt
 }
 
 func (s *ClientSession) writerLoop(server *Server) {
@@ -93,7 +93,7 @@ type Server struct {
 	mu               sync.RWMutex
 	sessions         map[string]map[string]*ClientSession // [clientName][instanceId]
 	pendingCallbacks map[string]func([]byte)
-	callbackSessions map[string]string  // msgID -> sessionID
+	callbackSessions map[string]string // msgID -> sessionID
 	httpServers      []*http.Server
 	stopCh           chan struct{}
 	taskManager      *task.Manager
@@ -142,29 +142,53 @@ func (s *Server) handleTaskEvent(data []byte, conn *gorillaws.Conn) {
 		var ev types.Message[types.TaskProgressEvent]
 		if err := json.Unmarshal(data, &ev); err == nil {
 			if _, err := s.taskManager.EnsureOwner(ev.Payload.TaskID, clientName, instanceId); err == nil {
-				s.taskManager.MarkRunning(ev.Payload.TaskID, ev.Payload.Phase, ev.Payload.Progress)
+				if err := s.taskManager.MarkRunning(ev.Payload.TaskID, ev.Payload.Phase, ev.Payload.Progress); err != nil {
+					log.Printf("[WS] task progress rejected: taskId=%s state update failed: %v", ev.Payload.TaskID, err)
+				}
+			} else {
+				log.Printf("[WS] task progress owner check failed: taskId=%s client=%s instance=%s err=%v", ev.Payload.TaskID, clientName, instanceId, err)
 			}
+		} else {
+			log.Printf("[WS] invalid task progress event: %v", err)
 		}
 	case "event.task_failed":
 		var ev types.Message[types.TaskFailedEvent]
 		if err := json.Unmarshal(data, &ev); err == nil {
 			if _, err := s.taskManager.EnsureOwner(ev.Payload.TaskID, clientName, instanceId); err == nil {
-				s.taskManager.MarkFailed(ev.Payload.TaskID, ev.Payload.Phase, ev.Payload.ErrorCode, ev.Payload.ErrorMessage)
+				if err := s.taskManager.MarkFailed(ev.Payload.TaskID, ev.Payload.Phase, ev.Payload.ErrorCode, ev.Payload.ErrorMessage); err != nil {
+					log.Printf("[WS] task failed event rejected: taskId=%s err=%v", ev.Payload.TaskID, err)
+				}
+			} else {
+				log.Printf("[WS] task failed owner check failed: taskId=%s client=%s instance=%s err=%v", ev.Payload.TaskID, clientName, instanceId, err)
 			}
+		} else {
+			log.Printf("[WS] invalid task failed event: %v", err)
 		}
 	case "event.task_completed":
 		var ev types.Message[types.TaskCompletedEvent]
 		if err := json.Unmarshal(data, &ev); err == nil {
 			if _, err := s.taskManager.EnsureOwner(ev.Payload.TaskID, clientName, instanceId); err == nil {
-				s.taskManager.MarkCompleted(ev.Payload.TaskID, ev.Payload.ResultRef)
+				if err := s.taskManager.MarkCompleted(ev.Payload.TaskID, ev.Payload.ResultRef); err != nil {
+					log.Printf("[WS] task completed event rejected: taskId=%s err=%v", ev.Payload.TaskID, err)
+				}
+			} else {
+				log.Printf("[WS] task completed owner check failed: taskId=%s client=%s instance=%s err=%v", ev.Payload.TaskID, clientName, instanceId, err)
 			}
+		} else {
+			log.Printf("[WS] invalid task completed event: %v", err)
 		}
 	case "event.task_cancelled":
 		var ev types.Message[types.TaskCancelledEvent]
 		if err := json.Unmarshal(data, &ev); err == nil {
 			if _, err := s.taskManager.EnsureOwner(ev.Payload.TaskID, clientName, instanceId); err == nil {
-				s.taskManager.MarkCancelled(ev.Payload.TaskID, ev.Payload.Phase)
+				if err := s.taskManager.MarkCancelled(ev.Payload.TaskID, ev.Payload.Phase); err != nil {
+					log.Printf("[WS] task cancelled event rejected: taskId=%s err=%v", ev.Payload.TaskID, err)
+				}
+			} else {
+				log.Printf("[WS] task cancelled owner check failed: taskId=%s client=%s instance=%s err=%v", ev.Payload.TaskID, clientName, instanceId, err)
 			}
+		} else {
+			log.Printf("[WS] invalid task cancelled event: %v", err)
 		}
 	}
 }
@@ -221,7 +245,7 @@ func (s *Server) Stop() {
 	default:
 		close(s.stopCh)
 	}
-	
+
 	var allSessions []*ClientSession
 	for _, sessions := range s.sessions {
 		for _, sess := range sessions {
@@ -229,17 +253,17 @@ func (s *Server) Stop() {
 		}
 	}
 	s.mu.Unlock()
-	
+
 	// 第二阶段: 锁外关闭 HTTP 服务器
 	for _, srv := range s.httpServers {
 		_ = srv.Close()
 	}
-	
+
 	// 第三阶段: 锁外逐个关闭 session (closeSession 内部会获取锁)
 	for _, sess := range allSessions {
 		s.closeSession(sess)
 	}
-	
+
 	// 第四阶段: 清理全局状态
 	s.mu.Lock()
 	s.sessions = make(map[string]map[string]*ClientSession)
@@ -277,7 +301,7 @@ func (s *Server) handleMessage(data []byte, conn *gorillaws.Conn) {
 
 	case types.Ping:
 		s.handlePing(peek, conn)
-		
+
 	case "event.task_progress", "event.task_failed", "event.task_completed", "event.task_cancelled":
 		s.handleTaskEvent(data, conn)
 
@@ -320,7 +344,7 @@ func (s *Server) handleClientHello(data []byte, conn *gorillaws.Conn) {
 		oldSession = old
 		log.Printf("[WS] will replace old session: %s/%s (sessionID=%s)", clientName, instanceID, old.SessionID)
 	}
-	
+
 	sess := &ClientSession{
 		SessionID:     uuid.New().String(),
 		ClientName:    clientName,
@@ -375,7 +399,7 @@ func (s *Server) handlePing(peek types.PeekMessage, conn *gorillaws.Conn) {
 func (s *Server) removeSession(sess *ClientSession) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	
+
 	// 按 sessionID 精确匹配删除,避免误删新 session
 	if sessions, ok := s.sessions[sess.ClientName]; ok {
 		if current, exists := sessions[sess.InstanceID]; exists && current.SessionID == sess.SessionID {
@@ -392,24 +416,24 @@ func (s *Server) closeSession(sess *ClientSession) {
 	sess.closeOnce.Do(func() {
 		// 1. 先关闭底层连接,打断正在进行的 I/O
 		sess.Conn.Close()
-		
+
 		// 2. 关闭 closeCh,通知 writerLoop 退出
 		close(sess.closeCh)
-		
+
 		// 3. 等待 writerLoop 退出 (有界等待,因为连接已关闭)
 		select {
 		case <-sess.writerDone:
 		case <-time.After(5 * time.Second):
 			log.Printf("[WS] writerLoop timeout for %s/%s", sess.ClientName, sess.InstanceID)
 		}
-		
+
 		// 4. 清理回调和注册
 		s.cleanupSessionCallbacks(sess.SessionID)
-		
+
 		if s.taskManager != nil {
 			s.taskManager.HandleSessionDisconnect(sess.ClientName, sess.InstanceID)
 		}
-		
+
 		s.removeSession(sess)
 	})
 }
@@ -429,7 +453,7 @@ func (s *Server) closeSessionByConn(conn *gorillaws.Conn) {
 		}
 	}
 	s.mu.RUnlock()
-	
+
 	if targetSess != nil {
 		s.closeSession(targetSess)
 	}
@@ -524,7 +548,7 @@ func (s *Server) cleanupSessionCallbacks(sessionID string) {
 		msgID string
 		cb    func([]byte)
 	}
-	
+
 	for msgID, sid := range s.callbackSessions {
 		if sid == sessionID {
 			if cb, ok := s.pendingCallbacks[msgID]; ok {
@@ -538,10 +562,10 @@ func (s *Server) cleanupSessionCallbacks(sessionID string) {
 		}
 	}
 	s.mu.Unlock()
-	
+
 	for _, item := range toFail {
 		errResp := map[string]interface{}{
-			"id": item.msgID,
+			"id":   item.msgID,
 			"type": "response.error",
 			"payload": map[string]interface{}{
 				"code":    "session_disconnected",

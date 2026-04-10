@@ -182,18 +182,24 @@ initUploadNetworkDebugging();
 let taskCoordinator: BackgroundTaskCoordinator | null = null;
 let taskCoordinatorReady = false;
 
-chrome.storage.local.get(['wsHost', 'wsPort']).then(async res => {
-    const host = res.wsHost || '127.0.0.1';
-    const port = res.wsPort || 10086;
+chrome.storage.local.get(['wsHost', 'wsPort', 'restHost', 'restPort']).then(async res => {
+    const wsHost = res.wsHost || '127.0.0.1';
+    const wsPort = res.wsPort || 10086;
+    const restHost = res.restHost || wsHost;
+    const restPort = res.restPort || 10088;
     const instanceId = await getOrCreateInstanceId();
     
     taskCoordinator = new BackgroundTaskCoordinator(localBridge, {
-        localBridgeBaseUrl: `http://${host}:${port}`,
+        localBridgeBaseUrl: `http://${restHost}:${restPort}`,
         clientName: 'tweetClaw',
         instanceId: instanceId,
         fetchTimeoutMs: (res.fetchTimeoutMs as number) || 30000,
         uploadTimeoutMs: (res.uploadTimeoutMs as number) || 60000
     }, backgroundSessionStore);
+
+    logger.info(
+        `[BackgroundTaskCoordinator] Using endpoints ws=${wsHost}:${wsPort} rest=${restHost}:${restPort}`
+    );
     
     // Auto configure log level if specified
     if (res.logLevel) {

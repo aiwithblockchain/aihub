@@ -18,8 +18,31 @@ type Server struct {
 	httpServers []*http.Server
 }
 
+func withCORS(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		origin := r.Header.Get("Origin")
+		if origin != "" {
+			w.Header().Set("Access-Control-Allow-Origin", origin)
+			w.Header().Set("Vary", "Origin")
+		} else {
+			w.Header().Set("Access-Control-Allow-Origin", "*")
+		}
+
+		w.Header().Set("Access-Control-Allow-Methods", "GET, POST, PUT, OPTIONS")
+		w.Header().Set("Access-Control-Allow-Headers", "Content-Type, X-Client-Name, X-Instance-ID, Authorization")
+		w.Header().Set("Access-Control-Max-Age", "600")
+
+		if r.Method == http.MethodOptions {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+
+		next.ServeHTTP(w, r)
+	})
+}
+
 func NewServer(addresses []ListenAddress, ws *websocket.Server) *Server {
-	h := &Handler{ws: ws}
+	h := NewHandler(ws)
 	var servers []*http.Server
 
 	seen := map[string]bool{}
@@ -35,7 +58,7 @@ func NewServer(addresses []ListenAddress, ws *websocket.Server) *Server {
 
 		mux := http.NewServeMux()
 		h.Register(mux)
-		servers = append(servers, &http.Server{Addr: listenAddr, Handler: mux})
+		servers = append(servers, &http.Server{Addr: listenAddr, Handler: withCORS(mux)})
 	}
 
 	return &Server{
