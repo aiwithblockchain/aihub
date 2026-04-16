@@ -4,40 +4,27 @@ Test Like and Retweet APIs (Like, Unlike, Retweet, Unretweet)
 测试场景 6: 点赞和转发测试
 """
 import sys
+import os
 import json
-from utils.api_client import APIClient
+import time
+
+# Add parent directory to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from clawbot import ClawBotClient
 
 
 def extract_tweet_id_from_timeline():
     """Extract a tweet ID from timeline for testing"""
     print("\n📋 Extracting tweet ID from timeline...")
-    client = APIClient()
-    response = client.get_timeline()
+    client = ClawBotClient()
+    tweet = client.x.timeline.get_first_timeline_tweet()
 
-    try:
-        if 'data' in response:
-            data = response['data']
-            if 'data' in data and 'home' in data['data']:
-                instructions = data['data']['home']['home_timeline_urt']['instructions']
-            elif 'home' in data:
-                instructions = data['home']['home_timeline_urt']['instructions']
-            else:
-                return None
-            for instruction in instructions:
-                if instruction.get('type') == 'TimelineAddEntries':
-                    entries = instruction.get('entries', [])
-                    for entry in entries:
-                        if 'tweet-' in entry.get('entryId', ''):
-                            content = entry.get('content', {})
-                            tweet_results = content.get('itemContent', {}).get('tweet_results', {})
-                            result = tweet_results.get('result', {})
-                            tweet_id = result.get('rest_id')
-                            if tweet_id:
-                                print(f"✅ Found tweet ID: {tweet_id}")
-                                return tweet_id
-    except Exception as e:
-        print(f"⚠️  Failed to extract tweet ID: {e}")
+    if tweet and tweet.id:
+        print(f"✅ Found tweet ID: {tweet.id}")
+        return tweet.id
 
+    print(f"⚠️  No tweets found in timeline")
     return None
 
 
@@ -59,29 +46,28 @@ def test_like_unlike():
         print("⏭️  Skipped")
         return True
 
-    client = APIClient()
+    client = ClawBotClient()
 
     # Test like
     print("\n📍 Testing like...")
-    response = client.like_tweet(tweet_id)
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    result = client.x.actions.like(tweet_id)
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'favorite_tweet' in str(response):
+    if result.success:
         print("✅ Like successful")
     else:
         print("❌ Like failed")
         return False
 
     # Wait a moment
-    import time
     time.sleep(2)
 
     # Test unlike
     print("\n📍 Testing unlike...")
-    response = client.unlike_tweet(tweet_id)
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    result = client.x.actions.unlike(tweet_id)
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'unfavorite_tweet' in str(response):
+    if result.success:
         print("✅ Unlike successful")
         return True
     else:
@@ -107,29 +93,28 @@ def test_retweet_unretweet():
         print("⏭️  Skipped")
         return True
 
-    client = APIClient()
+    client = ClawBotClient()
 
     # Test retweet
     print("\n📍 Testing retweet...")
-    response = client.retweet(tweet_id)
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    result = client.x.actions.retweet(tweet_id)
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'create_retweet' in str(response):
+    if result.success:
         print("✅ Retweet successful")
     else:
         print("❌ Retweet failed")
         return False
 
     # Wait a moment
-    import time
     time.sleep(2)
 
     # Test unretweet
     print("\n📍 Testing unretweet...")
-    response = client.unretweet(tweet_id)
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    result = client.x.actions.unretweet(tweet_id)
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'unretweet' in str(response):
+    if result.success:
         print("✅ Unretweet successful")
         return True
     else:

@@ -4,47 +4,31 @@ Test Bookmark and Follow APIs (Bookmark, Unbookmark, Follow, Unfollow)
 测试场景 7: 收藏和关注测试
 """
 import sys
+import os
 import json
-from utils.api_client import APIClient
+
+# Add parent directory to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from clawbot import ClawBotClient
 
 
 def extract_tweet_and_user_from_timeline():
     """Extract a tweet ID and user ID from timeline for testing"""
     print("\n📋 Extracting tweet ID and user ID from timeline...")
-    client = APIClient()
-    response = client.get_timeline()
+    client = ClawBotClient()
 
-    tweet_id = None
-    user_id = None
+    tweet = client.x.timeline.get_first_timeline_tweet()
+    if not tweet:
+        print(f"⚠️  No tweets found in timeline")
+        return None, None
 
-    try:
-        if 'data' in response and 'home' in response['data']:
-            instructions = response['data']['home']['home_timeline_urt']['instructions']
-            for instruction in instructions:
-                if instruction.get('type') == 'TimelineAddEntries':
-                    entries = instruction.get('entries', [])
-                    for entry in entries:
-                        if 'tweet-' in entry.get('entryId', ''):
-                            content = entry.get('content', {})
-                            tweet_results = content.get('itemContent', {}).get('tweet_results', {})
-                            result = tweet_results.get('result', {})
+    tweet_id = tweet.id
+    user_id = tweet.author_id
 
-                            if not tweet_id:
-                                tweet_id = result.get('rest_id')
-
-                            # Extract user ID from tweet author
-                            if not user_id:
-                                core = result.get('core', {})
-                                user_results = core.get('user_results', {})
-                                user_result = user_results.get('result', {})
-                                user_id = user_result.get('rest_id')
-
-                            if tweet_id and user_id:
-                                print(f"✅ Found tweet ID: {tweet_id}")
-                                print(f"✅ Found user ID: {user_id}")
-                                return tweet_id, user_id
-    except Exception as e:
-        print(f"⚠️  Failed to extract IDs: {e}")
+    if tweet_id and user_id:
+        print(f"✅ Found tweet ID: {tweet_id}")
+        print(f"✅ Found user ID: {user_id}")
 
     return tweet_id, user_id
 
@@ -67,14 +51,14 @@ def test_bookmark_unbookmark():
         print("⏭️  Skipped")
         return True
 
-    client = APIClient()
+    client = ClawBotClient()
 
     # Test bookmark
     print("\n📍 Testing bookmark...")
-    response = client.bookmark_tweet(tweet_id)
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    result = client.x.actions.bookmark(tweet_id)
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'create_bookmark' in str(response):
+    if result.success:
         print("✅ Bookmark successful")
     else:
         print("❌ Bookmark failed")
@@ -86,10 +70,10 @@ def test_bookmark_unbookmark():
 
     # Test unbookmark
     print("\n📍 Testing unbookmark...")
-    response = client.unbookmark_tweet(tweet_id)
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    result = client.x.actions.unbookmark(tweet_id)
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'delete_bookmark' in str(response):
+    if result.success:
         print("✅ Unbookmark successful")
         return True
     else:
@@ -115,14 +99,14 @@ def test_follow_unfollow():
         print("⏭️  Skipped")
         return True
 
-    client = APIClient()
+    client = ClawBotClient()
 
     # Test follow
     print("\n📍 Testing follow...")
-    response = client.follow_user(user_id)
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    result = client.x.actions.follow(user_id)
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'following' in str(response):
+    if result.success:
         print("✅ Follow successful")
     else:
         print("❌ Follow failed")
@@ -134,10 +118,10 @@ def test_follow_unfollow():
 
     # Test unfollow
     print("\n📍 Testing unfollow...")
-    response = client.unfollow_user(user_id)
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    result = client.x.actions.unfollow(user_id)
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'following' in str(response):
+    if result.success:
         print("✅ Unfollow successful")
         return True
     else:

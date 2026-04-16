@@ -10,14 +10,14 @@ import json
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.api_client import APIClient
+from clawbot import ClawBotClient
 
 def main():
     print("\n🔍 Testing: GET /api/v1/ai/status")
     print("="*60)
 
-    client = APIClient()
-    response = client.get_ai_status()
+    client = ClawBotClient()
+    response = client.ai.status.get_status()
 
     print("\n📋 Response:")
     print(json.dumps(response, indent=2, ensure_ascii=False))

@@ -1,12 +1,21 @@
 #!/usr/bin/env python3
 """
-Test Metadata APIs (API Docs, Status, Instances)
-测试场景 1: 元数据查询测试
+Legacy test script for metadata queries.
+
+Migration note:
+- Kept for backward compatibility during refactor
+- New example: `examples/status_and_metadata_example.py`
+- New integration smoke tests: `tests/integration/test_status_metadata_flows.py`
+- New code should prefer `from clawbot import ClawBotClient`
 """
 import sys
+import os
 import json
-from utils.api_client import APIClient
-from utils.response_parser import validate_response, print_response_summary
+
+# Add parent directory to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from clawbot import ClawBotClient
 
 
 def test_api_docs():
@@ -15,8 +24,8 @@ def test_api_docs():
     print("Testing: GET /api/v1/x/docs")
     print("="*60)
 
-    client = APIClient()
-    response = client._request('GET', '/api/v1/x/docs')
+    client = ClawBotClient()
+    response = client.x_transport.request_json('GET', '/api/v1/x/docs')
 
     print(json.dumps(response, indent=2, ensure_ascii=False)[:800] + "...")
 
@@ -40,21 +49,16 @@ def test_x_status():
     print("Testing: GET /api/v1/x/status")
     print("="*60)
 
-    client = APIClient()
-    response = client.get_x_status()
+    client = ClawBotClient()
+    status = client.x.status.get_status()
 
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:500] + "...")
+    print(json.dumps({'hasXTabs': status.has_x_tabs, 'isLoggedIn': status.is_logged_in, 'tabs': len(status.tabs)}, indent=2, ensure_ascii=False))
 
-    # Validate response
-    if 'hasXTabs' in response and 'isLoggedIn' in response:
-        print(f"✅ Status query successful")
-        print(f"   - hasXTabs: {response.get('hasXTabs')}")
-        print(f"   - isLoggedIn: {response.get('isLoggedIn')}")
-        print(f"   - tabs count: {len(response.get('tabs', []))}")
-        return True
-    else:
-        print("❌ Invalid status response")
-        return False
+    print(f"✅ Status query successful")
+    print(f"   - hasXTabs: {status.has_x_tabs}")
+    print(f"   - isLoggedIn: {status.is_logged_in}")
+    print(f"   - tabs count: {len(status.tabs)}")
+    return True
 
 
 def test_instances():
@@ -63,8 +67,8 @@ def test_instances():
     print("Testing: GET /api/v1/x/instances")
     print("="*60)
 
-    client = APIClient()
-    response = client.get_instances()
+    client = ClawBotClient()
+    response = client.x_transport.request_json('GET', '/api/v1/x/instances')
 
     print(json.dumps(response, indent=2, ensure_ascii=False)[:500] + "...")
 

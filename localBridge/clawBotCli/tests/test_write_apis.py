@@ -4,8 +4,13 @@ Test Write APIs (Create Tweet, Reply, Like, Retweet, Follow, etc.)
 WARNING: These tests will perform actual actions on your X account!
 """
 import sys
+import os
 import json
-from utils.api_client import APIClient
+
+# Add parent directory to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from clawbot import ClawBotClient
 
 
 def test_create_tweet():
@@ -24,12 +29,12 @@ def test_create_tweet():
     if not text:
         text = "Test from ClawBot CLI"
 
-    client = APIClient()
-    response = client.create_tweet(text)
+    client = ClawBotClient()
+    result = client.x.actions.create_tweet(text)
 
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:500] + "...")
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:500] + "...")
 
-    if 'data' in response or 'rest_id' in str(response):
+    if result.success:
         print("✅ Tweet created successfully")
         return True
     else:
@@ -48,12 +53,12 @@ def test_like_tweet():
         print("⏭️  Skipped")
         return True
 
-    client = APIClient()
-    response = client.like_tweet(tweet_id)
+    client = ClawBotClient()
+    result = client.x.actions.like(tweet_id)
 
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:500] + "...")
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:500] + "...")
 
-    if 'data' in response or 'favorite_tweet' in str(response):
+    if result.success:
         print("✅ Tweet liked successfully")
         return True
     else:
@@ -72,12 +77,12 @@ def test_retweet():
         print("⏭️  Skipped")
         return True
 
-    client = APIClient()
-    response = client.retweet(tweet_id)
+    client = ClawBotClient()
+    result = client.x.actions.retweet(tweet_id)
 
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:500] + "...")
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:500] + "...")
 
-    if 'data' in response or 'create_retweet' in str(response):
+    if result.success:
         print("✅ Retweeted successfully")
         return True
     else:

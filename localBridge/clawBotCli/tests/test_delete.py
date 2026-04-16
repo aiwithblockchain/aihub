@@ -11,7 +11,7 @@ import argparse
 # Add parent directory to path to import utils
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.api_client import APIClient
+from clawbot import ClawBotClient
 
 
 def test_delete_tweet(tweet_id=None, force=False):
@@ -48,20 +48,18 @@ def test_delete_tweet(tweet_id=None, force=False):
     else:
         print("\n⚠️  --force flag detected, skipping confirmation")
 
-    client = APIClient()
-    response = client.delete_tweet(tweet_id)
+    client = ClawBotClient()
+    result = client.x.actions.delete_tweet(tweet_id)
 
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'delete_tweet' in str(response) or 'ok' in response:
+    if result.success:
         print("✅ Tweet deleted successfully")
         print(f"   Verify on X that tweet {tweet_id} is gone")
         return True
-    elif 'error' in response:
-        print(f"❌ Delete failed: {response['error']}")
-        return False
     else:
-        print("❌ Delete failed: Unknown response format")
+        error = result.message or 'Unknown error'
+        print(f"❌ Delete failed: {error}")
         return False
 
 

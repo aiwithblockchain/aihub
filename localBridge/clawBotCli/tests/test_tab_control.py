@@ -4,9 +4,14 @@ Test Tab Control APIs (Open Tab, Navigate Tab, Close Tab)
 测试场景 9: 标签页控制测试
 """
 import sys
+import os
 import json
 import time
-from utils.api_client import APIClient
+
+# Add parent directory to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from clawbot import ClawBotClient
 
 
 def test_open_tab():
@@ -18,18 +23,16 @@ def test_open_tab():
     path = "home"
     print(f"Opening tab with path: {path}")
 
-    client = APIClient()
-    response = client.open_tab(path)
+    client = ClawBotClient()
+    tab = client.x.tabs.open(path)
 
-    print(json.dumps(response, indent=2, ensure_ascii=False))
+    print(json.dumps(tab.raw, indent=2, ensure_ascii=False))
 
-    if response.get('success'):
-        tab_id = response.get('tabId')
-        url = response.get('url')
+    if tab.tab_id:
         print(f"✅ Tab opened successfully")
-        print(f"   Tab ID: {tab_id}")
-        print(f"   URL: {url}")
-        return True, tab_id
+        print(f"   Tab ID: {tab.tab_id}")
+        print(f"   URL: {tab.raw.get('url')}")
+        return True, tab.tab_id
     else:
         print("❌ Failed to open tab")
         return False, None
@@ -46,13 +49,13 @@ def test_navigate_tab(tab_id=None):
     if tab_id:
         print(f"Using tab ID: {tab_id}")
 
-    client = APIClient()
-    response = client.navigate_tab(path, tab_id)
+    client = ClawBotClient()
+    result = client.x.tabs.navigate(path, tab_id)
 
-    print(json.dumps(response, indent=2, ensure_ascii=False))
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False))
 
-    if response.get('success'):
-        url = response.get('url')
+    if result.success:
+        url = result.raw.get('url')
         print(f"✅ Navigation successful")
         print(f"   URL: {url}")
         return True
@@ -73,12 +76,12 @@ def test_close_tab(tab_id):
 
     print(f"Closing tab ID: {tab_id}")
 
-    client = APIClient()
-    response = client.close_tab(tab_id)
+    client = ClawBotClient()
+    result = client.x.tabs.close(tab_id)
 
-    print(json.dumps(response, indent=2, ensure_ascii=False))
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False))
 
-    if response.get('success'):
+    if result.success:
         print("✅ Tab closed successfully")
         return True
     else:

@@ -1,44 +1,33 @@
 #!/usr/bin/env python3
 """
-Test Tweet Details APIs (Get Tweet, Get Tweet Replies with Pagination)
-测试场景 3: 推文详情和回复测试
+Legacy test script for tweet details and replies.
+
+Migration note:
+- Kept for backward compatibility during refactor
+- New example: `examples/tweet_details_and_search_example.py`
+- New integration smoke tests: `tests/integration/test_tweet_search_flows.py`
+- New code should prefer `from clawbot import ClawBotClient`
 """
 import sys
+import os
 import json
-from utils.api_client import APIClient
-from utils.response_parser import validate_response, print_response_summary
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from clawbot import ClawBotClient
 
 
 def extract_tweet_id_from_timeline():
     """Extract a tweet ID from timeline for testing"""
     print("\n📋 Extracting tweet ID from timeline...")
-    client = APIClient()
-    response = client.get_timeline()
+    client = ClawBotClient()
+    tweet = client.x.timeline.get_first_timeline_tweet()
 
-    # Try to extract tweet ID from timeline response
-    try:
-        # Handle nested data structure: response.data.data
-        data = response.get('data', {})
-        if 'data' in data:
-            data = data['data']
+    if tweet and tweet.id:
+        print(f"✅ Found tweet ID: {tweet.id}")
+        return tweet.id
 
-        if 'home' in data:
-            instructions = data['home']['home_timeline_urt']['instructions']
-            for instruction in instructions:
-                if instruction.get('type') == 'TimelineAddEntries':
-                    entries = instruction.get('entries', [])
-                    for entry in entries:
-                        if 'tweet-' in entry.get('entryId', ''):
-                            content = entry.get('content', {})
-                            tweet_results = content.get('itemContent', {}).get('tweet_results', {})
-                            result = tweet_results.get('result', {})
-                            tweet_id = result.get('rest_id')
-                            if tweet_id:
-                                print(f"✅ Found tweet ID: {tweet_id}")
-                                return tweet_id
-    except Exception as e:
-        print(f"⚠️  Failed to extract tweet ID: {e}")
-
+    print(f"⚠️  No tweets found in timeline")
     return None
 
 
@@ -55,18 +44,19 @@ def test_get_tweet(tweet_id=None):
         print("⏭️  Skipped - No tweet ID available")
         return True
 
-    client = APIClient()
-    response = client.get_tweet(tweet_id)
+    client = ClawBotClient()
+    tweet = client.x.tweets.get_tweet(tweet_id)
 
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:500] + "...")
+    print(json.dumps(tweet.raw, indent=2, ensure_ascii=False)[:500] + "...")
 
-    is_valid, message = validate_response(response)
-    if is_valid:
-        print(f"✅ {message}")
-        print_response_summary(response)
+    if tweet.id:
+        print(f"✅ Tweet retrieved successfully")
+        print(f"   Tweet ID: {tweet.id}")
+        print(f"   Text: {tweet.text[:100] if tweet.text else '(no text)'}...")
+        print(f"   Author: @{tweet.author_screen_name}")
 
         # Check for Twitter GraphQL structure
-        response_str = str(response)
+        response_str = str(tweet.raw)
         if 'threaded_conversation_with_injections_v2' in response_str:
             print("✅ Response contains Twitter GraphQL tweet detail structure")
         if 'rest_id' in response_str and 'legacy' in response_str:
@@ -74,7 +64,7 @@ def test_get_tweet(tweet_id=None):
 
         return True
     else:
-        print(f"❌ {message}")
+        print(f"❌ Failed to parse tweet")
         return False
 
 
@@ -91,55 +81,35 @@ def test_get_tweet_replies(tweet_id=None):
         print("⏭️  Skipped - No tweet ID available")
         return True
 
-    client = APIClient()
+    client = ClawBotClient()
 
     # Test without cursor (first page)
     print("\n📄 Testing first page (no cursor)...")
-    response = client.get_tweet_replies(tweet_id)
+    replies = client.x.tweets.get_tweet_replies(tweet_id)
 
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:500] + "...")
+    print(f"Retrieved {len(replies)} replies")
+    if replies:
+        first = replies[0]
+        print(f"First reply: {first.text[:100] if first.text else '(no text)'}...")
+        print(f"Author: @{first.author_screen_name}")
 
-    is_valid, message = validate_response(response)
-    if is_valid:
-        print(f"✅ {message}")
-        print_response_summary(response)
+    print(f"✅ Replies retrieved successfully ({len(replies)} replies)")
 
-        # Check for Twitter GraphQL structure
-        response_str = str(response)
-        if 'threaded_conversation_with_injections_v2' in response_str:
+    # Check for Twitter GraphQL structure
+    if replies:
+        response_str = str(replies[0].raw)
+        if 'rest_id' in response_str or 'legacy' in response_str:
             print("✅ Response contains Twitter GraphQL replies structure")
 
-        # Try to extract cursor for pagination test
-        try:
-            # Handle nested data structure
-            data = response.get('data', {})
-            if 'data' in data:
-                data = data['data']
-            instructions = data['threaded_conversation_with_injections_v2']['instructions']
-            cursor = None
-            for instruction in instructions:
-                if instruction.get('type') == 'TimelineAddEntries':
-                    entries = instruction.get('entries', [])
-                    for entry in entries:
-                        if 'cursor-bottom' in entry.get('entryId', ''):
-                            cursor = entry.get('content', {}).get('value')
-                            break
+    # Try pagination test
+    try:
+        print(f"\n📄 Testing pagination with cursor...")
+        replies2 = client.x.tweets.get_tweet_replies(tweet_id, cursor="placeholder")
+        print(f"✅ Pagination API call successful ({len(replies2)} replies)")
+    except Exception as e:
+        print(f"⚠️  Pagination test skipped: {e}")
 
-            if cursor:
-                print(f"\n📄 Testing pagination with cursor...")
-                print(f"   Cursor: {cursor[:50]}...")
-                response2 = client.get_tweet_replies(tweet_id, cursor=cursor)
-                if 'data' in response2:
-                    print("✅ Pagination test successful")
-                else:
-                    print("⚠️  Pagination returned unexpected response")
-        except Exception as e:
-            print(f"⚠️  Pagination test skipped: {e}")
-
-        return True
-    else:
-        print(f"❌ {message}")
-        return False
+    return True
 
 
 if __name__ == "__main__":

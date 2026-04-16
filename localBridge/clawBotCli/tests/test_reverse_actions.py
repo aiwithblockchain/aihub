@@ -6,7 +6,11 @@ Test Reverse Actions (Unlike, Unretweet, Unbookmark, Unfollow)
 import sys
 import json
 import os
-from utils.api_client import APIClient
+
+# Add parent directory to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from clawbot import ClawBotClient
 
 
 def load_actions_data():
@@ -58,16 +62,16 @@ def test_reverse_actions():
         print("⏭️  Skipped")
         return False
 
-    client = APIClient()
+    client = ClawBotClient()
     results = []
 
     # Test 1: Unlike
     print("\n" + "-"*60)
     print("📍 Testing unlike...")
-    response = client.unlike_tweet(like_tweet_id)
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    result = client.x.actions.unlike(like_tweet_id)
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'unfavorite_tweet' in str(response):
+    if result.success:
         print("✅ Unlike successful")
         results.append(("Unlike", True))
     else:
@@ -80,10 +84,10 @@ def test_reverse_actions():
     # Test 2: Unretweet
     print("\n" + "-"*60)
     print("📍 Testing unretweet...")
-    response = client.unretweet(retweet_tweet_id)
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    result = client.x.actions.unretweet(retweet_tweet_id)
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'unretweet' in str(response):
+    if result.success:
         print("✅ Unretweet successful")
         results.append(("Unretweet", True))
     else:
@@ -95,10 +99,10 @@ def test_reverse_actions():
     # Test 3: Unbookmark
     print("\n" + "-"*60)
     print("📍 Testing unbookmark...")
-    response = client.unbookmark_tweet(bookmark_tweet_id)
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    result = client.x.actions.unbookmark(bookmark_tweet_id)
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'delete_bookmark' in str(response):
+    if result.success:
         print("✅ Unbookmark successful")
         results.append(("Unbookmark", True))
     else:
@@ -110,10 +114,10 @@ def test_reverse_actions():
     # Test 4: Unfollow
     print("\n" + "-"*60)
     print("📍 Testing unfollow...")
-    response = client.unfollow_user(follow_user_id)
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    result = client.x.actions.unfollow(follow_user_id)
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'following' in str(response):
+    if result.success:
         print("✅ Unfollow successful")
         results.append(("Unfollow", True))
     else:

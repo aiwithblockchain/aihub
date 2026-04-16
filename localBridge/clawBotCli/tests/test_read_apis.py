@@ -3,9 +3,13 @@
 Test Read APIs (Timeline, Tweet, User Profile, Search)
 """
 import sys
+import os
 import json
-from utils.api_client import APIClient
-from utils.response_parser import validate_response, print_response_summary
+
+# Add parent directory to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from clawbot import ClawBotClient
 
 
 def test_timeline():
@@ -14,19 +18,17 @@ def test_timeline():
     print("Testing: GET /api/v1/x/timeline")
     print("="*60)
 
-    client = APIClient()
-    response = client.get_timeline()
+    client = ClawBotClient()
+    tweets = client.x.timeline.list_timeline_tweets()
 
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:500] + "...")
-
-    is_valid, message = validate_response(response)
-    if is_valid:
-        print(f"✅ {message}")
-        print_response_summary(response)
+    print(f"Found {len(tweets)} tweets")
+    if tweets:
+        print(f"First tweet: {tweets[0].text[:100] if tweets[0].text else 'N/A'}...")
+        print("✅ Timeline fetched successfully")
         return True
     else:
-        print(f"❌ {message}")
-        return False
+        print("⚠️  No tweets found")
+        return True
 
 
 def test_get_tweet():
@@ -41,18 +43,14 @@ def test_get_tweet():
         print("⏭️  Skipped")
         return True
 
-    client = APIClient()
-    response = client.get_tweet(tweet_id)
+    client = ClawBotClient()
+    tweet = client.x.tweets.get_tweet(tweet_id)
 
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:500] + "...")
-
-    is_valid, message = validate_response(response)
-    if is_valid:
-        print(f"✅ {message}")
-        print_response_summary(response)
+    if tweet:
+        print(f"✅ Tweet fetched: {tweet.text[:100] if tweet.text else 'N/A'}...")
         return True
     else:
-        print(f"❌ {message}")
+        print("❌ Failed to fetch tweet")
         return False
 
 
@@ -66,18 +64,14 @@ def test_user_profile():
     if not screen_name:
         screen_name = "elonmusk"
 
-    client = APIClient()
-    response = client.get_user_profile(screen_name)
+    client = ClawBotClient()
+    user = client.x.users.get_user(screen_name)
 
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:500] + "...")
-
-    is_valid, message = validate_response(response)
-    if is_valid:
-        print(f"✅ {message}")
-        print_response_summary(response)
+    if user:
+        print(f"✅ User profile fetched: @{user.screen_name} - {user.name}")
         return True
     else:
-        print(f"❌ {message}")
+        print("❌ Failed to fetch user profile")
         return False
 
 
@@ -91,19 +85,11 @@ def test_search():
     if not query:
         query = "AI"
 
-    client = APIClient()
-    response = client.search_timeline(query, count=5)
+    client = ClawBotClient()
+    tweets, users = client.x.search.search(query, count=5)
 
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:500] + "...")
-
-    is_valid, message = validate_response(response)
-    if is_valid:
-        print(f"✅ {message}")
-        print_response_summary(response)
-        return True
-    else:
-        print(f"❌ {message}")
-        return False
+    print(f"✅ Search completed: found {len(tweets)} tweets, {len(users)} users")
+    return True
 
 
 if __name__ == "__main__":

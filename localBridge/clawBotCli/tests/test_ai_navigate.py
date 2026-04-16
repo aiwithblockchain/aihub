@@ -11,7 +11,7 @@ import json
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.api_client import APIClient
+from clawbot import ClawBotClient
 
 def main():
     # Parse arguments
@@ -22,18 +22,18 @@ def main():
     print(f"Platform: {platform}")
     print("="*60)
 
-    client = APIClient()
-    response = client.navigate_ai_platform(platform=platform)
+    client = ClawBotClient()
+    result = client.ai.navigation.navigate(platform=platform)
 
     print("\n📋 Response:")
-    print(json.dumps(response, indent=2, ensure_ascii=False))
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False))
 
-    if response.get('success'):
-        tabs_navigated = response.get('tabsNavigated', 0)
+    if result.success:
+        tabs_navigated = result.raw.get('tabsNavigated', 0)
         print(f"\n✅ Success: Navigated {tabs_navigated} tab(s)")
         return 0
     else:
-        error = response.get('error', 'Unknown error')
+        error = result.message or 'Unknown error'
         print(f"\n❌ Failed: {error}")
         return 1
 

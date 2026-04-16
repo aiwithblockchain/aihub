@@ -18,28 +18,25 @@ Test Publish APIs (Create Tweet, Create Reply) with Multimedia Support
   python3 test_publish.py --reply-to 123456 --text "Reply" --image test.jpg
 """
 import sys
-import json
 import argparse
 import os
 from typing import List, Optional
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from utils.api_client import APIClient
+from clawbot import ClawBotClient
 
 
-def upload_media_file(client: APIClient, file_path: str) -> Optional[str]:
+def upload_media_file(client: ClawBotClient, file_path: str) -> Optional[str]:
     """
-    基于 Task 生命周期上传媒体文件并获取 media_id
-    
-    该方法负责协调任务客户端、上传器和进度显示组件，执行完整的视频上传链路。
-    
+    基于 clawbot 类库上传媒体文件并获取 media_id
+
     Args:
-        client: 现有的 API 客户端实例
+        client: 新类库客户端实例
         file_path: 待上传的媒体文件本地路径
-        
+
     Returns:
-        Optional[str]: 极速获取的 media_id，若上传失败或用户取消则返回 None
+        Optional[str]: 返回 media_id；若上传失败或用户取消则返回 None
     """
     if not os.path.exists(file_path):
         print(f"❌ 文件不存在: {file_path}")
@@ -49,25 +46,12 @@ def upload_media_file(client: APIClient, file_path: str) -> Optional[str]:
     print(f"📤 上传媒体文件: {file_path} ({file_size} bytes)")
 
     try:
-        # 延迟导入：仅在实际需要上传时才加载这些模块，
-        # 避免影响其他仅使用 APIClient 的测试脚本
-        from utils.task_client import TaskClient
-        from utils.chunked_uploader import ChunkedUploader
-        from utils.progress_display import ProgressDisplay
-        from utils.api_client import MediaUploadTask
+        result = client.media.upload(file_path)
+        if result.media_id:
+            print(f"✅ 媒体上传成功，media_id: {result.media_id}")
+            return result.media_id
 
-        task_client = TaskClient()
-        uploader = ChunkedUploader(task_client)
-        progress = ProgressDisplay()
-        
-        task = MediaUploadTask(task_client, uploader, progress)
-        media_id = task.upload_video(video_path=file_path)
-        
-        if media_id:
-            print(f"✅ 媒体上传成功，media_id: {media_id}")
-            return media_id
-            
-        print("❌ 错误: API 客户端未能返回 media_id")
+        print("❌ 错误: 类库未返回 media_id")
         return None
 
     except Exception as e:
@@ -75,105 +59,68 @@ def upload_media_file(client: APIClient, file_path: str) -> Optional[str]:
         return None
 
 
-def test_create_tweet(text: str, media_ids: Optional[List[str]] = None):
+def test_create_tweet(client: ClawBotClient, text: str, media_ids: Optional[List[str]] = None):
     """
-    测试推文发布接口 (POST /api/v1/x/tweets)
-    
+    测试推文发布接口
+
     Args:
+        client: clawbot 客户端实例
         text: 推文正文内容
         media_ids: 可选的已上传媒体 ID 列表
     """
     print("\n" + "="*60)
-    print("Testing: POST /api/v1/x/tweets")
+    print("Testing: create tweet via clawbot")
     print("="*60)
     print(f"Text: {text}")
     if media_ids:
         print(f"Media IDs: {media_ids}")
 
-    client = APIClient()
+    result = client.x.actions.create_tweet(text=text, media_ids=media_ids)
+    raw = result.raw if hasattr(result, "raw") else {}
+    print(str(raw)[:500] + "...")
 
-    # 检查 create_tweet 是否支持 media_ids 参数
-    try:
-        response = client.create_tweet(text, media_ids=media_ids)
-    except TypeError:
-        # 如果不支持 media_ids 参数，尝试不带参数调用
-        if media_ids:
-            print("⚠️  警告: create_tweet 不支持 media_ids 参数，仅发布文字")
-        response = client.create_tweet(text)
+    if result.success:
+        if result.target_id:
+            print("✅ 推文发布成功")
+            print(f"   Tweet ID: {result.target_id}")
+            print(f"   请在 X 网页上验证: https://x.com/i/web/status/{result.target_id}")
+            return True, result.target_id
+        print("⚠️  推文可能已发布，但未找到 rest_id")
+        return True, None
 
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:500] + "...")
-
-    # Validate response
-    # 支持两种响应格式：
-    # 1. {"ok": true, "data": {"data": {"create_tweet": {...}}}}
-    # 2. {"data": {"create_tweet": {...}}}
-    data = response.get('data', {})
-    if isinstance(data, dict) and 'data' in data:
-        # 格式 1: 嵌套的 data
-        data = data['data']
-
-    if 'create_tweet' in data:
-        tweet_results = data['create_tweet'].get('tweet_results', {})
-        result = tweet_results.get('result', {})
-        tweet_id = result.get('rest_id')
-
-        if tweet_id:
-            print(f"✅ 推文发布成功")
-            print(f"   Tweet ID: {tweet_id}")
-            print(f"   请在 X 网页上验证: https://x.com/i/web/status/{tweet_id}")
-            return True, tweet_id
-        else:
-            print("⚠️  推文可能已发布，但未找到 rest_id")
-            return True, None
-    elif 'error' in response:
-        print(f"❌ 推文发布失败: {response['error']}")
-        return False, None
-    else:
-        print("❌ 推文发布失败: 未知响应格式")
-        return False, None
+    print(f"❌ 推文发布失败: {result.message or '未知错误'}")
+    return False, None
 
 
-def test_create_reply(tweet_id: str, text: str, media_ids: Optional[List[str]] = None):
+def test_create_reply(client: ClawBotClient, tweet_id: str, text: str, media_ids: Optional[List[str]] = None):
     """
-    测试回复推文接口 (POST /api/v1/x/replies)
-    
+    测试回复推文接口
+
     Args:
+        client: clawbot 客户端实例
         tweet_id: 需要回复的目的推文 ID
         text: 回复的正文内容
         media_ids: 可选的已上传媒体 ID 列表
     """
     print("\n" + "="*60)
-    print("Testing: POST /api/v1/x/replies")
+    print("Testing: create reply via clawbot")
     print("="*60)
     print(f"Reply to: {tweet_id}")
     print(f"Text: {text}")
     if media_ids:
         print(f"Media IDs: {media_ids}")
 
-    client = APIClient()
+    result = client.x.actions.reply(tweet_id=tweet_id, text=text, media_ids=media_ids)
+    raw = result.raw if hasattr(result, "raw") else {}
+    print(str(raw)[:500] + "...")
 
-    # 检查 create_reply 是否支持 media_ids 参数
-    try:
-        response = client.create_reply(tweet_id, text, media_ids=media_ids)
-    except TypeError:
-        # 如果不支持 media_ids 参数，尝试不带参数调用
-        if media_ids:
-            print("⚠️  警告: create_reply 不支持 media_ids 参数，仅发布文字")
-        response = client.create_reply(tweet_id, text)
-
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:500] + "...")
-
-    # Validate response
-    if 'data' in response or 'ok' in response:
-        print(f"✅ 回复发布成功")
+    if result.success:
+        print("✅ 回复发布成功")
         print(f"   请在 X 网页上验证: https://x.com/i/web/status/{tweet_id}")
         return True
-    elif 'error' in response:
-        print(f"❌ 回复发布失败: {response['error']}")
-        return False
-    else:
-        print("❌ 回复发布失败: 未知响应格式")
-        return False
+
+    print(f"❌ 回复发布失败: {result.message or '未知错误'}")
+    return False
 
 
 def main():
@@ -224,7 +171,7 @@ def main():
         # 使用时间戳作为测试文本
         from datetime import datetime
         test_text = f"AI 自动化测试 - {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}"
-        success, tweet_id = test_create_tweet(test_text)
+        success, tweet_id = test_create_tweet(ClawBotClient(), test_text)
 
         if success:
             print("\n✅ AI 自动化测试完成")
@@ -241,11 +188,12 @@ def main():
 
     # 处理媒体文件
     media_ids = []
-    client = APIClient()
+    client = ClawBotClient()
+    media_client = client
 
     # 处理单张图片
     if args.image:
-        media_id = upload_media_file(client, args.image)
+        media_id = upload_media_file(media_client, args.image)
         if media_id:
             media_ids.append(media_id)
         else:
@@ -260,7 +208,7 @@ def main():
             sys.exit(1)
 
         for image_path in image_paths:
-            media_id = upload_media_file(client, image_path)
+            media_id = upload_media_file(media_client, image_path)
             if media_id:
                 media_ids.append(media_id)
             else:
@@ -269,7 +217,7 @@ def main():
 
     # 处理视频
     if args.video:
-        media_id = upload_media_file(client, args.video)
+        media_id = upload_media_file(media_client, args.video)
         if media_id:
             media_ids.append(media_id)
         else:
@@ -291,9 +239,9 @@ def main():
 
     # 执行发布或回复
     if args.reply_to:
-        success = test_create_reply(args.reply_to, args.text, media_ids if media_ids else None)
+        success = test_create_reply(client, args.reply_to, args.text, media_ids if media_ids else None)
     else:
-        success, _ = test_create_tweet(args.text, media_ids if media_ids else None)
+        success, _ = test_create_tweet(client, args.text, media_ids if media_ids else None)
 
     if success:
         print("\n✅ 测试完成")

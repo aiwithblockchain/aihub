@@ -7,99 +7,41 @@ import sys
 import json
 import os
 import argparse
-from utils.api_client import APIClient
+
+# Add parent directory to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from clawbot import ClawBotClient
 
 
 def get_tweet_and_user_by_id(tweet_id):
     """Get tweet details and extract user ID from specified tweet"""
     print(f"\n📋 Fetching tweet details for ID: {tweet_id}...")
-    client = APIClient()
-    response = client.get_tweet(tweet_id)
+    client = ClawBotClient()
+    tweet = client.x.tweets.get_tweet(tweet_id)
 
-    user_id = None
-
-    try:
-        if 'data' in response:
-            data = response['data']
-            if 'data' in data:
-                data = data['data']
-
-            threaded_conv = data.get('threaded_conversation_with_injections_v2', {})
-            instructions = threaded_conv.get('instructions', [])
-
-            for instruction in instructions:
-                if instruction.get('type') == 'TimelineAddEntries':
-                    entries = instruction.get('entries', [])
-                    for entry in entries:
-                        content = entry.get('content', {})
-                        items = content.get('items', [])
-                        if items:
-                            item = items[0]
-                            tweet_results = item.get('item', {}).get('itemContent', {}).get('tweet_results', {})
-                        else:
-                            tweet_results = content.get('itemContent', {}).get('tweet_results', {})
-
-                        result = tweet_results.get('result', {})
-                        core = result.get('core', {})
-                        user_results = core.get('user_results', {})
-                        user_result = user_results.get('result', {})
-                        user_id = user_result.get('rest_id')
-
-                        if user_id:
-                            print(f"✅ Found user ID: {user_id}")
-                            return tweet_id, user_id
-    except Exception as e:
-        print(f"⚠️  Failed to extract user ID: {e}")
-
-    return tweet_id, user_id
+    if tweet and tweet.author_id:
+        user_id = tweet.author_id
+        print(f"✅ Found user ID: {user_id}")
+        return tweet_id, user_id
+    else:
+        print(f"⚠️  Failed to extract user ID")
+        return tweet_id, None
 
 
 def extract_tweet_and_user_from_timeline():
     """Extract a tweet ID and user ID from timeline for testing"""
     print("\n📋 Extracting tweet ID and user ID from timeline...")
-    client = APIClient()
-    response = client.get_timeline()
+    client = ClawBotClient()
+    tweet = client.x.timeline.get_first_timeline_tweet()
 
-    tweet_id = None
-    user_id = None
-
-    try:
-        if 'data' in response:
-            data = response['data']
-            if 'data' in data and 'home' in data['data']:
-                instructions = data['data']['home']['home_timeline_urt']['instructions']
-            elif 'home' in data:
-                instructions = data['home']['home_timeline_urt']['instructions']
-            else:
-                return None, None
-
-            for instruction in instructions:
-                if instruction.get('type') == 'TimelineAddEntries':
-                    entries = instruction.get('entries', [])
-                    for entry in entries:
-                        if 'tweet-' in entry.get('entryId', ''):
-                            content = entry.get('content', {})
-                            tweet_results = content.get('itemContent', {}).get('tweet_results', {})
-                            result = tweet_results.get('result', {})
-
-                            if not tweet_id:
-                                tweet_id = result.get('rest_id')
-
-                            # Extract user ID from tweet author
-                            if not user_id:
-                                core = result.get('core', {})
-                                user_results = core.get('user_results', {})
-                                user_result = user_results.get('result', {})
-                                user_id = user_result.get('rest_id')
-
-                            if tweet_id and user_id:
-                                print(f"✅ Found tweet ID: {tweet_id}")
-                                print(f"✅ Found user ID: {user_id}")
-                                return tweet_id, user_id
-    except Exception as e:
-        print(f"⚠️  Failed to extract IDs: {e}")
-
-    return tweet_id, user_id
+    if tweet and tweet.id and tweet.author_id:
+        print(f"✅ Found tweet ID: {tweet.id}")
+        print(f"✅ Found user ID: {tweet.author_id}")
+        return tweet.id, tweet.author_id
+    else:
+        print(f"⚠️  Failed to extract IDs")
+        return None, None
 
 
 def test_positive_actions(tweet_id=None):
@@ -125,17 +67,17 @@ def test_positive_actions(tweet_id=None):
         print("⏭️  Skipped")
         return False
 
-    client = APIClient()
+    client = ClawBotClient()
     actions_data = {}
     results = []
 
     # Test 1: Like
     print("\n" + "-"*60)
     print("📍 Testing like...")
-    response = client.like_tweet(tweet_id)
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    result = client.x.actions.like(tweet_id)
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'favorite_tweet' in str(response):
+    if result.success:
         print("✅ Like successful")
         actions_data['like_tweet_id'] = tweet_id
         results.append(("Like", True))
@@ -149,10 +91,10 @@ def test_positive_actions(tweet_id=None):
     # Test 2: Retweet
     print("\n" + "-"*60)
     print("📍 Testing retweet...")
-    response = client.retweet(tweet_id)
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    result = client.x.actions.retweet(tweet_id)
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'create_retweet' in str(response):
+    if result.success:
         print("✅ Retweet successful")
         actions_data['retweet_tweet_id'] = tweet_id
         results.append(("Retweet", True))
@@ -165,10 +107,10 @@ def test_positive_actions(tweet_id=None):
     # Test 3: Bookmark
     print("\n" + "-"*60)
     print("📍 Testing bookmark...")
-    response = client.bookmark_tweet(tweet_id)
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    result = client.x.actions.bookmark(tweet_id)
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'create_bookmark' in str(response):
+    if result.success:
         print("✅ Bookmark successful")
         actions_data['bookmark_tweet_id'] = tweet_id
         results.append(("Bookmark", True))
@@ -181,10 +123,10 @@ def test_positive_actions(tweet_id=None):
     # Test 4: Follow
     print("\n" + "-"*60)
     print("📍 Testing follow...")
-    response = client.follow_user(user_id)
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    result = client.x.actions.follow(user_id)
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'following' in str(response):
+    if result.success:
         print("✅ Follow successful")
         actions_data['follow_user_id'] = user_id
         results.append(("Follow", True))

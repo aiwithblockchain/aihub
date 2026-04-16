@@ -1,209 +1,228 @@
-# ClawBot CLI - REST API 测试工具
+# ClawBot CLI / clawbot 类库
 
-LocalBridge REST API 的 Python 测试工具集，用于验证 Twitter/X 自动化功能。
+本目录正在从“REST API 测试工具集”重构为“可复制到其它工程中的 Python 类库”。
+
+当前目录内同时包含两部分内容：
+
+1. **新类库主体**：`clawbot/`
+2. **历史测试脚本与兼容文件**：`tests/`、`utils/`、`openclaw.py`
+
+最终目标是让外部工程复制 `clawbot/` 目录后，可以直接这样使用：
+
+```python
+from clawbot import ClawBotClient
+
+client = ClawBotClient()
+status = client.x.status.get_status()
+tweets = client.x.timeline.list_timeline_tweets()
+```
 
 ---
 
-## 📋 前置条件
+## 新类库结构
 
-1. **LocalBridgeMac 应用已启动**：REST API 服务运行在 `http://127.0.0.1:10088`
-2. **TweetClaw 扩展已加载**：浏览器已加载 TweetClaw 扩展并连接到 LocalBridge
-3. **已登录 X 账号**：在浏览器中登录 X 账号
-4. **Python 环境**：Python 3.7+
+```text
+clawbot/
+├── __init__.py
+├── client.py
+├── config.py
+├── errors.py
+├── transport/
+├── domain/
+├── services/
+├── workflows/
+└── upload/
+```
 
 ---
 
-## 🚀 安装
+## 快速开始
 
 ```bash
 cd localBridge/clawBotCli
 pip install -r requirements.txt
 ```
 
----
+示例：
 
-## 📖 测试方案
+```python
+from clawbot import ClawBotClient
 
-### TEST-002: 元数据查询测试
-
-验证系统元数据查询功能（API 文档、状态、实例）。
-
-```bash
-python3 tests/test_metadata.py
+client = ClawBotClient()
+print(client.x.status.is_logged_in())
 ```
 
-**覆盖 API**:
-- `GET /api/v1/x/docs` - API 文档
-- `GET /api/v1/x/status` - X 状态
-- `GET /api/v1/x/instances` - 连接实例
-
 ---
 
-### TEST-003: 基础读取测试
+## 迁移期兼容层说明
 
-验证基础读取功能（账号信息、时间线）。
+当前 `utils/` 目录仍然保留，但角色已经变为：
 
-```bash
-python3 tests/test_basic_read.py
+- **兼容层**
+- **过渡层**
+- **旧脚本/旧测试的适配层**
+
+对于新代码、复制到其它工程后的代码、以及 AI 新增功能，**应优先直接使用 `clawbot/` 目录下的类库接口**，而不是继续从 `utils/` 扩展。
+
+推荐新代码入口：
+
+```python
+from clawbot import ClawBotClient
 ```
 
-**覆盖 API**:
-- `GET /api/v1/x/basic_info` - 当前账号信息
-- `GET /api/v1/x/timeline` - 主页时间线
+不推荐再作为新开发主入口的旧路径：
 
----
-
-### TEST-004: 推文详情和回复测试
-
-验证推文详情查询和回复列表（含分页）。
-
-```bash
-python3 tests/test_tweet_details.py
+```python
+from utils.api_client import APIClient
 ```
 
-**覆盖 API**:
-- `GET /api/v1/x/tweets/{tweet_id}` - 推文详情
-- `GET /api/v1/x/tweets/{tweet_id}/replies` - 推文回复（支持分页）
-
 ---
 
-### TEST-005: 用户和搜索测试
+## 作为类库复制到其它工程中使用
 
-验证用户资料查询和搜索功能（含分页）。
+推荐的目标形态是：将 `clawbot/` 目录复制到其它 Python 工程中，并在目标工程里直接使用。
 
-```bash
-python3 tests/test_user_search.py
+### 复制方式
+
+假设你要把它复制到另一个项目：
+
+```text
+other_project/
+├── app/
+├── clawbot/
+└── main.py
 ```
 
-**覆盖 API**:
-- `GET /api/v1/x/users?screenName={screen_name}` - 用户资料
-- `GET /api/v1/x/search?query={query}` - 搜索推文（支持分页）
+然后在目标工程中：
 
----
+```python
+from clawbot import ClawBotClient
 
-### TEST-006: 标签页控制测试
-
-验证标签页控制功能（打开、导航、关闭）。
-
-```bash
-python3 tests/test_tab_control.py
+client = ClawBotClient()
+print(client.x.status.is_logged_in())
 ```
 
-**覆盖 API**:
-- `POST /tweetclaw/open-tab` - 打开新标签页
-- `POST /tweetclaw/navigate-tab` - 导航标签页
-- `POST /tweetclaw/close-tab` - 关闭标签页
+### 推荐给 AI 的扩展入口
 
----
+当 AI 基于该类库开发新功能时，优先从以下入口扩展：
 
-### TEST-007: 正向操作测试
+- `client.x.status`：状态与实例检查
+- `client.x.timeline`：时间线读取
+- `client.x.tweets`：推文详情与回复读取
+- `client.x.users`：用户资料与置顶推文
+- `client.x.search`：搜索能力
+- `client.x.actions`：点赞、回复、发帖、关注等动作
+- `client.media`：上传媒体并发帖/回复
+- `client.ai.chat`：AI 平台对话
+- `client.workflows`：可直接复用的组合工作流
 
-验证点赞、转发、收藏、关注功能。
+### 最小使用示例
 
-⚠️ **警告**：这些测试会在真实账号上执行操作！
+```python
+from clawbot import ClawBotClient
 
-```bash
-python3 tests/test_actions.py
+client = ClawBotClient()
+
+if client.x.status.is_logged_in():
+    tweets = client.x.timeline.list_timeline_tweets()
+    if tweets:
+        print(tweets[0].text)
 ```
 
-**覆盖 API**:
-- `POST /api/v1/x/likes` - 点赞推文
-- `POST /api/v1/x/retweets` - 转发推文
-- `POST /api/v1/x/bookmarks` - 收藏推文
-- `POST /api/v1/x/follows` - 关注用户
+### AI 继续开发新功能的建议方式
 
-**输出文件**: 生成 `test_actions.json` 供 TEST-008 使用
+例如可以继续新增：
+
+- 自动读取时间线并筛选目标推文
+- 自动搜索用户并抓取资料
+- 自动生成回复并互动
+- 上传媒体后自动发帖
+- 基于 `client.workflows` 封装新的业务流程
 
 ---
 
-### TEST-008: 反向操作测试
+## media/task 错误语义
 
-验证取消点赞、取消转发、取消收藏、取消关注功能。
+为了让 `clawbot/` 作为可复制类库在其它工程中稳定使用，media/task 子系统的异常约定如下：
 
-⚠️ **警告**：这些测试会在真实账号上执行操作！必须先执行 TEST-007。
+### `TaskApiClient`
 
-```bash
-python3 tests/test_reverse_actions.py
+- 配置文件不存在：返回空配置，不报错
+- 配置文件 JSON 非法：抛出 `ParseError`
+- 创建任务响应缺少 `taskId`：抛出 `ParseError`
+- 轮询任务状态响应缺少 `state`：抛出 `ParseError`
+- 任务状态为 `failed` 或 `cancelled`：抛出 `MediaUploadError`
+- 任务超过超时时间：取消任务后抛出 `TaskTimeoutError`
+
+### `MediaService.upload()`
+
+- 本地文件不存在：抛出 `MediaUploadError`
+- 任务结果不是合法 JSON：抛出 `ParseError`
+- 任务结果缺少 `mediaId`：抛出 `MediaUploadError`
+- 下层抛出的 `TaskTimeoutError`：保持原样继续向上抛出，不包装成别的异常
+- 其它未知异常：统一包装成 `MediaUploadError`
+
+### `MediaService.post_tweet()` / `reply_with_media()`
+
+- 上传阶段失败：直接向上抛出异常，不继续调用动作层
+- 动作层（`create_tweet` / `reply`）异常：保持原样继续向上抛出
+- 只有成功上传且带有非空 `media_id` 的媒体，才会传给动作层
+
+这意味着外部工程在接入时可以按下面方式区分处理：
+
+```python
+from clawbot.errors import MediaUploadError, ParseError, TaskTimeoutError
+
+try:
+    client.media.post_tweet("hello", ["a.png"])
+except TaskTimeoutError:
+    # 可重试：任务执行超时
+    pass
+except ParseError:
+    # 接口返回结构不符合约定，需要排查服务端/协议变化
+    pass
+except MediaUploadError:
+    # 上传流程本身失败，如任务失败、mediaId 缺失、文件不存在等
+    pass
 ```
 
-**覆盖 API**:
-- `POST /api/v1/x/unlikes` - 取消点赞
-- `POST /api/v1/x/unretweets` - 取消转发
-- `POST /api/v1/x/unbookmarks` - 取消收藏
-- `POST /api/v1/x/unfollows` - 取消关注
+---
 
-**前置条件**: 需要先运行 TEST-007 生成 `test_actions.json`
+## 示例脚本
+
+已新增示例目录：
+
+- `examples/read_timeline.py`
+- `examples/publish_tweet.py`
+- `examples/reply_with_media.py`
+- `examples/ai_reply_pinned_tweet.py`
 
 ---
 
-### TEST-009: 发布推文测试
+## 重构实施文档
 
-验证推文发布功能（支持文字和媒体）。
+本次重构相关文档见：
 
-⚠️ **警告**：这些测试会在真实账号上发布推文！
-
-```bash
-# 发布纯文字推文
-python3 tests/test_publish.py --text "测试推文内容"
-
-# 发布带图片的推文
-python3 tests/test_publish.py --text "测试图片" --image ./test.jpg
-
-# 发布带多图的推文
-python3 tests/test_publish.py --text "测试多图" --images img1.jpg,img2.jpg
-
-# 发布带视频的推文
-python3 tests/test_publish.py --text "测试视频" --video ./test.mp4
-
-# 回复推文
-python3 tests/test_publish.py --reply-to TWEET_ID --text "回复内容"
-
-# 回复推文（带图片）
-python3 tests/test_publish.py --reply-to TWEET_ID --text "回复内容" --image ./test.jpg
-
-# AI 自动化测试（不推荐）
-python3 tests/test_publish.py --auto
-```
-
-**覆盖 API**:
-- `POST /api/v1/x/tweets` - 发布推文
-- `POST /api/v1/x/replies` - 回复推文
-- `POST /api/v1/x/media/upload` - 上传媒体
-
-**支持的媒体格式**:
-- 图片：JPEG, PNG, GIF（最多 4 张）
-- 视频：MP4
-
-**注意**:
-- ⚠️ `--auto` 参数会自动发布测试推文，可能导致账号审核风险，不推荐使用
+- `重构实施清单.md`
+- `最小复制包说明.md`
+- `交付清单.md`
 
 ---
 
-### TEST-010: 删除推文测试
+## 历史内容说明
 
-验证推文删除功能。
+现有 `tests/`、`utils/`、`openclaw.py` 仍保留，作为迁移过程中的参考与兼容来源。后续会逐步将其中能力迁移到 `clawbot/` 类库结构中。
 
-⚠️ **危险操作**：删除操作不可逆！
+如需查看新的使用方式与交付边界，优先参考：
 
-```bash
-# 方式 1: 交互式删除（推荐）
-python3 tests/test_delete.py
-
-# 方式 2: 命令行参数删除
-python3 tests/test_delete.py --tweet-id TWEET_ID --force
-```
-
-**覆盖 API**:
-- `DELETE /api/v1/x/mytweets` - 删除自己的推文
-
-**建议流程**:
-1. 先用 TEST-010 创建测试推文
-2. 记录返回的 tweet_id
-3. 使用 TEST-011 删除测试推文
+- `examples/`
+- `重构实施清单.md`
+- `最小复制包说明.md`
+- `交付清单.md`
 
 ---
 
-## 🔧 配置
+## 配置
 
 默认配置在 [config.py](config.py)：
 
