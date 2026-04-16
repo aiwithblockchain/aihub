@@ -311,19 +311,5 @@
     "request_body": "{\n  \"userId\": \"1234567890\"\n}",
     "curl": "curl -X POST http://127.0.0.1:10088/api/v1/x/unfollows \\\n     -H \"Content-Type: application/json\" \\\n     -d '{\"userId\": \"1234567890\"}'",
     "response": "{\"ok\":true,\"data\":{\"userId\":\"1234567890\",\"following\":false}}"
-  },
-  {
-    "id": "upload_media",
-    "name": "Upload Media",
-    "name_zh": "上传媒体",
-    "summary": "Upload media files (images) to Twitter, returns media_id for use when publishing tweets.",
-    "summary_zh": "上传媒体文件（图片）到 Twitter，返回 media_id 供发推文时使用。",
-    "method": "POST",
-    "path": "/api/v1/x/media/upload",
-    "description": "This endpoint implements the complete Twitter media upload process (INIT → APPEND → FINALIZE three steps). Developers need to provide base64-encoded media data and MIME type. The system will automatically handle the three-step upload process and finally return media_id_string, which can be used to publish tweets with images. Supports common image formats (PNG, JPEG, GIF, etc.). This is the core functionality for implementing multimedia tweet publishing.",
-    "description_zh": "此接口实现完整的 Twitter 媒体上传流程（INIT → APPEND → FINALIZE 三步）。开发者需要提供 base64 编码的媒体数据和 MIME 类型。系统会自动处理三步上传流程，最终返回 media_id_string，可用于发布带图片的推文。支持常见图片格式（PNG、JPEG、GIF 等）。这是实现多媒体推文发布的核心功能。",
-    "request_body": "{\n  \"mediaData\": \"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ...\",\n  \"mimeType\": \"image/png\"\n}",
-    "curl": "curl -X POST http://127.0.0.1:10088/api/v1/x/media/upload \\\n     -H \"Content-Type: application/json\" \\\n     -d '{\"mediaData\": \"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ...\", \"mimeType\": \"image/png\"}'",
-    "response": "{\"media_id\":\"1234567890123456789\",\"media_id_string\":\"1234567890123456789\"}"
   }
 ]

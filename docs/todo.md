@@ -2,6 +2,44 @@
 
 ---
 
+## [阶段 2 后续改进] Long Task Manager 优化项
+
+### 优先级 P3（可选优化）
+
+#### 1. 补充单元测试
+**位置：** [localBridge/go-lib/pkg/task/](localBridge/go-lib/pkg/task/)
+
+**当前状态：** 只有 3 个集成测试，无单元测试。
+
+**建议补充：**
+- `manager_test.go` - 状态机转换测试
+- `datastore_test.go` - 分片写入/读取测试
+- `resultstore_test.go` - 结果存储测试
+- `cleanup_test.go` - 清理策略测试
+
+**优先级：** P3 - 集成测试已覆盖核心路径，单元测试可提高重构安全性
+
+---
+
+#### 2. 补充错误场景集成测试
+**位置：** [localBridge/go-lib/pkg/task/integration_test.go](localBridge/go-lib/pkg/task/integration_test.go)
+
+**当前测试：**
+- ✅ TestTaskFullLifecycle - 完整生命周期
+- ✅ TestOwnerAuthRejection - Owner 校验拒绝
+- ✅ TestTaskCancelScenario - 任务取消
+
+**建议补充：**
+- 跨实例上传结果拒绝测试
+- 大文件测试（100MB+）
+- 并发写入同一 partIndex 测试
+- Seal 前 Start 测试
+- 重复 Seal 测试
+
+**优先级：** P3 - 核心场景已覆盖，边界测试可提高健壮性
+
+---
+
 ## [高优先级] QueryID 自动更新机制
 
 **背景：**

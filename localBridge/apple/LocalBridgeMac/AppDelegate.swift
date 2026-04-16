@@ -44,6 +44,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         button.target = self
         button.action = #selector(openMainWindow)
         button.sendAction(on: [.leftMouseUp, .rightMouseUp])
+
+        // 每次应用启动完成后，自动弹出主界面供用户确认状态
+        DispatchQueue.main.async { [weak self] in
+            self?.openMainWindow()
+        }
     }
 
     @objc private func handleLanguageChange() {

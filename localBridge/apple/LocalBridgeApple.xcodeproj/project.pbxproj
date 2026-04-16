@@ -56,7 +56,7 @@
 		69C2BE0F2F73E78D00173318 /* LanguageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageManager.swift; sourceTree = "<group>"; };
 		69C2BE102F73E78D00173318 /* Localizations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localizations.swift; sourceTree = "<group>"; };
 		A10000000000000000000020 /* LocalBridgeiOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LocalBridgeiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		A10000000000000000000021 /* OpeHub.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpeHub.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		A10000000000000000000021 /* OpenHub.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpenHub.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000022 /* LocalBridgeiOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBridgeiOSApp.swift; sourceTree = "<group>"; };
 		A10000000000000000000023 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A10000000000000000000024 /* LocalBridgeMacApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBridgeMacApp.swift; sourceTree = "<group>"; };
@@ -128,7 +128,7 @@
 			isa = PBXGroup;
 			children = (
 				A10000000000000000000020 /* LocalBridgeiOS.app */,
-				A10000000000000000000021 /* OpeHub.app */,
+				A10000000000000000000021 /* OpenHub.app */,
 				2B8FB1B82F69AECA0005B31B /* tokenRouter.app */,
 			);
 			name = Products;
@@ -233,7 +233,7 @@
 			);
 			name = LocalBridgeMac;
 			productName = LocalBridgeMac;
-			productReference = A10000000000000000000021 /* OpeHub.app */;
+			productReference = A10000000000000000000021 /* OpenHub.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -415,7 +415,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = OpeHub;
+				INFOPLIST_KEY_CFBundleDisplayName = OpenHub;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -495,7 +495,7 @@
 				GCC_WARN_UNUSED_FUNCTION = YES;
 				GCC_WARN_UNUSED_VARIABLE = YES;
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = OpeHub;
+				INFOPLIST_KEY_CFBundleDisplayName = OpenHub;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
@@ -561,7 +561,7 @@
 				CODE_SIGN_STYLE = Automatic;
 				DEVELOPMENT_ASSET_PATHS = "\"\"";
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = OpeHub;
+				INFOPLIST_KEY_CFBundleDisplayName = OpenHub;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
@@ -611,7 +611,7 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CODE_SIGN_ENTITLEMENTS = LocalBridgeMac/LocalBridgeMac.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 51;
+				CURRENT_PROJECT_VERSION = 55;
 				DEVELOPMENT_TEAM = 2XYK8RBB6M;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -627,12 +627,13 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.5;
+				MARKETING_VERSION = 1.2;
 				OTHER_LDFLAGS = (
 					"-lresolv",
 					"-lc++",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.aihub.localbridge.mac;
-				PRODUCT_NAME = OpeHub;
+				PRODUCT_NAME = OpenHub;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 			};
@@ -642,16 +643,16 @@
 			isa = XCBuildConfiguration;
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				CODE_SIGN_ENTITLEMENTS = LocalBridgeMac/LocalBridgeMac.entitlements;
+				CODE_SIGN_ENTITLEMENTS = LocalBridgeMac/LocalBridgeMac_Release.entitlements;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 51;
+				CURRENT_PROJECT_VERSION = 55;
 				DEVELOPMENT_TEAM = 2XYK8RBB6M;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)/LocalBridgeApple/Frameworks",
 				);
 				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_KEY_CFBundleDisplayName = OpeHub;
+				INFOPLIST_KEY_CFBundleDisplayName = OpenHub;
 				INFOPLIST_KEY_ITSAppUsesNonExemptEncryption = NO;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.utilities";
 				INFOPLIST_KEY_LSUIElement = YES;
@@ -660,12 +661,13 @@
 					"@executable_path/../Frameworks",
 				);
 				MACOSX_DEPLOYMENT_TARGET = 13.5;
+				MARKETING_VERSION = 1.2;
 				OTHER_LDFLAGS = (
 					"-lresolv",
 					"-lc++",
 				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.aihub.localbridge.mac;
-				PRODUCT_NAME = OpeHub;
+				PRODUCT_NAME = OpenHub;
 				SDKROOT = macosx;
 				SWIFT_EMIT_LOC_STRINGS = NO;
 			};

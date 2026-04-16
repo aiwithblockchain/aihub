@@ -11,51 +11,80 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hyperorchid/localbridge/pkg/task"
 	"github.com/hyperorchid/localbridge/pkg/types"
 	"github.com/hyperorchid/localbridge/pkg/websocket"
 )
 
 const defaultTaskTimeoutMs = 210_000 // 与 Swift defaultExecuteTaskTimeoutMs 一致
 
-type Handler struct{ ws *websocket.Server }
+type Handler struct {
+	ws          *websocket.Server
+	taskManager *task.Manager
+	dataStore   *task.DataStore
+	resultStore *task.ResultStore
+}
 
 func (h *Handler) Register(mux *http.ServeMux) {
+	taskHandler := NewTaskHandler(h.ws, h.taskManager, h.dataStore, h.resultStore)
+
+	mux.HandleFunc("/api/v1/tasks", taskHandler.CreateTask)
+	mux.HandleFunc("/api/v1/tasks/", taskHandler.TaskDispatch)
+
 	// ★ 通用桥接端点（所有插件均可使用）
-	mux.HandleFunc("/api/v1/plugins",        h.pluginList)    // GET: 插件发现
-	mux.HandleFunc("/api/v1/plugins/",       h.pluginInvoke)  // POST /api/v1/plugins/{clientName}/invoke
+	mux.HandleFunc("/api/v1/plugins", h.pluginList)    // GET: 插件发现
+	mux.HandleFunc("/api/v1/plugins/", h.pluginInvoke) // POST /api/v1/plugins/{clientName}/invoke
 
 	// ★ 预制快捷端点（向后兼容，功能上等价于通用端点）
 	// X (tweetClaw) 端点
-	mux.HandleFunc("/api/v1/x/status",     h.xStatus)
+	mux.HandleFunc("/api/v1/x/status", h.xStatus)
 	mux.HandleFunc("/api/v1/x/basic_info", h.xBasicInfo)
-	mux.HandleFunc("/api/v1/x/instances",  h.instances)
-	mux.HandleFunc("/api/v1/x/timeline",   h.timeline)
-	mux.HandleFunc("/api/v1/x/search",     h.searchTimeline)
-	mux.HandleFunc("/api/v1/x/users",      h.userProfile)
-	mux.HandleFunc("/api/v1/x/tweets",     h.tweetsDispatch)
-	mux.HandleFunc("/api/v1/x/tweets/",    h.tweetResourceDispatch)
-	mux.HandleFunc("/api/v1/x/likes",      func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "like") })
-	mux.HandleFunc("/api/v1/x/unlikes",    func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "unlike") })
-	mux.HandleFunc("/api/v1/x/retweets",   func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "retweet") })
+	mux.HandleFunc("/api/v1/x/instances", h.instances)
+	mux.HandleFunc("/api/v1/x/timeline", h.timeline)
+	mux.HandleFunc("/api/v1/x/search", h.searchTimeline)
+	mux.HandleFunc("/api/v1/x/users", h.userProfile)
+	mux.HandleFunc("/api/v1/x/tweets", h.tweetsDispatch)
+	mux.HandleFunc("/api/v1/x/tweets/", h.tweetResourceDispatch)
+	mux.HandleFunc("/api/v1/x/likes", func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "like") })
+	mux.HandleFunc("/api/v1/x/unlikes", func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "unlike") })
+	mux.HandleFunc("/api/v1/x/retweets", func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "retweet") })
 	mux.HandleFunc("/api/v1/x/unretweets", func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "unretweet") })
-	mux.HandleFunc("/api/v1/x/bookmarks",  func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "bookmark") })
-	mux.HandleFunc("/api/v1/x/unbookmarks",func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "unbookmark") })
-	mux.HandleFunc("/api/v1/x/follows",    func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "follow") })
-	mux.HandleFunc("/api/v1/x/unfollows",  func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "unfollow") })
-	mux.HandleFunc("/api/v1/x/replies",    func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "reply_tweet") })
-	mux.HandleFunc("/api/v1/x/mytweets",   func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "delete_tweet") })
-	mux.HandleFunc("/api/v1/x/media/upload", h.uploadMedia)
-	mux.HandleFunc("/tweetclaw/open-tab",     h.openTab)
-	mux.HandleFunc("/tweetclaw/close-tab",    h.closeTab)
+	mux.HandleFunc("/api/v1/x/bookmarks", func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "bookmark") })
+	mux.HandleFunc("/api/v1/x/unbookmarks", func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "unbookmark") })
+	mux.HandleFunc("/api/v1/x/follows", func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "follow") })
+	mux.HandleFunc("/api/v1/x/unfollows", func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "unfollow") })
+	mux.HandleFunc("/api/v1/x/replies", func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "reply_tweet") })
+	mux.HandleFunc("/api/v1/x/mytweets", func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "delete_tweet") })
+	mux.HandleFunc("/tweetclaw/open-tab", h.openTab)
+	mux.HandleFunc("/tweetclaw/close-tab", h.closeTab)
 	mux.HandleFunc("/tweetclaw/navigate-tab", h.navigateTab)
 	// AI (aiClaw) 端点
-	mux.HandleFunc("/api/v1/ai/status",          h.aiStatus)
-	mux.HandleFunc("/api/v1/ai/message",          h.sendMessage)
+	mux.HandleFunc("/api/v1/ai/status", h.aiStatus)
+	mux.HandleFunc("/api/v1/ai/message", h.sendMessage)
 	mux.HandleFunc("/api/v1/ai/new_conversation", h.newConversation)
-	mux.HandleFunc("/api/v1/ai/navigate",         h.navigateToPlatform)
+	mux.HandleFunc("/api/v1/ai/navigate", h.navigateToPlatform)
 
 	// ★ 系统端点
 	mux.HandleFunc("/api/v1/x/docs", h.apiDocs)
+}
+
+func NewHandler(ws *websocket.Server) *Handler {
+	baseDir := os.ExpandEnv("$HOME/Library/Application Support/AIHub/tasks")
+	taskManager := task.NewManager()
+	dataStore := task.NewDataStore(baseDir)
+	resultStore := task.NewResultStore(baseDir)
+
+	ws.SetTaskManager(taskManager)
+
+	cleaner := task.NewCleaner(taskManager, dataStore, resultStore)
+	cleaner.Start()
+
+	return &Handler{
+		ws:          ws,
+		taskManager: taskManager,
+		dataStore:   dataStore,
+		resultStore: resultStore,
+	}
 }
 
 // ============================================================
@@ -127,7 +156,7 @@ func (h *Handler) pluginInvoke(w http.ResponseWriter, r *http.Request) {
 	}
 
 	done := make(chan struct{}, 1)
-	h.ws.RegisterCallback(id, func(data []byte) {
+	h.ws.RegisterCallback(id, sess, func(data []byte) {
 		// 返回插件响应的 payload，去掉外层消息封装
 		writeRawPayload(w, data)
 		done <- struct{}{}
@@ -168,7 +197,7 @@ func (h *Handler) bridge(
 		timeoutMs = 5000
 	}
 	done := make(chan struct{}, 1)
-	h.ws.RegisterCallback(msgID, func(data []byte) {
+	h.ws.RegisterCallback(msgID, sess, func(data []byte) {
 		onResp(data)
 		done <- struct{}{}
 	})
@@ -289,7 +318,10 @@ func (h *Handler) execAction(w http.ResponseWriter, r *http.Request, action stri
 
 func (h *Handler) openTab(w http.ResponseWriter, r *http.Request) {
 	var req types.OpenTabRequest
-	if err := readJSON(r, &req); err != nil { jsonErr(w, 400, err.Error()); return }
+	if err := readJSON(r, &req); err != nil {
+		jsonErr(w, 400, err.Error())
+		return
+	}
 	id := newID("http_open_tab")
 	h.bridge(w, "tweetClaw", id, buildMsg(id, "request.open_tab", "tweetClaw", req), 5000,
 		func(data []byte) { writeRawPayload(w, data) })
@@ -297,7 +329,10 @@ func (h *Handler) openTab(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) closeTab(w http.ResponseWriter, r *http.Request) {
 	var req types.CloseTabRequest
-	if err := readJSON(r, &req); err != nil { jsonErr(w, 400, err.Error()); return }
+	if err := readJSON(r, &req); err != nil {
+		jsonErr(w, 400, err.Error())
+		return
+	}
 	id := newID("http_close_tab")
 	h.bridge(w, "tweetClaw", id, buildMsg(id, "request.close_tab", "tweetClaw", req), 5000,
 		func(data []byte) { writeRawPayload(w, data) })
@@ -305,7 +340,10 @@ func (h *Handler) closeTab(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) navigateTab(w http.ResponseWriter, r *http.Request) {
 	var req types.NavigateTabRequest
-	if err := readJSON(r, &req); err != nil { jsonErr(w, 400, err.Error()); return }
+	if err := readJSON(r, &req); err != nil {
+		jsonErr(w, 400, err.Error())
+		return
+	}
 	id := newID("http_nav_tab")
 	h.bridge(w, "tweetClaw", id, buildMsg(id, "request.navigate_tab", "tweetClaw", req), 5000,
 		func(data []byte) { writeRawPayload(w, data) })
@@ -361,7 +399,10 @@ func (h *Handler) aiStatus(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost { jsonErr(w, 405, "method_not_allowed"); return }
+	if r.Method != http.MethodPost {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
 	var req struct {
 		Platform  string  `json:"platform"`
 		Prompt    string  `json:"prompt"`
@@ -369,7 +410,10 @@ func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 		Model     *string `json:"model"`
 		TimeoutMs *int    `json:"timeoutMs"`
 	}
-	if err := readJSON(r, &req); err != nil { jsonErr(w, 400, err.Error()); return }
+	if err := readJSON(r, &req); err != nil {
+		jsonErr(w, 400, err.Error())
+		return
+	}
 	timeoutMs := defaultTaskTimeoutMs
 	if req.TimeoutMs != nil && *req.TimeoutMs > 1000 {
 		timeoutMs = *req.TimeoutMs
@@ -386,13 +430,19 @@ func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) newConversation(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost { jsonErr(w, 405, "method_not_allowed"); return }
+	if r.Method != http.MethodPost {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
 	var req struct {
 		Platform  string  `json:"platform"`
 		Model     *string `json:"model"`
 		TimeoutMs *int    `json:"timeoutMs"`
 	}
-	if err := readJSON(r, &req); err != nil { jsonErr(w, 400, err.Error()); return }
+	if err := readJSON(r, &req); err != nil {
+		jsonErr(w, 400, err.Error())
+		return
+	}
 	timeoutMs := 30_000
 	if req.TimeoutMs != nil && *req.TimeoutMs > 1000 {
 		timeoutMs = *req.TimeoutMs
@@ -409,11 +459,17 @@ func (h *Handler) newConversation(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handler) navigateToPlatform(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost { jsonErr(w, 405, "method_not_allowed"); return }
+	if r.Method != http.MethodPost {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
 	var req struct {
 		Platform string `json:"platform"`
 	}
-	if err := readJSON(r, &req); err != nil { jsonErr(w, 400, err.Error()); return }
+	if err := readJSON(r, &req); err != nil {
+		jsonErr(w, 400, err.Error())
+		return
+	}
 	if req.Platform != "chatgpt" && req.Platform != "gemini" && req.Platform != "grok" {
 		jsonErr(w, 400, "platform must be chatgpt, gemini, or grok")
 		return
@@ -445,7 +501,9 @@ func writePayload[T any](w http.ResponseWriter, data []byte) {
 }
 
 func writeRawPayload(w http.ResponseWriter, data []byte) {
-	var msg struct{ Payload json.RawMessage `json:"payload"` }
+	var msg struct {
+		Payload json.RawMessage `json:"payload"`
+	}
 	if err := json.Unmarshal(data, &msg); err != nil {
 		jsonErr(w, 500, "decode_failed")
 		return
@@ -463,73 +521,23 @@ func jsonErr(w http.ResponseWriter, code int, msg string) {
 func readJSON(r *http.Request, v interface{}) error {
 	defer r.Body.Close()
 	body, err := io.ReadAll(r.Body)
-	if err != nil { return err }
+	if err != nil {
+		return err
+	}
 	return json.Unmarshal(body, v)
 }
 
-func newID(prefix string) string  { return prefix + "_" + shortID() }
-func shortID() string             { return uuid.New().String()[:8] }
+func newID(prefix string) string { return prefix + "_" + shortID() }
+func shortID() string            { return uuid.New().String()[:8] }
 func parseTabID(r *http.Request) *int {
 	s := r.URL.Query().Get("tabId")
-	if s == "" { return nil }
+	if s == "" {
+		return nil
+	}
 	v, err := strconv.Atoi(s)
-	if err != nil { return nil }
+	if err != nil {
+		return nil
+	}
 	return &v
 }
 
-// uploadMedia 处理媒体上传请求
-func (h *Handler) uploadMedia(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		jsonErr(w, 405, "method_not_allowed")
-		return
-	}
-
-	var req struct {
-		MediaData string `json:"mediaData"` // Base64 编码的媒体数据
-		MimeType  string `json:"mimeType"`  // MIME 类型,如 image/png, image/jpeg
-		TabID     *int   `json:"tabId"`     // 可选的 tabId
-	}
-
-	if err := readJSON(r, &req); err != nil {
-		jsonErr(w, 400, err.Error())
-		return
-	}
-
-	if req.MediaData == "" || req.MimeType == "" {
-		jsonErr(w, 400, "mediaData and mimeType are required")
-		return
-	}
-
-	id := newID("http_upload_media")
-	payload := map[string]interface{}{
-		"mediaData": req.MediaData,
-		"mimeType":  req.MimeType,
-	}
-	if req.TabID != nil {
-		payload["tabId"] = *req.TabID
-	}
-
-	h.bridge(w, "tweetClaw", id, buildMsg(id, "request.upload_media", "tweetClaw", payload), defaultTaskTimeoutMs,
-		func(data []byte) {
-			var msg struct {
-				Payload struct {
-					Success bool   `json:"success"`
-					MediaID string `json:"media_id"`
-					Error   string `json:"error"`
-				} `json:"payload"`
-			}
-			if err := json.Unmarshal(data, &msg); err != nil {
-				jsonErr(w, 500, "decode_failed")
-				return
-			}
-			if !msg.Payload.Success {
-				jsonErr(w, 500, msg.Payload.Error)
-				return
-			}
-			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(map[string]string{
-				"media_id":        msg.Payload.MediaID,
-				"media_id_string": msg.Payload.MediaID,
-			})
-		})
-}

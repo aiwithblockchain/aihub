@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "TweetClaw",
-  "version": "0.4.55",
-  "description": "Connects your X (Twitter) browser session to local applications via WebSocket bridge for programmatic interaction.",
+  "version": "0.5.1",
+  "description": "Bridges X (Twitter) browser sessions to local apps via WebSocket. Requires local server for full functionality.",
   "background": {
     "service_worker": "js/background.js"
   },
@@ -36,8 +36,7 @@
     "tabs",
     "activeTab",
     "alarms",
-    "cookies",
-    "webRequest"
+    "cookies"
   ],
   "host_permissions": [
     "*://twitter.com/*",

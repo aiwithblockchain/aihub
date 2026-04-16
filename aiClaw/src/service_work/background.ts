@@ -342,6 +342,26 @@ localBridge.queryAITabsHandler = queryAITabsStatus;
 localBridge.executeTaskHandler = executeTask;
 localBridge.navigateToPlatformHandler = navigateToPlatform;
 
+// ── WebSocket 重连 alarm 监听器 ──
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === 'ws-reconnect') {
+        console.log('[aiClaw-BG] ⏰ Alarm triggered: reconnecting WebSocket');
+        localBridge.connect();
+    }
+});
+
+// ── 手动重连消息处理 ──
+
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+    if (message.type === 'MANUAL_RECONNECT') {
+        console.log('[aiClaw-BG] 🔄 Manual reconnect requested');
+        localBridge.manualReconnect();
+        sendResponse({ ok: true });
+        return;
+    }
+});
+
 // ── 启动日志 ──
 
 console.log(

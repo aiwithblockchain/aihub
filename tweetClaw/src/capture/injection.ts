@@ -206,6 +206,187 @@ import { watchedOps, isGuestHandle } from './consts';
         (window as any).__tc_original_xhr = OrgXHR;
     }
 
+    function base64ToBlob(base64: string, mimeType: string): Blob {
+        const byteString = atob(base64);
+        const buffer = new ArrayBuffer(byteString.length);
+        const bytes = new Uint8Array(buffer);
+        for (let i = 0; i < byteString.length; i++) {
+            bytes[i] = byteString.charCodeAt(i);
+        }
+        return new Blob([buffer], { type: mimeType });
+    }
+
+    function dispatchUploadProxyResponse(detail: Record<string, any>) {
+        document.dispatchEvent(new CustomEvent('tweetclaw:upload-proxy-response', { detail }));
+    }
+
+    function sendAppendViaXHR(requestId: string, payload: any) {
+        const chunkBlob = base64ToBlob(payload.chunkBase64, payload.mimeType);
+        const formData = new FormData();
+        formData.append('command', payload.command || 'APPEND');
+        formData.append('media_id', payload.mediaId);
+        formData.append('segment_index', String(payload.segmentIndex));
+        formData.append('media', chunkBlob, `chunk-${payload.segmentIndex}`);
+
+        const xhr = new XMLHttpRequest();
+        const startedAt = Date.now();
+        let lastUploadProgressAt = startedAt;
+        let lastUploadLoaded = 0;
+        let stallTimer: number | null = null;
+        xhr.open(payload.method || 'POST', payload.url, true);
+        xhr.withCredentials = true;
+        xhr.timeout = 120000;
+
+        const headers = payload.headers || {};
+        Object.entries(headers).forEach(([key, value]) => {
+            xhr.setRequestHeader(key, String(value));
+        });
+
+        const clearStallTimer = () => {
+            if (stallTimer !== null) {
+                window.clearInterval(stallTimer);
+                stallTimer = null;
+            }
+        };
+
+        stallTimer = window.setInterval(() => {
+            console.log(
+                `${TAG} Upload proxy XHR stall check: requestId=${requestId}, readyState=${xhr.readyState}, status=${xhr.status}, elapsedMs=${Date.now() - startedAt}, sinceLastUploadProgressMs=${Date.now() - lastUploadProgressAt}, lastUploadLoaded=${lastUploadLoaded}, online=${navigator.onLine}, visibility=${document.visibilityState}`
+            );
+        }, 5000);
+
+        xhr.upload.onprogress = (progressEvent) => {
+            if (!progressEvent.lengthComputable) return;
+            lastUploadProgressAt = Date.now();
+            lastUploadLoaded = progressEvent.loaded;
+            console.log(`${TAG} Upload proxy XHR progress: requestId=${requestId}, loaded=${progressEvent.loaded}, total=${progressEvent.total}, elapsedMs=${Date.now() - startedAt}`);
+        };
+
+        xhr.upload.onloadstart = () => {
+            console.log(`${TAG} Upload proxy XHR upload loadstart: requestId=${requestId}, elapsedMs=${Date.now() - startedAt}`);
+        };
+
+        xhr.upload.onloadend = () => {
+            console.log(`${TAG} Upload proxy XHR upload loadend: requestId=${requestId}, elapsedMs=${Date.now() - startedAt}`);
+        };
+
+        xhr.onprogress = (progressEvent) => {
+            console.log(
+                `${TAG} Upload proxy XHR download progress: requestId=${requestId}, lengthComputable=${progressEvent.lengthComputable}, loaded=${progressEvent.loaded}, total=${progressEvent.total}, elapsedMs=${Date.now() - startedAt}`
+            );
+        };
+
+        xhr.onreadystatechange = () => {
+            console.log(`${TAG} Upload proxy XHR readyState: requestId=${requestId}, readyState=${xhr.readyState}, status=${xhr.status}, elapsedMs=${Date.now() - startedAt}`);
+            if (xhr.readyState === XMLHttpRequest.HEADERS_RECEIVED) {
+                console.log(`${TAG} Upload proxy XHR headers received: requestId=${requestId}, status=${xhr.status}, statusText=${xhr.statusText}`);
+            }
+        };
+
+        xhr.onload = () => {
+            clearStallTimer();
+            console.log(`${TAG} Upload proxy XHR load: requestId=${requestId}, status=${xhr.status}, statusText=${xhr.statusText}, elapsedMs=${Date.now() - startedAt}, responseURL=${xhr.responseURL}`);
+            const text = xhr.responseText || '';
+            const responseHeaders = xhr.getAllResponseHeaders();
+            console.log(`${TAG} Upload proxy XHR response headers: requestId=${requestId}, headers=${responseHeaders || '<empty>'}`);
+            let json: any = null;
+            try {
+                json = text ? JSON.parse(text) : null;
+            } catch {
+                json = null;
+            }
+            dispatchUploadProxyResponse({
+                requestId,
+                ok: xhr.status >= 200 && xhr.status < 300,
+                status: xhr.status,
+                text,
+                json
+            });
+        };
+
+        xhr.onerror = () => {
+            clearStallTimer();
+            console.error(`${TAG} Upload proxy XHR error: requestId=${requestId}, status=${xhr.status}, statusText=${xhr.statusText}, readyState=${xhr.readyState}, elapsedMs=${Date.now() - startedAt}, online=${navigator.onLine}, responseURL=${xhr.responseURL || '<empty>'}`);
+            dispatchUploadProxyResponse({
+                requestId,
+                ok: false,
+                status: xhr.status || 0,
+                error: 'XMLHttpRequest error'
+            });
+        };
+
+        xhr.onabort = () => {
+            clearStallTimer();
+            console.error(`${TAG} Upload proxy XHR abort: requestId=${requestId}, readyState=${xhr.readyState}, elapsedMs=${Date.now() - startedAt}`);
+            dispatchUploadProxyResponse({
+                requestId,
+                ok: false,
+                status: xhr.status || 0,
+                error: 'XMLHttpRequest aborted'
+            });
+        };
+
+        xhr.ontimeout = () => {
+            clearStallTimer();
+            console.error(`${TAG} Upload proxy XHR timeout: requestId=${requestId}, readyState=${xhr.readyState}, elapsedMs=${Date.now() - startedAt}, timeoutMs=${xhr.timeout}`);
+            dispatchUploadProxyResponse({
+                requestId,
+                ok: false,
+                status: xhr.status || 0,
+                error: 'XMLHttpRequest timed out'
+            });
+        };
+
+        console.log(`${TAG} Upload proxy XHR send: requestId=${requestId}, segmentIndex=${payload.segmentIndex}, chunkBase64Length=${payload.chunkBase64?.length || 0}, chunkBlobSize=${chunkBlob.size}, mimeType=${payload.mimeType}, online=${navigator.onLine}, userAgent=${navigator.userAgent}`);
+        xhr.send(formData);
+    }
+
+    document.addEventListener('tweetclaw:upload-proxy-request', async (event) => {
+        const detail = (event as CustomEvent).detail || {};
+        const requestId = detail.requestId;
+        const payload = detail.payload || {};
+        console.log(`${TAG} Upload proxy request received: requestId=${requestId}, kind=${payload.kind}, method=${payload.method}, url=${payload.url}`);
+
+        try {
+            if (payload.kind === 'append') {
+                sendAppendViaXHR(requestId, payload);
+                return;
+            }
+
+            let response: Response;
+            response = await fetch(payload.url, {
+                method: payload.method || 'GET',
+                headers: payload.headers || {},
+                credentials: 'include'
+            });
+            console.log(`${TAG} Upload proxy fetch completed: requestId=${requestId}, ok=${response.ok}, status=${response.status}`);
+
+            const text = await response.text();
+            let json: any = null;
+            try {
+                json = text ? JSON.parse(text) : null;
+            } catch {
+                json = null;
+            }
+
+            dispatchUploadProxyResponse({
+                requestId,
+                ok: response.ok,
+                status: response.status,
+                text,
+                json
+            });
+        } catch (e: any) {
+            console.error(`${TAG} Upload proxy fetch failed: requestId=${requestId}, error=${e?.message || String(e)}`, e);
+            dispatchUploadProxyResponse({
+                requestId,
+                ok: false,
+                status: 0,
+                error: e?.message || String(e)
+            });
+        }
+    });
+
     function printHealthLog() {
         const isFetchActive = !!(window as any).__tc_fetch_patched;
         const isXHRActive = !!(window as any).__tc_xhr_patched;

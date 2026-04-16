@@ -30,8 +30,12 @@ export type MessageType =
   | 'response.query_user_profile'
   | 'request.query_search_timeline'
   | 'response.query_search_timeline'
-  | 'request.upload_media'
-  | 'response.upload_media'
+  | 'request.start_task'
+  | 'request.cancel_task'
+  | 'event.task_progress'
+  | 'event.task_failed'
+  | 'event.task_completed'
+  | 'event.task_cancelled'
   | 'response.error';
 
 export const MESSAGE_TYPES: Record<string, MessageType> = {
@@ -63,8 +67,12 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_QUERY_USER_PROFILE: 'response.query_user_profile',
   REQUEST_QUERY_SEARCH_TIMELINE: 'request.query_search_timeline',
   RESPONSE_QUERY_SEARCH_TIMELINE: 'response.query_search_timeline',
-  REQUEST_UPLOAD_MEDIA: 'request.upload_media',
-  RESPONSE_UPLOAD_MEDIA: 'response.upload_media',
+  REQUEST_START_TASK: 'request.start_task',
+  REQUEST_CANCEL_TASK: 'request.cancel_task',
+  EVENT_TASK_PROGRESS: 'event.task_progress',
+  EVENT_TASK_FAILED: 'event.task_failed',
+  EVENT_TASK_COMPLETED: 'event.task_completed',
+  EVENT_TASK_CANCELLED: 'event.task_cancelled',
   RESPONSE_ERROR: 'response.error',
 };
 
@@ -202,17 +210,6 @@ export interface QuerySearchTimelineRequestPayload {
 }
 // HomeTimeline 不需要额外参数，使用 any 或 EmptyPayload (如果定义了)
 
-export interface UploadMediaRequestPayload {
-  mediaData: string;  // Base64 编码的媒体数据
-  mimeType: string;   // MIME 类型，如 image/png, image/jpeg
-  tabId?: number;
-}
-
-export interface UploadMediaResponsePayload {
-  success: boolean;
-  media_id?: string;
-  error?: string;
-}
 
 
 export interface ExecActionResponsePayload {

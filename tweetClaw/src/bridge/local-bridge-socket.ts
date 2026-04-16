@@ -4,12 +4,13 @@ import { getOrCreateInstanceId, getOrCreateInstanceName } from './instance-id';
 export class LocalBridgeSocket {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
-  private reconnectTimer: any = null;
   private heartbeatInterval: any = null;
   private serverInfo: ServerHelloAckPayload | null = null;
   private lastPongTimestamp = 0;
+  private lastServerMessageTimestamp = 0;
   private instanceId: string = '';
   private instanceName: string = '';
+  private static readonly RECONNECT_ALARM_NAME = 'tweetclaw-reconnect';
   
   public queryXTabsHandler: (() => Promise<any>) | null = null;
   public queryXBasicInfoHandler: (() => Promise<any>) | null = null;
@@ -23,7 +24,8 @@ export class LocalBridgeSocket {
   public queryTweetDetailHandler: ((payload: any) => Promise<any>) | null = null;
   public queryUserProfileHandler: ((payload: any) => Promise<any>) | null = null;
   public querySearchTimelineHandler: ((payload: any) => Promise<any>) | null = null;
-  public uploadMediaHandler: ((payload: any) => Promise<any>) | null = null;
+  public startTaskHandler: ((payload: any) => Promise<any>) | null = null;
+  public cancelTaskHandler: ((payload: any) => Promise<any>) | null = null;
   
   private WS_URL = 'ws://127.0.0.1:10086/ws'; // Default
   
@@ -43,15 +45,18 @@ export class LocalBridgeSocket {
   public getCurrentUrl(): string {
     return this.WS_URL;
   }
+
+  public handleReconnectAlarm() {
+    console.log('[tweetClaw] Reconnect alarm triggered');
+    this.reconnectAttempts++;
+    this.connect();
+  }
   
   public reconnect(host: string, port: number) {
     console.log(`[tweetClaw] reconnecting to ${host}:${port}`);
     this.WS_URL = `ws://${host}:${port}/ws`;
     this.isConnecting = false;
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
+    this.clearReconnectAlarm();
     if (this.ws) {
       this.ws.onclose = null; // prevent standard reconnect loop
       this.ws.close();
@@ -92,6 +97,7 @@ export class LocalBridgeSocket {
         this.isConnecting = false;
         this.reconnectAttempts = 0;
         this.lastPongTimestamp = Date.now();
+        this.lastServerMessageTimestamp = Date.now();
         // 确保 instanceId 已加载，并且每次重连时获取最新的 instanceName
         if (!this.instanceId) {
             this.instanceId = await getOrCreateInstanceId();
@@ -125,25 +131,27 @@ export class LocalBridgeSocket {
   }
   
   private scheduleReconnect() {
-    if (this.reconnectTimer) return;
-    
-    const delay = this.getReconnectDelay();
-    console.log(`[tweetClaw] websocket reconnect scheduled in ${delay}ms`);
-    
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = null;
-      this.reconnectAttempts++;
-      this.connect();
-    }, delay);
+    const delayInMinutes = this.getReconnectDelayInMinutes();
+    console.log(`[tweetClaw] websocket reconnect scheduled in ${delayInMinutes} minute(s) (attempt ${this.reconnectAttempts + 1})`);
+
+    // Use Chrome Alarms API for reliable reconnection
+    if (typeof chrome !== 'undefined' && chrome.alarms) {
+      chrome.alarms.create(LocalBridgeSocket.RECONNECT_ALARM_NAME, {
+        delayInMinutes: delayInMinutes
+      });
+    }
+  }
+
+  private clearReconnectAlarm() {
+    if (typeof chrome !== 'undefined' && chrome.alarms) {
+      chrome.alarms.clear(LocalBridgeSocket.RECONNECT_ALARM_NAME);
+    }
   }
   
-  private getReconnectDelay(): number {
-    switch (this.reconnectAttempts) {
-      case 0: return 1000;
-      case 1: return 2000;
-      case 2: return 5000;
-      default: return 10000;
-    }
+  private getReconnectDelayInMinutes(): number {
+    // Chrome Alarms API minimum is 0.5 minutes (30 seconds)
+    // Using 1 minute for all reconnection attempts
+    return 1;
   }
   
   private sendHello() {
@@ -172,6 +180,7 @@ export class LocalBridgeSocket {
   private handleMessage(data: string) {
     try {
       const msg = JSON.parse(data) as BaseMessage;
+      this.lastServerMessageTimestamp = Date.now();
       if (msg.type !== MESSAGE_TYPES.PONG && msg.type !== MESSAGE_TYPES.PING) {
         console.log(`[tweetClaw] received message: ${msg.type}`);
       }
@@ -181,6 +190,7 @@ export class LocalBridgeSocket {
           this.handleHelloAck(msg as BaseMessage<ServerHelloAckPayload>);
           break;
         case MESSAGE_TYPES.PONG:
+          console.log(`[tweetClaw] received pong: id=${msg.id}`);
           this.lastPongTimestamp = Date.now();
           break;
         case MESSAGE_TYPES.REQUEST_QUERY_X_TABS_STATUS:
@@ -219,8 +229,11 @@ export class LocalBridgeSocket {
         case MESSAGE_TYPES.REQUEST_QUERY_SEARCH_TIMELINE:
           this.handleGenericQuery(msg, this.querySearchTimelineHandler, MESSAGE_TYPES.RESPONSE_QUERY_SEARCH_TIMELINE);
           break;
-        case MESSAGE_TYPES.REQUEST_UPLOAD_MEDIA:
-          this.handleGenericQuery(msg, this.uploadMediaHandler, MESSAGE_TYPES.RESPONSE_UPLOAD_MEDIA);
+        case MESSAGE_TYPES.REQUEST_START_TASK:
+          if (this.startTaskHandler) this.startTaskHandler(msg.payload);
+          break;
+        case MESSAGE_TYPES.REQUEST_CANCEL_TASK:
+          if (this.cancelTaskHandler) this.cancelTaskHandler(msg.payload);
           break;
         default:
           console.warn(`[tweetClaw] unknown message type: ${msg.type}`);
@@ -493,8 +506,10 @@ export class LocalBridgeSocket {
     this.heartbeatInterval = setInterval(() => {
       // Check for timeout (60 seconds)
       const now = Date.now();
-      if (this.lastPongTimestamp > 0 && now - this.lastPongTimestamp > 60000) {
-        console.error('[tweetClaw] pong timeout, closing socket');
+      const sinceLastPong = this.lastPongTimestamp > 0 ? now - this.lastPongTimestamp : Number.POSITIVE_INFINITY;
+      const sinceLastServerMessage = this.lastServerMessageTimestamp > 0 ? now - this.lastServerMessageTimestamp : Number.POSITIVE_INFINITY;
+      if (Math.min(sinceLastPong, sinceLastServerMessage) > 60000) {
+        console.error(`[tweetClaw] pong timeout, closing socket (sinceLastPongMs=${sinceLastPong}, sinceLastServerMessageMs=${sinceLastServerMessage})`);
         this.ws?.close();
         return;
       }
@@ -520,6 +535,7 @@ export class LocalBridgeSocket {
         heartbeatIntervalMs: 20000
       }
     };
+    console.log(`[tweetClaw] sending ping: id=${ping.id}`);
     this.send(ping);
   }
   

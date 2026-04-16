@@ -9,7 +9,7 @@ const FALLBACK_BEARER_TOKEN = 'Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRC
  * Designed to run in Content Script (for cookies) and Background (for harvesting).
  */
 
-async function getAuthHeader(): Promise<string> {
+export async function getAuthHeader(): Promise<string> {
     const res = await chrome.storage.local.get(__DBK_bearer_token);
     const harvested = res[__DBK_bearer_token] as string | undefined;
     if (harvested && harvested.startsWith('Bearer ')) {
@@ -18,7 +18,7 @@ async function getAuthHeader(): Promise<string> {
     return FALLBACK_BEARER_TOKEN;
 }
 
-async function getCsrfToken(): Promise<string> {
+export async function getCsrfToken(): Promise<string> {
     // Content script: read from document.cookie
     // Background: read from chrome.cookies
     if (typeof document !== 'undefined' && document.cookie) {
@@ -337,7 +337,7 @@ interface MediaUploadFinalizeResponse {
 }
 
 // Keep each multipart APPEND safely below upload.x.com's request size ceiling.
-const MEDIA_APPEND_CHUNK_SIZE_BYTES = 4 * 1024 * 1024;
+export const MEDIA_APPEND_CHUNK_SIZE_BYTES = 4 * 1024 * 1024;
 
 /**
  * 上传媒体文件(图片)
@@ -398,10 +398,15 @@ export async function uploadMedia(mediaData: string, mimeType: string): Promise<
         const start = segmentIndex * MEDIA_APPEND_CHUNK_SIZE_BYTES;
         const end = Math.min(start + MEDIA_APPEND_CHUNK_SIZE_BYTES, totalBytes);
         const chunk = blob.slice(start, end, mimeType);
-        const appendUrl = `https://upload.x.com/i/media/upload.json?command=APPEND&media_id=${mediaId}&segment_index=${segmentIndex}`;
+        const appendUrl = 'https://upload.x.com/i/media/upload.json';
         const appendTxid = await getTransactionIdFor('POST', '/i/media/upload.json');
 
         const formData = new FormData();
+        // Keep APPEND control fields in the multipart body.
+        // This matches X's browser-side usage more closely than query-only params.
+        formData.append('command', 'APPEND');
+        formData.append('media_id', mediaId);
+        formData.append('segment_index', String(segmentIndex));
         formData.append('media', chunk, `chunk-${segmentIndex}`);
 
         const appendResponse = await fetch(appendUrl, {

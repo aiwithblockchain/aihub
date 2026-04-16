@@ -14,6 +14,10 @@ import {
     NavigateTabRequestPayload,
     NavigateTabResponsePayload
 } from '../bridge/ws-protocol';
+import { BackgroundTaskCoordinator } from '../task/task-executor';
+import { BackgroundSessionStore } from '../task/background-session-store';
+import { getOrCreateInstanceId } from '../bridge/instance-id';
+import { logger } from '../task/logger';
 
 // ── Type Definitions ──────────────────────────────────────────────────
 interface TwitterResponse {
@@ -58,6 +62,17 @@ interface QuerySearchTimelinePayload {
     tabId?: number;
 }
 
+const backgroundSessionStore = new BackgroundSessionStore();
+
+function getUploadSessionChunk(sessionId: string, chunkIndex: number) {
+    return backgroundSessionStore.getChunk(sessionId, chunkIndex);
+}
+
+function releaseUploadSession(sessionId: string) {
+    console.log(`[TweetClaw-BG] upload session released, sessionId=${sessionId}`);
+    backgroundSessionStore.release(sessionId);
+}
+
 // Initialize LocalBridge Socket
 const localBridge = new LocalBridgeSocket();
 localBridge.queryXTabsHandler = queryXTabsStatus;
@@ -72,7 +87,74 @@ localBridge.queryTweetRepliesHandler = queryTweetReplies;
 localBridge.queryTweetDetailHandler = queryTweetDetail;
 localBridge.queryUserProfileHandler = queryUserProfile;
 localBridge.querySearchTimelineHandler = querySearchTimeline;
-localBridge.uploadMediaHandler = uploadMedia;
+
+// Initialize Background Task Coordinator
+let taskCoordinator: BackgroundTaskCoordinator | null = null;
+let taskCoordinatorReady = false;
+
+chrome.storage.local.get(['wsHost', 'wsPort', 'restHost', 'restPort']).then(async res => {
+    const wsHost = res.wsHost || '127.0.0.1';
+    const wsPort = res.wsPort || 10086;
+    const restHost = res.restHost || wsHost;
+    const restPort = res.restPort || 10088;
+    const instanceId = await getOrCreateInstanceId();
+    
+    taskCoordinator = new BackgroundTaskCoordinator(localBridge, {
+        localBridgeBaseUrl: `http://${restHost}:${restPort}`,
+        clientName: 'tweetClaw',
+        instanceId: instanceId,
+        fetchTimeoutMs: (res.fetchTimeoutMs as number) || 30000,
+        uploadTimeoutMs: (res.uploadTimeoutMs as number) || 60000
+    }, backgroundSessionStore);
+
+    logger.info(
+        `[BackgroundTaskCoordinator] Using endpoints ws=${wsHost}:${wsPort} rest=${restHost}:${restPort}`
+    );
+    
+    // Auto configure log level if specified
+    if (res.logLevel) {
+        logger.setLevel(res.logLevel as any);
+    }
+    
+    taskCoordinatorReady = true;
+
+    localBridge.startTaskHandler = async (payload) => {
+        if (!taskCoordinatorReady) {
+            logger.warn('[BackgroundTaskCoordinator] Not ready yet, ignoring start_task');
+            return;
+        }
+        if (taskCoordinator) {
+            taskCoordinator.startTask(payload).catch(e => logger.error('[BackgroundTaskCoordinator] start hook error', e));
+        }
+    };
+    
+    localBridge.cancelTaskHandler = async (payload) => {
+        if (!taskCoordinatorReady) return;
+        if (taskCoordinator) {
+            taskCoordinator.cancelTask(payload.taskId).catch(e => logger.error('[BackgroundTaskCoordinator] cancel hook error', e));
+        }
+    };
+});
+
+// hook reconnect to flush background task coordinator cancelling stale runs
+const originalHandleReconnect = localBridge.handleReconnectAlarm.bind(localBridge);
+localBridge.handleReconnectAlarm = function() {
+    if (taskCoordinator) taskCoordinator.handleDisconnect();
+    originalHandleReconnect();
+};
+
+// ── Listen for reconnect alarms ──────────────────────────────────
+chrome.alarms.onAlarm.addListener((alarm) => {
+    if (alarm.name === 'tweetclaw-reconnect') {
+        console.log('[TweetClaw-BG] Reconnect alarm triggered');
+        localBridge.handleReconnectAlarm();
+    }
+});
+
+chrome.runtime.onSuspend.addListener(() => {
+    taskCoordinator?.handleDisconnect();
+    backgroundSessionStore.clear();
+});
 
 // ── 初始化默认 QueryID 映射 ───────────────────────────────────────
 async function initDefaultQueryKeys() {
@@ -180,6 +262,57 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             await harvestBearer(message.bearerToken);
         })();
         return;
+    }
+
+    if (message.type === 'GET_UPLOAD_SESSION_CHUNK') {
+        const { uploadSessionId, chunkIndex } = message;
+        console.log(`[TweetClaw-BG] chunk request, sessionId=${uploadSessionId}, chunkIndex=${chunkIndex}`);
+        const chunk = getUploadSessionChunk(uploadSessionId, chunkIndex);
+        if (!chunk) {
+            console.warn(`[TweetClaw-BG] chunk request failed, sessionId=${uploadSessionId}, chunkIndex=${chunkIndex}`);
+            sendResponse({ success: false, error: 'Upload session chunk not found' });
+            return true;
+        }
+        console.log(`[TweetClaw-BG] chunk response, sessionId=${uploadSessionId}, chunkIndex=${chunkIndex}, chunkBase64Length=${chunk.chunkBase64.length}`);
+        sendResponse({ success: true, ...chunk });
+        return true;
+    }
+
+    if (message.type === 'RELEASE_UPLOAD_SESSION') {
+        console.log(`[TweetClaw-BG] release session request, sessionId=${message.uploadSessionId}`);
+        releaseUploadSession(message.uploadSessionId);
+        sendResponse({ success: true });
+        return true;
+    }
+
+    if (message.type === 'TASK_PROGRESS_FROM_CONTENT') {
+        taskCoordinator?.handleContentProgress(message.taskId, message.phase, Number(message.progress || 0));
+        sendResponse({ success: true });
+        return true;
+    }
+
+    if (message.type === 'TASK_COMPLETED_FROM_CONTENT') {
+        (async () => {
+            try {
+                await taskCoordinator?.handleContentCompleted(message.taskId, message.resultBase64, message.contentType || 'application/json');
+                sendResponse({ success: true });
+            } catch (error: any) {
+                sendResponse({ success: false, error: error?.message || String(error) });
+            }
+        })();
+        return true;
+    }
+
+    if (message.type === 'TASK_FAILED_FROM_CONTENT') {
+        taskCoordinator?.handleContentFailed(message.taskId, message.phase, message.errorCode, message.errorMessage);
+        sendResponse({ success: true });
+        return true;
+    }
+
+    if (message.type === 'TASK_CANCELLED_FROM_CONTENT') {
+        taskCoordinator?.handleContentCancelled(message.taskId);
+        sendResponse({ success: true });
+        return true;
     }
 
     return false;
@@ -559,43 +692,6 @@ export async function querySearchTimeline(payload: QuerySearchTimelinePayload): 
 /**
  * 上传媒体文件 - 返回 media_id
  */
-export async function uploadMedia(payload: any): Promise<any> {
-    const { mediaData, mimeType, tabId } = payload;
-    console.log(`[TweetClaw-BG] uploadMedia called, mimeType=${mimeType}`);
-
-    if (!mediaData || !mimeType) {
-        throw new Error('mediaData and mimeType are required');
-    }
-
-    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    let targetTabId: number | undefined = tabId;
-    if (!targetTabId) {
-        const activeTab = xTabs.find(t => t.active) || xTabs[0];
-        targetTabId = activeTab?.id;
-    }
-    if (!targetTabId) {
-        throw new Error('No x.com tab found');
-    }
-
-    // 委托 Content Script 调用推特媒体上传 API
-    const result = await chrome.tabs.sendMessage(targetTabId, {
-        type: 'UPLOAD_MEDIA',
-        mediaData,
-        mimeType
-    }).catch((e: any) => {
-        throw new Error(`Failed to upload media: ${e?.message}`);
-    });
-
-    if (!result?.success) {
-        throw new Error(result?.error || 'Media upload failed');
-    }
-
-    // 返回 media_id
-    return {
-        success: true,
-        media_id: result.media_id
-    };
-}
 
 // 启动时初始化
 initDefaultQueryKeys();

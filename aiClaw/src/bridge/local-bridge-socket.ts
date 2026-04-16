@@ -11,7 +11,6 @@ import { getOrCreateInstanceId, getOrCreateInstanceName } from './instance-id';
 export class LocalBridgeSocket {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
-  private reconnectTimer: any = null;
   private heartbeatInterval: any = null;
   private serverInfo: ServerHelloAckPayload | null = null;
   private lastPongTimestamp = 0;
@@ -32,10 +31,7 @@ export class LocalBridgeSocket {
     console.log(`[aiClaw] reconnecting to new host: ${host}, port: ${port}`);
     this.WS_URL = `ws://${host}:${port}/ws`;
     this.isConnecting = false;
-    if (this.reconnectTimer) {
-      clearTimeout(this.reconnectTimer);
-      this.reconnectTimer = null;
-    }
+    this.cancelReconnectAlarm();
     if (this.ws) {
       this.ws.onclose = null; // prevent standard reconnect loop
       this.ws.close();
@@ -114,25 +110,25 @@ export class LocalBridgeSocket {
   }
 
   private scheduleReconnect() {
-    if (this.reconnectTimer) return;
+    console.log('[aiClaw] websocket reconnect scheduled in 1 minute via chrome.alarms');
+    this.reconnectAttempts++;
 
-    const delay = this.getReconnectDelay();
-    console.log(`[aiClaw] websocket reconnect scheduled in ${delay}ms`);
-
-    this.reconnectTimer = setTimeout(() => {
-      this.reconnectTimer = null;
-      this.reconnectAttempts++;
-      this.connect();
-    }, delay);
+    if (typeof chrome !== 'undefined' && chrome.alarms) {
+      chrome.alarms.create('ws-reconnect', { delayInMinutes: 1 });
+    }
   }
 
-  private getReconnectDelay(): number {
-    switch (this.reconnectAttempts) {
-      case 0: return 1000;
-      case 1: return 2000;
-      case 2: return 5000;
-      default: return 10000;
+  private cancelReconnectAlarm() {
+    if (typeof chrome !== 'undefined' && chrome.alarms) {
+      chrome.alarms.clear('ws-reconnect');
     }
+  }
+
+  public manualReconnect() {
+    console.log('[aiClaw] manual reconnect triggered');
+    this.cancelReconnectAlarm();
+    this.reconnectAttempts = 0;
+    this.connect();
   }
 
   private sendHello() {

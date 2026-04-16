@@ -3,6 +3,7 @@ REST API Client for LocalBridge
 """
 import requests
 from typing import Optional, Dict, Any, List
+import json
 import sys
 import os
 
@@ -27,6 +28,23 @@ class APIClient:
             response = requests.request(method, url, **kwargs)
             response.raise_for_status()
             return response.json()
+        except requests.exceptions.HTTPError as e:
+            error_message = str(e)
+            response = e.response
+            if response is not None:
+                try:
+                    payload = response.json()
+                    if isinstance(payload, dict) and payload.get('error'):
+                        error_message = payload['error']
+                    elif isinstance(payload, dict) and payload.get('message'):
+                        error_message = payload['message']
+                    else:
+                        error_message = json.dumps(payload, ensure_ascii=False)
+                except ValueError:
+                    body = response.text.strip()
+                    if body:
+                        error_message = body
+            return {"error": error_message, "status_code": response.status_code if response is not None else None}
         except requests.exceptions.RequestException as e:
             return {"error": str(e)}
 
@@ -173,48 +191,7 @@ class APIClient:
             data['tabId'] = tab_id
         return self._request('POST', '/tweetclaw/navigate-tab', json=data)
 
-    # Media Upload API
-    def upload_media(self, file_path: str, tab_id: Optional[int] = None) -> str:
-        """
-        Upload media file (image/video) and return media_id
-
-        Args:
-            file_path: Path to the media file
-            tab_id: Optional tab ID
-
-        Returns:
-            media_id_string for use in tweet creation
-        """
-        import base64
-        import mimetypes
-
-        # Read file and convert to base64
-        with open(file_path, 'rb') as f:
-            file_data = f.read()
-
-        media_data = base64.b64encode(file_data).decode('utf-8')
-
-        # Detect MIME type
-        mime_type, _ = mimetypes.guess_type(file_path)
-        if not mime_type:
-            # Default to PNG if cannot detect
-            mime_type = 'image/png'
-
-        # Prepare request
-        data = {
-            'mediaData': media_data,
-            'mimeType': mime_type
-        }
-        if tab_id:
-            data['tabId'] = tab_id
-
-        # Upload with extended timeout for large files (videos)
-        response = self._request('POST', '/api/v1/x/media/upload', json=data, timeout=MEDIA_UPLOAD_TIMEOUT)
-
-        if 'error' in response:
-            raise Exception(f"Media upload failed: {response['error']}")
-
-        return response.get('media_id_string', response.get('media_id', ''))
+    # (Removed legacy upload_media implementation)
 
     # AI Claw APIs
     def get_ai_status(self) -> Dict[Any, Any]:
@@ -235,3 +212,128 @@ class APIClient:
     def navigate_ai_platform(self, platform: str) -> Dict[Any, Any]:
         """Navigate AI platform to home"""
         return self._request('POST', '/api/v1/ai/navigate', json={'platform': platform})
+
+
+class MediaUploadTask:
+    """
+    流式媒体上传任务封装类
+    
+    该类实现了设计文档中要求的 6 步任务生命周期，通过将原本同步阻塞的 Base64 上传模式
+    改造成基于分片上传和任务状态轮询的异步模式，极大提升了大文件上传的稳定性。
+    """
+    
+    def __init__(self, task_client, uploader, progress):
+        """
+        Args:
+            task_client: TaskClient 实例
+            uploader: ChunkedUploader 实例
+            progress: ProgressDisplay 实例
+        """
+        self.task_client = task_client
+        self.uploader = uploader
+        self.progress = progress
+    
+    def upload_video(
+        self,
+        video_path: str,
+        client_name: str = "tweetClaw",
+        instance_id: str = None,
+        tab_id: int = None
+    ) -> str:
+        """
+        上传视频并返回 media_id
+        
+        通过 6 步完整生命周期实现：
+        1. 获取/校验 instanceId
+        2. 创建任务 (POST /api/v1/tasks)
+        3. 分片上传 (PUT .../input/{partIndex})
+        4. 封存输入 (POST .../seal)
+        5. 启动任务 (POST .../start)
+        6. 轮询并获取执行结果 (GET .../result)
+        
+        Args:
+            video_path: 视频文件在本地磁盘的绝对路径
+            client_name: 客户端名称标识，默认 "tweetClaw"
+            instance_id: 特定实例 ID，如果为 None 则自动查找配置文件中的默认值
+            tab_id: 可选的浏览器标签页 ID
+            
+        Returns:
+            str: 上传成功并在 Twitter 后端通过校验的 media_id
+            
+        Raises:
+            KeyboardInterrupt: 用户手动按下 Ctrl+C 时抛出，会自动触发服务端取消
+            Exception: 任何网络、超时或业务逻辑错误时抛出
+        """
+        task_id = None
+        try:
+            # 获取 instance_id
+            if not instance_id:
+                instance_id = self.task_client.get_default_instance_id(client_name)
+            
+            # 1. 创建任务
+            print(f"Creating upload task for {os.path.basename(video_path)}...")
+            task_id = self.task_client.create_task(
+                client_name=client_name,
+                instance_id=instance_id,
+                task_kind="x.media_upload",
+                input_mode="chunked_binary",
+                params={"tabId": tab_id}
+            )
+            print(f"Task created: {task_id}")
+            
+            # 2. 分片上传
+            print("Uploading video...")
+            total_parts, total_bytes, content_type = self.uploader.upload_file(
+                task_id,
+                video_path,
+                progress_callback=lambda c, t: self.progress.show_upload_progress(
+                    c, t, os.path.basename(video_path)
+                )
+            )
+            
+            # 3. Seal 输入
+            print("Finalizing upload...")
+            self.task_client.seal_input(task_id, total_parts, total_bytes, content_type)
+            
+            # 4. 启动任务
+            print("Starting upload task...")
+            self.task_client.start_task(task_id)
+            
+            # 5. 等待完成
+            print("Processing video...")
+            result = self.task_client.wait_for_completion(
+                task_id,
+                poll_interval=2.0,
+                timeout=300.0,
+                progress_callback=lambda state, phase, prog: 
+                    self.progress.show_task_progress(state, phase, prog)
+            )
+            
+            if result['state'] == 'completed':
+                # 6. 获取结果
+                result_data = self.task_client.get_task_result(task_id)
+                result_json = json.loads(result_data)
+                media_id = result_json['mediaId']
+                print(f"\nUpload completed! Media ID: {media_id}")
+                return media_id
+            else:
+                error_msg = result.get('errorMessage', 'Unknown error')
+                raise Exception(f"Upload failed: {error_msg}")
+        
+        except KeyboardInterrupt:
+            if task_id:
+                print("\n\nCancelling upload...")
+                try:
+                    self.task_client.cancel_task(task_id)
+                    print("Upload cancelled.")
+                except Exception as e:
+                    print(f"Failed to cancel task: {e}")
+            raise
+        except Exception as e:
+            if task_id:
+                print(f"\nUpload failed: {e}")
+                try:
+                    self.task_client.cancel_task(task_id)
+                except:
+                    pass
+            raise

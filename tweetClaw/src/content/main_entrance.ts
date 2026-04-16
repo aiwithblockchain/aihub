@@ -1,7 +1,21 @@
 import { MsgType } from '../capture/consts';
-import { performMutation, performLegacyREST, fetchUserByScreenName, performQuery } from '../x_api/twitter_api';
+import {
+    performMutation,
+    performLegacyREST,
+    fetchUserByScreenName,
+    performQuery,
+    getAuthHeader,
+    getCsrfToken,
+    MEDIA_APPEND_CHUNK_SIZE_BYTES
+} from '../x_api/twitter_api';
 import { findDeepUser } from '../capture/extractor';
 import { UserProfile } from '../object/user_info';
+import { getTransactionIdFor } from '../x_api/txid';
+import { ContentTaskRunner } from './content-task-runner';
+import { StartTaskUploadFromBgSessionMessage } from '../task/types';
+
+const MEDIA_TRANSFER_CHUNK_BYTES = 3 * 1024 * 1024;
+const contentTaskRunner = new ContentTaskRunner();
 
 /**
  * main_entrance.ts - Content Script Supervisor
@@ -73,6 +87,80 @@ window.addEventListener('message', (event) => {
         });
     }
 });
+
+function base64ToBlob(base64: string, mimeType: string): Blob {
+    const byteString = atob(base64);
+    const buffer = new ArrayBuffer(byteString.length);
+    const bytes = new Uint8Array(buffer);
+    for (let i = 0; i < byteString.length; i++) {
+        bytes[i] = byteString.charCodeAt(i);
+    }
+    return new Blob([buffer], { type: mimeType });
+}
+
+async function getUploadSessionChunk(uploadSessionId: string, chunkIndex: number): Promise<string> {
+    console.log(`[TweetClaw-CS] requesting upload chunk, sessionId=${uploadSessionId}, chunkIndex=${chunkIndex}`);
+    const response = await chrome.runtime.sendMessage({
+        type: 'GET_UPLOAD_SESSION_CHUNK',
+        uploadSessionId,
+        chunkIndex
+    });
+
+    if (!response?.success || !response.chunkBase64) {
+        console.error(`[TweetClaw-CS] upload chunk failed, sessionId=${uploadSessionId}, chunkIndex=${chunkIndex}, error=${response?.error || 'unknown'}`);
+        throw new Error(response?.error || 'Failed to get upload session chunk');
+    }
+
+    console.log(`[TweetClaw-CS] upload chunk received, sessionId=${uploadSessionId}, chunkIndex=${chunkIndex}, chunkBase64Length=${response.chunkBase64.length}`);
+    return response.chunkBase64 as string;
+}
+
+async function releaseUploadSession(uploadSessionId: string): Promise<void> {
+    console.log(`[TweetClaw-CS] releasing upload session, sessionId=${uploadSessionId}`);
+    await chrome.runtime.sendMessage({
+        type: 'RELEASE_UPLOAD_SESSION',
+        uploadSessionId
+    }).catch(() => {});
+}
+
+async function pageUploadProxy(payload: any): Promise<any> {
+    const requestId = `upload_proxy_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    console.log(`[TweetClaw-CS] page proxy dispatch, requestId=${requestId}, kind=${payload.kind}, method=${payload.method}, url=${payload.url}`);
+
+    return new Promise((resolve, reject) => {
+        const timeoutMs = payload.kind === 'append' ? 120000 : 30000;
+        const timeout = setTimeout(() => {
+            document.removeEventListener('tweetclaw:upload-proxy-response', onMessage as EventListener);
+            console.error(`[TweetClaw-CS] page proxy timeout, requestId=${requestId}, kind=${payload.kind}, url=${payload.url}`);
+            reject(new Error('Timed out waiting for page upload proxy response'));
+        }, timeoutMs);
+
+        function onMessage(event: Event) {
+            const detail = (event as CustomEvent).detail;
+            if (!detail || detail.requestId !== requestId) return;
+
+            clearTimeout(timeout);
+            document.removeEventListener('tweetclaw:upload-proxy-response', onMessage as EventListener);
+            console.log(`[TweetClaw-CS] page proxy response, requestId=${requestId}, ok=${Boolean(detail.ok)}, status=${detail.status ?? 'n/a'}`);
+
+            if (detail.ok) {
+                resolve(detail);
+                return;
+            }
+
+            reject(new Error(detail.error || `Upload proxy request failed (${detail.status ?? 'unknown'})`));
+        }
+
+        document.addEventListener('tweetclaw:upload-proxy-response', onMessage as EventListener);
+        document.dispatchEvent(new CustomEvent('tweetclaw:upload-proxy-request', {
+            detail: {
+                requestId,
+                payload
+            }
+        }));
+    });
+}
+
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === MsgType.PING || message.type === 'TC_PING') {
@@ -453,6 +541,29 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                 sendResponse({ success: false, error: e.message });
             }
         })();
+        return true;
+    }
+
+
+    if (message.type === 'START_TASK_UPLOAD_FROM_BG_SESSION') {
+        try {
+            const taskMessage = message as StartTaskUploadFromBgSessionMessage;
+            if (!taskMessage.taskId || !taskMessage.uploadSessionId || !taskMessage.mimeType || !taskMessage.totalBytes) {
+                throw new Error('taskId, uploadSessionId, mimeType and totalBytes are required');
+            }
+
+            contentTaskRunner.startTaskFromBackground(taskMessage);
+            sendResponse({ success: true });
+        } catch (e: any) {
+            console.error('[TweetClaw-CS] START_TASK_UPLOAD_FROM_BG_SESSION rejected:', e);
+            sendResponse({ success: false, error: e?.message || String(e) });
+        }
+        return true;
+    }
+
+    if (message.type === 'CANCEL_CONTENT_TASK') {
+        contentTaskRunner.cancelTask(String(message.taskId || ''));
+        sendResponse({ success: true });
         return true;
     }
 

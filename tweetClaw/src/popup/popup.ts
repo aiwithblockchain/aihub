@@ -11,6 +11,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const hostInput = document.getElementById('hostInput') as HTMLInputElement;
     const portInput = document.getElementById('portInput') as HTMLInputElement;
+    const reconnectBtn = document.getElementById('reconnectBtn') as HTMLButtonElement;
     const saveBtn = document.getElementById('saveBtn') as HTMLButtonElement;
     const statusDot = document.getElementById('statusDot') as HTMLElement;
     const connectionUrl = document.getElementById('connectionUrl') as HTMLElement;
@@ -59,6 +60,25 @@ document.addEventListener('DOMContentLoaded', () => {
     refreshStatus();
     const pollInterval = setInterval(refreshStatus, 2000);
     window.addEventListener('unload', () => clearInterval(pollInterval));
+
+    // ── Reconnect button ─────────────────────────────────────────
+    reconnectBtn.addEventListener('click', () => {
+        chrome.storage.local.get(['wsHost', 'wsPort']).then(res => {
+            const host = (res.wsHost as string) || '127.0.0.1';
+            const port = (res.wsPort as number) || 10086;
+
+            chrome.runtime.sendMessage({ type: 'UPDATE_WS_CONFIG', host, port }).then(() => {
+                // Show success feedback
+                reconnectBtn.textContent = t('form.reconnect.success') || 'Reconnecting...';
+                reconnectBtn.style.background = '#22c55e';
+                setTimeout(() => {
+                    reconnectBtn.textContent = t('form.reconnect.button') || 'Reconnect';
+                    reconnectBtn.style.background = '#22c55e';
+                    refreshStatus();
+                }, 1500);
+            });
+        });
+    });
 
     // ── Save config & reconnect ──────────────────────────────────
     saveBtn.addEventListener('click', () => {

@@ -43,6 +43,8 @@ export const translations: Record<'zh' | 'en', Translations> = {
     'form.ip.placeholder': '127.0.0.1',
     'form.port.label': '端口',
     'form.port.placeholder': '10086',
+    'form.reconnect.button': '重新连接',
+    'form.reconnect.success': '重连中...',
     'form.save.button': '保存并重连',
     'form.save.success': '已保存!',
 
@@ -110,6 +112,8 @@ export const translations: Record<'zh' | 'en', Translations> = {
     'form.ip.placeholder': '127.0.0.1',
     'form.port.label': 'Port',
     'form.port.placeholder': '10086',
+    'form.reconnect.button': 'Reconnect',
+    'form.reconnect.success': 'Reconnecting...',
     'form.save.button': 'Save & Reconnect',
     'form.save.success': 'Saved!',
 
