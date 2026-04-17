@@ -18,6 +18,8 @@ import { BackgroundTaskCoordinator } from '../task/task-executor';
 import { BackgroundSessionStore } from '../task/background-session-store';
 import { getOrCreateInstanceId } from '../bridge/instance-id';
 import { logger } from '../task/logger';
+import { extractNotes, extractUserProfile } from '../platforms/xiaohongshu/xhs-extractor';
+import { XHS_STORAGE_KEYS } from '../platforms/xiaohongshu/xhs-consts';
 
 // ── Type Definitions ──────────────────────────────────────────────────
 interface TwitterResponse {
@@ -312,6 +314,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'TASK_CANCELLED_FROM_CONTENT') {
         taskCoordinator?.handleContentCancelled(message.taskId);
         sendResponse({ success: true });
+        return true;
+    }
+
+    // 小红书数据捕获
+    if (message.type === 'XHS_CAPTURED_DATA') {
+        handleXhsCapturedData(message, sender);
+        sendResponse({ ok: true });
+        return true;
+    }
+
+    // 小红书 Ping
+    if (message.type === 'XHS_PING') {
+        sendResponse({
+            ok: true,
+            platform: 'xiaohongshu',
+            version: chrome.runtime.getManifest().version
+        });
         return true;
     }
 

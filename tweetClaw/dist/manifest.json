@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "TweetClaw",
-  "version": "0.5.1",
-  "description": "Bridges X (Twitter) browser sessions to local apps via WebSocket. Requires local server for full functionality.",
+  "version": "0.6.1",
+  "description": "Bridges X (Twitter) and Xiaohongshu browser sessions to local apps via WebSocket. Requires local server for full functionality.",
   "background": {
     "service_worker": "js/background.js"
   },
@@ -29,6 +29,15 @@
         "js/content.js"
       ],
       "run_at": "document_start"
+    },
+    {
+      "matches": [
+        "https://www.xiaohongshu.com/*"
+      ],
+      "js": [
+        "js/content-xhs.js"
+      ],
+      "run_at": "document_start"
     }
   ],
   "permissions": [
@@ -43,6 +52,8 @@
     "*://x.com/*",
     "*://*.twitter.com/*",
     "*://*.x.com/*",
+    "https://www.xiaohongshu.com/*",
+    "https://edith.xiaohongshu.com/*",
     "http://127.0.0.1:8765/*",
     "ws://127.0.0.1:8765/*"
   ],
@@ -54,6 +65,14 @@
       "matches": [
         "https://twitter.com/*",
         "https://x.com/*"
+      ]
+    },
+    {
+      "resources": [
+        "js/xhs-injection.js"
+      ],
+      "matches": [
+        "https://www.xiaohongshu.com/*"
       ]
     }
   ]

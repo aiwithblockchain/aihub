@@ -1,7 +1,7 @@
 {
   "name": "TweetClaw",
-  "version": "0.5.1",
-  "description": "Powerful agentic tool for X web session binding.",
+  "version": "0.6.1",
+  "description": "Powerful agentic tool for X and Xiaohongshu web session binding.",
   "private": true,
   "scripts": {
     "build:d": "webpack --mode development --stats-error-details",

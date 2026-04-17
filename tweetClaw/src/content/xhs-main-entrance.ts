@@ -1,4 +1,5 @@
 import { XHS_MSG_TYPE } from '../platforms/xiaohongshu/xhs-consts';
+import { performXhsAction, fetchXhsNote, fetchXhsUser } from '../platforms/xiaohongshu/xhs-api';
 
 /**
  * 小红书内容脚本入口
@@ -46,6 +47,47 @@ window.addEventListener('message', (event) => {
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'XHS_PING') {
     sendResponse({ ok: true, url: window.location.href, context: 'XHS_CONTENT_SCRIPT' });
+    return true;
+  }
+
+  if (message.type === 'XHS_EXECUTE_ACTION') {
+    (async () => {
+      try {
+        const result = await performXhsAction(message.action, {
+          note_id: message.note_id,
+          user_id: message.user_id,
+          content: message.content,
+        });
+        sendResponse({ success: true, data: result });
+      } catch (e: any) {
+        console.error('[XhsClaw-CS] action failed:', e);
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === 'XHS_FETCH_NOTE') {
+    (async () => {
+      try {
+        const data = await fetchXhsNote(message.note_id);
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === 'XHS_FETCH_USER') {
+    (async () => {
+      try {
+        const data = await fetchXhsUser(message.user_id);
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
     return true;
   }
 
