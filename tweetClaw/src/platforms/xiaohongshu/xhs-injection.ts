@@ -75,6 +75,17 @@ window.fetch = function(...args: any[]): Promise<Response> {
 
 const originalXHROpen = XMLHttpRequest.prototype.open;
 const originalXHRSend = XMLHttpRequest.prototype.send;
+const originalXHRSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
+
+XMLHttpRequest.prototype.setRequestHeader = function(name: string, value: string) {
+  if (name.toLowerCase() === 'x-s' || name.toLowerCase() === 'x-t') {
+    if (!(this as any).__xhs_request_headers) {
+      (this as any).__xhs_request_headers = {};
+    }
+    (this as any).__xhs_request_headers[name.toLowerCase()] = value;
+  }
+  return originalXHRSetRequestHeader.apply(this, [name, value]);
+};
 
 XMLHttpRequest.prototype.open = function(method: string, url: string | URL, ...rest: any[]) {
   const urlString = url.toString();
@@ -97,12 +108,7 @@ XMLHttpRequest.prototype.send = function(body?: any) {
       try {
         const data = JSON.parse(this.responseText);
         const requestBody = body ? JSON.parse(body) : undefined;
-        const headers: Record<string, string> = {};
-
-        const xsSign = this.getResponseHeader('x-s');
-        const xt = this.getResponseHeader('x-t');
-        if (xsSign) headers['x-s'] = xsSign;
-        if (xt) headers['x-t'] = xt;
+        const headers = (this as any).__xhs_request_headers || {};
 
         postSignal(
           endpoint,

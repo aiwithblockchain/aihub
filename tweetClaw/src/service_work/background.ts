@@ -714,3 +714,103 @@ export async function querySearchTimeline(payload: QuerySearchTimelinePayload): 
 
 // 启动时初始化
 initDefaultQueryKeys();
+
+// ══════════════════════════════════════════════════════════════════
+// Xiaohongshu (小红书) Data Handlers
+// ══════════════════════════════════════════════════════════════════
+
+/**
+ * 处理小红书捕获的数据
+ */
+function handleXhsCapturedData(message: any, sender: chrome.runtime.MessageSender) {
+    const { endpoint, apiUrl, data, headers } = message;
+
+    console.log(`[Background-XHS] Captured: ${endpoint}`);
+
+    // 缓存认证信息
+    if (headers?.['x-s']) {
+        chrome.storage.local.set({
+            [XHS_STORAGE_KEYS.XS_SIGN]: headers['x-s'],
+            xhs_xt: headers['x-t'],
+            xhs_last_update: Date.now(),
+        }).catch(() => {});
+    }
+
+    // 根据端点类型处理数据
+    if (endpoint.includes('/feed')) {
+        handleXhsFeed(data, sender);
+    } else if (endpoint.includes('/note/')) {
+        handleXhsNote(data, sender);
+    } else if (endpoint.includes('/user/otherinfo')) {
+        handleXhsUser(data, sender);
+    } else if (endpoint.includes('/comment/page')) {
+        handleXhsComments(data, sender);
+    }
+}
+
+/**
+ * 处理信息流数据
+ */
+function handleXhsFeed(data: any, sender: chrome.runtime.MessageSender) {
+    try {
+        const notes = extractNotes(data);
+        console.log(`[Background-XHS] Extracted ${notes.length} notes from feed`);
+
+        // 存储到本地(可选)
+        chrome.storage.local.get(['xhs_feed_cache'], (result) => {
+            const cache = (result.xhs_feed_cache as any[]) || [];
+            const updated = [...notes, ...cache].slice(0, 100);
+            chrome.storage.local.set({ xhs_feed_cache: updated });
+        });
+    } catch (e) {
+        console.error('[Background-XHS] handleXhsFeed failed:', e);
+    }
+}
+
+/**
+ * 处理笔记详情
+ */
+function handleXhsNote(data: any, sender: chrome.runtime.MessageSender) {
+    try {
+        const note = extractNotes({ data: { items: [{ note_card: data.data }] } })[0];
+        if (note) {
+            console.log(`[Background-XHS] Note captured: ${note.note_id}`);
+            
+            chrome.storage.local.set({
+                [`xhs_note_${note.note_id}`]: note,
+            });
+        }
+    } catch (e) {
+        console.error('[Background-XHS] handleXhsNote failed:', e);
+    }
+}
+
+/**
+ * 处理用户资料
+ */
+function handleXhsUser(data: any, sender: chrome.runtime.MessageSender) {
+    try {
+        const profile = extractUserProfile(data);
+        if (profile) {
+            console.log(`[Background-XHS] User profile captured: ${profile.user_id}`);
+            
+            chrome.storage.local.set({
+                [`xhs_user_${profile.user_id}`]: profile,
+            });
+        }
+    } catch (e) {
+        console.error('[Background-XHS] handleXhsUser failed:', e);
+    }
+}
+
+/**
+ * 处理评论数据
+ */
+function handleXhsComments(data: any, sender: chrome.runtime.MessageSender) {
+    try {
+        const comments = data.data?.comments || [];
+        console.log(`[Background-XHS] Captured ${comments.length} comments`);
+    } catch (e) {
+        console.error('[Background-XHS] handleXhsComments failed:', e);
+    }
+}
