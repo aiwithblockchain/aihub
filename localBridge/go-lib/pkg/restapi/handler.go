@@ -6,6 +6,7 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -367,21 +368,43 @@ func (h *Handler) apiDocs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 获取可执行文件路径
+	execPath, err := os.Executable()
+	var bundleResourcePath string
+	if err == nil {
+		fmt.Printf("[Go] Executable path: %s\n", execPath)
+		// 从可执行文件路径推导 Resources 目录
+		// 例如: /path/to/OpenHub.app/Contents/MacOS/OpenHub -> /path/to/OpenHub.app/Contents/Resources
+		if strings.Contains(execPath, ".app/Contents/MacOS/") {
+			bundleResourcePath = strings.Replace(execPath, "/Contents/MacOS/"+filepath.Base(execPath), "/Contents/Resources/api_docs.json", 1)
+			fmt.Printf("[Go] Bundle resource path: %s\n", bundleResourcePath)
+		}
+	}
+
 	candidatePaths := []string{
+		bundleResourcePath, // 优先尝试应用包内的 Resources 目录
 		"api_docs.json",
 		"LocalBridgeMac/api_docs.json",
 		os.ExpandEnv("$HOME/aiwithblockchain/aihub/localBridge/apple/LocalBridgeMac/api_docs.json"),
 	}
 
+	fmt.Printf("[Go] Trying to load api_docs.json from %d candidate paths\n", len(candidatePaths))
 	var data []byte
-	var err error
-	for _, path := range candidatePaths {
+	for i, path := range candidatePaths {
+		if path == "" {
+			continue
+		}
+		fmt.Printf("[Go] [%d] Trying: %s\n", i, path)
 		data, err = os.ReadFile(path)
 		if err == nil {
+			fmt.Printf("[Go] [%d] ✓ Successfully loaded from: %s\n", i, path)
 			break
+		} else {
+			fmt.Printf("[Go] [%d] ✗ Failed: %v\n", i, err)
 		}
 	}
 	if err != nil {
+		fmt.Printf("[Go] Error: api_docs.json not found in any candidate location\n")
 		jsonErr(w, 404, "api_docs.json not found")
 		return
 	}
