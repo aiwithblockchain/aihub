@@ -40,7 +40,7 @@ final class AIClawBotViewController: NSViewController {
     override func loadView() {
         view = NSView()
         view.wantsLayer = true
-        view.layer?.backgroundColor = DSV2.surface.cgColor
+        view.layer?.backgroundColor = DSV2.pageBackground.cgColor
     }
 
     override func viewDidLoad() {
@@ -86,7 +86,7 @@ final class AIClawBotViewController: NSViewController {
     }
 
     @objc private func handleThemeChange() {
-        view.layer?.backgroundColor = DSV2.surface.cgColor
+        view.layer?.backgroundColor = DSV2.pageBackground.cgColor
         headerImageView.contentTintColor = DSV2.primary
         titleLabel.textColor = DSV2.onSurface
         subtitleLabel.textColor = DSV2.onSurfaceTertiary
@@ -101,8 +101,8 @@ final class AIClawBotViewController: NSViewController {
 
     private func updateCardTheme(_ card: NSView) {
         // 更新卡片背景
-        card.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
-        card.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
+        card.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
+        card.layer?.borderColor = DSV2.cardBorder.cgColor
 
         // 递归更新卡片内所有子视图
         for subview in card.subviews {
@@ -126,7 +126,7 @@ final class AIClawBotViewController: NSViewController {
                 // 更新代码容器背景
                 if view.layer?.cornerRadius == DSV2.radiusInput {
                     view.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
-                    view.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.1).cgColor
+                    view.layer?.borderColor = DSV2.cardBorder.cgColor
                 }
                 // 递归更新容器内的元素
                 for subview in view.subviews {
@@ -140,14 +140,11 @@ final class AIClawBotViewController: NSViewController {
 
     private func updateTextFieldTheme(_ textField: NSTextField) {
         // 根据字体类型判断文本类型并应用相应颜色
-        if textField.font == DSV2.fontMonoMd || textField.font == DSV2.fontMonoSm {
-            // 代码文本
-            textField.textColor = DSV2.tertiary
+        if textField.font == DSV2.fontLabelSm {
+            textField.textColor = DSV2.onSurfaceTertiary
         } else if textField.font == DSV2.fontBodyMd {
-            // 描述文本
             textField.textColor = DSV2.onSurfaceVariant
         } else {
-            // 其他文本
             textField.textColor = DSV2.onSurface
         }
     }
@@ -241,9 +238,9 @@ final class AIClawBotViewController: NSViewController {
     private func makeEndpointCard(method: String, path: String, description: String, curl: String) -> NSView {
         let card = NSView()
         card.wantsLayer = true
-        card.layer?.cornerRadius = DSV2.radiusCard
-        card.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
-        card.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
+        card.layer?.cornerRadius = DSV2.radiusContainer
+        card.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
+        card.layer?.borderColor = DSV2.cardBorder.cgColor
         card.layer?.borderWidth = 1.0
 
         // Method badge using DSV2
@@ -265,14 +262,14 @@ final class AIClawBotViewController: NSViewController {
         let curlContainer = NSView()
         curlContainer.wantsLayer = true
         curlContainer.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
-        curlContainer.layer?.cornerRadius = DSV2.radiusInput
+        curlContainer.layer?.cornerRadius = DSV2.radiusCard
         curlContainer.layer?.borderWidth = 1
-        curlContainer.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.1).cgColor
+        curlContainer.layer?.borderColor = DSV2.cardBorder.cgColor
         curlContainer.translatesAutoresizingMaskIntoConstraints = false
 
         let curlLabel = NSTextField(wrappingLabelWithString: curl)
         curlLabel.font = DSV2.fontMonoSm
-        curlLabel.textColor = DSV2.tertiary
+        curlLabel.textColor = DSV2.onSurface
         curlLabel.backgroundColor = .clear
         curlLabel.drawsBackground = false
         curlLabel.isSelectable = true
@@ -287,7 +284,7 @@ final class AIClawBotViewController: NSViewController {
 
         let cardStack = NSStackView(views: [topRow, descLabel, curlContainer])
         cardStack.orientation = NSUserInterfaceLayoutOrientation.vertical
-        cardStack.alignment = NSLayoutConstraint.Attribute.leading
+        cardStack.alignment = .leading
         cardStack.spacing = DSV2.spacing4
         cardStack.translatesAutoresizingMaskIntoConstraints = false
 

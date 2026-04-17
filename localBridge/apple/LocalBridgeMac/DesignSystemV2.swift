@@ -6,68 +6,93 @@ enum DSV2 {
 
     // MARK: - Surface Hierarchy (层次化表面)
 
+    /// 页面级暖色背景
+    static var pageBackground: NSColor {
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#151515") : NSColor(hex: "#E1E2E0")
+    }
+
     /// 终端/代码区域 - 最深层，用于最大化文本对比度
     static var surfaceContainerLowest: NSColor {
-        ThemeManager.shared.isDarkMode ? NSColor(hex: "#0E0E0E") : NSColor(hex: "#FFFFFF")
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#0E0E0E") : NSColor(hex: "#F1F1EC")
     }
 
     /// 基础层 - 应用的绝对基础背景
     static var surface: NSColor {
-        ThemeManager.shared.isDarkMode ? NSColor(hex: "#131313") : NSColor(hex: "#F8F8F8")
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#131313") : NSColor(hex: "#F7F7F3")
     }
 
     /// 侧边栏/导航区域 - 次要上下文
     static var surfaceContainerLow: NSColor {
-        ThemeManager.shared.isDarkMode ? NSColor(hex: "#1E1E1E") : NSColor(hex: "#F0F0F0")
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#1E1E1E") : NSColor(hex: "#F4F3EE")
     }
 
     /// 活动面板/可操作元素
     static var surfaceContainerHigh: NSColor {
-        ThemeManager.shared.isDarkMode ? NSColor(hex: "#2A2A2A") : NSColor(hex: "#E8E8E8")
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#2A2A2A") : NSColor(hex: "#FCFCF8")
     }
 
-    /// Hover 状态的最高层
+    /// Hover / Selected 的柔和高亮层
     static var surfaceContainerHighest: NSColor {
-        ThemeManager.shared.isDarkMode ? NSColor(hex: "#323232") : NSColor(hex: "#E0E0E0")
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#323232") : NSColor(hex: "#FFF1EC")
     }
 
     /// 明亮表面（用于 focus 状态）
     static var surfaceBright: NSColor {
         ThemeManager.shared.isDarkMode ? NSColor(hex: "#3A3A3A") : NSColor(hex: "#FFFFFF")
     }
-	
+
+    static var cardBorder: NSColor {
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#4A4A4A") : NSColor(hex: "#D0D0CB")
+    }
+
+    static var softAccentFill: NSColor {
+        ThemeManager.shared.isDarkMode ? primary.withAlphaComponent(0.18) : NSColor(hex: "#FFF1EC")
+    }
+
+    static var divider: NSColor {
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#343434") : NSColor(hex: "#D7D6D1")
+    }
+
+    static var subtleShadow: NSColor {
+        ThemeManager.shared.isDarkMode ? NSColor.black.withAlphaComponent(0.24) : NSColor.black.withAlphaComponent(0.06)
+    }
+
     // MARK: - Text Colors (文本颜色)
 
     /// 主要文本颜色 - 避免使用纯白以减少眼睛疲劳
     static var onSurface: NSColor {
-        ThemeManager.shared.isDarkMode ? NSColor(hex: "#E5E2E1") : NSColor(hex: "#1A1A1A")
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#E5E2E1") : NSColor(hex: "#1F1F1F")
     }
 
     /// 次要文本颜色
     static var onSurfaceVariant: NSColor {
-        ThemeManager.shared.isDarkMode ? NSColor(hex: "#C9C5C4") : NSColor(hex: "#4A4A4A")
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#C9C5C4") : NSColor(hex: "#5F5F5F")
     }
 
     /// 三级文本颜色
     static var onSurfaceTertiary: NSColor {
-        ThemeManager.shared.isDarkMode ? NSColor(hex: "#A0A0A0") : NSColor(hex: "#737373")
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#A0A0A0") : NSColor(hex: "#8A8A83")
     }
 
     // MARK: - Primary Colors (主色系)
 
-    /// 主色 - 渐变起点
+    /// 主色 - 极简暖橙强调色
     static var primary: NSColor {
-        ThemeManager.shared.isDarkMode ? NSColor(hex: "#AAC7FF") : NSColor(hex: "#2563EB")
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#FF8A6B") : NSColor(hex: "#F5451E")
     }
 
-    /// 主色容器 - 渐变终点
+    /// 主色容器 - hover / secondary CTA 背景
     static var primaryContainer: NSColor {
-        ThemeManager.shared.isDarkMode ? NSColor(hex: "#3E90FF") : NSColor(hex: "#60A5FA")
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#B43E26") : NSColor(hex: "#FFE0D6")
     }
 
     /// 主色上的文本
     static var onPrimaryContainer: NSColor {
-        ThemeManager.shared.isDarkMode ? NSColor(hex: "#001D35") : NSColor(hex: "#FFFFFF")
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#FFF1EC") : NSColor(hex: "#7A210D")
+    }
+
+    static var primaryHover: NSColor {
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#FF9B80") : NSColor(hex: "#DA3C17")
     }
 
     // MARK: - Semantic Colors (语义色)
@@ -101,7 +126,7 @@ enum DSV2 {
 
     /// 表面着色（用于阴影）
     static var surfaceTint: NSColor {
-        ThemeManager.shared.isDarkMode ? NSColor(hex: "#AAC7FF") : NSColor(hex: "#2563EB")
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#FF8A6B") : primary
     }
 
     // MARK: - Spacing (间距系统)
@@ -110,12 +135,14 @@ enum DSV2 {
     static let spacing4: CGFloat = 16   // 0.9rem → 16px
     static let spacing6: CGFloat = 24   // 1.3rem → 24px
     static let spacing8: CGFloat = 32   // 1.8rem → 32px
+    static let spacing10: CGFloat = 40  // 更宽松的极简布局
 
     // MARK: - Corner Radius (圆角)
 
-    static let radiusButton: CGFloat = 6    // 按钮
-    static let radiusInput: CGFloat = 4     // 输入框
-    static let radiusCard: CGFloat = 8      // 卡片
+    static let radiusButton: CGFloat = 12   // 按钮
+    static let radiusInput: CGFloat = 10    // 输入框
+    static let radiusCard: CGFloat = 16     // 卡片
+    static let radiusContainer: CGFloat = 24 // 大容器
     static let radiusFull: CGFloat = 9999   // 全圆（Chips/Badges）
 
     // MARK: - Typography (字体)
@@ -155,24 +182,13 @@ enum DSV2 {
         button.isBordered = false
         button.bezelStyle = .rounded
 
-        // 设置按钮背景色和圆角
-        button.layer?.backgroundColor = primaryContainer.cgColor
+        button.layer?.backgroundColor = primary.cgColor
         button.layer?.cornerRadius = radiusButton
+        button.layer?.shadowColor = subtleShadow.cgColor
+        button.layer?.shadowOpacity = ThemeManager.shared.isDarkMode ? 0.0 : 1.0
+        button.layer?.shadowRadius = 10
+        button.layer?.shadowOffset = CGSize(width: 0, height: 4)
 
-        // 创建渐变层
-        let gradientLayer = CAGradientLayer()
-        gradientLayer.colors = [
-            primary.cgColor,
-            primaryContainer.cgColor
-        ]
-        // 135度角 = 从左上到右下
-        gradientLayer.startPoint = CGPoint(x: 0, y: 0)
-        gradientLayer.endPoint = CGPoint(x: 1, y: 1)
-        gradientLayer.cornerRadius = radiusButton
-
-        button.layer?.insertSublayer(gradientLayer, at: 0)
-
-        // 文本样式
         let attributes: [NSAttributedString.Key: Any] = [
             .foregroundColor: NSColor.white,
             .font: fontLabelMd
@@ -180,15 +196,7 @@ enum DSV2 {
         button.attributedTitle = NSAttributedString(string: title, attributes: attributes)
 
         button.translatesAutoresizingMaskIntoConstraints = false
-
-        // 设置固定高度
-        button.heightAnchor.constraint(equalToConstant: 36).isActive = true
-
-        // 更新渐变层大小 - 使用更可靠的方法
-        button.layer?.layoutSublayers()
-        DispatchQueue.main.async {
-            gradientLayer.frame = button.bounds
-        }
+        button.heightAnchor.constraint(equalToConstant: 38).isActive = true
 
         return button
     }
@@ -200,13 +208,11 @@ enum DSV2 {
         button.isBordered = false
         button.bezelStyle = .rounded
 
-        // Ghost Border
         button.layer?.borderWidth = 1
-        button.layer?.borderColor = outlineVariant.withAlphaComponent(0.2).cgColor
+        button.layer?.borderColor = cardBorder.cgColor
         button.layer?.cornerRadius = radiusButton
-        button.layer?.backgroundColor = NSColor.clear.cgColor
+        button.layer?.backgroundColor = surfaceBright.cgColor
 
-        // 文本样式
         let attributes: [NSAttributedString.Key: Any] = [
             .foregroundColor: onSurface,
             .font: fontLabelMd
@@ -214,9 +220,7 @@ enum DSV2 {
         button.attributedTitle = NSAttributedString(string: title, attributes: attributes)
 
         button.translatesAutoresizingMaskIntoConstraints = false
-
-        // 设置固定高度
-        button.heightAnchor.constraint(equalToConstant: 36).isActive = true
+        button.heightAnchor.constraint(equalToConstant: 38).isActive = true
 
         return button
     }
@@ -231,7 +235,7 @@ enum DSV2 {
         textView.isEditable = false
         textView.isSelectable = true
         textView.font = fontMonoMd
-        textView.textColor = tertiary
+        textView.textColor = onSurface
         textView.backgroundColor = surfaceContainerLowest
         textView.textContainerInset = NSSize(width: spacing4, height: spacing4)
 
@@ -240,10 +244,9 @@ enum DSV2 {
         scrollView.layer?.cornerRadius = radiusCard
         scrollView.layer?.backgroundColor = surfaceContainerLowest.cgColor
         scrollView.layer?.borderWidth = 1
-        scrollView.layer?.borderColor = outlineVariant.withAlphaComponent(0.2).cgColor
+        scrollView.layer?.borderColor = cardBorder.cgColor
         scrollView.translatesAutoresizingMaskIntoConstraints = false
 
-        // 设置自定义高亮滚动条
         applyBrightScroller(to: scrollView)
 
         return (scrollView, textView)
@@ -343,33 +346,39 @@ enum DSV2 {
 
     /// 创建方法标签（GET/POST）
     static func makeMethodTag(method: String) -> NSView {
-        let label = NSTextField(labelWithString: method)
+        let label = NSTextField(labelWithString: method.uppercased())
         label.font = fontLabelSm
-        label.textColor = onSurface
         label.isBordered = false
         label.isEditable = false
         label.drawsBackground = true
         label.wantsLayer = true
         label.alignment = .center
-        label.layer?.cornerRadius = radiusInput
+        label.layer?.cornerRadius = radiusFull
+        label.layer?.masksToBounds = true
 
-        // 根据方法类型设置颜色
         switch method.uppercased() {
         case "GET":
-            label.backgroundColor = tertiary
-            label.textColor = NSColor.black
+            label.backgroundColor = softAccentFill
+            label.textColor = primary
         case "POST":
-            label.backgroundColor = secondary
-            label.textColor = NSColor.black
+            label.backgroundColor = primaryContainer
+            label.textColor = onPrimaryContainer
+        case "PUT", "PATCH":
+            label.backgroundColor = surfaceContainerLow
+            label.textColor = primary
+        case "DELETE":
+            label.backgroundColor = error.withAlphaComponent(0.12)
+            label.textColor = error
         default:
-            label.backgroundColor = outlineVariant.withAlphaComponent(0.2)
+            label.backgroundColor = surfaceContainerLow
+            label.textColor = onSurfaceVariant
         }
 
         label.translatesAutoresizingMaskIntoConstraints = false
 
         NSLayoutConstraint.activate([
-            label.widthAnchor.constraint(equalToConstant: 50),
-            label.heightAnchor.constraint(equalToConstant: 20)
+            label.widthAnchor.constraint(greaterThanOrEqualToConstant: 54),
+            label.heightAnchor.constraint(equalToConstant: 22)
         ])
 
         return label

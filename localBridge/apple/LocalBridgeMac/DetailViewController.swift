@@ -48,7 +48,7 @@ final class DetailViewController: NSViewController {
     }
 
     @objc private func handleThemeChange() {
-        view.layer?.backgroundColor = DSV2.surface.cgColor
+        view.layer?.backgroundColor = DSV2.pageBackground.cgColor
         view.needsDisplay = true
         view.subviews.forEach { $0.needsDisplay = true }
     }
@@ -60,21 +60,17 @@ final class DetailViewController: NSViewController {
     func display(conversation: Conversation) {
         placeholderLabel.isHidden = true
 
-        // Use localized keys to match conversation titles
-        let instancesTitle = LanguageManager.shared.localized("sidebar.instances.title")
-        let logsTitle = LanguageManager.shared.localized("sidebar.logs.title")
+        clawVC.view.isHidden = conversation.type != .tweetclaw
+        aiClawVC.view.isHidden = conversation.type != .aiclaw
+        instancesPanelView.view.isHidden = conversation.type != .instances
+        bridgeLogsVC.view.isHidden = conversation.type != .logs
 
-        clawVC.view.isHidden = conversation.title != "TweetClaw"
-        aiClawVC.view.isHidden = conversation.title != "AIClaw"
-        instancesPanelView.view.isHidden = conversation.title != instancesTitle
-        bridgeLogsVC.view.isHidden = conversation.title != logsTitle
-
-        if conversation.title == "TweetClaw" {
+        if conversation.type == .tweetclaw {
             clawVC.selectDefaultRow()
         }
 
         // Trigger refresh when showing instances panel
-        if conversation.title == instancesTitle {
+        if conversation.type == .instances {
             instancesPanelView.refresh()
         }
     }
@@ -83,7 +79,7 @@ final class DetailViewController: NSViewController {
 private extension DetailViewController {
     func configureView() {
         view.wantsLayer = true
-        view.layer?.backgroundColor = DSV2.surface.cgColor
+        view.layer?.backgroundColor = DSV2.pageBackground.cgColor
 
         placeholderLabel.translatesAutoresizingMaskIntoConstraints = false
         placeholderLabel.font = DSV2.fontTitleMd

@@ -11,6 +11,9 @@ protocol SidebarViewControllerDelegate: AnyObject {
 final class SidebarViewController: NSViewController {
     weak var delegate: SidebarViewControllerDelegate?
 
+    private let hoverTooltipContainer = NSView()
+    private let hoverTooltipLabel = NSTextField(labelWithString: "")
+
     var defaultConversation: Conversation? {
         conversations.first
     }
@@ -51,6 +54,7 @@ final class SidebarViewController: NSViewController {
     }
 
     private let tableView = NSTableView(frame: .zero)
+    private let rightDivider = NSView()
     private let settingsButton = NSButton()
     private let helpButton = NSButton()
     private let quitButton = NSButton()
@@ -88,21 +92,20 @@ final class SidebarViewController: NSViewController {
 
     @objc private func handleThemeChange() {
         // 更新侧边栏背景色
-        view.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
+        view.layer?.backgroundColor = DSV2.surface.cgColor
+        rightDivider.layer?.backgroundColor = DSV2.divider.cgColor
+        hoverTooltipLabel.textColor = DSV2.onSurface
+        hoverTooltipContainer.layer?.backgroundColor = DSV2.surfaceBright.cgColor
+        hoverTooltipContainer.layer?.borderColor = DSV2.cardBorder.cgColor
 
-        // 更新按钮颜色
-        settingsButton.contentTintColor = DSV2.onSurfaceVariant
-        helpButton.contentTintColor = DSV2.onSurfaceVariant
-        quitButton.contentTintColor = DSV2.onSurfaceVariant
-
-        // 更新所有可见的 cell
+        // Update all visible cells to refresh background colors and configuration
         let visibleRows = tableView.rows(in: tableView.visibleRect)
         for row in visibleRows.location..<(visibleRows.location + visibleRows.length) {
             if let cellView = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? ConversationCellView {
                 // 重新配置 cell 以更新所有颜色（包括 statusDot）
                 cellView.configure(with: conversations[row])
-                // 重新应用选中状态
-                cellView.applySelectionStyle(isSelected: row == tableView.selectedRow)
+                // 重新更新外观样式（包括 1:1 背景和选中态）
+                cellView.updateAppearance(isSelected: row == tableView.selectedRow, isHovered: cellView.isHovered)
             }
         }
 
@@ -113,11 +116,12 @@ final class SidebarViewController: NSViewController {
         // 重新加载对话列表
         loadConversations()
 
-        // 更新底部按钮
-        settingsButton.title = LanguageManager.shared.localized("settings.title")
-        helpButton.title = LanguageManager.shared.localized("app.help")
-        quitButton.title = LanguageManager.shared.localized("app.quit")
+        // 更新底部按钮 tooltip
+        settingsButton.toolTip = LanguageManager.shared.localized("settings.title")
+        helpButton.toolTip = LanguageManager.shared.localized("app.help")
+        quitButton.toolTip = LanguageManager.shared.localized("app.quit")
 
+        hideHoverTooltip()
         tableView.reloadData()
     }
 
@@ -144,7 +148,7 @@ extension SidebarViewController: NSTableViewDataSource, NSTableViewDelegate {
     }
 
     func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
-        56
+        58
     }
 
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
@@ -158,9 +162,27 @@ extension SidebarViewController: NSTableViewDataSource, NSTableViewDelegate {
             cellView.identifier = identifier
         }
 
+        cellView.onHoverChanged = { [weak self, weak tableView, weak cellView] isHovering in
+            guard let self, let tableView, let cellView else { return }
+            
+            // Update cell style for hover
+            cellView.isHovered = isHovering
+            let currentRow = tableView.row(for: cellView)
+            let isSelected = tableView.selectedRow == currentRow
+            cellView.updateAppearance(isSelected: isSelected, isHovered: isHovering)
+            
+            if isHovering {
+                guard currentRow >= 0 && currentRow < self.conversations.count else { return }
+                let rowRect = tableView.rect(ofRow: currentRow)
+                let rowRectInSidebar = tableView.convert(rowRect, to: self.view)
+                self.showHoverTooltip(title: self.conversations[currentRow].title, y: rowRectInSidebar.midY)
+            } else {
+                self.hideHoverTooltip()
+            }
+        }
+
         cellView.configure(with: conversations[row])
 
-        // 确保每次都应用正确的选中状态
         let isSelected = tableView.selectedRow == row
         cellView.applySelectionStyle(isSelected: isSelected)
 
@@ -185,23 +207,56 @@ private extension SidebarViewController {
         let selectedRow = tableView.selectedRow
         for row in visibleRows.location..<(visibleRows.location + visibleRows.length) {
             if let cellView = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) as? ConversationCellView {
-                cellView.applySelectionStyle(isSelected: row == selectedRow)
+                cellView.updateAppearance(isSelected: row == selectedRow, isHovered: cellView.isHovered)
             }
         }
     }
 
     func configureView() {
         view.wantsLayer = true
-        view.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
+        view.layer?.backgroundColor = DSV2.surface.cgColor
+        view.layer?.borderWidth = 0
+
+        rightDivider.wantsLayer = true
+        rightDivider.layer?.backgroundColor = DSV2.divider.cgColor
+        rightDivider.translatesAutoresizingMaskIntoConstraints = false
+
+        hoverTooltipContainer.wantsLayer = true
+        hoverTooltipContainer.layer?.backgroundColor = DSV2.surfaceBright.cgColor
+        hoverTooltipContainer.layer?.cornerRadius = 8
+        hoverTooltipContainer.layer?.borderWidth = 1
+        hoverTooltipContainer.layer?.borderColor = DSV2.cardBorder.cgColor
+        hoverTooltipContainer.layer?.shadowColor = NSColor.black.withAlphaComponent(0.12).cgColor
+        hoverTooltipContainer.layer?.shadowOpacity = 1
+        hoverTooltipContainer.layer?.shadowRadius = 8
+        hoverTooltipContainer.layer?.shadowOffset = CGSize(width: 0, height: 3)
+        hoverTooltipContainer.isHidden = true
+        hoverTooltipContainer.alphaValue = 0
+
+        // Increase font size to 14
+        hoverTooltipLabel.font = NSFont.systemFont(ofSize: 14, weight: .medium)
+        hoverTooltipLabel.textColor = DSV2.onSurface
+        hoverTooltipLabel.isBordered = false
+        hoverTooltipLabel.drawsBackground = false
+        hoverTooltipLabel.isEditable = false
+        hoverTooltipLabel.backgroundColor = .clear
+        
+        hoverTooltipContainer.addSubview(hoverTooltipLabel)
     }
 
     func configureTableView() {
         let column = NSTableColumn(identifier: NSUserInterfaceItemIdentifier("ConversationColumn"))
         column.resizingMask = .autoresizingMask
+        column.width = 47
+        column.minWidth = 47
+        column.maxWidth = 47
 
         tableView.addTableColumn(column)
         tableView.headerView = nil
         tableView.rowSizeStyle = .default
+
+        // Strictly enforce column width and restrict horizontal expansion
+        tableView.columnAutoresizingStyle = .uniformColumnAutoresizingStyle
 
         // 禁用系统的选中高亮样式，使用我们自定义的
         tableView.selectionHighlightStyle = .none
@@ -209,7 +264,7 @@ private extension SidebarViewController {
         tableView.allowsEmptySelection = true
         tableView.backgroundColor = .clear
         tableView.focusRingType = .none
-        tableView.intercellSpacing = NSSize(width: 0, height: 6)
+        tableView.intercellSpacing = NSSize(width: 0, height: 0)
         tableView.delegate = self
         tableView.dataSource = self
 
@@ -220,36 +275,46 @@ private extension SidebarViewController {
     func configureLayout() {
         let scrollView = NSScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
-        scrollView.hasVerticalScroller = true
+        scrollView.borderType = .noBorder
+        scrollView.hasVerticalScroller = false
+        scrollView.hasHorizontalScroller = false
+        scrollView.verticalScrollElasticity = .none
+        scrollView.horizontalScrollElasticity = .none
         scrollView.drawsBackground = false
-        scrollView.contentInsets = NSEdgeInsets(top: 12, left: 0, bottom: 0, right: 0)
+        scrollView.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
         scrollView.documentView = tableView
 
         view.addSubview(scrollView)
+        view.addSubview(rightDivider)
         view.addSubview(settingsButton)
         view.addSubview(helpButton)
         view.addSubview(quitButton)
 
         NSLayoutConstraint.activate([
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
-            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
-            scrollView.topAnchor.constraint(equalTo: view.topAnchor, constant: 8),
-            scrollView.bottomAnchor.constraint(equalTo: settingsButton.topAnchor, constant: -10),
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 12),
+            scrollView.trailingAnchor.constraint(equalTo: rightDivider.leadingAnchor, constant: -12),
+            scrollView.topAnchor.constraint(equalTo: view.topAnchor, constant: 16),
+            scrollView.bottomAnchor.constraint(equalTo: settingsButton.topAnchor, constant: -12),
 
-            settingsButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
-            settingsButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
-            settingsButton.bottomAnchor.constraint(equalTo: helpButton.topAnchor, constant: -8),
-            settingsButton.heightAnchor.constraint(equalToConstant: 32),
+            rightDivider.topAnchor.constraint(equalTo: view.topAnchor),
+            rightDivider.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            rightDivider.bottomAnchor.constraint(equalTo: view.bottomAnchor),
+            rightDivider.widthAnchor.constraint(equalToConstant: 1),
 
-            helpButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
-            helpButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
-            helpButton.bottomAnchor.constraint(equalTo: quitButton.topAnchor, constant: -8),
-            helpButton.heightAnchor.constraint(equalToConstant: 32),
+            settingsButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
+            settingsButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
+            settingsButton.bottomAnchor.constraint(equalTo: helpButton.topAnchor, constant: -10),
+            settingsButton.heightAnchor.constraint(equalToConstant: 36),
 
-            quitButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 14),
-            quitButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -14),
-            quitButton.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -14),
-            quitButton.heightAnchor.constraint(equalToConstant: 32)
+            helpButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
+            helpButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
+            helpButton.bottomAnchor.constraint(equalTo: quitButton.topAnchor, constant: -10),
+            helpButton.heightAnchor.constraint(equalToConstant: 36),
+
+            quitButton.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: 10),
+            quitButton.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -10),
+            quitButton.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -12),
+            quitButton.heightAnchor.constraint(equalToConstant: 36)
         ])
     }
 
@@ -258,11 +323,11 @@ private extension SidebarViewController {
             settingsButton.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")
         }
 
-        settingsButton.title = LanguageManager.shared.localized("settings.title")
+        settingsButton.title = ""
         settingsButton.bezelStyle = .regularSquare
         settingsButton.isBordered = false
-        settingsButton.imagePosition = .imageLeading
-        settingsButton.alignment = .left
+        settingsButton.imagePosition = .imageOnly
+        settingsButton.toolTip = LanguageManager.shared.localized("settings.title")
         settingsButton.font = DSV2.fontBodySm
         settingsButton.contentTintColor = DSV2.onSurfaceVariant
 
@@ -276,11 +341,11 @@ private extension SidebarViewController {
             helpButton.image = NSImage(systemSymbolName: "questionmark.circle", accessibilityDescription: "Help")
         }
 
-        helpButton.title = LanguageManager.shared.localized("app.help")
+        helpButton.title = ""
         helpButton.bezelStyle = .regularSquare
         helpButton.isBordered = false
-        helpButton.imagePosition = .imageLeading
-        helpButton.alignment = .left
+        helpButton.imagePosition = .imageOnly
+        helpButton.toolTip = LanguageManager.shared.localized("app.help")
         helpButton.font = DSV2.fontBodySm
         helpButton.contentTintColor = DSV2.onSurfaceVariant
 
@@ -294,17 +359,61 @@ private extension SidebarViewController {
             quitButton.image = NSImage(systemSymbolName: "power", accessibilityDescription: "Quit")
         }
 
-        quitButton.title = LanguageManager.shared.localized("app.quit")
+        quitButton.title = ""
         quitButton.bezelStyle = .regularSquare
         quitButton.isBordered = false
-        quitButton.imagePosition = .imageLeading
-        quitButton.alignment = .left
+        quitButton.imagePosition = .imageOnly
+        quitButton.toolTip = LanguageManager.shared.localized("app.quit")
         quitButton.font = DSV2.fontBodySm
         quitButton.contentTintColor = DSV2.error
 
         quitButton.target = self
         quitButton.action = #selector(quitApplication)
         quitButton.translatesAutoresizingMaskIntoConstraints = false
+    }
+
+    func showHoverTooltip(title: String, y: CGFloat) {
+        guard let contentView = view.window?.contentView else { return }
+        
+        if hoverTooltipContainer.superview != contentView {
+            hoverTooltipContainer.removeFromSuperview()
+            contentView.addSubview(hoverTooltipContainer)
+        }
+        
+        hoverTooltipLabel.stringValue = title
+        hoverTooltipLabel.sizeToFit()
+        let textSize = hoverTooltipLabel.bounds.size
+        
+        let padding: CGFloat = 6
+        let width = textSize.width + padding * 2
+        let height = textSize.height + padding * 2
+        
+        // Reduce gap: from 82 down to 74 (closer to sidebar edge which is 72)
+        let localPoint = NSPoint(x: 74, y: y)
+        let windowPoint = self.view.convert(localPoint, to: nil)
+        let contentPoint = contentView.convert(windowPoint, from: nil)
+        
+        hoverTooltipContainer.frame = NSRect(
+            x: contentPoint.x,
+            y: contentPoint.y - height / 2,
+            width: width,
+            height: height
+        )
+        
+        hoverTooltipLabel.frame = NSRect(
+            x: padding,
+            y: padding,
+            width: textSize.width,
+            height: textSize.height
+        )
+        
+        hoverTooltipContainer.isHidden = false
+        hoverTooltipContainer.alphaValue = 1
+    }
+
+    func hideHoverTooltip() {
+        hoverTooltipContainer.isHidden = true
+        hoverTooltipContainer.alphaValue = 0
     }
 
     @objc func showSettingsMenu(_ sender: NSButton) {
@@ -324,7 +433,12 @@ private extension SidebarViewController {
     }
 }
 private final class ConversationCellView: NSTableCellView {
+    var onHoverChanged: ((Bool) -> Void)?
+
+    var isHovered: Bool = false
+    private let selectionBackgroundView = PassthroughView()
     private let iconView = PassthroughImageView()
+    private let hoverTitleLabel = NSTextField(labelWithString: "")
     private let statusDot = PassthroughView()
     private let statusLabel = PassthroughTextField(labelWithString: "")
     private let titleLabel = PassthroughTextField(labelWithString: "")
@@ -347,15 +461,30 @@ private final class ConversationCellView: NSTableCellView {
         set { /* 忽略系统设置 */ }
     }
 
-    override func prepareForReuse() {
-        super.prepareForReuse()
-        // 确保重用时背景保持透明
-        wantsLayer = true
-        layer?.backgroundColor = NSColor.clear.cgColor
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+
+        trackingAreas.forEach(removeTrackingArea)
+        let trackingArea = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(trackingArea)
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        onHoverChanged?(true)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        onHoverChanged?(false)
     }
 
     func configure(with conversation: Conversation) {
         titleLabel.stringValue = conversation.title
+        hoverTitleLabel.stringValue = conversation.title
         subtitleLabel.stringValue = conversation.subtitle
         previewLabel.stringValue = conversation.preview
 
@@ -390,96 +519,75 @@ private final class ConversationCellView: NSTableCellView {
     }
     
     func applySelectionStyle(isSelected: Bool) {
+        updateAppearance(isSelected: isSelected, isHovered: self.isHovered)
+    }
+
+    func updateAppearance(isSelected: Bool, isHovered: Bool) {
+        // Ensure the main cell layer is clear
         wantsLayer = true
-        layer?.cornerRadius = DSV2.radiusCard
+        layer?.backgroundColor = NSColor.clear.cgColor
+        
+        selectionBackgroundView.wantsLayer = true
+        selectionBackgroundView.layer?.cornerRadius = 14
+        hoverTitleLabel.textColor = DSV2.onSurface
 
         if isSelected {
-            // 采用更具冲击力的选中样式：背景加亮 + 明显的蓝色边框
-            layer?.backgroundColor = DSV2.primary.withAlphaComponent(0.15).cgColor
-            layer?.borderWidth = 1.5
-            layer?.borderColor = DSV2.primary.cgColor
-            titleLabel.font = NSFont.systemFont(ofSize: 13, weight: .bold)
-            titleLabel.textColor = DSV2.primary
-            subtitleLabel.textColor = DSV2.primary.withAlphaComponent(0.9)
-            previewLabel.textColor = DSV2.onSurface
-            statusLabel.textColor = DSV2.primary
+            selectionBackgroundView.layer?.backgroundColor = DSV2.softAccentFill.cgColor
+            iconView.contentTintColor = DSV2.primary
+        } else if isHovered {
+            selectionBackgroundView.layer?.backgroundColor = DSV2.surfaceContainerHighest.withAlphaComponent(0.3).cgColor
             iconView.contentTintColor = DSV2.primary
         } else {
-            layer?.backgroundColor = NSColor.clear.cgColor
-            layer?.borderWidth = 0
-            layer?.borderColor = NSColor.clear.cgColor
-            titleLabel.font = NSFont.systemFont(ofSize: 13, weight: .regular)
-            titleLabel.textColor = DSV2.onSurface
-            subtitleLabel.textColor = DSV2.onSurfaceVariant
-            previewLabel.textColor = DSV2.onSurfaceVariant
-            statusLabel.textColor = DSV2.onSurfaceTertiary
+            selectionBackgroundView.layer?.backgroundColor = NSColor.clear.cgColor
             iconView.contentTintColor = DSV2.onSurfaceVariant
         }
+        
+        selectionBackgroundView.layer?.borderWidth = 0
+        selectionBackgroundView.layer?.borderColor = NSColor.clear.cgColor
     }
 }
 
 private extension ConversationCellView {
     func configureSubviews() {
         wantsLayer = true
-        // 确保 cell 本身背景透明
         layer?.backgroundColor = NSColor.clear.cgColor
 
         iconView.translatesAutoresizingMaskIntoConstraints = false
         if #available(macOS 11.0, *) {
-            iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 18, weight: .medium)
+            iconView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 20, weight: .medium)
         }
         iconView.contentTintColor = DSV2.onSurfaceVariant
 
-        statusDot.translatesAutoresizingMaskIntoConstraints = false
-        statusDot.wantsLayer = true
-        statusDot.layer?.cornerRadius = 4
+        hoverTitleLabel.font = NSFont.systemFont(ofSize: 12, weight: .medium)
+        hoverTitleLabel.textColor = DSV2.onSurface
+        hoverTitleLabel.isHidden = true
+        hoverTitleLabel.translatesAutoresizingMaskIntoConstraints = false
 
-        statusLabel.font = DSV2.fontLabelSm
-        statusLabel.textColor = DSV2.onSurfaceTertiary
+        titleLabel.isHidden = true
+        subtitleLabel.isHidden = true
+        previewLabel.isHidden = true
+        statusDot.isHidden = true
+        statusLabel.isHidden = true
 
-        titleLabel.font = DSV2.fontBodyMd.withSize(13)
-        titleLabel.textColor = DSV2.onSurface
-        titleLabel.lineBreakMode = .byTruncatingTail
-        titleLabel.translatesAutoresizingMaskIntoConstraints = false
-
-        subtitleLabel.font = DSV2.fontBodySm
-        subtitleLabel.textColor = DSV2.onSurfaceVariant
-        subtitleLabel.lineBreakMode = .byTruncatingTail
-        subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
-
-        previewLabel.font = DSV2.fontBodySm
-        previewLabel.textColor = DSV2.onSurfaceVariant
-        previewLabel.lineBreakMode = .byTruncatingTail
-        previewLabel.translatesAutoresizingMaskIntoConstraints = false
-
-        let topRow = NSStackView(views: [titleLabel, NSView(), statusDot, statusLabel])
-        topRow.orientation = .horizontal
-        topRow.alignment = .centerY
-        topRow.spacing = 4
-
-        let textStack = NSStackView(views: [topRow, subtitleLabel])
-        textStack.orientation = .vertical
-        textStack.alignment = .leading
-        textStack.spacing = 2
-        textStack.translatesAutoresizingMaskIntoConstraints = false
-
+        selectionBackgroundView.translatesAutoresizingMaskIntoConstraints = false
+        selectionBackgroundView.wantsLayer = true
+        selectionBackgroundView.layer?.cornerRadius = 14
+        
+        addSubview(selectionBackgroundView)
         addSubview(iconView)
-        addSubview(textStack)
 
         NSLayoutConstraint.activate([
-            iconView.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+            widthAnchor.constraint(greaterThanOrEqualToConstant: 36),
+            
+            selectionBackgroundView.centerXAnchor.constraint(equalTo: centerXAnchor),
+            selectionBackgroundView.centerYAnchor.constraint(equalTo: centerYAnchor),
+            selectionBackgroundView.widthAnchor.constraint(equalToConstant: 48),
+            selectionBackgroundView.heightAnchor.constraint(equalToConstant: 48),
+
+            iconView.centerXAnchor.constraint(equalTo: centerXAnchor),
             iconView.centerYAnchor.constraint(equalTo: centerYAnchor),
-            iconView.widthAnchor.constraint(equalToConstant: 28),
-            iconView.heightAnchor.constraint(equalToConstant: 28),
-
-            statusDot.widthAnchor.constraint(equalToConstant: 8),
-            statusDot.heightAnchor.constraint(equalToConstant: 8),
-
-            textStack.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 10),
-            textStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -12),
-            textStack.centerYAnchor.constraint(equalTo: centerYAnchor),
-
-            topRow.widthAnchor.constraint(equalTo: textStack.widthAnchor)
+            iconView.widthAnchor.constraint(equalToConstant: 24),
+            iconView.heightAnchor.constraint(equalToConstant: 24)
         ])
     }
 }

@@ -122,7 +122,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     override func loadView() {
         view = NSView()
         view.wantsLayer = true
-        view.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
+        view.layer?.backgroundColor = DSV2.pageBackground.cgColor
     }
     
     override func viewDidLoad() {
@@ -170,7 +170,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
 
     @objc private func handleThemeChange() {
         // 更新主视图背景
-        view.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
+        view.layer?.backgroundColor = DSV2.pageBackground.cgColor
 
         // 更新所有文本颜色
         headerTitleLabel.textColor = DSV2.onSurface
@@ -178,15 +178,15 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         instanceLabel.textColor = DSV2.onSurfaceTertiary
 
         // 更新文本视图
-        detailTextView?.textColor = DSV2.tertiary
+        detailTextView?.textColor = DSV2.onSurface
 
         // 更新按钮
         applyRefreshButtonStyle(isRefreshing: isRefreshingInstances)
 
         // 更新容器背景
         if let detailContainer = detailTextView?.superview {
-            detailContainer.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
-            detailContainer.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.1).cgColor
+            detailContainer.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
+            detailContainer.layer?.borderColor = DSV2.cardBorder.cgColor
         }
 
         // 重新加载表格以更新 API 卡片
@@ -294,15 +294,17 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     }
 
     private func applyRefreshButtonStyle(isRefreshing: Bool = false) {
-        refreshInstancesButton.layer?.backgroundColor = (isRefreshing ? DSV2.primary.withAlphaComponent(0.18) : DSV2.surfaceContainerHigh).cgColor
-        refreshInstancesButton.layer?.borderColor = (isRefreshing ? DSV2.primary.withAlphaComponent(0.75) : DSV2.outlineVariant.withAlphaComponent(0.35)).cgColor
+        refreshInstancesButton.layer?.backgroundColor = isRefreshing
+            ? DSV2.primary.withAlphaComponent(0.16).cgColor
+            : DSV2.surfaceBright.cgColor
+        refreshInstancesButton.layer?.borderColor = (isRefreshing ? DSV2.primary.withAlphaComponent(0.5) : DSV2.cardBorder).cgColor
         updateRefreshButtonSymbol(isRefreshing ? refreshFrames[refreshFrameIndex] : "↻", isRefreshing: isRefreshing)
     }
 
     private func updateRefreshButtonSymbol(_ symbol: String, isRefreshing: Bool) {
         let attributes: [NSAttributedString.Key: Any] = [
-            .foregroundColor: isRefreshing ? NSColor.white : DSV2.primary,
-            .font: NSFont.systemFont(ofSize: 14, weight: .bold)
+            .foregroundColor: isRefreshing ? DSV2.primary : DSV2.onSurfaceVariant,
+            .font: NSFont.systemFont(ofSize: 14, weight: .semibold)
         ]
         refreshInstancesButton.attributedTitle = NSAttributedString(string: symbol, attributes: attributes)
     }
@@ -379,6 +381,11 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         listScrollView.drawsBackground = false
         listScrollView.borderType = .noBorder
         listScrollView.translatesAutoresizingMaskIntoConstraints = false
+        listScrollView.wantsLayer = true
+        listScrollView.layer?.backgroundColor = DSV2.surface.cgColor
+        listScrollView.layer?.cornerRadius = DSV2.radiusContainer
+        listScrollView.layer?.borderWidth = 1
+        listScrollView.layer?.borderColor = DSV2.cardBorder.cgColor
 
         tableView.intercellSpacing = NSSize(width: 0, height: DSV2.spacing2)
         tableView.allowsEmptySelection = false
@@ -401,16 +408,16 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         instancePopup.bezelStyle = .rounded
         instancePopup.font = DSV2.fontMonoSm
         instancePopup.contentTintColor = DSV2.onSurface
-        instancePopup.appearance = NSAppearance(named: .darkAqua)
+        instancePopup.appearance = NSAppearance(named: .aqua)
         instancePopup.setContentHuggingPriority(.defaultLow, for: .horizontal)
 
         refreshInstancesButton.target = self
         refreshInstancesButton.wantsLayer = true
         refreshInstancesButton.isBordered = false
-        refreshInstancesButton.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
+        refreshInstancesButton.layer?.backgroundColor = DSV2.surfaceBright.cgColor
         refreshInstancesButton.layer?.cornerRadius = DSV2.radiusButton
         refreshInstancesButton.layer?.borderWidth = 1
-        refreshInstancesButton.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.35).cgColor
+        refreshInstancesButton.layer?.borderColor = DSV2.cardBorder.cgColor
         updateRefreshButtonSymbol("↻", isRefreshing: false)
         refreshInstancesButton.translatesAutoresizingMaskIntoConstraints = false
         refreshInstancesButton.widthAnchor.constraint(equalToConstant: 32).isActive = true
@@ -430,18 +437,18 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         detailScrollView.borderType = .noBorder
         detailScrollView.translatesAutoresizingMaskIntoConstraints = false
         detailScrollView.wantsLayer = true
-        detailScrollView.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
-        detailScrollView.layer?.cornerRadius = DSV2.radiusCard
+        detailScrollView.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
+        detailScrollView.layer?.cornerRadius = DSV2.radiusContainer
         detailScrollView.layer?.borderWidth = 1
-        detailScrollView.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.1).cgColor
+        detailScrollView.layer?.borderColor = DSV2.cardBorder.cgColor
         DSV2.applyBrightScroller(to: detailScrollView)
 
         detailTextView = NSTextView()
         detailTextView.isEditable = false
         detailTextView.isSelectable = true
         detailTextView.drawsBackground = false
-        detailTextView.font = DSV2.fontMonoMd
-        detailTextView.textColor = DSV2.tertiary
+        detailTextView.font = DSV2.fontBodyMd
+        detailTextView.textColor = DSV2.onSurface
         detailTextView.textContainerInset = NSSize(width: DSV2.spacing4, height: DSV2.spacing4)
         detailTextView.isVerticallyResizable = true
         detailTextView.isHorizontallyResizable = false
@@ -475,7 +482,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
 
             listScrollView.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: DSV2.spacing6),
             listScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
-            listScrollView.widthAnchor.constraint(equalToConstant: 220),
+            listScrollView.widthAnchor.constraint(equalToConstant: 252),
             listScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6),
 
             // Outer Stack Constraints
@@ -491,7 +498,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         // 设置代理（放到最后，防止在界面完全初始化前触发选择事件导致的 Crash）
         tableView.delegate = self
         tableView.dataSource = self
-        tableView.rowHeight = 68
+        tableView.rowHeight = 84
         tableView.headerView = nil
         tableView.selectionHighlightStyle = .none
         tableView.backgroundColor = .clear
@@ -537,20 +544,17 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     /// 统一卡片样式应用逻辑
     private func applyCardStyle(to cell: NSView, isSelected: Bool) {
         cell.wantsLayer = true
-        cell.layer?.cornerRadius = DSV2.radiusCard
-        
+        cell.layer?.cornerRadius = 0
+        cell.layer?.masksToBounds = true
+
         if isSelected {
-            // 选中状态：4px 显眼蓝框
-            cell.layer?.backgroundColor = DSV2.surfaceContainerHighest.cgColor
-            cell.layer?.borderWidth = 4
-            cell.layer?.borderColor = NSColor.systemBlue.cgColor
-            cell.layer?.masksToBounds = false
+            cell.layer?.backgroundColor = DSV2.softAccentFill.cgColor
+            cell.layer?.borderWidth = 0
+            cell.layer?.borderColor = NSColor.clear.cgColor
         } else {
-            // 未选中状态：还原窄灰边框
-            cell.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
-            cell.layer?.borderWidth = 1.0
-            cell.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
-            cell.layer?.masksToBounds = true
+            cell.layer?.backgroundColor = NSColor.clear.cgColor
+            cell.layer?.borderWidth = 0
+            cell.layer?.borderColor = NSColor.clear.cgColor
         }
     }
 
@@ -577,40 +581,47 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             let nameLabel = PassthroughTextField(labelWithString: "")
             nameLabel.font = DSV2.fontTitleSm
             nameLabel.translatesAutoresizingMaskIntoConstraints = false
-            nameLabel.tag = 101
+            nameLabel.identifier = NSUserInterfaceItemIdentifier("apiNameLabel")
 
             let summaryLabel = PassthroughTextField(wrappingLabelWithString: "")
             summaryLabel.font = DSV2.fontBodySm
             summaryLabel.textColor = DSV2.onSurfaceVariant
             summaryLabel.translatesAutoresizingMaskIntoConstraints = false
-            summaryLabel.tag = 102
+            summaryLabel.identifier = NSUserInterfaceItemIdentifier("apiSummaryLabel")
 
-            let methodLabel = PassthroughTextField(labelWithString: "")
-            methodLabel.font = DSV2.fontLabelSm
-            methodLabel.alignment = .center
-            methodLabel.wantsLayer = true
-            methodLabel.layer?.cornerRadius = DSV2.radiusInput
-            methodLabel.translatesAutoresizingMaskIntoConstraints = false
-            methodLabel.tag = 103
+            let methodBadge = DSV2.makeMethodTag(method: "GET")
+            methodBadge.translatesAutoresizingMaskIntoConstraints = false
+            methodBadge.identifier = NSUserInterfaceItemIdentifier("apiMethodBadge")
+
+            let separator = NSView()
+            separator.wantsLayer = true
+            separator.layer?.backgroundColor = DSV2.cardBorder.withAlphaComponent(0.7).cgColor
+            separator.translatesAutoresizingMaskIntoConstraints = false
+            separator.identifier = NSUserInterfaceItemIdentifier("apiSeparator")
 
             cell?.addSubview(nameLabel)
             cell?.addSubview(summaryLabel)
-            cell?.addSubview(methodLabel)
+            cell?.addSubview(methodBadge)
+            cell?.addSubview(separator)
 
             NSLayoutConstraint.activate([
-                methodLabel.topAnchor.constraint(equalTo: cell!.topAnchor, constant: 10),
-                methodLabel.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 8),
-                methodLabel.widthAnchor.constraint(equalToConstant: 42),
-                methodLabel.heightAnchor.constraint(equalToConstant: 16),
+                methodBadge.topAnchor.constraint(equalTo: cell!.topAnchor, constant: 16),
+                methodBadge.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 16),
 
-                nameLabel.centerYAnchor.constraint(equalTo: methodLabel.centerYAnchor),
-                nameLabel.leadingAnchor.constraint(equalTo: methodLabel.trailingAnchor, constant: 8),
-                nameLabel.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -8),
+                nameLabel.centerYAnchor.constraint(equalTo: methodBadge.centerYAnchor),
+                nameLabel.leadingAnchor.constraint(equalTo: methodBadge.trailingAnchor, constant: 10),
+                nameLabel.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -16),
 
-                summaryLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 4),
-                summaryLabel.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 8),
-                summaryLabel.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -8),
-                summaryLabel.bottomAnchor.constraint(lessThanOrEqualTo: cell!.bottomAnchor, constant: -10)
+                summaryLabel.topAnchor.constraint(equalTo: nameLabel.bottomAnchor, constant: 8),
+                summaryLabel.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 16),
+                summaryLabel.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -16),
+
+                separator.leadingAnchor.constraint(equalTo: cell!.leadingAnchor, constant: 16),
+                separator.trailingAnchor.constraint(equalTo: cell!.trailingAnchor, constant: -16),
+                separator.bottomAnchor.constraint(equalTo: cell!.bottomAnchor),
+                separator.heightAnchor.constraint(equalToConstant: 1),
+
+                summaryLabel.bottomAnchor.constraint(lessThanOrEqualTo: separator.topAnchor, constant: -14)
             ])
         }
 
@@ -620,22 +631,28 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         // 使用统一的样式应用逻辑
         applyCardStyle(to: cell!, isSelected: isSelected)
 
-        if let methodLabel = cell?.viewWithTag(103) as? NSTextField {
-            methodLabel.stringValue = doc.method.uppercased()
-            let color = methodColor(doc.method)
-            methodLabel.textColor = .white
-            methodLabel.backgroundColor = color
-            methodLabel.drawsBackground = true
+        if let methodBadge = cell?.subviews.first(where: { $0.identifier == NSUserInterfaceItemIdentifier("apiMethodBadge") }) as? NSTextField {
+            methodBadge.stringValue = doc.method.uppercased()
+            methodBadge.backgroundColor = isSelected ? DSV2.primaryContainer : DSV2.softAccentFill
+            methodBadge.textColor = isSelected ? DSV2.onPrimaryContainer : DSV2.primary
+            methodBadge.drawsBackground = true
         }
 
-        if let nameLabel = cell?.viewWithTag(101) as? NSTextField {
+        if let nameLabel = cell?.subviews.first(where: { $0.identifier == NSUserInterfaceItemIdentifier("apiNameLabel") }) as? NSTextField {
             nameLabel.stringValue = doc.localizedName
             nameLabel.textColor = isSelected ? DSV2.primary : DSV2.onSurface
         }
 
-        if let summaryLabel = cell?.viewWithTag(102) as? NSTextField {
+        if let summaryLabel = cell?.subviews.first(where: { $0.identifier == NSUserInterfaceItemIdentifier("apiSummaryLabel") }) as? NSTextField {
             summaryLabel.stringValue = doc.localizedSummary
-            summaryLabel.textColor = isSelected ? DSV2.primary.withAlphaComponent(0.8) : DSV2.onSurfaceVariant
+            summaryLabel.textColor = DSV2.onSurfaceVariant
+        }
+
+        if let separator = cell?.subviews.first(where: { $0.identifier == NSUserInterfaceItemIdentifier("apiSeparator") }) {
+            separator.layer?.backgroundColor = isSelected
+                ? DSV2.primary.withAlphaComponent(0.18).cgColor
+                : DSV2.cardBorder.withAlphaComponent(0.7).cgColor
+            separator.isHidden = row == docs.count - 1
         }
 
         return cell
@@ -690,7 +707,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         attrStr.append(NSAttributedString(
             string: "\(doc.localizedName)\n",
             attributes: [
-                .font: NSFont.systemFont(ofSize: 20, weight: .bold),
+                .font: NSFont.systemFont(ofSize: 24, weight: .semibold),
                 .foregroundColor: DSV2.onSurface,
                 .paragraphStyle: titleParagraphStyle
             ]
@@ -701,7 +718,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             string: "\(doc.method) ",
             attributes: [
                 .font: NSFont.monospacedSystemFont(ofSize: 13, weight: .semibold),
-                .foregroundColor: methodColor(doc.method)
+                .foregroundColor: DSV2.primary
             ]
         ))
         attrStr.append(NSAttributedString(
@@ -725,7 +742,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             string: "\(doc.localizedSummary)\n",
             attributes: [
                 .font: NSFont.systemFont(ofSize: 13, weight: .regular),
-                .foregroundColor: DSV2.onSurface,
+                .foregroundColor: DSV2.onSurfaceVariant,
                 .paragraphStyle: bodyParagraphStyle
             ]
         ))
@@ -781,7 +798,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             string: "\(doc.curl)\n",
             attributes: [
                 .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .regular),
-                .foregroundColor: DSV2.tertiary,
+                .foregroundColor: DSV2.onSurface,
                 .paragraphStyle: codeParagraphStyle
             ]
         ))
@@ -799,7 +816,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             string: "\(doc.response)\n",
             attributes: [
                 .font: NSFont.monospacedSystemFont(ofSize: 12, weight: .regular),
-                .foregroundColor: DSV2.tertiary,
+                .foregroundColor: DSV2.onSurface,
                 .paragraphStyle: codeParagraphStyle
             ]
         ))
