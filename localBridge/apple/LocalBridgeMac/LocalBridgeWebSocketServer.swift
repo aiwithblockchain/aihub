@@ -2080,11 +2080,20 @@ class LocalBridgeWebSocketServer {
     private func handleApiDocsHttpRequest(_ connection: NWConnection) {
         var jsonString: String? = nil
 
-        for url in apiDocsCandidateURLs() {
+        print("[LocalBridgeMac] Attempting to load api_docs.json...")
+        let candidates = apiDocsCandidateURLs()
+        print("[LocalBridgeMac] Candidate URLs count: \(candidates.count)")
+
+        for (index, url) in candidates.enumerated() {
+            let exists = FileManager.default.fileExists(atPath: url.path)
+            print("[LocalBridgeMac] [\(index)] Trying: \(url.path) - exists: \(exists)")
+
             if let data = try? Data(contentsOf: url) {
                 jsonString = String(data: data, encoding: .utf8)
-                print("[LocalBridgeMac] Loaded api_docs.json from \(url.path)")
+                print("[LocalBridgeMac] ✓ Successfully loaded api_docs.json from \(url.path)")
                 break
+            } else if exists {
+                print("[LocalBridgeMac] ✗ File exists but failed to read: \(url.path)")
             }
         }
 
@@ -2125,12 +2134,19 @@ class LocalBridgeWebSocketServer {
         let repoRoot = fileManager.homeDirectoryForCurrentUser
             .appendingPathComponent("aiwithblockchain/aihub/localBridge/apple", isDirectory: true)
 
-        return [
+        var candidates: [URL?] = [
             Bundle.main.url(forResource: "api_docs", withExtension: "json"),
             currentDirectory.appendingPathComponent("api_docs.json"),
             currentDirectory.appendingPathComponent("LocalBridgeMac/api_docs.json"),
             repoRoot.appendingPathComponent("LocalBridgeMac/api_docs.json")
-        ].compactMap { $0 }
+        ]
+
+        // Add direct path to Bundle's Resources directory as fallback
+        if let resourcePath = Bundle.main.resourcePath {
+            candidates.append(URL(fileURLWithPath: resourcePath).appendingPathComponent("api_docs.json"))
+        }
+
+        return candidates.compactMap { $0 }
     }
 
     private func aiApiDocsCandidateURLs() -> [URL] {
@@ -2139,11 +2155,18 @@ class LocalBridgeWebSocketServer {
         let repoRoot = fileManager.homeDirectoryForCurrentUser
             .appendingPathComponent("aiwithblockchain/aihub/localBridge/apple", isDirectory: true)
 
-        return [
+        var candidates: [URL?] = [
             Bundle.main.url(forResource: "ai_claw_api_docs", withExtension: "json"),
             currentDirectory.appendingPathComponent("ai_claw_api_docs.json"),
             currentDirectory.appendingPathComponent("LocalBridgeMac/ai_claw_api_docs.json"),
             repoRoot.appendingPathComponent("LocalBridgeMac/ai_claw_api_docs.json")
-        ].compactMap { $0 }
+        ]
+
+        // Add direct path to Bundle's Resources directory as fallback
+        if let resourcePath = Bundle.main.resourcePath {
+            candidates.append(URL(fileURLWithPath: resourcePath).appendingPathComponent("ai_claw_api_docs.json"))
+        }
+
+        return candidates.compactMap { $0 }
     }
 }
