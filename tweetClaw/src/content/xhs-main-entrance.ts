@@ -5,8 +5,8 @@ import { performXhsAction, fetchXhsNote, fetchXhsUser } from '../platforms/xiaoh
  * 小红书内容脚本入口
  * 职责:
  * 1. 注入 xhs-injection.js 到页面上下文
- * 2. 中继 injection → background 的消息
- * 3. 执行写操作(如点赞、收藏等)
+ * 2. 中继 injection → background 的消息（架构保留，暂不处理数据）
+ * 3. 执行远程控制命令
  */
 
 (function inject() {
@@ -22,27 +22,11 @@ window.addEventListener('message', (event) => {
   if (event.data?.source !== 'xhsclaw-injection') return;
 
   if (event.data.type === XHS_MSG_TYPE.SIGNAL_CAPTURED) {
-    const headers = event.data.headers;
-    if (headers?.['x-s']) {
-      chrome.storage.local.set({
-        xhs_xs_sign: headers['x-s'],
-        xhs_xt: headers['x-t'],
-      }).catch(() => {});
-    }
-
-    chrome.runtime.sendMessage({
-      type: 'XHS_CAPTURED_DATA',
-      endpoint: event.data.endpoint,
-      apiUrl: event.data.apiUrl,
-      pageUrl: event.data.pageUrl,
-      method: event.data.method,
-      requestBody: event.data.requestBody,
-      headers: event.data.headers,
-      data: event.data.data,
-      timestamp: event.data.timestamp,
-    });
+    // 架构保留：未来需要时在这里处理拦截的数据
+    // chrome.runtime.sendMessage({ type: 'XHS_CAPTURED_DATA', ...event.data });
   }
 });
+
 
 chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'XHS_PING') {
