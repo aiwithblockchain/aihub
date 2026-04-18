@@ -63,7 +63,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
-  if (message.type === 'XHS_FETCH_USER') {
+  if (message.type === XHS_MSG_TYPE.FETCH_CURRENT_USER) {
     (async () => {
       try {
         const data = await fetchXhsCurrentUser();

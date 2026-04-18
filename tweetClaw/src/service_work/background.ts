@@ -415,7 +415,7 @@ export async function queryXhsAccountInfo() {
     }
 
     const result: any = await chrome.tabs.sendMessage(targetTab.id, {
-        type: 'XHS_FETCH_USER',
+        type: 'XHS_FETCH_CURRENT_USER',
     }).catch((e: any) => {
         throw new Error(`Failed to communicate with content script: ${e?.message}`);
     });
