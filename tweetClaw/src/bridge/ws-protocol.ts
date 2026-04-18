@@ -10,6 +10,10 @@ export type MessageType =
   | 'response.query_x_tabs_status'
   | 'request.query_x_basic_info'
   | 'response.query_x_basic_info'
+  | 'request.query_xhs_account_info'
+  | 'response.query_xhs_account_info'
+  | 'command.query_xhs_account_info'
+  | 'command.query_x_basic_info'
   | 'request.open_tab'
   | 'response.open_tab'
   | 'request.close_tab'
@@ -47,6 +51,9 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_QUERY_X_TABS_STATUS: 'response.query_x_tabs_status',
   REQUEST_QUERY_X_BASIC_INFO: 'request.query_x_basic_info',
   RESPONSE_QUERY_X_BASIC_INFO: 'response.query_x_basic_info',
+  COMMAND_QUERY_XHS_ACCOUNT_INFO: 'command.query_xhs_account_info',
+  RESPONSE_QUERY_XHS_ACCOUNT_INFO: 'response.query_xhs_account_info',
+  COMMAND_QUERY_X_BASIC_INFO: 'command.query_x_basic_info',
   REQUEST_OPEN_TAB: 'request.open_tab',
   RESPONSE_OPEN_TAB: 'response.open_tab',
   REQUEST_CLOSE_TAB: 'request.close_tab',

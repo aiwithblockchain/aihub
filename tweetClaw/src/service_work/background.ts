@@ -77,6 +77,7 @@ function releaseUploadSession(sessionId: string) {
 const localBridge = new LocalBridgeSocket();
 localBridge.queryXTabsHandler = queryXTabsStatus;
 localBridge.queryXBasicInfoHandler = queryXBasicInfo;
+localBridge.queryXhsAccountInfoHandler = queryXhsAccountInfo;
 localBridge.openTabHandler = openXTab;
 localBridge.closeTabHandler = closeXTab;
 localBridge.navigateTabHandler = navigateXTab;
@@ -186,6 +187,21 @@ async function getAuthenticUid(): Promise<string | null> {
                 const decoded = decodeURIComponent(cookie.value);
                 const match = decoded.match(/u=(\d+)/);
                 resolve(match ? match[1] : decoded);
+            } else {
+                resolve(null);
+            }
+        });
+    });
+}
+
+// ── 获取小红书认证用户 ID ──────────────────────────────────────────
+async function getXhsAuthenticUserId(): Promise<string | null> {
+    return new Promise(resolve => {
+        chrome.cookies.get({ url: 'https://www.xiaohongshu.com', name: 'web_session' }, cookie => {
+            if (cookie?.value) {
+                // web_session cookie 格式需要测试确认
+                // 可能的格式: 直接是 user_id，或者需要解析
+                resolve(cookie.value);
             } else {
                 resolve(null);
             }
@@ -397,6 +413,42 @@ export async function queryXBasicInfo() {
 
     // 直接返回推特原始响应，不做任何解析
     return result.raw;
+}
+
+/**
+ * 查询小红书当前登录账号信息
+ */
+export async function queryXhsAccountInfo() {
+    console.log('[TweetClaw-BG] queryXhsAccountInfo called');
+
+    // 1. 获取当前登录用户 ID
+    const userId = await getXhsAuthenticUserId();
+    if (!userId) {
+        throw new Error('Not logged in to Xiaohongshu');
+    }
+
+    // 2. 查询小红书标签页
+    const xhsTabs = await chrome.tabs.query({
+        url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*', '*://*.xiaohongshu.com/*']
+    });
+    const targetTab = xhsTabs.find(t => t.active) || xhsTabs[0];
+    if (!targetTab?.id) {
+        throw new Error('No Xiaohongshu tab found');
+    }
+
+    // 3. 委托 Content Script 调用小红书 API
+    const result: any = await chrome.tabs.sendMessage(targetTab.id, {
+        type: 'XHS_FETCH_USER',
+        user_id: userId,
+    }).catch((e: any) => {
+        throw new Error(`Failed to communicate with content script: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to fetch user info from Xiaohongshu API');
+    }
+
+    return result.data;
 }
 
 /**
