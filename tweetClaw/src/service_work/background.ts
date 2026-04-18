@@ -78,6 +78,7 @@ const localBridge = new LocalBridgeSocket();
 localBridge.queryXTabsHandler = queryXTabsStatus;
 localBridge.queryXBasicInfoHandler = queryXBasicInfo;
 localBridge.queryXhsAccountInfoHandler = queryXhsAccountInfo;
+localBridge.queryXhsHomefeedHandler = queryXhsHomefeed;
 localBridge.openTabHandler = openXTab;
 localBridge.closeTabHandler = closeXTab;
 localBridge.navigateTabHandler = navigateXTab;
@@ -398,6 +399,34 @@ export async function queryXBasicInfo() {
 
     // 直接返回推特原始响应，不做任何解析
     return result.raw;
+}
+
+/**
+ * 查询小红书首页推荐流
+ */
+export async function queryXhsHomefeed(payload: { cursor_score?: string } = {}) {
+    console.log('[TweetClaw-BG] queryXhsHomefeed called');
+
+    const xhsTabs = await chrome.tabs.query({
+        url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*', '*://*.xiaohongshu.com/*']
+    });
+    const targetTab = xhsTabs.find(t => t.active) || xhsTabs[0];
+    if (!targetTab?.id) {
+        throw new Error('No Xiaohongshu tab found');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(targetTab.id, {
+        type: 'XHS_FETCH_HOMEFEED',
+        cursor_score: payload?.cursor_score || '',
+    }).catch((e: any) => {
+        throw new Error(`Failed to communicate with content script: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to fetch Xiaohongshu homefeed');
+    }
+
+    return result.data;
 }
 
 /**

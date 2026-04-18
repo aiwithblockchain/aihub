@@ -1,4 +1,4 @@
-import { XHS_API_ENDPOINTS, XHS_STORAGE_KEYS } from './xhs-consts';
+import { XHS_API_ENDPOINTS, XHS_HEADERS, XHS_STORAGE_KEYS } from './xhs-consts';
 import { XhsAction } from './types';
 
 /**
@@ -7,20 +7,24 @@ import { XhsAction } from './types';
 async function getXhsHeaders(): Promise<Record<string, string>> {
   const stored = await chrome.storage.local.get([
     XHS_STORAGE_KEYS.XS_SIGN,
-    'xhs_xt',
+    XHS_STORAGE_KEYS.XT,
+    XHS_STORAGE_KEYS.XS_COMMON,
   ]);
 
   const headers: Record<string, string> = {
-    'content-type': 'application/json',
-    'referer': 'https://www.xiaohongshu.com/',
-    'accept': 'application/json, text/plain, */*',
+    'content-type': XHS_HEADERS.CONTENT_TYPE,
+    referer: XHS_HEADERS.REFERER,
+    accept: 'application/json, text/plain, */*',
   };
 
   if (stored[XHS_STORAGE_KEYS.XS_SIGN]) {
     headers['x-s'] = String(stored[XHS_STORAGE_KEYS.XS_SIGN]);
   }
-  if (stored.xhs_xt) {
-    headers['x-t'] = String(stored.xhs_xt);
+  if (stored[XHS_STORAGE_KEYS.XT]) {
+    headers['x-t'] = String(stored[XHS_STORAGE_KEYS.XT]);
+  }
+  if (stored[XHS_STORAGE_KEYS.XS_COMMON]) {
+    headers['x-s-common'] = String(stored[XHS_STORAGE_KEYS.XS_COMMON]);
   }
 
   return headers;
@@ -164,6 +168,41 @@ export async function fetchXhsNote(noteId: string): Promise<any> {
 
   if (!response.ok) {
     throw new Error(`Failed to fetch note: ${response.status}`);
+  }
+
+  return response.json();
+}
+
+/**
+ * 获取首页推荐流
+ */
+export async function fetchXhsHomefeed(cursorScore: string = ''): Promise<any> {
+  const url = `https://edith.xiaohongshu.com${XHS_API_ENDPOINTS.HOMEFEED}`;
+  const headers = await getXhsHeaders();
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({
+      cursor_score: cursorScore,
+      num: 35,
+      refresh_type: 1,
+      note_index: 35,
+      unread_begin_note_id: '',
+      unread_end_note_id: '',
+      unread_note_count: 0,
+      category: 'homefeed_recommend',
+      search_key: '',
+      need_num: 10,
+      image_formats: ['jpg', 'webp', 'avif'],
+      need_filter_image: false,
+    }),
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to fetch homefeed: ${response.status} ${text}`);
   }
 
   return response.json();

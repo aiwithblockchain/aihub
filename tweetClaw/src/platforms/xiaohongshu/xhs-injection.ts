@@ -87,6 +87,7 @@ function postSignal(
     headers: {
       'x-s': headers?.['x-s'] || null,
       'x-t': headers?.['x-t'] || null,
+      'x-s-common': headers?.['x-s-common'] || null,
     },
     data,
     timestamp: Date.now(),
@@ -123,11 +124,12 @@ const originalXHRSend = XMLHttpRequest.prototype.send;
 const originalXHRSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
 
 XMLHttpRequest.prototype.setRequestHeader = function(name: string, value: string) {
-  if (name.toLowerCase() === 'x-s' || name.toLowerCase() === 'x-t') {
+  const normalizedName = name.toLowerCase();
+  if (normalizedName === 'x-s' || normalizedName === 'x-t' || normalizedName === 'x-s-common') {
     if (!(this as any).__xhs_request_headers) {
       (this as any).__xhs_request_headers = {};
     }
-    (this as any).__xhs_request_headers[name.toLowerCase()] = value;
+    (this as any).__xhs_request_headers[normalizedName] = value;
   }
   return originalXHRSetRequestHeader.apply(this, [name, value]);
 };

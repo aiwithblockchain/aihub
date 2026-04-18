@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "TweetClaw",
-  "version": "0.6.7",
+  "version": "0.6.9",
   "description": "Bridges X (Twitter) and Xiaohongshu browser sessions to local apps via WebSocket. Requires local server for full functionality.",
   "background": {
     "service_worker": "js/background.js"

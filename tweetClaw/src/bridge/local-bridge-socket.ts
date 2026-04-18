@@ -15,6 +15,7 @@ export class LocalBridgeSocket {
   public queryXTabsHandler: (() => Promise<any>) | null = null;
   public queryXBasicInfoHandler: (() => Promise<any>) | null = null;
   public queryXhsAccountInfoHandler: (() => Promise<any>) | null = null;
+  public queryXhsHomefeedHandler: ((payload: any) => Promise<any>) | null = null;
   public openTabHandler: ((payload: any) => Promise<any>) | null = null;
   public closeTabHandler: ((payload: any) => Promise<any>) | null = null;
   public navigateTabHandler: ((payload: any) => Promise<any>) | null = null;
@@ -168,7 +169,7 @@ export class LocalBridgeSocket {
         clientName: 'tweetClaw',
         clientVersion: __EXTENSION_VERSION__,
         browser: 'chrome',
-        capabilities: ['query_x_tabs_status', 'query_x_basic_info', 'query_xhs_account_info'],
+        capabilities: ['query_x_tabs_status', 'query_x_basic_info', 'query_xhs_account_info', 'query_xhs_homefeed'],
         instanceId: this.instanceId || undefined,
         instanceName: this.instanceName || undefined,
         incognito: chrome.extension.inIncognitoContext
@@ -202,6 +203,9 @@ export class LocalBridgeSocket {
           break;
         case MESSAGE_TYPES.COMMAND_QUERY_XHS_ACCOUNT_INFO:
           this.handleQueryXhsAccountInfo(msg);
+          break;
+        case MESSAGE_TYPES.COMMAND_QUERY_XHS_HOMEFEED:
+          this.handleQueryXhsHomefeed(msg);
           break;
         case MESSAGE_TYPES.COMMAND_QUERY_X_BASIC_INFO:
           this.handleQueryXBasicInfo(msg);
@@ -277,6 +281,41 @@ export class LocalBridgeSocket {
         this.send(resp);
     } catch (e) {
         // Send an error response
+        const errResp: BaseMessage = {
+            id: req.id,
+            type: MESSAGE_TYPES.RESPONSE_ERROR,
+            source: 'tweetClaw',
+            target: 'LocalBridgeMac',
+            timestamp: Date.now(),
+            payload: {
+                code: 'INTERNAL_ERROR',
+                message: e instanceof Error ? e.message : String(e),
+                details: null
+            }
+        };
+        this.send(errResp);
+    }
+  }
+
+  private async handleQueryXhsHomefeed(req: BaseMessage) {
+    console.log('[tweetClaw] handling command.query_xhs_homefeed');
+    if (!this.queryXhsHomefeedHandler) {
+        console.error('[tweetClaw] no handler for query_xhs_homefeed');
+        return;
+    }
+
+    try {
+        const result = await this.queryXhsHomefeedHandler(req.payload);
+        const resp: BaseMessage = {
+            id: req.id,
+            type: MESSAGE_TYPES.RESPONSE_QUERY_XHS_HOMEFEED,
+            source: 'tweetClaw',
+            target: 'LocalBridgeMac',
+            timestamp: Date.now(),
+            payload: result
+        };
+        this.send(resp);
+    } catch (e) {
         const errResp: BaseMessage = {
             id: req.id,
             type: MESSAGE_TYPES.RESPONSE_ERROR,

@@ -1,5 +1,5 @@
 import { XHS_MSG_TYPE } from '../platforms/xiaohongshu/xhs-consts';
-import { performXhsAction, fetchXhsNote, fetchXhsCurrentUser } from '../platforms/xiaohongshu/xhs-api';
+import { performXhsAction, fetchXhsNote, fetchXhsCurrentUser, fetchXhsHomefeed } from '../platforms/xiaohongshu/xhs-api';
 
 /**
  * 小红书内容脚本入口
@@ -55,6 +55,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (async () => {
       try {
         const data = await fetchXhsNote(message.note_id);
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === XHS_MSG_TYPE.FETCH_HOMEFEED) {
+    (async () => {
+      try {
+        const data = await fetchXhsHomefeed(String(message.cursor_score || ''));
         sendResponse({ success: true, data });
       } catch (e: any) {
         sendResponse({ success: false, error: e.message });
