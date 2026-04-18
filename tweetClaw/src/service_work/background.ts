@@ -194,21 +194,6 @@ async function getAuthenticUid(): Promise<string | null> {
     });
 }
 
-// ── 获取小红书认证用户 ID ──────────────────────────────────────────
-async function getXhsAuthenticUserId(): Promise<string | null> {
-    return new Promise(resolve => {
-        chrome.cookies.get({ url: 'https://www.xiaohongshu.com', name: 'web_session' }, cookie => {
-            if (cookie?.value) {
-                // web_session cookie 格式需要测试确认
-                // 可能的格式: 直接是 user_id，或者需要解析
-                resolve(cookie.value);
-            } else {
-                resolve(null);
-            }
-        });
-    });
-}
-
 // ── 自动收割 QueryID 和 Bearer Token ──────────────────────────────
 async function harvestQueryId(op: string, apiUrl: string) {
     if (!apiUrl) return;
@@ -421,13 +406,6 @@ export async function queryXBasicInfo() {
 export async function queryXhsAccountInfo() {
     console.log('[TweetClaw-BG] queryXhsAccountInfo called');
 
-    // 1. 获取当前登录用户 ID
-    const userId = await getXhsAuthenticUserId();
-    if (!userId) {
-        throw new Error('Not logged in to Xiaohongshu');
-    }
-
-    // 2. 查询小红书标签页
     const xhsTabs = await chrome.tabs.query({
         url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*', '*://*.xiaohongshu.com/*']
     });
@@ -436,16 +414,14 @@ export async function queryXhsAccountInfo() {
         throw new Error('No Xiaohongshu tab found');
     }
 
-    // 3. 委托 Content Script 调用小红书 API
     const result: any = await chrome.tabs.sendMessage(targetTab.id, {
         type: 'XHS_FETCH_USER',
-        user_id: userId,
     }).catch((e: any) => {
         throw new Error(`Failed to communicate with content script: ${e?.message}`);
     });
 
     if (!result?.success) {
-        throw new Error(result?.error || 'Failed to fetch user info from Xiaohongshu API');
+        throw new Error(result?.error || 'Failed to fetch current user info from Xiaohongshu API');
     }
 
     return result.data;

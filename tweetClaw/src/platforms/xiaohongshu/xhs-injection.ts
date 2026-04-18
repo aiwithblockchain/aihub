@@ -8,6 +8,50 @@ const TAG = '🛡️ [XhsClaw-Page]';
  * 未来可通过修改 isXhsApiUrl 和 postSignal 快速启用数据拦截
  */
 
+// 监听来自 content script 的请求
+window.addEventListener('message', (event) => {
+  if (event.data?.source !== 'xhsclaw-content') return;
+
+  if (event.data.type === 'GET_ACCOUNT_INFO') {
+    handleGetAccountInfo(event.data.requestId);
+  }
+});
+
+async function handleGetAccountInfo(requestId: string) {
+  try {
+    const response = await fetch('https://edith.xiaohongshu.com/api/sns/web/v2/user/me', {
+      method: 'GET',
+      headers: {
+        'accept': 'application/json, text/plain, */*',
+      },
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      throw new Error(`API error: ${response.status}`);
+    }
+
+    const data = await response.json();
+
+    // 返回结果给 content script
+    window.postMessage({
+      source: 'xhsclaw-injection',
+      type: 'ACCOUNT_INFO_RESPONSE',
+      requestId,
+      success: true,
+      data,
+    }, '*');
+  } catch (error: any) {
+    window.postMessage({
+      source: 'xhsclaw-injection',
+      type: 'ACCOUNT_INFO_RESPONSE',
+      requestId,
+      success: false,
+      error: error.message,
+    }, '*');
+  }
+}
+
 function isXhsApiUrl(url: string): string | null {
   // 暂时不拦截任何 API
   // 未来需要时，取消注释以下代码：

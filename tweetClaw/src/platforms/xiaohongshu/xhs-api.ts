@@ -27,6 +27,15 @@ async function getXhsHeaders(): Promise<Record<string, string>> {
 }
 
 /**
+ * 获取无需 body 的小红书请求头
+ */
+async function getXhsGetHeaders(): Promise<Record<string, string>> {
+  const headers = await getXhsHeaders();
+  delete headers['content-type'];
+  return headers;
+}
+
+/**
  * 获取 API 端点
  */
 function getXhsEndpoint(action: XhsAction): string {
@@ -145,7 +154,7 @@ function buildRequestBody(
  */
 export async function fetchXhsNote(noteId: string): Promise<any> {
   const url = `https://edith.xiaohongshu.com${XHS_API_ENDPOINTS.NOTE_DETAIL}${noteId}`;
-  const headers = await getXhsHeaders();
+  const headers = await getXhsGetHeaders();
 
   const response = await fetch(url, {
     method: 'GET',
@@ -161,21 +170,21 @@ export async function fetchXhsNote(noteId: string): Promise<any> {
 }
 
 /**
- * 获取用户资料
+ * 获取当前登录账号资料
  */
-export async function fetchXhsUser(userId: string): Promise<any> {
-  const url = `https://edith.xiaohongshu.com${XHS_API_ENDPOINTS.USER_INFO}`;
-  const headers = await getXhsHeaders();
+export async function fetchXhsCurrentUser(): Promise<any> {
+  const url = 'https://edith.xiaohongshu.com/api/sns/web/v2/user/me';
+  const headers = await getXhsGetHeaders();
 
   const response = await fetch(url, {
-    method: 'POST',
+    method: 'GET',
     headers,
-    body: JSON.stringify({ user_id: userId }),
     credentials: 'include',
   });
 
   if (!response.ok) {
-    throw new Error(`Failed to fetch user: ${response.status}`);
+    const text = await response.text();
+    throw new Error(`Failed to fetch current user: ${response.status} ${text}`);
   }
 
   return response.json();

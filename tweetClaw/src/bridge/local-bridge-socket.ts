@@ -166,9 +166,9 @@ export class LocalBridgeSocket {
         protocolName: PROTOCOL_NAME,
         protocolVersion: PROTOCOL_VERSION,
         clientName: 'tweetClaw',
-        clientVersion: '0.3.17',
+        clientVersion: __EXTENSION_VERSION__,
         browser: 'chrome',
-        capabilities: ['query_x_tabs_status', 'query_x_basic_info'],
+        capabilities: ['query_x_tabs_status', 'query_x_basic_info', 'query_xhs_account_info'],
         instanceId: this.instanceId || undefined,
         instanceName: this.instanceName || undefined,
         incognito: chrome.extension.inIncognitoContext

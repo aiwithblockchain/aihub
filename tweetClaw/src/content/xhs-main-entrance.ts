@@ -1,5 +1,5 @@
 import { XHS_MSG_TYPE } from '../platforms/xiaohongshu/xhs-consts';
-import { performXhsAction, fetchXhsNote, fetchXhsUser } from '../platforms/xiaohongshu/xhs-api';
+import { performXhsAction, fetchXhsNote, fetchXhsCurrentUser } from '../platforms/xiaohongshu/xhs-api';
 
 /**
  * 小红书内容脚本入口
@@ -66,7 +66,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
   if (message.type === 'XHS_FETCH_USER') {
     (async () => {
       try {
-        const data = await fetchXhsUser(message.user_id);
+        const data = await fetchXhsCurrentUser();
         sendResponse({ success: true, data });
       } catch (e: any) {
         sendResponse({ success: false, error: e.message });

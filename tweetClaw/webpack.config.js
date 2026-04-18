@@ -1,4 +1,6 @@
 const path = require('path');
+const webpack = require('webpack');
+const { version } = require('./package.json');
 
 module.exports = (env, argv) => {
     const mode = argv.mode || 'development';
@@ -38,5 +40,10 @@ module.exports = (env, argv) => {
                 process: false,
             }
         },
+        plugins: [
+            new webpack.DefinePlugin({
+                __EXTENSION_VERSION__: JSON.stringify(version),
+            }),
+        ],
     };
 };
