@@ -53,17 +53,63 @@ async function handleGetAccountInfo(requestId: string) {
 }
 
 function isXhsApiUrl(url: string): string | null {
-  // 暂时不拦截任何 API
-  // 未来需要时，取消注释以下代码：
-  /*
-  const endpoints = Object.values(XHS_API_ENDPOINTS);
+  const endpoints = [XHS_API_ENDPOINTS.HOMEFEED];
   for (const endpoint of endpoints) {
     if (url.includes(endpoint)) {
       return endpoint;
     }
   }
-  */
   return null;
+}
+
+function normalizeHeaders(headersLike: any): Record<string, string> {
+  const normalized: Record<string, string> = {};
+  if (!headersLike) return normalized;
+
+  try {
+    if (typeof Headers !== 'undefined' && headersLike instanceof Headers) {
+      headersLike.forEach((value, key) => {
+        normalized[String(key).toLowerCase()] = String(value);
+      });
+      return normalized;
+    }
+
+    if (Array.isArray(headersLike)) {
+      for (const entry of headersLike) {
+        if (Array.isArray(entry) && entry.length >= 2) {
+          normalized[String(entry[0]).toLowerCase()] = String(entry[1]);
+        }
+      }
+      return normalized;
+    }
+
+    if (typeof headersLike.entries === 'function') {
+      for (const [key, value] of headersLike.entries()) {
+        normalized[String(key).toLowerCase()] = String(value);
+      }
+      return normalized;
+    }
+
+    for (const [key, value] of Object.entries(headersLike)) {
+      normalized[String(key).toLowerCase()] = String(value as any);
+    }
+  } catch (error) {
+    normalized.__normalize_error = error instanceof Error ? error.message : String(error);
+  }
+
+  return normalized;
+}
+
+function buildDebugHeaders(headers?: Record<string, string>) {
+  return {
+    'x-s': headers?.['x-s'] || null,
+    'x-t': headers?.['x-t'] || null,
+    'x-s-common': headers?.['x-s-common'] || null,
+    'x-rap-param': headers?.['x-rap-param'] || null,
+    'x-b3-traceid': headers?.['x-b3-traceid'] || null,
+    'x-xray-traceid': headers?.['x-xray-traceid'] || null,
+    'xy-direction': headers?.['xy-direction'] || null,
+  };
 }
 
 function postSignal(
@@ -72,11 +118,10 @@ function postSignal(
   data: any,
   method: string = 'GET',
   requestBody?: any,
-  headers?: Record<string, string>
+  headers?: Record<string, string>,
+  debugMeta?: Record<string, any>
 ) {
-  // 数据拦截后的处理逻辑
-  // 未来需要时在这里实现数据转发
-  window.postMessage({
+  const payload = {
     source: 'xhsclaw-injection',
     type: XHS_MSG_TYPE.SIGNAL_CAPTURED,
     endpoint,
@@ -84,32 +129,61 @@ function postSignal(
     pageUrl: window.location.href,
     method,
     requestBody,
-    headers: {
-      'x-s': headers?.['x-s'] || null,
-      'x-t': headers?.['x-t'] || null,
-      'x-s-common': headers?.['x-s-common'] || null,
-    },
+    headers: buildDebugHeaders(headers),
+    debugMeta: debugMeta || null,
     data,
     timestamp: Date.now(),
-  }, '*');
+  };
+
+  if ((window as any).__XHS_CLAW_DEBUG__) {
+    console.log(`${TAG} HOMEFEED_CAPTURE ${JSON.stringify(payload)}`);
+  }
+
+  // 数据拦截后的处理逻辑
+  // 未来需要时在这里实现数据转发
+  window.postMessage(payload, '*');
 }
 
 // Fetch 拦截架构
 const originalFetch = window.fetch;
 window.fetch = function(...args: any[]): Promise<Response> {
-  const url = typeof args[0] === 'string' ? args[0] : args[0]?.url;
+  const requestInput = args[0];
+  const requestInit = args[1];
+  const url = typeof requestInput === 'string' ? requestInput : requestInput?.url;
   const endpoint = isXhsApiUrl(url);
 
   if (endpoint) {
-    const options = args[1] || {};
-    const method = options.method || 'GET';
-    const requestBody = options.body ? JSON.parse(options.body) : undefined;
-    const headers = options.headers || {};
+    const requestHeaders = typeof Request !== 'undefined' && requestInput instanceof Request
+      ? normalizeHeaders(requestInput.headers)
+      : {};
+    const initHeaders = normalizeHeaders(requestInit?.headers);
+    const mergedHeaders = {
+      ...requestHeaders,
+      ...initHeaders,
+    };
+
+    let requestBody: any = undefined;
+    try {
+      if (requestInit?.body) {
+        requestBody = JSON.parse(requestInit.body);
+      }
+    } catch (error) {
+      requestBody = { __raw: String(requestInit?.body) };
+    }
+
+    const debugMeta = {
+      requestInputType: requestInput?.constructor?.name || typeof requestInput,
+      usedRequestObject: typeof Request !== 'undefined' && requestInput instanceof Request,
+      requestObjectHeaders: buildDebugHeaders(requestHeaders),
+      initHeaders: buildDebugHeaders(initHeaders),
+      mergedHeaderKeys: Object.keys(mergedHeaders).sort(),
+      hasRequestInit: Boolean(requestInit),
+    };
 
     return originalFetch.apply(this, args).then(response => {
       const clonedResponse = response.clone();
       clonedResponse.json().then(data => {
-        postSignal(endpoint, url, data, method, requestBody, headers);
+        postSignal(endpoint, url, data, requestInit?.method || requestInput?.method || 'GET', requestBody, mergedHeaders, debugMeta);
       }).catch(() => {});
       return response;
     });
@@ -125,7 +199,15 @@ const originalXHRSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
 
 XMLHttpRequest.prototype.setRequestHeader = function(name: string, value: string) {
   const normalizedName = name.toLowerCase();
-  if (normalizedName === 'x-s' || normalizedName === 'x-t' || normalizedName === 'x-s-common') {
+  if (
+    normalizedName === 'x-s' ||
+    normalizedName === 'x-t' ||
+    normalizedName === 'x-s-common' ||
+    normalizedName === 'x-rap-param' ||
+    normalizedName === 'x-b3-traceid' ||
+    normalizedName === 'x-xray-traceid' ||
+    normalizedName === 'xy-direction'
+  ) {
     if (!(this as any).__xhs_request_headers) {
       (this as any).__xhs_request_headers = {};
     }

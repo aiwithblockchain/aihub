@@ -13,6 +13,26 @@
 
 ---
 
+## 当前实现状态（已验证成功）
+
+已通过真实页面抓包 + MockLocalBridge 端到端验证：
+
+- `command.query_xhs_account_info` 成功
+- `command.query_xhs_homefeed` 首页首屏成功
+- `command.query_xhs_homefeed` 第二页成功
+- `tweetClaw/2.log` 中已出现连续两次 `response.query_xhs_homefeed` 且 `code = 0`
+
+当前最终方案不是 inject 主动发 homefeed 请求，而是：
+
+1. 页面真实 homefeed 请求自然发生
+2. inject 只负责被动捕获真实请求中的关键动态头与请求模板
+3. content script 将这些动态值持久化到 `chrome.storage.local`
+4. websocket 主动查询时，由 content script 使用最近一次捕获到的真实动态参数发起请求
+
+这条链路已经被验证可用。
+
+---
+
 ## 已确认的真实接口
 
 根据抓包，首页推荐流真实接口为：
@@ -21,13 +41,44 @@
 POST https://edith.xiaohongshu.com/api/sns/web/v1/homefeed
 ```
 
-请求示例：
+此外还存在一个相关但不同的接口：
+
+```http
+GET https://edith.xiaohongshu.com/api/sns/web/v1/homefeed/category
+```
+
+该接口只用于频道/分类信息，不应与首页内容流请求混淆。
+
+---
+
+## 已验证成功的真实请求模板
+
+### 首屏请求模板
 
 ```json
 {
   "cursor_score": "",
   "num": 35,
   "refresh_type": 1,
+  "note_index": 0,
+  "unread_begin_note_id": "",
+  "unread_end_note_id": "",
+  "unread_note_count": 0,
+  "category": "homefeed_recommend",
+  "search_key": "",
+  "need_num": 10,
+  "image_formats": ["jpg", "webp", "avif"],
+  "need_filter_image": false
+}
+```
+
+### 翻页请求模板
+
+```json
+{
+  "cursor_score": "<上一页返回的 cursor_score>",
+  "num": 35,
+  "refresh_type": 3,
   "note_index": 35,
   "unread_begin_note_id": "",
   "unread_end_note_id": "",
@@ -40,13 +91,13 @@ POST https://edith.xiaohongshu.com/api/sns/web/v1/homefeed
 }
 ```
 
-响应关键字段：
+### 响应关键字段
 
 ```json
 {
   "code": 0,
   "data": {
-    "cursor_score": "1.7764983969650025E9",
+    "cursor_score": "1.7765702079650025E9",
     "items": [ ... ]
   }
 }
@@ -59,13 +110,84 @@ POST https://edith.xiaohongshu.com/api/sns/web/v1/homefeed
 
 ---
 
-## 设计原则
+## 关键动态头策略（最终结论）
 
-1. **只做主动读取，不做被动上报**
-2. **以真实抓包接口为准，不猜 API**
-3. **先透传原始返回，再考虑二次抽取结构**
-4. **保持现有 content 调用链路一致**
-5. **保留后续升级到 inject/页面签名链路的空间**
+### 必须来自页面真实请求捕获，不允许硬编码默认值
+
+以下字段属于高动态值：
+
+- `x-s`
+- `x-t`
+- `x-s-common`
+- `x-rap-param`
+
+结论：
+
+- 这些值不能像 Twitter GraphQL 的 queryId 一样写死在代码里长期使用
+- 必须来自页面真实请求的最新捕获值
+- 如果缺失，应直接报错并提示用户刷新小红书首页，而不是继续发起高风险请求
+
+### 可使用最近一次捕获值的字段
+
+- `x-b3-traceid`
+- `x-xray-traceid`
+
+### 可提供稳定默认值，同时允许页面覆盖的字段
+
+- `xy-direction`
+  - 当前已验证的稳定值为：`98`
+
+---
+
+## 设计原则（修正版）
+
+1. **主动读取依赖页面真实动态参数，不直接猜测签名头**
+2. **inject 负责被动采集，不负责主动裸 fetch homefeed**
+3. **content script 可以执行主动请求，但前提是先拿到页面真实动态头与模板**
+4. **以真实抓包接口和真实成功请求模板为准，不猜 API**
+5. **先透传原始返回，再考虑二次抽取结构**
+6. **动态头按风险分级管理，不把所有字段都按 Twitter queryId 处理**
+
+---
+
+## 当前扩展内部实现
+
+### inject（页面注入脚本）
+
+职责：
+
+- 监听真实页面发出的 homefeed 请求
+- 被动捕获关键头：
+  - `x-s`
+  - `x-t`
+  - `x-s-common`
+  - `x-rap-param`
+  - `x-b3-traceid`
+  - `x-xray-traceid`
+  - `xy-direction`
+- 捕获请求模板：
+  - `num`
+  - `need_num`
+  - `refresh_type`
+  - `note_index`
+  - `image_formats`
+  - `need_filter_image`
+  - `category`
+  - `search_key`
+
+### content script
+
+职责：
+
+- 接收 inject 捕获结果
+- 将关键动态头和模板写入 `chrome.storage.local`
+- 在收到 `XHS_FETCH_HOMEFEED` 后执行主动请求
+
+### 主动请求策略
+
+- 发请求前先检查高动态头是否齐全
+- 若缺失，则直接抛错：提示先刷新小红书首页
+- 若齐全，则按真实模板发起请求
 
 ---
 
@@ -121,143 +243,57 @@ POST https://edith.xiaohongshu.com/api/sns/web/v1/homefeed
 
 ---
 
-## 扩展内部消息设计
+## 当前代码修改结果摘要
 
-建议新增内部消息：
+### `src/platforms/xiaohongshu/xhs-injection.ts`
 
-```ts
-XHS_FETCH_HOMEFEED
-```
+- 启用了对真实 `HOMEFEED` 请求的被动拦截能力
+- 仅做观察/采集，不做 inject 主动发请求
+- 调试日志现已受 `window.__XHS_CLAW_DEBUG__` 控制，默认不输出大量 JSON
 
-content script 收到后调用：
+### `src/content/xhs-main-entrance.ts`
 
-```ts
-fetchXhsHomefeed(cursorScore)
-```
+- 捕获真实 `POST /api/sns/web/v1/homefeed` 的关键动态头与模板
+- 写入本地 `chrome.storage.local`
 
----
+### `src/platforms/xiaohongshu/xhs-api.ts`
 
-## 代码修改计划
-
-### 1. `src/platforms/xiaohongshu/xhs-consts.ts`
-
-新增或修正：
-
-- 新增 `HOMEFEED: '/api/sns/web/v1/homefeed'`
-- 新增 `FETCH_HOMEFEED: 'XHS_FETCH_HOMEFEED'`
-
-说明：
-- 当前已有 `FEED: '/api/sns/web/v1/feed'`
-- 但抓包确认真实首页推荐流应使用 `/api/sns/web/v1/homefeed`
-- 先保留原常量，避免误伤其他逻辑；新增 `HOMEFEED` 更安全
+- 请求头已扩展为完整关键集合
+- 高动态头缺失时直接报错
+- `xy-direction` 提供稳定默认值 `98`
+- 首屏 / 翻页 body 已按真实成功模板对齐
 
 ---
 
-### 2. `src/platforms/xiaohongshu/xhs-api.ts`
+## 关键教训
 
-新增函数：
+### 1. 问题根因不是“content 环境不能发请求”
 
-```ts
-fetchXhsHomefeed(cursorScore?: string)
-```
+真正根因是：
 
-行为：
+- content 如果没有页面真实生成的动态头，就会 406
+- content 如果先拿到页面真实动态头与模板，是可以成功请求的
 
-- POST 到 `/api/sns/web/v1/homefeed`
-- 复用当前 XHS headers（含 `x-s` / `x-t`）
-- 请求体中：
-  - `cursor_score` 为空时表示首页首批
-  - 非空时表示翻页
+### 2. inject 主动裸 fetch 不是正确解法
 
-初版先按抓包固定以下参数：
+已验证：
 
-```json
-{
-  "cursor_score": cursorScore || "",
-  "num": 35,
-  "refresh_type": 1,
-  "note_index": 35,
-  "unread_begin_note_id": "",
-  "unread_end_note_id": "",
-  "unread_note_count": 0,
-  "category": "homefeed_recommend",
-  "search_key": "",
-  "need_num": 10,
-  "image_formats": ["jpg", "webp", "avif"],
-  "need_filter_image": false
-}
-```
+- 单纯把请求搬到 inject/page 环境执行，并不会自动获得全部动态头
+- 真正有效的是“复用真实页面请求链路生成出来的动态参数”
 
-初版先直接返回原始 JSON。
+### 3. XHS 动态头不能等同于 Twitter GraphQL queryId
+
+- queryId 更像接口版本标识，可默认内置并随页面变化更新
+- XHS 的 `x-s / x-t / x-s-common / x-rap-param` 明显更动态，不能硬编码长期使用
 
 ---
 
-### 3. `src/content/xhs-main-entrance.ts`
+## 后续建议
 
-新增分支：
-
-- 监听 `XHS_FETCH_HOMEFEED`
-- 调用 `fetchXhsHomefeed(message.cursor_score)`
-- 将原始响应通过 `sendResponse` 返回
-
----
-
-### 4. `src/service_work/background.ts`
-
-新增 handler：
-
-```ts
-queryXhsHomefeed(payload)
-```
-
-行为：
-
-- 查找当前小红书 tab
-- `chrome.tabs.sendMessage()` 给 content script
-- 发送：
-
-```ts
-{
-  type: 'XHS_FETCH_HOMEFEED',
-  cursor_score: payload?.cursor_score || ''
-}
-```
-
-- 成功时返回原始 feed 数据
-- 失败时抛出统一错误
-
-并将 handler 注册到 LocalBridge socket。
-
----
-
-### 5. `src/bridge/ws-protocol.ts`
-
-新增协议类型：
-
-- `command.query_xhs_homefeed`
-- `response.query_xhs_homefeed`
-
-新增请求 payload 类型，例如：
-
-```ts
-export interface QueryXhsHomefeedRequestPayload {
-  cursor_score?: string;
-}
-```
-
----
-
-### 6. `src/bridge/local-bridge-socket.ts`
-
-新增：
-
-- `queryXhsHomefeedHandler`
-- switch case 处理 `command.query_xhs_homefeed`
-- `handleQueryXhsHomefeed(req)`
-
-响应结构仿照：
-
-- `handleQueryXBasicInfo`
+1. 若继续稳定化，可增加动态头过期检测（例如基于 `captured_at`）
+2. 若后续希望统一架构，可单独评估“inject 执行版本”，但不要回到裸 fetch 方案
+3. 若功能已稳定，可继续收敛调试日志，避免控制台噪声
+4. 可将这一成功策略推广到其它 XHS 高风控接口
 - `handleQueryXhsAccountInfo`
 
 ---

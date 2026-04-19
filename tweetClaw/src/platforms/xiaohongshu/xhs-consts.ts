@@ -26,6 +26,11 @@ export const XHS_STORAGE_KEYS = {
   XS_SIGN: 'xhs_xs_sign',
   XT: 'xhs_xt',
   XS_COMMON: 'xhs_xs_common',
+  RAP_PARAM: 'xhs_x_rap_param',
+  B3_TRACEID: 'xhs_x_b3_traceid',
+  XRAY_TRACEID: 'xhs_x_xray_traceid',
+  XY_DIRECTION: 'xhs_xy_direction',
+  HOMEFEED_TEMPLATE: 'xhs_homefeed_template',
 } as const;
 
 export const XHS_HEADERS = {

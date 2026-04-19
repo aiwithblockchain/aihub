@@ -22,6 +22,41 @@ window.addEventListener('message', (event) => {
   if (event.data?.source !== 'xhsclaw-injection') return;
 
   if (event.data.type === XHS_MSG_TYPE.SIGNAL_CAPTURED) {
+    const endpoint = String(event.data.endpoint || '');
+    const method = String(event.data.method || '').toUpperCase();
+
+    if (endpoint === '/api/sns/web/v1/homefeed' && method === 'POST') {
+      const headers = event.data.headers || {};
+      const requestBody = event.data.requestBody || {};
+
+      chrome.storage.local.set({
+        xhs_xs_sign: headers['x-s'] || null,
+        xhs_xt: headers['x-t'] || null,
+        xhs_xs_common: headers['x-s-common'] || null,
+        xhs_x_rap_param: headers['x-rap-param'] || null,
+        xhs_x_b3_traceid: headers['x-b3-traceid'] || null,
+        xhs_x_xray_traceid: headers['x-xray-traceid'] || null,
+        xhs_xy_direction: headers['xy-direction'] ?? null,
+        xhs_homefeed_template: {
+          num: requestBody.num,
+          note_index: requestBody.note_index,
+          need_num: requestBody.need_num,
+          image_formats: requestBody.image_formats,
+          need_filter_image: requestBody.need_filter_image,
+          category: requestBody.category,
+          search_key: requestBody.search_key,
+          unread_begin_note_id: requestBody.unread_begin_note_id,
+          unread_end_note_id: requestBody.unread_end_note_id,
+          unread_note_count: requestBody.unread_note_count,
+          refresh_type: requestBody.refresh_type,
+          captured_at: Date.now(),
+          captured_from_url: window.location.href,
+          captured_method: method,
+          captured_endpoint: endpoint,
+        },
+      }).catch(() => {});
+    }
+
     // 架构保留：未来需要时在这里处理拦截的数据
     // chrome.runtime.sendMessage({ type: 'XHS_CAPTURED_DATA', ...event.data });
   }
