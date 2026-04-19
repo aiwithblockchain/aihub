@@ -27,6 +27,11 @@ class MockLocalBridge:
         with open(self.log_file, 'a', encoding='utf-8') as f:
             f.write(message + '\n')
 
+    def clear_log(self):
+        """Clear log file at start"""
+        with open(self.log_file, 'w', encoding='utf-8') as f:
+            f.write('')
+
     async def maybe_send_homefeed_second_page(self, websocket, data):
         if self.sent_second_page:
             return
@@ -208,6 +213,7 @@ class MockLocalBridge:
         # - note detail (auto, based on first homefeed note_id)
 
     async def start(self):
+        self.clear_log()
         msg = f"Starting mock LocalBridge server on ws://{self.host}:{self.port}"
         self.log(msg)
         self.log(f"Logging to: {self.log_file}\n")

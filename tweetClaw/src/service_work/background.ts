@@ -562,6 +562,11 @@ async function ensureXhsHomefeedWarmContext(): Promise<number> {
             const refreshStartedAt = Date.now();
             await chrome.tabs.reload(warmTab.id);
             await waitForTabComplete(warmTab.id, XHS_HOMEFEED_WARMUP_TIMEOUT_MS);
+
+            // Trigger scroll via content script to load homefeed
+            await chrome.tabs.sendMessage(warmTab.id, { type: 'XHS_SCROLL_PAGE', pixels: 800 }).catch(() => {});
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
             await waitForXhsHomefeedCapture(refreshStartedAt, XHS_HOMEFEED_WARMUP_TIMEOUT_MS);
             return warmTab.id;
         })().finally(() => {
@@ -575,9 +580,22 @@ async function ensureXhsHomefeedWarmContext(): Promise<number> {
 export async function queryXhsHomefeed(payload: { cursor_score?: string } = {}) {
     console.log('[TweetClaw-BG] queryXhsHomefeed called');
 
-    const targetTabId = await ensureXhsHomefeedWarmContext();
+    // Always check for fresh context first, no auto warm-up
+    const hasFreshContext = await isXhsHomefeedContextFresh();
 
-    const result: any = await chrome.tabs.sendMessage(targetTabId, {
+    if (!hasFreshContext) {
+        throw new Error('No fresh Xiaohongshu homefeed context found. Please manually refresh https://www.xiaohongshu.com/explore?channel_id=homefeed_recommend first.');
+    }
+
+    const xhsTabs = await chrome.tabs.query({
+        url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*', '*://*.xiaohongshu.com/*']
+    });
+    const targetTab = xhsTabs.find(t => t.active) || xhsTabs[0];
+    if (!targetTab?.id) {
+        throw new Error('No Xiaohongshu tab found');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(targetTab.id, {
         type: 'XHS_FETCH_HOMEFEED',
         cursor_score: payload?.cursor_score || '',
     }).catch((e: any) => {

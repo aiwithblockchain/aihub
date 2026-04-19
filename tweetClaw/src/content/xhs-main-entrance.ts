@@ -95,6 +95,12 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'XHS_SCROLL_PAGE') {
+    window.scrollBy(0, message.pixels || 800);
+    sendResponse({ ok: true });
+    return true;
+  }
+
   if (message.type === 'XHS_EXECUTE_ACTION') {
     (async () => {
       try {
