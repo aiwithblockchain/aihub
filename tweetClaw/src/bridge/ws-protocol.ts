@@ -38,6 +38,8 @@ export type MessageType =
   | 'response.query_user_profile'
   | 'request.query_search_timeline'
   | 'response.query_search_timeline'
+  | 'request.query_user_tweets'
+  | 'response.query_user_tweets'
   | 'request.start_task'
   | 'request.cancel_task'
   | 'event.task_progress'
@@ -82,6 +84,8 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_QUERY_USER_PROFILE: 'response.query_user_profile',
   REQUEST_QUERY_SEARCH_TIMELINE: 'request.query_search_timeline',
   RESPONSE_QUERY_SEARCH_TIMELINE: 'response.query_search_timeline',
+  REQUEST_QUERY_USER_TWEETS: 'request.query_user_tweets',
+  RESPONSE_QUERY_USER_TWEETS: 'response.query_user_tweets',
   REQUEST_START_TASK: 'request.start_task',
   REQUEST_CANCEL_TASK: 'request.cancel_task',
   EVENT_TASK_PROGRESS: 'event.task_progress',
@@ -224,6 +228,13 @@ export interface QueryUserProfileRequestPayload {
 export interface QuerySearchTimelineRequestPayload {
   tabId?: number;
   query?: string;   // 搜索关键词
+  cursor?: string;  // 翻页游标
+  count?: number;   // 结果数量（默认 20）
+}
+
+export interface QueryUserTweetsRequestPayload {
+  userId: string;   // 用户 ID (如 "44196397")
+  tabId?: number;
   cursor?: string;  // 翻页游标
   count?: number;   // 结果数量（默认 20）
 }

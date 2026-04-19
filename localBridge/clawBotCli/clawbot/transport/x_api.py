@@ -50,6 +50,14 @@ class XApiTransport(BaseApiTransport):
             params["tabId"] = tab_id
         return self.request_json("GET", "/api/v1/x/search", params=params)
 
+    def get_user_tweets_raw(self, user_id: str, cursor: Optional[str] = None, count: int = 20, tab_id: Optional[int] = None) -> Dict[Any, Any]:
+        params = {"userId": user_id, "count": count}
+        if cursor:
+            params["cursor"] = cursor
+        if tab_id:
+            params["tabId"] = tab_id
+        return self.request_json("GET", "/api/v1/x/user_tweets", params=params)
+
     def create_tweet_raw(self, text: str, media_ids: Optional[List[str]] = None) -> Dict[Any, Any]:
         payload = {"text": text}
         if media_ids:

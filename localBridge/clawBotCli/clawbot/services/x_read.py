@@ -99,3 +99,28 @@ class XReadService:
     def search_first_user(self, query: str, tab_id: Optional[int] = None) -> Optional[XUser]:
         _, users = self.search(query=query, count=5, tab_id=tab_id)
         return users[0] if users else None
+
+    def get_user_tweets(self, user_id: str, count: int = 20, cursor: Optional[str] = None, tab_id: Optional[int] = None) -> List[XTweet]:
+        raw = self.transport.get_user_tweets_raw(user_id=user_id, count=count, cursor=cursor, tab_id=tab_id)
+        data = raw.get("data", {}) if isinstance(raw, dict) else {}
+        if isinstance(data, dict) and "data" in data:
+            data = data["data"]
+
+        tweets: List[XTweet] = []
+        user_result = data.get("user", {}).get("result", {})
+        timeline = user_result.get("timeline", {}).get("timeline", {})
+        instructions = timeline.get("instructions", [])
+
+        for instruction in instructions:
+            if instruction.get("type") != "TimelineAddEntries":
+                continue
+            for entry in instruction.get("entries", []):
+                tweet_result = (
+                    entry.get("content", {})
+                    .get("itemContent", {})
+                    .get("tweet_results", {})
+                    .get("result", {})
+                )
+                if tweet_result:
+                    tweets.append(parse_tweet_result(tweet_result))
+        return tweets

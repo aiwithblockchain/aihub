@@ -519,6 +519,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
+    if (message.type === 'FETCH_USER_TWEETS') {
+        (async () => {
+            try {
+                const variables: any = {
+                    userId: message.userId,
+                    count: message.count || 20,
+                    includePromotedContent: true,
+                    withQuickPromoteEligibilityTweetFields: true,
+                    withVoice: true
+                };
+                if (message.cursor) {
+                    variables.cursor = message.cursor;
+                }
+                const data = await performQuery('UserTweets', variables);
+                sendResponse({ success: true, data });
+            } catch (e: any) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
     if (message.type === 'UPLOAD_MEDIA') {
         (async () => {
             try {

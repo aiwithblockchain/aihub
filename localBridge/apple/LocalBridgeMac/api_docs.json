@@ -117,6 +117,19 @@
     "response": "{\"data\":{\"search_by_raw_query\":{\"search_timeline\":{\"timeline\":{\"instructions\":[...],\"metadata\":{\"cursor\":\"DAACCgACHEGUyk_AJxAKAAMcQZTKT7_Y8AgABAAAAAIL...\"}}}}}}"
   },
   {
+    "id": "query_user_tweets",
+    "name": "Get User Tweets",
+    "name_zh": "获取用户推文",
+    "summary": "Get the raw Twitter GraphQL response for a specific user's tweets timeline with pagination support.",
+    "summary_zh": "获取指定用户推文时间线的推特原始 GraphQL 响应，支持分页。",
+    "method": "GET",
+    "path": "/api/v1/x/user_tweets",
+    "description": "Returns the complete raw response from Twitter's UserTweets GraphQL API. Query a user's tweets via the userId parameter (numeric user ID, e.g., '44196397'). The response structure follows Twitter's standard format, containing tweet entries with full metadata. Supports pagination via cursor parameter and count parameter to control result size (default 20). AI needs to traverse the response structure to extract tweet data. Completely passes through the raw Twitter GraphQL response. Optional tabId and instanceId parameters for multi-tab/multi-account scenarios.",
+    "description_zh": "返回推特 UserTweets GraphQL API 的完整原始响应。通过 userId 参数查询用户的推文（数字用户 ID，如 '44196397'）。响应结构为推特标准格式，包含完整元数据的推文条目。支持通过 cursor 参数进行分页，count 参数控制结果数量（默认 20）。AI 需要遍历响应结构来提取推文数据。完全透传推特 GraphQL 原始响应。可选 tabId 和 instanceId 参数用于多标签页/多账号场景。",
+    "curl": "curl \"http://127.0.0.1:10088/api/v1/x/user_tweets?userId=44196397&count=20&cursor=DAABCgABFxxx==\"",
+    "response": "{\"data\":{\"user\":{\"result\":{\"__typename\":\"User\",\"timeline_v2\":{\"timeline\":{\"instructions\":[{\"type\":\"TimelineAddEntries\",\"entries\":[{\"entryId\":\"tweet-1234567890\",\"content\":{\"entryType\":\"TimelineTimelineItem\",\"itemContent\":{\"itemType\":\"TimelineTweet\",\"tweet_results\":{\"result\":{\"__typename\":\"Tweet\",\"rest_id\":\"1234567890\",\"legacy\":{\"full_text\":\"Tweet content here\",\"favorite_count\":10}}}}}}]}]}}}}"
+  },
+  {
     "id": "create_tweet",
     "name": "Create Tweet",
     "name_zh": "发布推文",

@@ -44,6 +44,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/x/timeline", h.timeline)
 	mux.HandleFunc("/api/v1/x/search", h.searchTimeline)
 	mux.HandleFunc("/api/v1/x/users", h.userProfile)
+	mux.HandleFunc("/api/v1/x/user_tweets", h.userTweets)
 	mux.HandleFunc("/api/v1/x/tweets", h.tweetsDispatch)
 	mux.HandleFunc("/api/v1/x/tweets/", h.tweetResourceDispatch)
 	mux.HandleFunc("/api/v1/x/likes", func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "like") })
@@ -307,6 +308,31 @@ func (h *Handler) searchTimeline(w http.ResponseWriter, r *http.Request) {
 		types.QuerySearchTimelineRequest{
 			TabID:  parseTabID(r),
 			Query:  query,
+			Cursor: cursor,
+			Count:  count,
+		}), 8000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) userTweets(w http.ResponseWriter, r *http.Request) {
+	id := newID("http_user_tweets")
+	userID := r.URL.Query().Get("userId")
+	if userID == "" {
+		jsonErr(w, 400, "userId is required")
+		return
+	}
+	cursor := r.URL.Query().Get("cursor")
+	count := 20
+	if c := r.URL.Query().Get("count"); c != "" {
+		if n, err := strconv.Atoi(c); err == nil && n > 0 {
+			count = n
+		}
+	}
+
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_user_tweets", "tweetClaw",
+		types.QueryUserTweetsRequest{
+			UserID: userID,
+			TabID:  parseTabID(r),
 			Cursor: cursor,
 			Count:  count,
 		}), 8000,

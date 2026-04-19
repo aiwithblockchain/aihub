@@ -62,6 +62,13 @@ interface QuerySearchTimelinePayload {
     tabId?: number;
 }
 
+interface QueryUserTweetsPayload {
+    userId: string;
+    cursor?: string;
+    count?: number;
+    tabId?: number;
+}
+
 const backgroundSessionStore = new BackgroundSessionStore();
 
 const XHS_HOMEFEED_URL = 'https://www.xiaohongshu.com/explore?channel_id=homefeed_recommend';
@@ -95,6 +102,7 @@ localBridge.queryTweetRepliesHandler = queryTweetReplies;
 localBridge.queryTweetDetailHandler = queryTweetDetail;
 localBridge.queryUserProfileHandler = queryUserProfile;
 localBridge.querySearchTimelineHandler = querySearchTimeline;
+localBridge.queryUserTweetsHandler = queryUserTweets;
 
 // Initialize Background Task Coordinator
 let taskCoordinator: BackgroundTaskCoordinator | null = null;
@@ -956,6 +964,34 @@ export async function querySearchTimeline(payload: QuerySearchTimelinePayload): 
     const result = await chrome.tabs.sendMessage(targetTabId, {
         type: 'FETCH_SEARCH_TIMELINE',
         query,
+        cursor,
+        count: count || 20
+    });
+
+    // 直接返回推特原始 GraphQL 响应
+    return result;
+}
+
+/**
+ * 查询用户推文 - 返回推特原始 GraphQL 响应
+ */
+export async function queryUserTweets(payload: QueryUserTweetsPayload): Promise<TwitterResponse> {
+    const { userId, cursor, count, tabId } = payload;
+
+    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
+    let targetTabId: number | undefined = tabId;
+    if (!targetTabId) {
+        const activeTab = xTabs.find(t => t.active) || xTabs[0];
+        targetTabId = activeTab?.id;
+    }
+    if (!targetTabId) {
+        throw new Error('No x.com tab found');
+    }
+
+    // 委托 Content Script 调用推特 API 并返回原始响应
+    const result = await chrome.tabs.sendMessage(targetTabId, {
+        type: 'FETCH_USER_TWEETS',
+        userId,
         cursor,
         count: count || 20
     });

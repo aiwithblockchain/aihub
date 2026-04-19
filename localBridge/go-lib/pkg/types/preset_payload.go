@@ -61,6 +61,13 @@ type QuerySearchTimelineRequest struct {
 	Count  int    `json:"count,omitempty"`  // 结果数量
 }
 
+type QueryUserTweetsRequest struct {
+	UserID string `json:"userId"`           // 用户 ID (如 "44196397")
+	TabID  *int   `json:"tabId,omitempty"`
+	Cursor string `json:"cursor,omitempty"` // 翻页游标
+	Count  int    `json:"count,omitempty"`  // 结果数量，默认 20
+}
+
 // ===========================================================
 // aiClaw 插件的 Payload 类型
 // ===========================================================
