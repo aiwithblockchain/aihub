@@ -53,7 +53,7 @@ async function handleGetAccountInfo(requestId: string) {
 }
 
 function isXhsApiUrl(url: string): string | null {
-  const endpoints = [XHS_API_ENDPOINTS.HOMEFEED];
+  const endpoints = [XHS_API_ENDPOINTS.HOMEFEED, XHS_API_ENDPOINTS.FEED];
   for (const endpoint of endpoints) {
     if (url.includes(endpoint)) {
       return endpoint;

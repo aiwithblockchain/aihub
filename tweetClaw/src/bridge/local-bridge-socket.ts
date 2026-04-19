@@ -16,6 +16,7 @@ export class LocalBridgeSocket {
   public queryXBasicInfoHandler: (() => Promise<any>) | null = null;
   public queryXhsAccountInfoHandler: (() => Promise<any>) | null = null;
   public queryXhsHomefeedHandler: ((payload: any) => Promise<any>) | null = null;
+  public queryXhsFeedHandler: ((payload: any) => Promise<any>) | null = null;
   public openTabHandler: ((payload: any) => Promise<any>) | null = null;
   public closeTabHandler: ((payload: any) => Promise<any>) | null = null;
   public navigateTabHandler: ((payload: any) => Promise<any>) | null = null;
@@ -207,6 +208,9 @@ export class LocalBridgeSocket {
         case MESSAGE_TYPES.COMMAND_QUERY_XHS_HOMEFEED:
           this.handleQueryXhsHomefeed(msg);
           break;
+        case MESSAGE_TYPES.COMMAND_QUERY_XHS_FEED:
+          this.handleQueryXhsFeed(msg);
+          break;
         case MESSAGE_TYPES.COMMAND_QUERY_X_BASIC_INFO:
           this.handleQueryXBasicInfo(msg);
           break;
@@ -309,6 +313,41 @@ export class LocalBridgeSocket {
         const resp: BaseMessage = {
             id: req.id,
             type: MESSAGE_TYPES.RESPONSE_QUERY_XHS_HOMEFEED,
+            source: 'tweetClaw',
+            target: 'LocalBridgeMac',
+            timestamp: Date.now(),
+            payload: result
+        };
+        this.send(resp);
+    } catch (e) {
+        const errResp: BaseMessage = {
+            id: req.id,
+            type: MESSAGE_TYPES.RESPONSE_ERROR,
+            source: 'tweetClaw',
+            target: 'LocalBridgeMac',
+            timestamp: Date.now(),
+            payload: {
+                code: 'INTERNAL_ERROR',
+                message: e instanceof Error ? e.message : String(e),
+                details: null
+            }
+        };
+        this.send(errResp);
+    }
+  }
+
+  private async handleQueryXhsFeed(req: BaseMessage) {
+    console.log('[tweetClaw] handling command.query_xhs_feed');
+    if (!this.queryXhsFeedHandler) {
+        console.error('[tweetClaw] no handler for query_xhs_feed');
+        return;
+    }
+
+    try {
+        const result = await this.queryXhsFeedHandler(req.payload);
+        const resp: BaseMessage = {
+            id: req.id,
+            type: MESSAGE_TYPES.RESPONSE_QUERY_XHS_FEED,
             source: 'tweetClaw',
             target: 'LocalBridgeMac',
             timestamp: Date.now(),

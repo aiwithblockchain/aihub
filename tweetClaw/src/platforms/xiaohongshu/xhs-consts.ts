@@ -31,6 +31,7 @@ export const XHS_STORAGE_KEYS = {
   XRAY_TRACEID: 'xhs_x_xray_traceid',
   XY_DIRECTION: 'xhs_xy_direction',
   HOMEFEED_TEMPLATE: 'xhs_homefeed_template',
+  FEED_TEMPLATE: 'xhs_feed_template',
 } as const;
 
 export const XHS_HEADERS = {

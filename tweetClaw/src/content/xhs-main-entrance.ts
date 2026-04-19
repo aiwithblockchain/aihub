@@ -1,5 +1,5 @@
 import { XHS_MSG_TYPE } from '../platforms/xiaohongshu/xhs-consts';
-import { performXhsAction, fetchXhsNote, fetchXhsCurrentUser, fetchXhsHomefeed } from '../platforms/xiaohongshu/xhs-api';
+import { performXhsAction, fetchXhsNote, fetchXhsCurrentUser, fetchXhsHomefeed, fetchXhsFeed } from '../platforms/xiaohongshu/xhs-api';
 
 /**
  * 小红书内容脚本入口
@@ -49,6 +49,32 @@ window.addEventListener('message', (event) => {
           unread_end_note_id: requestBody.unread_end_note_id,
           unread_note_count: requestBody.unread_note_count,
           refresh_type: requestBody.refresh_type,
+          captured_at: Date.now(),
+          captured_from_url: window.location.href,
+          captured_method: method,
+          captured_endpoint: endpoint,
+        },
+      }).catch(() => {});
+    }
+
+    if (endpoint === '/api/sns/web/v1/feed' && method === 'POST') {
+      const headers = event.data.headers || {};
+      const requestBody = event.data.requestBody || {};
+
+      chrome.storage.local.set({
+        xhs_xs_sign: headers['x-s'] || null,
+        xhs_xt: headers['x-t'] || null,
+        xhs_xs_common: headers['x-s-common'] || null,
+        xhs_x_rap_param: headers['x-rap-param'] || null,
+        xhs_x_b3_traceid: headers['x-b3-traceid'] || null,
+        xhs_x_xray_traceid: headers['x-xray-traceid'] || null,
+        xhs_xy_direction: headers['xy-direction'] ?? null,
+        xhs_feed_template: {
+          source_note_id: requestBody.source_note_id,
+          image_formats: requestBody.image_formats,
+          extra: requestBody.extra,
+          xsec_source: requestBody.xsec_source,
+          xsec_token: requestBody.xsec_token,
           captured_at: Date.now(),
           captured_from_url: window.location.href,
           captured_method: method,
@@ -114,6 +140,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     (async () => {
       try {
         const data = await fetchXhsCurrentUser();
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === XHS_MSG_TYPE.FETCH_FEED) {
+    (async () => {
+      try {
+        const data = await fetchXhsFeed(String(message.note_id || ''));
         sendResponse({ success: true, data });
       } catch (e: any) {
         sendResponse({ success: false, error: e.message });

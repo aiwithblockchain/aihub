@@ -22,14 +22,27 @@
 - `command.query_xhs_homefeed` 第二页成功
 - `tweetClaw/2.log` 中已出现连续两次 `response.query_xhs_homefeed` 且 `code = 0`
 
-当前最终方案不是 inject 主动发 homefeed 请求，而是：
+当前最终方案已经升级为“自动预热 + 主动请求”：
 
-1. 页面真实 homefeed 请求自然发生
-2. inject 只负责被动捕获真实请求中的关键动态头与请求模板
-3. content script 将这些动态值持久化到 `chrome.storage.local`
-4. websocket 主动查询时，由 content script 使用最近一次捕获到的真实动态参数发起请求
+1. background 接到 `command.query_xhs_homefeed`
+2. 自动查找或创建小红书 tab
+3. 自动导航到 `https://www.xiaohongshu.com/explore?channel_id=homefeed_recommend`
+4. 如果最近捕获的动态参数不新鲜，则自动 refresh 页面
+5. 等待页面真实 `POST /api/sns/web/v1/homefeed` 请求被 inject/content 捕获
+6. content script 将最新动态头与模板写入 `chrome.storage.local`
+7. background 再调用 content script 的 `fetchXhsHomefeed(cursor_score)`
+8. 返回 `response.query_xhs_homefeed`
 
-这条链路已经被验证可用。
+其中具体实施细节已单独沉淀在：
+
+- `docs/XHS-HOMEFEED-WARMUP-PLAN.md`
+- `docs/XHS-MULTI-CONTEXT-STRATEGY.md`
+
+这意味着：
+
+- 不再依赖人工先刷新页面
+- inject 仍然保留为被动采集架构
+- 主动业务请求仍由 content script 执行，但依赖页面实时生成的动态参数
 
 ---
 

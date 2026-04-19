@@ -15,6 +15,8 @@ export type MessageType =
   | 'command.query_xhs_account_info'
   | 'command.query_xhs_homefeed'
   | 'response.query_xhs_homefeed'
+  | 'command.query_xhs_feed'
+  | 'response.query_xhs_feed'
   | 'command.query_x_basic_info'
   | 'request.open_tab'
   | 'response.open_tab'
@@ -57,6 +59,8 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_QUERY_XHS_ACCOUNT_INFO: 'response.query_xhs_account_info',
   COMMAND_QUERY_XHS_HOMEFEED: 'command.query_xhs_homefeed',
   RESPONSE_QUERY_XHS_HOMEFEED: 'response.query_xhs_homefeed',
+  COMMAND_QUERY_XHS_FEED: 'command.query_xhs_feed',
+  RESPONSE_QUERY_XHS_FEED: 'response.query_xhs_feed',
   COMMAND_QUERY_X_BASIC_INFO: 'command.query_x_basic_info',
   REQUEST_OPEN_TAB: 'request.open_tab',
   RESPONSE_OPEN_TAB: 'response.open_tab',

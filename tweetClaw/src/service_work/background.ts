@@ -84,6 +84,7 @@ localBridge.queryXTabsHandler = queryXTabsStatus;
 localBridge.queryXBasicInfoHandler = queryXBasicInfo;
 localBridge.queryXhsAccountInfoHandler = queryXhsAccountInfo;
 localBridge.queryXhsHomefeedHandler = queryXhsHomefeed;
+localBridge.queryXhsFeedHandler = queryXhsFeed;
 localBridge.openTabHandler = openXTab;
 localBridge.closeTabHandler = closeXTab;
 localBridge.navigateTabHandler = navigateXTab;
@@ -536,29 +537,33 @@ async function waitForXhsHomefeedCapture(afterTimestamp: number, timeoutMs: numb
 }
 
 async function ensureXhsHomefeedWarmContext(): Promise<number> {
+    const tab = await findOrCreateXhsTab();
+    if (!tab.id) {
+        throw new Error('No Xiaohongshu tab found');
+    }
+
+    await navigateXhsTabToHomefeed(tab.id);
+    await waitForTabComplete(tab.id, XHS_HOMEFEED_WARMUP_TIMEOUT_MS);
+
     if (await isXhsHomefeedContextFresh()) {
-        const tab = await findOrCreateXhsTab();
-        if (!tab.id) {
-            throw new Error('No Xiaohongshu tab found');
-        }
-        await navigateXhsTabToHomefeed(tab.id);
         return tab.id;
     }
 
     if (!xhsHomefeedWarmupPromise) {
         xhsHomefeedWarmupPromise = (async () => {
-            const tab = await findOrCreateXhsTab();
-            if (!tab.id) {
+            const warmTab = await findOrCreateXhsTab();
+            if (!warmTab.id) {
                 throw new Error('No Xiaohongshu tab found');
             }
 
-            await navigateXhsTabToHomefeed(tab.id);
+            await navigateXhsTabToHomefeed(warmTab.id);
+            await waitForTabComplete(warmTab.id, XHS_HOMEFEED_WARMUP_TIMEOUT_MS);
 
             const refreshStartedAt = Date.now();
-            await chrome.tabs.reload(tab.id);
-            await waitForTabComplete(tab.id, XHS_HOMEFEED_WARMUP_TIMEOUT_MS);
+            await chrome.tabs.reload(warmTab.id);
+            await waitForTabComplete(warmTab.id, XHS_HOMEFEED_WARMUP_TIMEOUT_MS);
             await waitForXhsHomefeedCapture(refreshStartedAt, XHS_HOMEFEED_WARMUP_TIMEOUT_MS);
-            return tab.id;
+            return warmTab.id;
         })().finally(() => {
             xhsHomefeedWarmupPromise = null;
         });
@@ -608,6 +613,34 @@ export async function queryXhsAccountInfo() {
 
     if (!result?.success) {
         throw new Error(result?.error || 'Failed to fetch current user info from Xiaohongshu API');
+    }
+
+    return result.data;
+}
+
+/**
+ * 查询小红书笔记详情（通过 feed 接口）
+ */
+export async function queryXhsFeed(payload: { note_id?: string } = {}) {
+    console.log('[TweetClaw-BG] queryXhsFeed called');
+
+    const xhsTabs = await chrome.tabs.query({
+        url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*', '*://*.xiaohongshu.com/*']
+    });
+    const targetTab = xhsTabs.find(t => t.active) || xhsTabs[0];
+    if (!targetTab?.id) {
+        throw new Error('No Xiaohongshu tab found');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(targetTab.id, {
+        type: 'XHS_FETCH_FEED',
+        note_id: payload?.note_id || '',
+    }).catch((e: any) => {
+        throw new Error(`Failed to communicate with content script: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to fetch Xiaohongshu feed');
     }
 
     return result.data;

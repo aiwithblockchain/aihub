@@ -78,6 +78,11 @@ async function getHomefeedTemplate(): Promise<any> {
   return stored[XHS_STORAGE_KEYS.HOMEFEED_TEMPLATE] || null;
 }
 
+async function getFeedTemplate(): Promise<any> {
+  const stored = await chrome.storage.local.get([XHS_STORAGE_KEYS.FEED_TEMPLATE]);
+  return stored[XHS_STORAGE_KEYS.FEED_TEMPLATE] || null;
+}
+
 async function ensureHomefeedDynamicHeaders(): Promise<void> {
   const stored = await chrome.storage.local.get([...DYNAMIC_HOMEFEED_HEADER_KEYS]);
   const missingKeys = DYNAMIC_HOMEFEED_HEADER_KEYS.filter((key) => !stored[key]);
@@ -199,6 +204,41 @@ function buildRequestBody(
     default:
       return {};
   }
+}
+
+/**
+ * 获取笔记详情（通过 feed 接口）
+ */
+export async function fetchXhsFeed(noteId: string): Promise<any> {
+  await ensureHomefeedDynamicHeaders();
+
+  const url = `https://edith.xiaohongshu.com${XHS_API_ENDPOINTS.FEED}`;
+  const headers = await getXhsHeaders();
+  const template = await getFeedTemplate();
+
+  const body = {
+    source_note_id: noteId,
+    image_formats: Array.isArray(template?.image_formats) && template.image_formats.length > 0
+      ? template.image_formats
+      : ['jpg', 'webp', 'avif'],
+    extra: template?.extra || { need_body_topic: '1' },
+    xsec_source: template?.xsec_source || 'pc_feed',
+    xsec_token: template?.xsec_token || '',
+  };
+
+  const response = await fetch(url, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify(body),
+    credentials: 'include',
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`Failed to fetch feed: ${response.status} ${text}`);
+  }
+
+  return response.json();
 }
 
 /**
