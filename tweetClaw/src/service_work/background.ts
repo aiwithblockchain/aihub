@@ -66,7 +66,7 @@ const backgroundSessionStore = new BackgroundSessionStore();
 
 const XHS_HOMEFEED_URL = 'https://www.xiaohongshu.com/explore?channel_id=homefeed_recommend';
 const XHS_HOMEFEED_WARMUP_TTL_MS = 30_000;
-const XHS_HOMEFEED_WARMUP_TIMEOUT_MS = 15_000;
+const XHS_HOMEFEED_WARMUP_TIMEOUT_MS = 30_000;
 let xhsHomefeedWarmupPromise: Promise<number> | null = null;
 
 function getUploadSessionChunk(sessionId: string, chunkIndex: number) {

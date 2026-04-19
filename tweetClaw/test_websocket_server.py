@@ -3,8 +3,8 @@
 Mock WebSocket server for testing TweetClaw extension.
 Simulates LocalBridge protocol and automatically sends supported test commands:
 - command.query_xhs_account_info
-- command.query_xhs_homefeed
-- command.query_x_basic_info
+- command.query_xhs_homefeed (first page + second page)
+- command.query_xhs_feed (note detail)
 """
 import asyncio
 import json
@@ -18,6 +18,8 @@ class MockLocalBridge:
         self.clients = set()
         self.log_file = log_file
         self.sent_second_page = False
+        self.sent_note_detail = False
+        self.first_note_id = None
 
     def log(self, message):
         """Write to both console and log file"""
@@ -31,7 +33,19 @@ class MockLocalBridge:
         if data.get('type') != 'response.query_xhs_homefeed':
             return
 
-        cursor_score = (((data.get('payload') or {}).get('data') or {}).get('cursor_score') or '').strip()
+        payload = data.get('payload') or {}
+        response_data = payload.get('data') or {}
+        items = response_data.get('items') or []
+
+        if not self.first_note_id:
+            for item in items:
+                note_id = item.get('id')
+                if note_id:
+                    self.first_note_id = note_id
+                    self.log(f'[INFO] Captured first note_id from homefeed: {self.first_note_id}')
+                    break
+
+        cursor_score = (response_data.get('cursor_score') or '').strip()
         if not cursor_score:
             self.log('[WARN] response.query_xhs_homefeed missing data.cursor_score, skip second page test')
             return
@@ -52,6 +66,31 @@ class MockLocalBridge:
 
         await websocket.send(json.dumps(next_command))
         self.log(f"\n[SEND TEST] Query Xiaohongshu homefeed second page with cursor_score={cursor_score}:\n{json.dumps(next_command, indent=2)}")
+
+    async def maybe_send_note_detail(self, websocket, data):
+        if self.sent_note_detail:
+            return
+        if data.get('type') != 'response.query_xhs_homefeed':
+            return
+        if not self.first_note_id:
+            return
+
+        self.sent_note_detail = True
+        await asyncio.sleep(2)
+
+        note_detail_command = {
+            'type': 'command.query_xhs_feed',
+            'id': 'test-xhs-feed-004',
+            'source': 'MockLocalBridge',
+            'target': 'tweetClaw',
+            'timestamp': int(datetime.now().timestamp() * 1000),
+            'payload': {
+                'note_id': self.first_note_id
+            }
+        }
+
+        await websocket.send(json.dumps(note_detail_command))
+        self.log(f"\n[SEND TEST] Query Xiaohongshu note detail with note_id={self.first_note_id}:\n{json.dumps(note_detail_command, indent=2)}")
 
     async def handle_client(self, websocket):
         self.clients.add(websocket)
@@ -95,6 +134,7 @@ class MockLocalBridge:
                 else:
                     if data.get('type') == 'response.query_xhs_homefeed':
                         await self.maybe_send_homefeed_second_page(websocket, data)
+                        await self.maybe_send_note_detail(websocket, data)
                     self.log(f"[INFO] Received message type: {data.get('type')}")
 
         except websockets.exceptions.ConnectionClosed:
@@ -110,7 +150,7 @@ class MockLocalBridge:
         elapsed = 0
 
         self.log("[INFO] Waiting for client connection (max 2 minutes)...")
-        self.log("[INFO] Supported auto-test commands: command.query_xhs_account_info, command.query_xhs_homefeed, command.query_x_basic_info")
+        self.log("[INFO] Supported auto-test commands: command.query_xhs_account_info, command.query_xhs_homefeed, command.query_xhs_feed")
 
         while elapsed < max_wait:
             if self.clients:
@@ -160,19 +200,12 @@ class MockLocalBridge:
         # Wait a bit before sending next command
         await asyncio.sleep(3)
 
-        # Test 3: Query current X basic info
-        test_command_3 = {
-            'type': 'command.query_x_basic_info',
-            'id': 'test-x-basic-003',
-            'source': 'MockLocalBridge',
-            'target': 'tweetClaw',
-            'timestamp': int(datetime.now().timestamp() * 1000),
-            'payload': {}
-        }
-
-        for client in self.clients:
-            await client.send(json.dumps(test_command_3))
-            self.log(f"\n[SEND TEST] Query current X basic info:\n{json.dumps(test_command_3, indent=2)}")
+        # Test 3 removed: command.query_x_basic_info
+        # This script focuses on Xiaohongshu flows:
+        # - account info
+        # - homefeed first page
+        # - homefeed second page (auto)
+        # - note detail (auto, based on first homefeed note_id)
 
     async def start(self):
         msg = f"Starting mock LocalBridge server on ws://{self.host}:{self.port}"
