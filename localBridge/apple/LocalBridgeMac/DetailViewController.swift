@@ -48,7 +48,7 @@ final class DetailViewController: NSViewController {
     }
 
     @objc private func handleThemeChange() {
-        view.layer?.backgroundColor = DSV2.pageBackground.cgColor
+        view.layer?.backgroundColor = DSV2.surface.cgColor
         view.needsDisplay = true
         view.subviews.forEach { $0.needsDisplay = true }
     }
@@ -79,7 +79,7 @@ final class DetailViewController: NSViewController {
 private extension DetailViewController {
     func configureView() {
         view.wantsLayer = true
-        view.layer?.backgroundColor = DSV2.pageBackground.cgColor
+        view.layer?.backgroundColor = DSV2.surface.cgColor
 
         placeholderLabel.translatesAutoresizingMaskIntoConstraints = false
         placeholderLabel.font = DSV2.fontTitleMd

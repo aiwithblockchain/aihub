@@ -532,7 +532,9 @@ private final class ConversationCellView: NSTableCellView {
         hoverTitleLabel.textColor = DSV2.onSurface
 
         if isSelected {
-            selectionBackgroundView.layer?.backgroundColor = DSV2.softAccentFill.cgColor
+            // 保持侧边栏导航原有的透明度逻辑：深色 18%，浅色 100%
+            let sidebarAlpha: CGFloat = ThemeManager.shared.isDarkMode ? 0.18 : 1.0
+            selectionBackgroundView.layer?.backgroundColor = DSV2.softAccentFill.withAlphaComponent(sidebarAlpha).cgColor
             iconView.contentTintColor = DSV2.primary
         } else if isHovered {
             selectionBackgroundView.layer?.backgroundColor = DSV2.surfaceContainerHighest.withAlphaComponent(0.3).cgColor

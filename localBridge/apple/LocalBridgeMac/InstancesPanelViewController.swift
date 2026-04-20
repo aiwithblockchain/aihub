@@ -12,6 +12,8 @@ final class InstancesPanelViewController: NSViewController {
     private var emptyView: NSStackView!
     private var emptyTextLabel: NSTextField!
     private var emptyHintLabel: NSTextField!
+    private let headerSeparator = NSView()
+
 
     // MARK: - Data
 
@@ -83,6 +85,8 @@ final class InstancesPanelViewController: NSViewController {
         // 更新标题和副标题颜色
         titleLabel.textColor = DSV2.onSurface
         subtitleLabel.textColor = DSV2.onSurfaceVariant
+        headerSeparator.layer?.backgroundColor = DSV2.divider.withAlphaComponent(0.8).cgColor
+
 
         // 更新刷新按钮
         refreshButton.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.1).cgColor
@@ -195,8 +199,15 @@ final class InstancesPanelViewController: NSViewController {
 
         view.addSubview(headerStack)
         view.addSubview(subtitleLabel)
+        
+        headerSeparator.wantsLayer = true
+        headerSeparator.layer?.backgroundColor = DSV2.divider.withAlphaComponent(0.8).cgColor
+        headerSeparator.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(headerSeparator)
+        
         view.addSubview(scrollView)
         view.addSubview(emptyView)
+
 
         NSLayoutConstraint.activate([
             headerStack.topAnchor.constraint(equalTo: view.topAnchor, constant: DSV2.spacing6),
@@ -207,10 +218,16 @@ final class InstancesPanelViewController: NSViewController {
             subtitleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
             subtitleLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
 
-            scrollView.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: DSV2.spacing4),
+            headerSeparator.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 12),
+            headerSeparator.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            headerSeparator.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            headerSeparator.heightAnchor.constraint(equalToConstant: 1),
+
+            scrollView.topAnchor.constraint(equalTo: headerSeparator.bottomAnchor, constant: 12),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6),
+
 
             emptyView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             emptyView.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: 40),
@@ -242,14 +259,16 @@ final class InstancesPanelViewController: NSViewController {
             return
         }
 
-        let cardWidth: CGFloat = 340
-        let cardHeight: CGFloat = 160
-        let spacing: CGFloat = DSV2.spacing4
+        let spacing: CGFloat = DSV2.spacing6
+        let cardWidth: CGFloat = 350
+        // 使用更高品质的动态卡片高度 (基于内容)
+        // 但为了网格整齐，我们给出一个最小高度
+        let minCardHeight: CGFloat = 160 
         let columns = 2
 
         // 计算总高度和宽度
         let rows = (instances.count + columns - 1) / columns
-        let totalHeight = CGFloat(rows) * (cardHeight + spacing) + spacing
+        let totalHeight = CGFloat(rows) * (minCardHeight + spacing) + spacing
         let totalWidth = CGFloat(columns) * (cardWidth + spacing) + spacing
 
         gridView.frame = NSRect(x: 0, y: 0, width: totalWidth, height: totalHeight)
@@ -262,236 +281,280 @@ final class InstancesPanelViewController: NSViewController {
             gridView.addSubview(card)
 
             let xOffset = spacing + CGFloat(col) * (cardWidth + spacing)
-            // 因为使用了 FlippedView,y 轴从上往下,所以直接计算即可
-            let yOffset = spacing + CGFloat(row) * (cardHeight + spacing)
+            let yOffset = spacing + CGFloat(row) * (minCardHeight + spacing)
 
-            card.frame = NSRect(x: xOffset, y: yOffset, width: cardWidth, height: cardHeight)
+            card.frame = NSRect(x: xOffset, y: yOffset, width: cardWidth, height: minCardHeight)
         }
     }
 
-    private func createInstanceCard(instance: LocalBridgeGoManager.InstanceSnapshot) -> NSView {
-        let cardWidth: CGFloat = 340
-        let cardHeight: CGFloat = 160
 
+    private func createInstanceCard(instance: LocalBridgeGoManager.InstanceSnapshot) -> NSView {
         // 玻璃卡片容器
         let card = NSView()
         card.wantsLayer = true
-        card.frame = NSRect(x: 0, y: 0, width: cardWidth, height: cardHeight)
-
-        // 玻璃渐变背景
-        let gradientLayer = CAGradientLayer()
-        gradientLayer.colors = [
-            DSV2.surfaceContainerHigh.withAlphaComponent(0.4).cgColor,
-            DSV2.surfaceContainerLow.withAlphaComponent(0.4).cgColor
-        ]
-        gradientLayer.startPoint = CGPoint(x: 0, y: 0)
-        gradientLayer.endPoint = CGPoint(x: 1, y: 1)
-        gradientLayer.frame = card.bounds
-        gradientLayer.cornerRadius = DSV2.radiusCard
-        card.layer?.insertSublayer(gradientLayer, at: 0)
-
-        // Ghost Border
+        card.layer?.backgroundColor = DSV2.surfaceContainerHigh.withAlphaComponent(0.4).cgColor
+        card.layer?.cornerRadius = DSV2.radiusCard
         card.layer?.borderWidth = 1
         card.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.1).cgColor
-        card.layer?.cornerRadius = DSV2.radiusCard
-        card.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
+        card.translatesAutoresizingMaskIntoConstraints = false
 
-        let padding: CGFloat = 20
+        // 主容器 StackView
+        let mainStack = NSStackView()
+        mainStack.orientation = .vertical
+        mainStack.alignment = .leading
+        mainStack.spacing = 14
+        mainStack.translatesAutoresizingMaskIntoConstraints = false
+        card.addSubview(mainStack)
 
-        // 图标容器 - 带背景的方形图标
-        let iconContainer = NSView(frame: NSRect(x: padding, y: cardHeight - padding - 48, width: 48, height: 48))
+        // --- Top Row: Icon, Name/Version, Status Badge ---
+        let topRow = NSStackView()
+        topRow.orientation = .horizontal
+        topRow.alignment = .centerY
+        topRow.spacing = 12
+
+        // 图标容器
+        let iconSize: CGFloat = 40
+        let iconContainer = NSView()
         iconContainer.wantsLayer = true
         iconContainer.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
-        iconContainer.layer?.cornerRadius = DSV2.radiusCard
+        iconContainer.layer?.cornerRadius = 10
         iconContainer.layer?.borderWidth = 1
-        iconContainer.layer?.borderColor = DSV2.surfaceContainerHigh.withAlphaComponent(0.5).cgColor
-        card.addSubview(iconContainer)
+        iconContainer.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.1).cgColor
+        iconContainer.translatesAutoresizingMaskIntoConstraints = false
+        iconContainer.widthAnchor.constraint(equalToConstant: iconSize).isActive = true
+        iconContainer.heightAnchor.constraint(equalToConstant: iconSize).isActive = true
 
         let symbolName = instance.clientName == "tweetClaw" ? "network" : "cpu"
-        let icon = NSImageView(frame: NSRect(x: 12, y: 12, width: 24, height: 24))
+        let icon = NSImageView()
         icon.image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil)
         icon.contentTintColor = instance.clientName == "tweetClaw" ? DSV2.primary : DSV2.secondary
         if #available(macOS 11.0, *) {
-            icon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 20, weight: .medium)
+            icon.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 18, weight: .medium)
         }
+        icon.translatesAutoresizingMaskIntoConstraints = false
         iconContainer.addSubview(icon)
 
-        // 扩展名称
+        // 名称和版本
+        let nameVersionStack = NSStackView()
+        nameVersionStack.orientation = .vertical
+        nameVersionStack.alignment = .leading
+        nameVersionStack.spacing = 2
+        
         let nameLabel = NSTextField(labelWithString: instance.clientName)
-        nameLabel.font = DSV2.fontTitleLg
+        nameLabel.font = DSV2.fontTitleMd
         nameLabel.textColor = DSV2.onSurface
-        nameLabel.isBordered = false
-        nameLabel.isEditable = false
-        nameLabel.drawsBackground = false
-        nameLabel.frame = NSRect(x: padding + 60, y: cardHeight - padding - 28, width: 180, height: 22)
-        card.addSubview(nameLabel)
-
-        // 版本标签
+        
         let versionLabel = NSTextField(labelWithString: "v\(instance.clientVersion)")
         versionLabel.font = DSV2.fontMonoSm
         versionLabel.textColor = DSV2.onSurfaceVariant
-        versionLabel.isBordered = false
-        versionLabel.isEditable = false
-        versionLabel.drawsBackground = false
-        versionLabel.frame = NSRect(x: padding + 60, y: cardHeight - padding - 46, width: 100, height: 14)
-        card.addSubview(versionLabel)
+        
+        nameVersionStack.addArrangedSubview(nameLabel)
+        nameVersionStack.addArrangedSubview(versionLabel)
 
-        // 状态徽章（右上角）
+        // 状态徽章
         let secondsAgo = Int(Date().timeIntervalSince(instance.lastSeenAt))
         let isActive = secondsAgo < 60
-
-        let statusBadge = NSView(frame: NSRect(x: cardWidth - padding - 70, y: cardHeight - padding - 24, width: 70, height: 24))
+        
+        let statusBadge = NSView()
         statusBadge.wantsLayer = true
-        statusBadge.layer?.backgroundColor = (isActive ? DSV2.tertiary : DSV2.surfaceContainerHigh).withAlphaComponent(0.1).cgColor
+        statusBadge.layer?.backgroundColor = (isActive ? DSV2.tertiary : DSV2.onSurfaceVariant).withAlphaComponent(0.1).cgColor
+        statusBadge.layer?.cornerRadius = 10
         statusBadge.layer?.borderWidth = 1
         statusBadge.layer?.borderColor = (isActive ? DSV2.tertiary : DSV2.outlineVariant).withAlphaComponent(0.2).cgColor
-        statusBadge.layer?.cornerRadius = 12
-        card.addSubview(statusBadge)
-
-        let statusDot = NSView(frame: NSRect(x: 8, y: 8, width: 8, height: 8))
+        statusBadge.translatesAutoresizingMaskIntoConstraints = false
+        
+        let statusDot = NSView()
         statusDot.wantsLayer = true
         statusDot.layer?.backgroundColor = (isActive ? DSV2.tertiary : DSV2.onSurfaceVariant).cgColor
-        statusDot.layer?.cornerRadius = 4
-        statusBadge.addSubview(statusDot)
-
+        statusDot.layer?.cornerRadius = 3.5
+        statusDot.translatesAutoresizingMaskIntoConstraints = false
+        
         let statusTextValue = isActive ? LanguageManager.shared.localized("instances.active") : LanguageManager.shared.localized("instances.idle")
         let statusText = NSTextField(labelWithString: statusTextValue)
-        statusText.font = NSFont.systemFont(ofSize: 9, weight: .bold)
+        statusText.font = NSFont.systemFont(ofSize: 10, weight: .bold)
         statusText.textColor = isActive ? DSV2.tertiary : DSV2.onSurfaceVariant
-        statusText.isBordered = false
-        statusText.isEditable = false
-        statusText.drawsBackground = false
-        statusText.alignment = .center
-        statusText.frame = NSRect(x: 20, y: 5, width: 45, height: 14)
+        statusText.translatesAutoresizingMaskIntoConstraints = false
+
+        statusBadge.addSubview(statusDot)
         statusBadge.addSubview(statusText)
 
-        // Instance Name 容器（如果有名字则显示）
-        var currentY: CGFloat = cardHeight - padding - 68
-        if let instanceName = instance.instanceName {
-            let nameContainer = NSView(frame: NSRect(x: padding + 60, y: currentY, width: cardWidth - padding - 80, height: 18))
-            nameContainer.wantsLayer = true
-            nameContainer.layer?.backgroundColor = DSV2.tertiary.withAlphaComponent(0.3).withAlphaComponent(0.3).cgColor
-            nameContainer.layer?.cornerRadius = 4
-            nameContainer.layer?.borderWidth = 1
-            nameContainer.layer?.borderColor = DSV2.tertiary.withAlphaComponent(0.5).cgColor
-            card.addSubview(nameContainer)
+        topRow.addArrangedSubview(iconContainer)
+        topRow.addArrangedSubview(nameVersionStack)
+        topRow.addArrangedSubview(NSView()) // Spacer
+        topRow.addArrangedSubview(statusBadge)
+        
+        mainStack.addArrangedSubview(topRow)
 
-            let namePrefix = NSTextField(labelWithString: "NAME:")
-            namePrefix.font = DSV2.fontMonoSm
-            namePrefix.textColor = DSV2.tertiary
-            namePrefix.isBordered = false
-            namePrefix.isEditable = false
-            namePrefix.drawsBackground = false
-            namePrefix.frame = NSRect(x: 6, y: 3, width: 40, height: 12)
-            nameContainer.addSubview(namePrefix)
-
-            let nameLabel = NSTextField(labelWithString: instanceName)
-            nameLabel.font = DSV2.fontMonoSm
-            nameLabel.textColor = DSV2.tertiary.withAlphaComponent(0.8)
-            nameLabel.isBordered = false
-            nameLabel.isEditable = false
-            nameLabel.drawsBackground = false
-            nameLabel.frame = NSRect(x: 48, y: 3, width: cardWidth - padding - 140, height: 12)
-            nameContainer.addSubview(nameLabel)
-
-            currentY -= 22
+        // --- Mid Section: Pills for Name and ID ---
+        let midStack = NSStackView()
+        midStack.orientation = .vertical
+        midStack.alignment = .leading
+        midStack.spacing = 8
+        
+        if let instanceName = instance.instanceName, !instanceName.isEmpty {
+            let pill = createPill(prefix: "NAME:", value: instanceName, color: DSV2.tertiary)
+            midStack.addArrangedSubview(pill)
+            pill.widthAnchor.constraint(equalTo: midStack.widthAnchor).isActive = true
         }
 
-        // Instance ID 容器（带复制按钮）
-        let idContainer = NSView(frame: NSRect(x: padding + 60, y: currentY, width: cardWidth - padding - 80, height: 18))
-        idContainer.wantsLayer = true
-        idContainer.layer?.backgroundColor = DSV2.surfaceContainerLowest.withAlphaComponent(0.5).cgColor
-        idContainer.layer?.cornerRadius = 4
-        idContainer.layer?.borderWidth = 1
-        idContainer.layer?.borderColor = DSV2.surfaceContainerLow.withAlphaComponent(0.5).cgColor
-        card.addSubview(idContainer)
+        let idValue = String(instance.instanceId.prefix(16)) + "..."
+        let idPill = createPill(prefix: "ID:", value: idValue, color: DSV2.onSurfaceVariant)
+        midStack.addArrangedSubview(idPill)
+        idPill.widthAnchor.constraint(equalTo: midStack.widthAnchor).isActive = true
+        
+        mainStack.addArrangedSubview(midStack)
 
-        let idPrefix = NSTextField(labelWithString: "ID:")
-        idPrefix.font = DSV2.fontMonoSm
-        idPrefix.textColor = DSV2.onSurfaceVariant
-        idPrefix.isBordered = false
-        idPrefix.isEditable = false
-        idPrefix.drawsBackground = false
-        idPrefix.frame = NSRect(x: 6, y: 3, width: 20, height: 12)
-        idContainer.addSubview(idPrefix)
+        // Separator Line
+        let separator = NSView()
+        separator.wantsLayer = true
+        separator.layer?.backgroundColor = DSV2.outlineVariant.withAlphaComponent(0.1).cgColor
+        separator.translatesAutoresizingMaskIntoConstraints = false
+        separator.heightAnchor.constraint(equalToConstant: 1).isActive = true
+        mainStack.addArrangedSubview(separator)
 
-        let displayId = String(instance.instanceId.prefix(12))
-        let idLabel = NSTextField(labelWithString: displayId)
-        idLabel.font = DSV2.fontMonoSm
-        idLabel.textColor = DSV2.onSurfaceTertiary
-        idLabel.isBordered = false
-        idLabel.isEditable = false
-        idLabel.drawsBackground = false
-        idLabel.frame = NSRect(x: 28, y: 3, width: 120, height: 12)
-        idContainer.addSubview(idLabel)
-
-        // 分隔线（使用 Ghost Border 原则）
-        let divider = NSView(frame: NSRect(x: padding, y: 56, width: cardWidth - 2 * padding, height: 1))
-        divider.wantsLayer = true
-        divider.layer?.backgroundColor = DSV2.outlineVariant.withAlphaComponent(0.05).cgColor
-        card.addSubview(divider)
-
-        // 底部指标区域（3列布局）
-        let metricsY: CGFloat = 16
-        let metricWidth: CGFloat = (cardWidth - 2 * padding) / 3
-
-        // 指标1：延迟/最后活跃
+        // --- Bottom Section: Metrics ---
+        let metricsRow = NSStackView()
+        metricsRow.orientation = .horizontal
+        metricsRow.distribution = .fillEqually
+        metricsRow.alignment = .top
+        metricsRow.spacing = 0 
+        
+        // 指标1：延迟 (左对齐)
         let latencyTitle = isActive ? LanguageManager.shared.localized("instances.latency") : LanguageManager.shared.localized("instances.last_seen")
-        createMetric(
-            in: card,
-            x: padding,
-            y: metricsY,
-            width: metricWidth,
-            title: latencyTitle,
-            value: isActive ? "24ms" : timeAgoString(from: instance.lastSeenAt),
-            valueColor: isActive ? DSV2.secondary : DSV2.onSurfaceVariant
-        )
+        let latencyValue = isActive ? "24ms" : timeAgoString(from: instance.lastSeenAt)
+        metricsRow.addArrangedSubview(createLeadingMetric(title: latencyTitle, value: latencyValue, color: isActive ? DSV2.secondary : DSV2.onSurfaceVariant))
+        
+        // 指标2：连接时间 (居中)
+        metricsRow.addArrangedSubview(createCenteredMetric(title: LanguageManager.shared.localized("instances.connected_since"), value: shortTimeFormatter.string(from: instance.connectedAt), color: DSV2.onSurface))
+        
+        // 指标3：状态 (右对齐)
+        let statusValue = instance.isTemporary ? LanguageManager.shared.localized("common.legacy") : LanguageManager.shared.localized("instances.active")
+        metricsRow.addArrangedSubview(createTrailingMetric(title: LanguageManager.shared.localized("instances.status"), value: statusValue, color: DSV2.onSurface))
+        
+        mainStack.addArrangedSubview(metricsRow)
+        
+        // --- Constraints ---
+        NSLayoutConstraint.activate([
+            mainStack.topAnchor.constraint(equalTo: card.topAnchor, constant: 20),
+            mainStack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 20),
+            mainStack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -20),
+            mainStack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -20),
+            
+            topRow.widthAnchor.constraint(equalTo: mainStack.widthAnchor),
+            midStack.widthAnchor.constraint(equalTo: mainStack.widthAnchor),
+            separator.widthAnchor.constraint(equalTo: mainStack.widthAnchor),
+            metricsRow.widthAnchor.constraint(equalTo: mainStack.widthAnchor),
 
-        // 指标2：连接时间
-        createMetric(
-            in: card,
-            x: padding + metricWidth,
-            y: metricsY,
-            width: metricWidth,
-            title: LanguageManager.shared.localized("instances.connected_since"),
-            value: shortTimeFormatter.string(from: instance.connectedAt),
-            valueColor: DSV2.onSurfaceVariant
-        )
-
-        // 指标3：状态信息
-        let typeTitle = instance.isTemporary ? LanguageManager.shared.localized("instances.type") : LanguageManager.shared.localized("instances.status")
-        let typeValue = instance.isTemporary ? LanguageManager.shared.localized("common.legacy") : LanguageManager.shared.localized("instances.active")
-        createMetric(
-            in: card,
-            x: padding + metricWidth * 2,
-            y: metricsY,
-            width: metricWidth,
-            title: typeTitle,
-            value: typeValue,
-            valueColor: DSV2.onSurfaceVariant
-        )
+            icon.centerXAnchor.constraint(equalTo: iconContainer.centerXAnchor),
+            icon.centerYAnchor.constraint(equalTo: iconContainer.centerYAnchor),
+            
+            statusBadge.heightAnchor.constraint(equalToConstant: 22),
+            statusDot.leadingAnchor.constraint(equalTo: statusBadge.leadingAnchor, constant: 8),
+            statusDot.centerYAnchor.constraint(equalTo: statusBadge.centerYAnchor),
+            statusDot.widthAnchor.constraint(equalToConstant: 7),
+            statusDot.heightAnchor.constraint(equalToConstant: 7),
+            
+            statusText.leadingAnchor.constraint(equalTo: statusDot.trailingAnchor, constant: 6),
+            statusText.trailingAnchor.constraint(equalTo: statusBadge.trailingAnchor, constant: -10),
+            statusText.centerYAnchor.constraint(equalTo: statusBadge.centerYAnchor)
+        ])
 
         return card
     }
 
-    private func createMetric(in container: NSView, x: CGFloat, y: CGFloat, width: CGFloat, title: String, value: String, valueColor: NSColor) {
-        let titleLabel = NSTextField(labelWithString: title)
-        titleLabel.font = NSFont.systemFont(ofSize: 9, weight: .bold)
-        titleLabel.textColor = DSV2.onSurfaceVariant
-        titleLabel.isBordered = false
-        titleLabel.isEditable = false
-        titleLabel.drawsBackground = false
-        titleLabel.frame = NSRect(x: x, y: y + 18, width: width - 8, height: 10)
-        container.addSubview(titleLabel)
-
+    private func createPill(prefix: String, value: String, color: NSColor) -> NSView {
+        let pill = NSView()
+        pill.wantsLayer = true
+        pill.layer?.backgroundColor = color.withAlphaComponent(0.08).cgColor
+        pill.layer?.cornerRadius = 6
+        pill.layer?.borderWidth = 1
+        pill.layer?.borderColor = color.withAlphaComponent(0.15).cgColor
+        pill.translatesAutoresizingMaskIntoConstraints = false
+        pill.heightAnchor.constraint(equalToConstant: 24).isActive = true
+        
+        let prefixLabel = NSTextField(labelWithString: prefix)
+        prefixLabel.font = DSV2.fontMonoSm
+        prefixLabel.textColor = color
+        prefixLabel.translatesAutoresizingMaskIntoConstraints = false
+        
         let valueLabel = NSTextField(labelWithString: value)
         valueLabel.font = DSV2.fontMonoSm
-        valueLabel.textColor = valueColor
-        valueLabel.isBordered = false
-        valueLabel.isEditable = false
-        valueLabel.drawsBackground = false
-        valueLabel.frame = NSRect(x: x, y: y, width: width - 8, height: 14)
-        container.addSubview(valueLabel)
+        valueLabel.textColor = color.withAlphaComponent(0.8)
+        valueLabel.translatesAutoresizingMaskIntoConstraints = false
+        
+        pill.addSubview(prefixLabel)
+        pill.addSubview(valueLabel)
+        
+        NSLayoutConstraint.activate([
+            prefixLabel.leadingAnchor.constraint(equalTo: pill.leadingAnchor, constant: 8),
+            prefixLabel.centerYAnchor.constraint(equalTo: pill.centerYAnchor),
+            
+            valueLabel.leadingAnchor.constraint(equalTo: prefixLabel.trailingAnchor, constant: 6),
+            valueLabel.centerYAnchor.constraint(equalTo: pill.centerYAnchor),
+            valueLabel.trailingAnchor.constraint(lessThanOrEqualTo: pill.trailingAnchor, constant: -8)
+        ])
+        
+        return pill
+    }
+
+    private func createLeadingMetric(title: String, value: String, color: NSColor) -> NSView {
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .leading
+        stack.spacing = 4
+        
+        let titleLabel = NSTextField(labelWithString: title)
+        titleLabel.font = NSFont.systemFont(ofSize: 11, weight: .regular)
+        titleLabel.textColor = DSV2.onSurfaceTertiary
+        
+        let valueLabel = NSTextField(labelWithString: value)
+        valueLabel.font = DSV2.fontMonoMd
+        valueLabel.textColor = color
+        
+        stack.addArrangedSubview(titleLabel)
+        stack.addArrangedSubview(valueLabel)
+        
+        return stack
+    }
+
+    private func createCenteredMetric(title: String, value: String, color: NSColor) -> NSView {
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .centerX
+        stack.spacing = 4
+        
+        let titleLabel = NSTextField(labelWithString: title)
+        titleLabel.font = NSFont.systemFont(ofSize: 11, weight: .regular)
+        titleLabel.textColor = DSV2.onSurfaceTertiary
+        
+        let valueLabel = NSTextField(labelWithString: value)
+        valueLabel.font = DSV2.fontMonoMd
+        valueLabel.textColor = color
+        
+        stack.addArrangedSubview(titleLabel)
+        stack.addArrangedSubview(valueLabel)
+        
+        return stack
+    }
+
+    private func createTrailingMetric(title: String, value: String, color: NSColor) -> NSView {
+        let stack = NSStackView()
+        stack.orientation = .vertical
+        stack.alignment = .trailing
+        stack.spacing = 4
+        
+        let titleLabel = NSTextField(labelWithString: title)
+        titleLabel.font = NSFont.systemFont(ofSize: 11, weight: .regular)
+        titleLabel.textColor = DSV2.onSurfaceTertiary
+        
+        let valueLabel = NSTextField(labelWithString: value)
+        valueLabel.font = DSV2.fontMonoMd
+        valueLabel.textColor = color
+        
+        stack.addArrangedSubview(titleLabel)
+        stack.addArrangedSubview(valueLabel)
+        
+        return stack
     }
 
     private func timeAgoString(from date: Date) -> String {

@@ -1,11 +1,20 @@
 import AppKit
 
+private final class FlippedStackView: NSStackView {
+    override var isFlipped: Bool { true }
+}
+
 final class AIClawBotViewController: NSViewController {
     private let headerImageView = NSImageView()
     private let titleLabel = NSTextField(labelWithString: "")
     private let subtitleLabel = NSTextField(labelWithString: "API ENDPOINTS")
     private let scrollView = NSScrollView()
-    private let stackView = NSStackView()
+    private let stackView = FlippedStackView()
+    private let headerSeparator = NSView()
+    
+    // Toast 提示
+    private var toastView: NSView?
+    private var toastTimer: Timer?
 
     struct ApiDoc: Codable {
         let id: String
@@ -40,7 +49,7 @@ final class AIClawBotViewController: NSViewController {
     override func loadView() {
         view = NSView()
         view.wantsLayer = true
-        view.layer?.backgroundColor = DSV2.pageBackground.cgColor
+        view.layer?.backgroundColor = DSV2.surface.cgColor
     }
 
     override func viewDidLoad() {
@@ -86,10 +95,11 @@ final class AIClawBotViewController: NSViewController {
     }
 
     @objc private func handleThemeChange() {
-        view.layer?.backgroundColor = DSV2.pageBackground.cgColor
+        view.layer?.backgroundColor = DSV2.surface.cgColor
         headerImageView.contentTintColor = DSV2.primary
         titleLabel.textColor = DSV2.onSurface
         subtitleLabel.textColor = DSV2.onSurfaceTertiary
+        headerSeparator.layer?.backgroundColor = DSV2.divider.withAlphaComponent(0.8).cgColor
 
         // 更新所有卡片及其内部元素
         for subview in stackView.arrangedSubviews {
@@ -101,8 +111,9 @@ final class AIClawBotViewController: NSViewController {
 
     private func updateCardTheme(_ card: NSView) {
         // 更新卡片背景
-        card.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
-        card.layer?.borderColor = DSV2.cardBorder.cgColor
+        card.layer?.backgroundColor = DSV2.surfaceContainerHigh.withAlphaComponent(0.8).cgColor
+        card.layer?.borderColor = DSV2.cardBorder.withAlphaComponent(0.15).cgColor
+        card.layer?.borderWidth = 1
 
         // 递归更新卡片内所有子视图
         for subview in card.subviews {
@@ -123,10 +134,11 @@ final class AIClawBotViewController: NSViewController {
             } else if let nestedStack = view as? NSStackView {
                 updateStackViewTheme(nestedStack)
             } else {
-                // 更新代码容器背景
-                if view.layer?.cornerRadius == DSV2.radiusInput {
-                    view.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
-                    view.layer?.borderColor = DSV2.cardBorder.cgColor
+                // 更新代码容器背景 - 检测 curlContainer (radiusCard) 或其他代码块
+                if view.layer?.cornerRadius == DSV2.radiusCard || view.layer?.cornerRadius == DSV2.radiusInput {
+                    view.layer?.backgroundColor = DSV2.codeBackground.cgColor
+                    view.layer?.borderColor = NSColor.clear.cgColor
+                    view.layer?.borderWidth = 0
                 }
                 // 递归更新容器内的元素
                 for subview in view.subviews {
@@ -139,11 +151,31 @@ final class AIClawBotViewController: NSViewController {
     }
 
     private func updateTextFieldTheme(_ textField: NSTextField) {
-        // 根据字体类型判断文本类型并应用相应颜色
+        // 如果是 cURL 标签
+        if textField.identifier?.rawValue == "curlLabel" {
+            textField.attributedStringValue = highlightCurl(textField.stringValue)
+            return
+        }
+
+        // 如果是说明文字标签
+        if textField.identifier?.rawValue == "descriptionLabel" {
+            textField.textColor = ThemeManager.shared.isDarkMode ? DSV2.onSurface : DSV2.onSurfaceVariant
+            
+            // 重新应用带有正确颜色的属性文本（保持行间距）
+            let style = NSMutableParagraphStyle()
+            style.lineSpacing = 3
+            let attrStr = NSMutableAttributedString(string: textField.stringValue, attributes: [
+                .font: DSV2.fontBodyMd,
+                .foregroundColor: textField.textColor ?? DSV2.onSurface,
+                .paragraphStyle: style
+            ])
+            textField.attributedStringValue = attrStr
+            return
+        }
+
+        // 其他通用标签
         if textField.font == DSV2.fontLabelSm {
             textField.textColor = DSV2.onSurfaceTertiary
-        } else if textField.font == DSV2.fontBodyMd {
-            textField.textColor = DSV2.onSurfaceVariant
         } else {
             textField.textColor = DSV2.onSurface
         }
@@ -187,33 +219,47 @@ final class AIClawBotViewController: NSViewController {
         // Stack view for cards
         stackView.orientation = .vertical
         stackView.alignment = .leading
+        stackView.distribution = .fill
         stackView.spacing = DSV2.spacing4
+        stackView.setHuggingPriority(.required, for: .vertical)
         stackView.translatesAutoresizingMaskIntoConstraints = false
 
         // Scroll view
         scrollView.hasVerticalScroller = true
+        scrollView.hasHorizontalScroller = false
         scrollView.drawsBackground = false
         scrollView.documentView = stackView
         scrollView.translatesAutoresizingMaskIntoConstraints = false
 
+        headerSeparator.wantsLayer = true
+        headerSeparator.layer?.backgroundColor = DSV2.divider.withAlphaComponent(0.8).cgColor
+        headerSeparator.translatesAutoresizingMaskIntoConstraints = false
+
         view.addSubview(headerStack)
+        view.addSubview(headerSeparator)
         view.addSubview(scrollView)
 
         DSV2.applyBrightScroller(to: scrollView)
 
         NSLayoutConstraint.activate([
             headerStack.topAnchor.constraint(equalTo: view.topAnchor, constant: DSV2.spacing6),
-            headerStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
+            headerStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6 + 12),
             headerStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
 
-            scrollView.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: DSV2.spacing6),
+            headerSeparator.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: 12),
+            headerSeparator.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            headerSeparator.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            headerSeparator.heightAnchor.constraint(equalToConstant: 1),
+
+            scrollView.topAnchor.constraint(equalTo: headerSeparator.bottomAnchor, constant: 12),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6),
 
-            stackView.leadingAnchor.constraint(equalTo: scrollView.leadingAnchor),
-            stackView.trailingAnchor.constraint(equalTo: scrollView.trailingAnchor),
-            stackView.topAnchor.constraint(equalTo: scrollView.topAnchor)
+            stackView.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor),
+            stackView.leadingAnchor.constraint(equalTo: scrollView.contentView.leadingAnchor),
+            stackView.trailingAnchor.constraint(equalTo: scrollView.contentView.trailingAnchor),
+            stackView.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor)
         ])
 
         addEndpoints()
@@ -233,59 +279,127 @@ final class AIClawBotViewController: NSViewController {
             stackView.addArrangedSubview(card)
             card.widthAnchor.constraint(equalTo: stackView.widthAnchor).isActive = true
         }
+        
+        // Add a bottom spacer to push all cards to the top
+        let spacer = NSView()
+        spacer.translatesAutoresizingMaskIntoConstraints = false
+        stackView.addArrangedSubview(spacer)
+        // This spacer will absorb all extra vertical space
+        spacer.setContentHuggingPriority(.init(1), for: .vertical)
+    }
+
+    private func highlightCurl(_ text: String) -> NSAttributedString {
+        let attrString = NSMutableAttributedString(string: text, attributes: [
+            .font: DSV2.fontMonoSm,
+            .foregroundColor: DSV2.onSurfaceVariant
+        ])
+
+        // Define regex patterns and colors
+        let patterns: [(String, NSColor)] = [
+            ("\\bcurl\\b", DSV2.primary),                  // curl command
+            ("-X |-H |-d ", DSV2.secondary),              // flags
+            ("GET|POST|PUT|DELETE|PATCH", DSV2.tertiary),  // methods
+            ("http[s]?://\\S+", DSV2.secondary),          // URLs
+            ("'[^']*'|\"[^\"]*\"", DSV2.tertiary)          // quoted strings (data)
+        ]
+
+        for (pattern, color) in patterns {
+            if let regex = try? NSRegularExpression(pattern: pattern) {
+                let matches = regex.matches(in: text, range: NSRange(text.startIndex..., in: text))
+                for match in matches {
+                    attrString.addAttribute(.foregroundColor, value: color, range: match.range)
+                    if pattern.contains("GET") {
+                        attrString.addAttribute(.font, value: NSFont.monospacedSystemFont(ofSize: 11, weight: .bold), range: match.range)
+                    }
+                }
+            }
+        }
+
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.lineSpacing = 3
+        attrString.addAttribute(.paragraphStyle, value: paragraphStyle, range: NSRange(location: 0, length: attrString.length))
+
+        return attrString
     }
 
     private func makeEndpointCard(method: String, path: String, description: String, curl: String) -> NSView {
         let card = NSView()
         card.wantsLayer = true
         card.layer?.cornerRadius = DSV2.radiusContainer
-        card.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
-        card.layer?.borderColor = DSV2.cardBorder.cgColor
-        card.layer?.borderWidth = 1.0
+        card.layer?.backgroundColor = DSV2.surfaceContainerHigh.withAlphaComponent(0.8).cgColor
+        card.layer?.borderColor = DSV2.cardBorder.withAlphaComponent(0.15).cgColor
+        card.layer?.borderWidth = 1
 
         // Method badge using DSV2
         let methodBadge = DSV2.makeMethodTag(method: method)
 
         // Path label
-        let pathLabel = NSTextField(labelWithString: path)
+        let pathLabel = NSTextField(wrappingLabelWithString: path)
         pathLabel.font = DSV2.fontMonoMd
         pathLabel.textColor = DSV2.onSurface
         pathLabel.translatesAutoresizingMaskIntoConstraints = false
 
         // Description
         let descLabel = NSTextField(wrappingLabelWithString: description)
+        descLabel.identifier = NSUserInterfaceItemIdentifier("descriptionLabel")
         descLabel.font = DSV2.fontBodyMd
-        descLabel.textColor = DSV2.onSurfaceVariant
+        descLabel.textColor = ThemeManager.shared.isDarkMode ? DSV2.onSurface : DSV2.onSurfaceVariant
         descLabel.translatesAutoresizingMaskIntoConstraints = false
+        descLabel.isSelectable = true
+        
+        // 点击复制功能
+        let descCopyGesture = NSClickGestureRecognizer(target: self, action: #selector(copyContent))
+        descLabel.addGestureRecognizer(descCopyGesture)
+        descLabel.toolTip = LanguageManager.shared.localized("common.copy")
+        
+        // Add line spacing to description
+        let descStyle = NSMutableParagraphStyle()
+        descStyle.lineSpacing = 3
+        descLabel.attributedStringValue = NSAttributedString(string: description, attributes: [
+            .font: DSV2.fontBodyMd,
+            .foregroundColor: ThemeManager.shared.isDarkMode ? DSV2.onSurface : DSV2.onSurfaceVariant,
+            .paragraphStyle: descStyle
+        ])
 
         // Curl code block with terminal styling
         let curlContainer = NSView()
         curlContainer.wantsLayer = true
-        curlContainer.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
+        curlContainer.layer?.backgroundColor = DSV2.codeBackground.cgColor
         curlContainer.layer?.cornerRadius = DSV2.radiusCard
-        curlContainer.layer?.borderWidth = 1
-        curlContainer.layer?.borderColor = DSV2.cardBorder.cgColor
+        curlContainer.layer?.borderWidth = 0
+        curlContainer.layer?.borderColor = NSColor.clear.cgColor
         curlContainer.translatesAutoresizingMaskIntoConstraints = false
 
         let curlLabel = NSTextField(wrappingLabelWithString: curl)
+        curlLabel.identifier = NSUserInterfaceItemIdentifier("curlLabel")
         curlLabel.font = DSV2.fontMonoSm
         curlLabel.textColor = DSV2.onSurface
         curlLabel.backgroundColor = .clear
         curlLabel.drawsBackground = false
+        curlLabel.isEditable = false
         curlLabel.isSelectable = true
+        curlLabel.allowsEditingTextAttributes = true
         curlLabel.translatesAutoresizingMaskIntoConstraints = false
+        
+        // 点击复制功能
+        let curlCopyGesture = NSClickGestureRecognizer(target: self, action: #selector(copyContent))
+        curlLabel.addGestureRecognizer(curlCopyGesture)
+        curlLabel.toolTip = LanguageManager.shared.localized("common.copy")
+        
+        // Apply CURL syntax highlighting
+        curlLabel.attributedStringValue = highlightCurl(curl)
 
         curlContainer.addSubview(curlLabel)
 
-        let topRow = NSStackView(views: [methodBadge, pathLabel])
+        let topRow = NSStackView(views: [pathLabel, methodBadge])
         topRow.orientation = NSUserInterfaceLayoutOrientation.horizontal
         topRow.spacing = DSV2.spacing2
-        topRow.alignment = .centerY
+        topRow.alignment = .bottom
 
         let cardStack = NSStackView(views: [topRow, descLabel, curlContainer])
         cardStack.orientation = NSUserInterfaceLayoutOrientation.vertical
         cardStack.alignment = .leading
-        cardStack.spacing = DSV2.spacing4
+        cardStack.spacing = 11 // Increased from 8 to improve breathing room
         cardStack.translatesAutoresizingMaskIntoConstraints = false
 
         card.addSubview(cardStack)
@@ -296,10 +410,10 @@ final class AIClawBotViewController: NSViewController {
             curlLabel.trailingAnchor.constraint(equalTo: curlContainer.trailingAnchor, constant: -DSV2.spacing2),
             curlLabel.bottomAnchor.constraint(equalTo: curlContainer.bottomAnchor, constant: -DSV2.spacing2),
 
-            cardStack.topAnchor.constraint(equalTo: card.topAnchor, constant: DSV2.spacing4),
-            cardStack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: DSV2.spacing4),
-            cardStack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -DSV2.spacing4),
-            cardStack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -DSV2.spacing4),
+            cardStack.topAnchor.constraint(equalTo: card.topAnchor, constant: 12),
+            cardStack.leadingAnchor.constraint(equalTo: card.leadingAnchor, constant: 12),
+            cardStack.trailingAnchor.constraint(equalTo: card.trailingAnchor, constant: -12),
+            cardStack.bottomAnchor.constraint(equalTo: card.bottomAnchor, constant: -12),
 
             topRow.widthAnchor.constraint(equalTo: cardStack.widthAnchor),
             descLabel.widthAnchor.constraint(equalTo: cardStack.widthAnchor),
@@ -307,5 +421,73 @@ final class AIClawBotViewController: NSViewController {
         ])
 
         return card
+    }
+
+    // MARK: - Handlers & Actions
+
+    @objc private func copyContent(_ sender: NSClickGestureRecognizer) {
+        guard let label = sender.view as? NSTextField else { return }
+        let pasteboard = NSPasteboard.general
+        pasteboard.clearContents()
+        pasteboard.setString(label.stringValue, forType: .string)
+        
+        showToast(LanguageManager.shared.localized("common.copied"))
+    }
+
+    private func showToast(_ message: String) {
+        toastTimer?.invalidate()
+        toastView?.removeFromSuperview()
+
+        let container = NSView()
+        container.wantsLayer = true
+        container.layer?.backgroundColor = DSV2.primary.cgColor
+        container.layer?.cornerRadius = 12
+        container.layer?.shadowColor = NSColor.black.cgColor
+        container.layer?.shadowOpacity = 0.3
+        container.layer?.shadowRadius = 10
+        container.layer?.shadowOffset = CGSize(width: 0, height: 4)
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        let label = NSTextField(labelWithString: message)
+        label.font = NSFont.systemFont(ofSize: 13, weight: .medium)
+        label.textColor = .white
+        label.alignment = .center
+        label.translatesAutoresizingMaskIntoConstraints = false
+        container.addSubview(label)
+
+        view.addSubview(container)
+        self.toastView = container
+
+        NSLayoutConstraint.activate([
+            label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
+            label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16),
+            label.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16),
+            container.heightAnchor.constraint(equalToConstant: 36),
+            container.centerXAnchor.constraint(equalTo: view.centerXAnchor),
+            container.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -40)
+        ])
+
+        container.alphaValue = 0
+
+        NSAnimationContext.runAnimationGroup { context in
+            context.duration = 0.3
+            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
+            container.animator().alphaValue = 1
+        }
+
+        toastTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
+            self?.hideToast()
+        }
+    }
+
+    private func hideToast() {
+        guard let toast = toastView else { return }
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.3
+            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
+            toast.animator().alphaValue = 0
+        }) {
+            toast.removeFromSuperview()
+        }
     }
 }

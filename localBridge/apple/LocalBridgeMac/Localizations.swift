@@ -307,6 +307,10 @@ struct Localizations {
             "en": "LATENCY",
             "zh": "延迟"
         ],
+        "instances.status": [
+            "en": "STATUS",
+            "zh": "状态"
+        ],
         "instances.connected_since": [
             "en": "CONNECTED SINCE",
             "zh": "连接时间"

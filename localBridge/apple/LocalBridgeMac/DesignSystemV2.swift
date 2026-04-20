@@ -8,27 +8,32 @@ enum DSV2 {
 
     /// 页面级暖色背景
     static var pageBackground: NSColor {
-        ThemeManager.shared.isDarkMode ? NSColor(hex: "#151515") : NSColor(hex: "#E1E2E0")
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#151515") : NSColor(hex: "#FBFBF9")
     }
 
     /// 终端/代码区域 - 最深层，用于最大化文本对比度
     static var surfaceContainerLowest: NSColor {
-        ThemeManager.shared.isDarkMode ? NSColor(hex: "#0E0E0E") : NSColor(hex: "#F1F1EC")
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#0E0E0E") : NSColor(hex: "#F7F7F6")
+    }
+
+    /// 代码块/cURL 容器背景
+    static var codeBackground: NSColor {
+        ThemeManager.shared.isDarkMode ? surfaceContainerLowest.withAlphaComponent(0.3) : NSColor(hex: "#D9D9D8").withAlphaComponent(0.2)
     }
 
     /// 基础层 - 应用的绝对基础背景
     static var surface: NSColor {
-        ThemeManager.shared.isDarkMode ? NSColor(hex: "#131313") : NSColor(hex: "#F7F7F3")
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#131313") : NSColor(hex: "#FFFFFF")
     }
 
     /// 侧边栏/导航区域 - 次要上下文
     static var surfaceContainerLow: NSColor {
-        ThemeManager.shared.isDarkMode ? NSColor(hex: "#1E1E1E") : NSColor(hex: "#F4F3EE")
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#1E1E1E") : NSColor(hex: "#F7F7F6")
     }
 
     /// 活动面板/可操作元素
     static var surfaceContainerHigh: NSColor {
-        ThemeManager.shared.isDarkMode ? NSColor(hex: "#2A2A2A") : NSColor(hex: "#FCFCF8")
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#2A2A2A") : NSColor(hex: "#F7F7F6")
     }
 
     /// Hover / Selected 的柔和高亮层
@@ -42,15 +47,15 @@ enum DSV2 {
     }
 
     static var cardBorder: NSColor {
-        ThemeManager.shared.isDarkMode ? NSColor(hex: "#4A4A4A") : NSColor(hex: "#D0D0CB")
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#4A4A4A") : NSColor(hex: "#E5E5E0")
     }
 
     static var softAccentFill: NSColor {
-        ThemeManager.shared.isDarkMode ? primary.withAlphaComponent(0.18) : NSColor(hex: "#FFF1EC")
+        ThemeManager.shared.isDarkMode ? primary : NSColor(hex: "#FFF1EC")
     }
 
     static var divider: NSColor {
-        ThemeManager.shared.isDarkMode ? NSColor(hex: "#343434") : NSColor(hex: "#D7D6D1")
+        ThemeManager.shared.isDarkMode ? NSColor(hex: "#343434") : NSColor(hex: "#EEEDE8")
     }
 
     static var subtleShadow: NSColor {
@@ -659,32 +664,26 @@ open class PassthroughImageView: NSImageView {
     }
 }
 
-/// 自定义亮色滚动条，提升在深色背景下的可见度
+/// 自定义亮色滚动条，提升在深色背景下的可见度，采用 2px 极简设计
 class BrightScroller: NSScroller {
     override func drawKnob() {
         // 只在有内容可滚动时绘制
         guard knobProportion > 0 else { return }
         
         let rect = rect(for: .knob)
-        let path = NSBezierPath(roundedRect: rect.insetBy(dx: 2, dy: 0), xRadius: rect.width/2, yRadius: rect.width/2)
+        // 计算缩进，使最终绘制宽度为 2px
+        let xInset = (rect.width - 2) / 2
+        let path = NSBezierPath(roundedRect: rect.insetBy(dx: xInset, dy: 4), xRadius: 1, yRadius: 1)
         
-        // 使用主色调的高亮色
-        DSV2.primary.set()
+        // 使用主色调，并添加微弱的透明度
+        DSV2.primary.withAlphaComponent(0.9).set()
         path.fill()
     }
     
     override func drawKnobSlot(in slotRect: NSRect, highlight flag: Bool) {
-        // 背景槽深色处理
-        DSV2.surfaceContainerLowest.set()
+        // 轨道背景保持极简，几乎透明
+        NSColor.clear.set()
         slotRect.fill()
-        
-        // 添加一个极细的边线
-        DSV2.outlineVariant.withAlphaComponent(0.1).set()
-        let line = NSBezierPath()
-        line.move(to: NSPoint(x: slotRect.minX, y: slotRect.minY))
-        line.line(to: NSPoint(x: slotRect.minX, y: slotRect.maxY))
-        line.lineWidth = 1
-        line.stroke()
     }
     
     // 强制使用系统风格但自定义绘制
