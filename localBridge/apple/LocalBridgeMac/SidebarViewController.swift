@@ -55,9 +55,9 @@ final class SidebarViewController: NSViewController {
 
     private let tableView = NSTableView(frame: .zero)
     private let rightDivider = NSView()
-    private let settingsButton = NSButton()
-    private let helpButton = NSButton()
-    private let quitButton = NSButton()
+    private let settingsButton = SidebarBottomButton()
+    private let helpButton = SidebarBottomButton()
+    private let quitButton = SidebarBottomButton()
 
     override func loadView() {
         view = NSView()
@@ -97,6 +97,10 @@ final class SidebarViewController: NSViewController {
         hoverTooltipLabel.textColor = DSV2.onSurface
         hoverTooltipContainer.layer?.backgroundColor = DSV2.surfaceBright.cgColor
         hoverTooltipContainer.layer?.borderColor = DSV2.cardBorder.cgColor
+        
+        settingsButton.updateAppearance()
+        helpButton.updateAppearance()
+        quitButton.updateAppearance()
 
         // Update all visible cells to refresh background colors and configuration
         let visibleRows = tableView.rows(in: tableView.visibleRect)
@@ -196,6 +200,8 @@ extension SidebarViewController: NSTableViewDataSource, NSTableViewDelegate {
         guard conversations.indices.contains(selectedRow) else {
             return
         }
+
+        settingsButton.isSelectedNode = false
 
         delegate?.sidebarViewController(self, didSelect: conversations[selectedRow])
     }
@@ -320,7 +326,8 @@ private extension SidebarViewController {
 
     func configureSettingsButton() {
         if #available(macOS 11.0, *) {
-            settingsButton.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")
+            let config = NSImage.SymbolConfiguration(pointSize: 18, weight: .medium)
+            settingsButton.image = NSImage(systemSymbolName: "gearshape", accessibilityDescription: "Settings")?.withSymbolConfiguration(config)
         }
 
         settingsButton.title = ""
@@ -328,17 +335,21 @@ private extension SidebarViewController {
         settingsButton.isBordered = false
         settingsButton.imagePosition = .imageOnly
         settingsButton.toolTip = LanguageManager.shared.localized("settings.title")
-        settingsButton.font = DSV2.fontBodySm
-        settingsButton.contentTintColor = DSV2.onSurfaceVariant
+        settingsButton.defaultColor = DSV2.onSurfaceVariant
+        settingsButton.hoverColor = DSV2.primary
+        settingsButton.wantsLayer = true
+        settingsButton.layer?.cornerRadius = 10
 
         settingsButton.target = self
         settingsButton.action = #selector(showSettingsMenu)
         settingsButton.translatesAutoresizingMaskIntoConstraints = false
+        settingsButton.updateAppearance()
     }
 
     func configureHelpButton() {
         if #available(macOS 11.0, *) {
-            helpButton.image = NSImage(systemSymbolName: "questionmark.circle", accessibilityDescription: "Help")
+            let config = NSImage.SymbolConfiguration(pointSize: 18, weight: .medium)
+            helpButton.image = NSImage(systemSymbolName: "questionmark.circle", accessibilityDescription: "Help")?.withSymbolConfiguration(config)
         }
 
         helpButton.title = ""
@@ -346,17 +357,21 @@ private extension SidebarViewController {
         helpButton.isBordered = false
         helpButton.imagePosition = .imageOnly
         helpButton.toolTip = LanguageManager.shared.localized("app.help")
-        helpButton.font = DSV2.fontBodySm
-        helpButton.contentTintColor = DSV2.onSurfaceVariant
+        helpButton.defaultColor = DSV2.onSurfaceVariant
+        helpButton.hoverColor = DSV2.primary
+        helpButton.wantsLayer = true
+        helpButton.layer?.cornerRadius = 10
 
         helpButton.target = self
         helpButton.action = #selector(openHelpWebsite)
         helpButton.translatesAutoresizingMaskIntoConstraints = false
+        helpButton.updateAppearance()
     }
 
     func configureQuitButton() {
         if #available(macOS 11.0, *) {
-            quitButton.image = NSImage(systemSymbolName: "power", accessibilityDescription: "Quit")
+            let config = NSImage.SymbolConfiguration(pointSize: 18, weight: .medium)
+            quitButton.image = NSImage(systemSymbolName: "power", accessibilityDescription: "Quit")?.withSymbolConfiguration(config)
         }
 
         quitButton.title = ""
@@ -364,12 +379,15 @@ private extension SidebarViewController {
         quitButton.isBordered = false
         quitButton.imagePosition = .imageOnly
         quitButton.toolTip = LanguageManager.shared.localized("app.quit")
-        quitButton.font = DSV2.fontBodySm
-        quitButton.contentTintColor = DSV2.error
+        quitButton.defaultColor = DSV2.error.withAlphaComponent(0.8)
+        quitButton.hoverColor = DSV2.error
+        quitButton.wantsLayer = true
+        quitButton.layer?.cornerRadius = 10
 
         quitButton.target = self
         quitButton.action = #selector(quitApplication)
         quitButton.translatesAutoresizingMaskIntoConstraints = false
+        quitButton.updateAppearance()
     }
 
     func showHoverTooltip(title: String, y: CGFloat) {
@@ -419,6 +437,7 @@ private extension SidebarViewController {
     @objc func showSettingsMenu(_ sender: NSButton) {
         tableView.deselectAll(nil)
         refreshSelectionForAllVisibleRows()
+        settingsButton.isSelectedNode = true
         delegate?.sidebarViewControllerDidSelectSettings(self)
     }
 
@@ -430,6 +449,60 @@ private extension SidebarViewController {
 
     @objc func quitApplication(_ sender: NSButton) {
         NSApplication.shared.terminate(nil)
+    }
+}
+
+private final class SidebarBottomButton: NSButton {
+    var defaultColor: NSColor = DSV2.onSurface {
+        didSet { updateAppearance() }
+    }
+    var hoverColor: NSColor = DSV2.primary {
+        didSet { updateAppearance() }
+    }
+    var isSelectedNode: Bool = false {
+        didSet { updateAppearance() }
+    }
+    private var isHovered: Bool = false {
+        didSet { updateAppearance() }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        trackingAreas.forEach { removeTrackingArea($0) }
+        let trackingArea = NSTrackingArea(
+            rect: bounds,
+            options: [.mouseEnteredAndExited, .activeAlways, .inVisibleRect],
+            owner: self,
+            userInfo: nil
+        )
+        addTrackingArea(trackingArea)
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        isHovered = true
+        super.mouseEntered(with: event)
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        isHovered = false
+        super.mouseExited(with: event)
+    }
+
+    func updateAppearance() {
+        if #available(macOS 11.0, *) {
+            // Apply background color for selected/hover state
+            if isSelectedNode {
+                let sidebarAlpha: CGFloat = ThemeManager.shared.isDarkMode ? 0.18 : 1.0
+                layer?.backgroundColor = DSV2.softAccentFill.withAlphaComponent(sidebarAlpha).cgColor
+                contentTintColor = hoverColor
+            } else if isHovered {
+                layer?.backgroundColor = DSV2.surfaceContainerHighest.withAlphaComponent(0.3).cgColor
+                contentTintColor = hoverColor
+            } else {
+                layer?.backgroundColor = NSColor.clear.cgColor
+                contentTintColor = defaultColor
+            }
+        }
     }
 }
 private final class ConversationCellView: NSTableCellView {
