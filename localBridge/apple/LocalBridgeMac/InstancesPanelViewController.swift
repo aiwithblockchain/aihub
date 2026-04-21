@@ -12,6 +12,7 @@ final class InstancesPanelViewController: NSViewController {
     private var emptyView: NSStackView!
     private var emptyTextLabel: NSTextField!
     private var emptyHintLabel: NSTextField!
+    private let headerImageView = NSImageView()
     private let headerSeparator = NSView()
 
 
@@ -85,6 +86,7 @@ final class InstancesPanelViewController: NSViewController {
         // 更新标题和副标题颜色
         titleLabel.textColor = DSV2.onSurface
         subtitleLabel.textColor = DSV2.onSurfaceVariant
+        headerImageView.contentTintColor = DSV2.primary
         headerSeparator.layer?.backgroundColor = DSV2.divider.withAlphaComponent(0.8).cgColor
 
 
@@ -121,13 +123,21 @@ final class InstancesPanelViewController: NSViewController {
         view.layer?.backgroundColor = DSV2.surface.cgColor
 
         // Title - 使用 DSV2 样式
-        titleLabel.font = NSFont.systemFont(ofSize: 20, weight: .bold)
+        titleLabel.font = DSV2.fontTitleLg
         titleLabel.textColor = DSV2.onSurface
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
+        // Header Icon
+        if #available(macOS 11.0, *) {
+            headerImageView.image = NSImage(systemSymbolName: "server.rack", accessibilityDescription: nil)
+            headerImageView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 20, weight: .semibold)
+            headerImageView.contentTintColor = DSV2.primary
+        }
+        headerImageView.translatesAutoresizingMaskIntoConstraints = false
+
         // Subtitle - 使用更小的字体和大写样式
-        subtitleLabel.font = NSFont.systemFont(ofSize: 11, weight: .medium)
-        subtitleLabel.textColor = DSV2.onSurfaceVariant
+        subtitleLabel.font = DSV2.fontLabelSm
+        subtitleLabel.textColor = DSV2.onSurfaceTertiary
         subtitleLabel.stringValue = "REAL-TIME EXTENSION HEALTH & BRIDGE METRICS"
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
 
@@ -192,13 +202,23 @@ final class InstancesPanelViewController: NSViewController {
         emptyView.isHidden = true
 
         // Header row
-        let headerStack = NSStackView(views: [titleLabel, NSView(), refreshButton])
-        headerStack.orientation = .horizontal
-        headerStack.alignment = .centerY
+        let headerLeftStack = NSStackView(views: [headerImageView, titleLabel])
+        headerLeftStack.orientation = .horizontal
+        headerLeftStack.spacing = 8
+        headerLeftStack.alignment = .centerY
+
+        let topRow = NSStackView(views: [headerLeftStack, NSView(), refreshButton])
+        topRow.orientation = .horizontal
+        topRow.alignment = .centerY
+        topRow.translatesAutoresizingMaskIntoConstraints = false
+
+        let headerStack = NSStackView(views: [topRow, subtitleLabel])
+        headerStack.orientation = .vertical
+        headerStack.spacing = 4
+        headerStack.alignment = .leading
         headerStack.translatesAutoresizingMaskIntoConstraints = false
 
         view.addSubview(headerStack)
-        view.addSubview(subtitleLabel)
         
         headerSeparator.wantsLayer = true
         headerSeparator.layer?.backgroundColor = DSV2.divider.withAlphaComponent(0.8).cgColor
@@ -211,19 +231,17 @@ final class InstancesPanelViewController: NSViewController {
 
         NSLayoutConstraint.activate([
             headerStack.topAnchor.constraint(equalTo: view.topAnchor, constant: DSV2.spacing6),
-            headerStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
+            headerStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6 + 12),
             headerStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
+            
+            topRow.widthAnchor.constraint(equalTo: headerStack.widthAnchor),
 
-            subtitleLabel.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: DSV2.spacing2),
-            subtitleLabel.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
-            subtitleLabel.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
-
-            headerSeparator.topAnchor.constraint(equalTo: subtitleLabel.bottomAnchor, constant: 12),
+            headerSeparator.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: 12),
             headerSeparator.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             headerSeparator.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             headerSeparator.heightAnchor.constraint(equalToConstant: 1),
 
-            scrollView.topAnchor.constraint(equalTo: headerSeparator.bottomAnchor, constant: 12),
+            scrollView.topAnchor.constraint(equalTo: headerSeparator.bottomAnchor, constant: 30),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6),
@@ -260,16 +278,15 @@ final class InstancesPanelViewController: NSViewController {
         }
 
         let spacing: CGFloat = DSV2.spacing6
-        let cardWidth: CGFloat = 350
-        // 使用更高品质的动态卡片高度 (基于内容)
-        // 但为了网格整齐，我们给出一个最小高度
-        let minCardHeight: CGFloat = 160 
+        let cardWidth: CGFloat = 390 // 根据要求调窄到 390px
+        // 确保高度足以容纳所有的边距、内容和间距（大约需要210px）
+        let minCardHeight: CGFloat = 216 
         let columns = 2
 
         // 计算总高度和宽度
         let rows = (instances.count + columns - 1) / columns
-        let totalHeight = CGFloat(rows) * (minCardHeight + spacing) + spacing
-        let totalWidth = CGFloat(columns) * (cardWidth + spacing) + spacing
+        let totalHeight = CGFloat(rows) * minCardHeight + CGFloat(max(0, rows - 1)) * spacing
+        let totalWidth = CGFloat(columns) * cardWidth + CGFloat(columns - 1) * spacing
 
         gridView.frame = NSRect(x: 0, y: 0, width: totalWidth, height: totalHeight)
 
@@ -280,8 +297,8 @@ final class InstancesPanelViewController: NSViewController {
             let card = createInstanceCard(instance: instance)
             gridView.addSubview(card)
 
-            let xOffset = spacing + CGFloat(col) * (cardWidth + spacing)
-            let yOffset = spacing + CGFloat(row) * (minCardHeight + spacing)
+            let xOffset = CGFloat(col) * (cardWidth + spacing)
+            let yOffset = CGFloat(row) * (minCardHeight + spacing)
 
             card.frame = NSRect(x: xOffset, y: yOffset, width: cardWidth, height: minCardHeight)
         }
@@ -296,7 +313,6 @@ final class InstancesPanelViewController: NSViewController {
         card.layer?.cornerRadius = DSV2.radiusCard
         card.layer?.borderWidth = 1
         card.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.1).cgColor
-        card.translatesAutoresizingMaskIntoConstraints = false
 
         // 主容器 StackView
         let mainStack = NSStackView()
@@ -407,7 +423,7 @@ final class InstancesPanelViewController: NSViewController {
         // Separator Line
         let separator = NSView()
         separator.wantsLayer = true
-        separator.layer?.backgroundColor = DSV2.outlineVariant.withAlphaComponent(0.1).cgColor
+        separator.layer?.backgroundColor = DSV2.divider.withAlphaComponent(0.8).cgColor
         separator.translatesAutoresizingMaskIntoConstraints = false
         separator.heightAnchor.constraint(equalToConstant: 1).isActive = true
         mainStack.addArrangedSubview(separator)

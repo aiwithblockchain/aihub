@@ -540,7 +540,7 @@ class SegmentedControl: NSView {
     private func setupButtons(items: [String]) {
         let stackView = NSStackView()
         stackView.orientation = .horizontal
-        stackView.spacing = 0
+        stackView.spacing = ThemeManager.shared.isDarkMode ? 0 : 4 // 浅色模式下增加间距以形成独立板块
         stackView.distribution = .fillEqually
         stackView.translatesAutoresizingMaskIntoConstraints = false
 
@@ -577,6 +577,10 @@ class SegmentedControl: NSView {
             stackView.bottomAnchor.constraint(equalTo: bottomAnchor)
         ])
 
+        // 移除容器背景，让板块独立
+        self.wantsLayer = true
+        self.layer?.backgroundColor = NSColor.clear.cgColor
+
         // 默认选中第一个
         updateSelection(index: 0)
     }
@@ -597,16 +601,40 @@ class SegmentedControl: NSView {
             button.attributedTitle = NSAttributedString(string: button.title, attributes: attributes)
 
             if i == index {
-                button.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
-                button.layer?.cornerRadius = DSV2.radiusInput
+                if ThemeManager.shared.isDarkMode {
+                    button.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
+                    button.layer?.cornerRadius = DSV2.radiusInput
+                } else {
+                    button.layer?.backgroundColor = NSColor.white.cgColor
+                    button.layer?.cornerRadius = DSV2.radiusInput
+                }
             } else {
-                button.layer?.backgroundColor = NSColor.clear.cgColor
-                button.layer?.cornerRadius = 0
+                if ThemeManager.shared.isDarkMode {
+                    button.layer?.backgroundColor = NSColor.clear.cgColor
+                    button.layer?.cornerRadius = 0
+                } else {
+                    button.layer?.backgroundColor = NSColor(hex: "#e1e1e0").cgColor
+                    button.layer?.cornerRadius = DSV2.radiusInput
+                }
             }
 
             // Ensure all buttons remain interactive
             button.isEnabled = true
         }
+    }
+
+    func updateSegmentedControlTheme() {
+        // 更新容器背景为透明
+        self.wantsLayer = true
+        self.layer?.backgroundColor = NSColor.clear.cgColor
+        
+        // 更新间距
+        if let stackView = self.subviews.first as? NSStackView {
+            stackView.spacing = ThemeManager.shared.isDarkMode ? 0 : 4
+        }
+        
+        // 更新按钮颜色
+        updateSelection(index: selectedIndex)
     }
 
     func indexOfSelectedItem() -> Int {
@@ -623,9 +651,6 @@ class SegmentedControl: NSView {
         return buttons[selectedIndex].title
     }
 
-    func updateTheme() {
-        updateSelection(index: selectedIndex)
-    }
 
     func updateItems(_ newItems: [String]) {
         guard newItems.count == buttons.count else {
@@ -664,16 +689,16 @@ open class PassthroughImageView: NSImageView {
     }
 }
 
-/// 自定义亮色滚动条，提升在深色背景下的可见度，采用 2px 极简设计
+/// 自定义亮色滚动条，提升在深色背景下的可见度，采用 4px 极简设计
 class BrightScroller: NSScroller {
     override func drawKnob() {
         // 只在有内容可滚动时绘制
         guard knobProportion > 0 else { return }
         
         let rect = rect(for: .knob)
-        // 计算缩进，使最终绘制宽度为 2px
-        let xInset = (rect.width - 2) / 2
-        let path = NSBezierPath(roundedRect: rect.insetBy(dx: xInset, dy: 4), xRadius: 1, yRadius: 1)
+        // 计算缩进，使最终绘制宽度为 4px
+        let xInset = (rect.width - 4) / 2
+        let path = NSBezierPath(roundedRect: rect.insetBy(dx: xInset, dy: 4), xRadius: 2, yRadius: 2)
         
         // 使用主色调，并添加微弱的透明度
         DSV2.primary.withAlphaComponent(0.9).set()

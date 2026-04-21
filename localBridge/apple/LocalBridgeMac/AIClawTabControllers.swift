@@ -251,7 +251,7 @@ final class AIClawBotViewController: NSViewController {
             headerSeparator.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             headerSeparator.heightAnchor.constraint(equalToConstant: 1),
 
-            scrollView.topAnchor.constraint(equalTo: headerSeparator.bottomAnchor, constant: 12),
+            scrollView.topAnchor.constraint(equalTo: headerSeparator.bottomAnchor, constant: 30),
             scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
             scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
             scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6),

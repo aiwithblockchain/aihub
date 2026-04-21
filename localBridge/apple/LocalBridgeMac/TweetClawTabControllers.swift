@@ -495,7 +495,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             headerSeparator.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             headerSeparator.heightAnchor.constraint(equalToConstant: 1),
 
-            listScrollView.topAnchor.constraint(equalTo: headerSeparator.bottomAnchor, constant: 12),
+            listScrollView.topAnchor.constraint(equalTo: headerSeparator.bottomAnchor, constant: 30),
             listScrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
             listScrollView.widthAnchor.constraint(equalToConstant: 300),
             listScrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6),
