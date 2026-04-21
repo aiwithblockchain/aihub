@@ -62,3 +62,6 @@ localBridge/apple/dist/OpeHub.dmg
 tweetClaw/tweetClaw.zip
 aiClaw/aiClaw.zip
 .claude
+.tweetpilot/tasks.db
+.tweetpilot.json
+localBridge/apple/dist/OpenHub.dmg
