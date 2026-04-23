@@ -163,6 +163,10 @@ struct Localizations {
             "en": "Auto",
             "zh": "自动"
         ],
+        "settings.version_format": [
+            "en": "Version %@(%@)",
+            "zh": "版本号v.%@(%@)"
+        ],
         "settings.rest_api": [
             "en": "REST API",
             "zh": "REST API"

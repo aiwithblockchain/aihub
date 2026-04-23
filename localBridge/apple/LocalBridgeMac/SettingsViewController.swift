@@ -294,6 +294,7 @@ final class SettingsViewController: NSViewController {
     private var themeDescLabel: NSTextField!
     private var languageLabel: NSTextField!
     private var languageDescLabel: NSTextField!
+    private var bottomVersionLabel: NSTextField!
     private var aiClawCardTitle: NSTextField!
     private var tweetClawCardTitle: NSTextField!
     private var restAPICardTitle: NSTextField!
@@ -358,6 +359,13 @@ final class SettingsViewController: NSViewController {
         languageDescLabel?.stringValue = LanguageManager.shared.localized("settings.language.description")
         themeLabel?.stringValue = LanguageManager.shared.localized("settings.theme")
         themeDescLabel?.stringValue = LanguageManager.shared.localized("settings.theme.description")
+        
+        if let bottomVersionLabel = bottomVersionLabel {
+            let versionString = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+            let buildString = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+            let formatStr = LanguageManager.shared.localized("settings.version_format")
+            bottomVersionLabel.stringValue = String(format: formatStr, versionString, buildString)
+        }
 
         // Update theme segmented control button labels
         themeSegmentedControl?.updateItems([
@@ -424,7 +432,9 @@ final class SettingsViewController: NSViewController {
         // 更新文本颜色
         if let textField = view as? NSTextField {
             // 对所有非编辑状态的标签根据字体大小判断颜色
-            if !textField.isEditable || textField is CenteredTextField {
+            if textField === self.bottomVersionLabel {
+                textField.textColor = DSV2.onSurfaceVariant.withAlphaComponent(0.4)
+            } else if !textField.isEditable || textField is CenteredTextField {
                 if let font = textField.font {
                     if font.pointSize >= 18 {
                         textField.textColor = DSV2.onSurface
@@ -509,7 +519,8 @@ final class SettingsViewController: NSViewController {
             generalCard,
             aiClawCard,
             tweetClawCard,
-            restAPICard
+            restAPICard,
+            makeBottomAboutRow()
         ])
         cardStack.orientation = .vertical
         cardStack.alignment = .leading
@@ -866,6 +877,34 @@ final class SettingsViewController: NSViewController {
             newTheme = .dark
         }
         ThemeManager.shared.setTheme(newTheme)
+    }
+
+    private func makeBottomAboutRow() -> NSView {
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        let versionString = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+        let buildString = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+        let formatStr = LanguageManager.shared.localized("settings.version_format")
+        let formattedVersion = String(format: formatStr, versionString, buildString)
+
+        bottomVersionLabel = NSTextField(labelWithString: formattedVersion)
+        bottomVersionLabel.font = DSV2.fontBodyMd
+        bottomVersionLabel.textColor = DSV2.onSurfaceVariant.withAlphaComponent(0.4)
+        bottomVersionLabel.isBordered = false
+        bottomVersionLabel.isEditable = false
+        bottomVersionLabel.drawsBackground = false
+        bottomVersionLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        container.addSubview(bottomVersionLabel)
+
+        NSLayoutConstraint.activate([
+            container.heightAnchor.constraint(equalToConstant: 24),
+            bottomVersionLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
+            bottomVersionLabel.centerYAnchor.constraint(equalTo: container.centerYAnchor)
+        ])
+
+        return container
     }
 
     private func makeSettingsCard(title: String, icon: String, iconColor: NSColor, views: [NSView]) -> NSView {
