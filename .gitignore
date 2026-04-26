@@ -50,7 +50,6 @@ task_*.md
 localBridge/go-lib/go.sum
 localBridge/go-lib/lib
 localBridge/apple/LocalBridgeApple/Frameworks/LocalBridge.framework
-localBridge/apple/LocalBridgeMac/doc
 tweetClaw/dist.zip
 localBridge/apple/tokenRouter/docs/test_go/claude_doc
 localBridge/apple/tokenRouter/docs/test_sdk/dist
