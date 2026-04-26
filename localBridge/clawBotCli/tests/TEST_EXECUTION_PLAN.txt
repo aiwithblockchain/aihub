@@ -29,24 +29,42 @@ Phase 0, Baseline unit and parser safety
 ----------------------------------------
 These are local safety checks before live account actions.
 
-- [ ] `tests/unit/test_x_parsers.py`
+- [x] `tests/unit/test_x_parsers.py`
   Goal: verify focal tweet extraction, nested reply extraction, visibility wrapper handling, author fallback.
-- [ ] `tests/unit/test_x_parser_edge_cases.py`
+  Result: PASS
+  Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/unit/test_x_parsers.py`
+- [x] `tests/unit/test_x_parser_edge_cases.py`
   Goal: verify parser edge cases for latest TweetDetail shapes.
-- [ ] `tests/unit/test_services.py`
+  Result: PASS
+  Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/unit/test_x_parser_edge_cases.py`
+- [x] `tests/unit/test_services.py`
   Goal: verify `instance_id` propagation and service-layer tweet/reply behavior.
-- [ ] `tests/unit/test_media_service.py`
+  Result: PASS
+  Command used: `PYTHONPATH=localBridge/clawBotCli python3 localBridge/clawBotCli/tests/unit/test_services.py`
+- [x] `tests/unit/test_media_service.py`
   Goal: verify media service success path.
-- [ ] `tests/unit/test_media_service_failures.py`
+  Result: PASS
+  Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/unit/test_media_service.py`
+- [x] `tests/unit/test_media_service_failures.py`
   Goal: verify media failure handling.
-- [ ] `tests/unit/test_client_smoke.py`
+  Result: PASS
+  Command used: `PYTHONPATH=localBridge/clawBotCli python3 localBridge/clawBotCli/tests/unit/test_media_service_failures.py`
+- [x] `tests/unit/test_client_smoke.py`
   Goal: verify basic client wiring.
-- [ ] `tests/unit/test_workflows.py`
+  Result: PASS
+  Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/unit/test_client_smoke.py`
+- [x] `tests/unit/test_workflows.py`
   Goal: verify workflow-level unit behavior.
-- [ ] `tests/unit/test_task_client_failures.py`
+  Result: PASS
+  Command used: `PYTHONPATH=localBridge/clawBotCli python3 localBridge/clawBotCli/tests/unit/test_workflows.py`
+- [x] `tests/unit/test_task_client_failures.py`
   Goal: verify task client failure handling.
-- [ ] `tests/unit/test_legacy_media_upload_task.py`
+  Result: PASS
+  Command used: `PYTHONPATH=localBridge/clawBotCli python3 localBridge/clawBotCli/tests/unit/test_task_client_failures.py`
+- [x] `tests/unit/test_legacy_media_upload_task.py`
   Goal: verify legacy task-based media upload behavior.
+  Result: PASS
+  Command used: `PYTHONPATH=localBridge/clawBotCli python3 localBridge/clawBotCli/tests/unit/test_legacy_media_upload_task.py`
 
 Phase 1, Read-only live API tests
 ---------------------------------

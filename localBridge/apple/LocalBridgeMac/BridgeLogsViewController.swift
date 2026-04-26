@@ -383,6 +383,7 @@ final class BridgeLogsViewController: NSViewController {
         }
 
         BridgeLogger.shared.clear()
+        AppDelegate.shared?.clearBridgeLogs()
         showToast(LanguageManager.shared.localized("logs.cleared"), style: .success)
     }
 

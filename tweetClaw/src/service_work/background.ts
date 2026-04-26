@@ -87,6 +87,7 @@ function releaseUploadSession(sessionId: string) {
 
 // Initialize LocalBridge Socket
 const localBridge = new LocalBridgeSocket();
+void localBridge.recordLifecycleEvent('sw_boot', 'background service worker evaluated');
 localBridge.queryXTabsHandler = queryXTabsStatus;
 localBridge.queryXBasicInfoHandler = queryXBasicInfo;
 localBridge.queryXhsAccountInfoHandler = queryXhsAccountInfo;
@@ -167,27 +168,39 @@ localBridge.handleReconnectAlarm = function() {
 // ── Listen for reconnect alarms ──────────────────────────────────
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'tweetclaw-reconnect') {
+        void localBridge.recordLifecycleEvent('bg_alarm_reconnect', 'background onAlarm listener', {
+            alarmName: alarm.name
+        });
         console.log(`[TweetClaw-BG] Reconnect alarm triggered, ${localBridge.getDebugIdentityLabel()}`);
         localBridge.handleReconnectAlarm();
     }
 });
 
 chrome.runtime.onStartup?.addListener(() => {
+    void localBridge.recordLifecycleEvent('runtime_startup', 'chrome.runtime.onStartup');
     console.log(`[TweetClaw-BG] runtime startup, ${localBridge.getDebugIdentityLabel()}`);
     ensureBridgeConnected('runtime startup').catch((e) => console.warn('[TweetClaw-BG] failed to connect bridge on startup', e));
 });
 
 chrome.runtime.onInstalled.addListener(() => {
     initDefaultQueryKeys();
+    void localBridge.recordLifecycleEvent('runtime_installed', 'chrome.runtime.onInstalled');
     console.log(`[TweetClaw-BG] Extension installed/updated, ${localBridge.getDebugIdentityLabel()}`);
     ensureBridgeConnected('runtime installed').catch((e) => console.warn('[TweetClaw-BG] failed to connect bridge on install', e));
 });
 
 chrome.runtime.onSuspend.addListener(() => {
+    void localBridge.recordLifecycleEvent('runtime_suspend', 'chrome.runtime.onSuspend');
     console.log(`[TweetClaw-BG] runtime suspend, ${localBridge.getDebugIdentityLabel()}`);
     localBridge.disconnect('runtime suspend');
     taskCoordinator?.handleDisconnect();
     backgroundSessionStore.clear();
+});
+
+chrome.windows?.onRemoved?.addListener((windowId) => {
+    void localBridge.recordLifecycleEvent('window_removed', 'chrome.windows.onRemoved', {
+        windowId
+    });
 });
 
 // ── 初始化默认 QueryID 映射 ───────────────────────────────────────

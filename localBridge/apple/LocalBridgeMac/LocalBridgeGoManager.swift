@@ -112,6 +112,19 @@ final class LocalBridgeGoManager {
         logPollTimer = nil
     }
 
+    func clearDisplayedLogs() {
+        lastLogCount = currentGoLogCount()
+    }
+
+    private func currentGoLogCount() -> Int {
+        guard let ptr = LocalBridgeGetLogsJSON() else { return 0 }
+        defer { LocalBridgeFreeString(ptr) }
+
+        let data = Data(bytes: ptr, count: Int(strlen(ptr)))
+        guard let lines = try? JSONDecoder().decode([String].self, from: data) else { return 0 }
+        return lines.count
+    }
+
     private func pollGoLogs() {
         guard let ptr = LocalBridgeGetLogsJSON() else { return }
         defer { LocalBridgeFreeString(ptr) }

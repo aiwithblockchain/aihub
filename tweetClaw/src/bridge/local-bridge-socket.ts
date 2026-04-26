@@ -1,6 +1,17 @@
 import { BaseMessage, ClientHelloPayload, MESSAGE_TYPES, PROTOCOL_NAME, PROTOCOL_VERSION, ServerHelloAckPayload } from './ws-protocol';
 import { getOrCreateInstanceId, getOrCreateInstanceName } from './instance-id';
 
+interface LifecycleTrailEntry {
+  time: string;
+  event: string;
+  reason?: string;
+  instanceId: string;
+  instanceName: string;
+  reconnectAttempts: number;
+  wsUrl: string;
+  extra?: Record<string, unknown>;
+}
+
 export class LocalBridgeSocket {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
@@ -11,6 +22,11 @@ export class LocalBridgeSocket {
   private instanceId: string = '';
   private instanceName: string = '';
   private static readonly RECONNECT_ALARM_NAME = 'tweetclaw-reconnect';
+  private static readonly LIFECYCLE_TRAIL_KEY = 'bridge.lifecycleTrail';
+  private static readonly LIFECYCLE_PREVIOUS_TRAIL_KEY = 'bridge.lifecycleTrail.previous';
+  private static readonly LIFECYCLE_MAX_ENTRIES = 50;
+  private lifecycleBootstrapped = false;
+  private lifecycleBootstrapPromise: Promise<void> | null = null;
 
   private identityLabel(): string {
     const id = this.instanceId || 'unknown-instance';
@@ -39,7 +55,111 @@ export class LocalBridgeSocket {
   private WS_URL = 'ws://127.0.0.1:10086/ws'; // Default
   
   constructor() {
+    void this.bootstrapLifecycleTrail();
     this.connect();
+  }
+
+  private async ensureIdentityLoaded() {
+    if (!this.instanceId) {
+      this.instanceId = await getOrCreateInstanceId();
+    }
+    if (!this.instanceName) {
+      this.instanceName = await getOrCreateInstanceName();
+    }
+  }
+
+  private async bootstrapLifecycleTrail() {
+    if (this.lifecycleBootstrapped) {
+      return;
+    }
+    if (this.lifecycleBootstrapPromise) {
+      return this.lifecycleBootstrapPromise;
+    }
+
+    this.lifecycleBootstrapPromise = (async () => {
+      await this.ensureIdentityLoaded();
+
+      try {
+        if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+          this.lifecycleBootstrapped = true;
+          return;
+        }
+
+        const res = await chrome.storage.local.get([
+          LocalBridgeSocket.LIFECYCLE_TRAIL_KEY,
+          LocalBridgeSocket.LIFECYCLE_PREVIOUS_TRAIL_KEY
+        ]);
+
+        const currentTrailRaw = res[LocalBridgeSocket.LIFECYCLE_TRAIL_KEY];
+        const previousTrailRaw = res[LocalBridgeSocket.LIFECYCLE_PREVIOUS_TRAIL_KEY];
+        const currentTrail: LifecycleTrailEntry[] = Array.isArray(currentTrailRaw)
+          ? (currentTrailRaw as LifecycleTrailEntry[])
+          : [];
+        const previousTrail: LifecycleTrailEntry[] = Array.isArray(previousTrailRaw)
+          ? (previousTrailRaw as LifecycleTrailEntry[])
+          : [];
+
+        const trailToReplay = currentTrail.length > 0 ? currentTrail : previousTrail;
+        if (trailToReplay.length > 0) {
+          console.log(`[tweetClaw] previous lifecycle trail begin, ${this.identityLabel()} entries=${trailToReplay.length}`);
+          for (const rawEntry of trailToReplay) {
+            console.log(`[tweetClaw] previous lifecycle trail entry ${JSON.stringify(rawEntry)}`);
+          }
+          console.log(`[tweetClaw] previous lifecycle trail end, ${this.identityLabel()}`);
+        } else {
+          console.log(`[tweetClaw] previous lifecycle trail empty, ${this.identityLabel()}`);
+        }
+
+        await chrome.storage.local.set({
+          [LocalBridgeSocket.LIFECYCLE_PREVIOUS_TRAIL_KEY]: trailToReplay,
+          [LocalBridgeSocket.LIFECYCLE_TRAIL_KEY]: []
+        });
+      } catch (e) {
+        console.warn('[tweetClaw] failed to bootstrap lifecycle trail', e);
+      } finally {
+        this.lifecycleBootstrapped = true;
+      }
+    })();
+
+    return this.lifecycleBootstrapPromise;
+  }
+
+  public async recordLifecycleEvent(event: string, reason?: string, extra?: Record<string, unknown>) {
+    await this.bootstrapLifecycleTrail();
+    await this.ensureIdentityLoaded();
+
+    const entry: LifecycleTrailEntry = {
+      time: new Date().toISOString(),
+      event,
+      reason,
+      instanceId: this.instanceId || 'unknown-instance',
+      instanceName: this.instanceName || 'unknown-name',
+      reconnectAttempts: this.reconnectAttempts,
+      wsUrl: this.WS_URL,
+      extra
+    };
+
+    console.log(`[tweetClaw] lifecycle event ${JSON.stringify(entry)}`);
+
+    try {
+      if (typeof chrome === 'undefined' || !chrome.storage?.local) {
+        return;
+      }
+
+      const res = await chrome.storage.local.get(LocalBridgeSocket.LIFECYCLE_TRAIL_KEY);
+      const currentTrailRaw = res[LocalBridgeSocket.LIFECYCLE_TRAIL_KEY];
+      const currentTrail: LifecycleTrailEntry[] = Array.isArray(currentTrailRaw)
+        ? (currentTrailRaw as LifecycleTrailEntry[])
+        : [];
+      const nextTrail = [...currentTrail, entry].slice(-LocalBridgeSocket.LIFECYCLE_MAX_ENTRIES);
+
+      await chrome.storage.local.set({
+        [LocalBridgeSocket.LIFECYCLE_TRAIL_KEY]: nextTrail,
+        [LocalBridgeSocket.LIFECYCLE_PREVIOUS_TRAIL_KEY]: nextTrail
+      });
+    } catch (e) {
+      console.warn('[tweetClaw] failed to persist lifecycle event', e);
+    }
   }
 
   // ── Public status accessors (used by popup) ──────────────────────
@@ -60,12 +180,17 @@ export class LocalBridgeSocket {
   }
 
   public handleReconnectAlarm() {
+    void this.recordLifecycleEvent('alarm_reconnect', 'chrome alarm fired');
     console.log(`[tweetClaw] Reconnect alarm triggered, ${this.identityLabel()} nextAttempt=${this.reconnectAttempts + 1}`);
     this.reconnectAttempts++;
     this.connect();
   }
 
   public disconnect(reason: string) {
+    void this.recordLifecycleEvent('disconnect_called', reason, {
+      hasSocket: !!this.ws,
+      readyState: this.ws?.readyState ?? null
+    });
     console.log(`[tweetClaw] disconnecting websocket: ${reason}, ${this.identityLabel()}`);
     this.clearReconnectAlarm();
     this.stopHeartbeat();
@@ -81,6 +206,7 @@ export class LocalBridgeSocket {
   }
   
   public reconnect(host: string, port: number) {
+    void this.recordLifecycleEvent('manual_reconnect', 'update ws config', { host, port });
     console.log(`[tweetClaw] reconnecting to ${host}:${port}`);
     this.WS_URL = `ws://${host}:${port}/ws`;
     this.isConnecting = false;
@@ -97,6 +223,9 @@ export class LocalBridgeSocket {
   private isConnecting = false;
   
   public async connect() {
+    await this.bootstrapLifecycleTrail();
+    await this.ensureIdentityLoaded();
+
     if (this.isConnecting) return;
     if (this.ws && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN)) {
       return;
@@ -115,12 +244,17 @@ export class LocalBridgeSocket {
     }
     
     this.isConnecting = true;
+    void this.recordLifecycleEvent('connect_begin', 'connect called', {
+      reconnectAttempts: this.reconnectAttempts,
+      wsUrl: this.WS_URL
+    });
     console.log(`[tweetClaw] websocket connecting to ${this.WS_URL}, ${this.identityLabel()} reconnectAttempts=${this.reconnectAttempts}`);
 
     try {
       this.ws = new WebSocket(this.WS_URL);
 
       this.ws.onopen = async () => {
+        void this.recordLifecycleEvent('ws_open');
         console.log(`[tweetClaw] websocket open, ${this.identityLabel()}`);
         this.isConnecting = false;
         this.reconnectAttempts = 0;
@@ -131,11 +265,17 @@ export class LocalBridgeSocket {
             this.instanceId = await getOrCreateInstanceId();
         }
         this.instanceName = await getOrCreateInstanceName();
+        void this.recordLifecycleEvent('identity_ready');
         console.log(`[tweetClaw] websocket identity ready, ${this.identityLabel()}`);
         this.sendHello();
       };
 
       this.ws.onclose = (event) => {
+        void this.recordLifecycleEvent('ws_close', 'websocket onclose', {
+          code: event.code,
+          reason: event.reason || '',
+          wasClean: event.wasClean
+        });
         console.log(`[tweetClaw] websocket closed, ${this.identityLabel()} code=${event.code} reason=${event.reason || 'n/a'} wasClean=${event.wasClean}`);
         this.isConnecting = false;
         this.serverInfo = null;
@@ -143,7 +283,10 @@ export class LocalBridgeSocket {
         this.scheduleReconnect();
       };
       
-      this.ws.onerror = () => {
+      this.ws.onerror = (event) => {
+        void this.recordLifecycleEvent('ws_error', 'websocket onerror', {
+          eventType: event.type
+        });
         // Use regular log to stay silent in Chrome extension error list
         console.log(`[tweetClaw] connection notice: server offline, ${this.identityLabel()} url=${this.WS_URL}`);
         this.isConnecting = false;
@@ -153,6 +296,9 @@ export class LocalBridgeSocket {
         this.handleMessage(event.data);
       };
     } catch (e) {
+      void this.recordLifecycleEvent('connect_exception', 'websocket constructor threw', {
+        error: e instanceof Error ? e.message : String(e)
+      });
       console.log('[tweetClaw] initialization notice:', e);
       this.isConnecting = false;
       this.scheduleReconnect();
@@ -162,6 +308,10 @@ export class LocalBridgeSocket {
 
   private scheduleReconnect() {
     const delayInMinutes = this.getReconnectDelayInMinutes();
+    void this.recordLifecycleEvent('reconnect_scheduled', 'schedule reconnect', {
+      delayInMinutes,
+      nextAttempt: this.reconnectAttempts + 1
+    });
     console.log(`[tweetClaw] websocket reconnect scheduled in ${delayInMinutes} minute(s) (attempt ${this.reconnectAttempts + 1}), ${this.identityLabel()}`);
 
     // Use Chrome Alarms API for reliable reconnection
@@ -185,6 +335,7 @@ export class LocalBridgeSocket {
   }
   
   private sendHello() {
+    void this.recordLifecycleEvent('hello_send');
     const hello: BaseMessage<ClientHelloPayload> = {
       id: `hello_${Date.now()}`,
       type: MESSAGE_TYPES.CLIENT_HELLO,
@@ -286,6 +437,9 @@ export class LocalBridgeSocket {
   }
   
   private handleHelloAck(msg: BaseMessage<ServerHelloAckPayload>) {
+    void this.recordLifecycleEvent('hello_ack', undefined, {
+      heartbeatIntervalMs: msg.payload.heartbeatIntervalMs || 20000
+    });
     console.log(`[tweetClaw] received server.hello_ack, ${this.identityLabel()}`);
     console.log(`[tweetClaw] received endpoint info from server, ${this.identityLabel()}: ${JSON.stringify(msg.payload)}`);
     this.serverInfo = msg.payload;

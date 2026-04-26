@@ -180,6 +180,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         goServer.sendRESTRequest(method: "GET", path: "/api/v1/x/instances", notificationName: "GetInstancesReceived")
     }
 
+    func clearBridgeLogs() {
+        goServer.clearDisplayedLogs()
+    }
+
     @objc private func restartWebSocketServer() {
         print("[LocalBridgeMac] Restarting WebSocket Service...")
         goServer.stop { [weak self] in
