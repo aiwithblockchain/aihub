@@ -8,10 +8,18 @@
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
     "start": "node dist/index.js",
+    "mcp:start": "./scripts/start-mcp.sh",
+    "mcp:stop": "./scripts/stop-mcp.sh",
+    "mcp:status": "./scripts/status-mcp.sh",
     "typecheck": "tsc --noEmit",
     "typecheck:tests": "tsc -p tsconfig.tests.json --noEmit",
+    "test:e2e:tools-list": "npm run build && npm run typecheck:tests && tsx tests/mcp-tools-list.e2e.ts",
     "test:e2e:list-x-instances": "npm run build && npm run typecheck:tests && tsx tests/mcp-list-x-instances.e2e.ts",
     "test:e2e:list-x-instances:unavailable": "npm run build && npm run typecheck:tests && tsx tests/mcp-list-x-instances-unavailable.e2e.ts",
+    "test:e2e:list-x-instances:timeout": "npm run build && npm run typecheck:tests && tsx tests/mcp-list-x-instances-timeout.e2e.ts",
+    "test:e2e:get-x-status": "npm run build && npm run typecheck:tests && tsx tests/mcp-get-x-status.e2e.ts",
+    "test:e2e:get-x-basic-info": "npm run build && npm run typecheck:tests && tsx tests/mcp-get-x-basic-info.e2e.ts",
+    "test:e2e:get-home-timeline": "npm run build && npm run typecheck:tests && tsx tests/mcp-get-home-timeline.e2e.ts",
     "lint": "eslint ."
   },
   "dependencies": {

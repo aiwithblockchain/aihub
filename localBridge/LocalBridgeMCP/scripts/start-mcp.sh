@@ -13,13 +13,30 @@ if [ ! -f "$PROJECT_ROOT/dist/index.js" ]; then
   exit 1
 fi
 
+if [ -f "$PID_FILE" ]; then
+  EXISTING_PID="$(cat "$PID_FILE")"
+
+  if [ -n "$EXISTING_PID" ] && kill -0 "$EXISTING_PID" 2>/dev/null; then
+    echo "LocalBridgeMCP is already running with PID $EXISTING_PID" >&2
+    exit 1
+  fi
+
+  rm -f "$PID_FILE"
+fi
+
 printf '\n[%s] starting LocalBridgeMCP\n' "$(date '+%Y-%m-%d %H:%M:%S')" >> "$LOG_FILE"
 printf '[%s] log file: %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$LOG_FILE" >> "$LOG_FILE"
-printf '%s\n' $$ > "$PID_FILE"
+
+node "$PROJECT_ROOT/dist/index.js" 2>> "$LOG_FILE" &
+CHILD_PID=$!
+printf '%s\n' "$CHILD_PID" > "$PID_FILE"
+
+echo "Started LocalBridgeMCP with PID $CHILD_PID"
+echo "Writing logs to $LOG_FILE"
 
 cleanup() {
   rm -f "$PID_FILE"
 }
-trap cleanup EXIT
 
-exec node "$PROJECT_ROOT/dist/index.js" 2>> "$LOG_FILE"
+trap cleanup EXIT
+wait "$CHILD_PID"
