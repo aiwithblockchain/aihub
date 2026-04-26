@@ -38,7 +38,7 @@ user = client.x.users.get_user("elonmusk")
 
 # Read Operations
 tweets = client.x.timeline.list_timeline_tweets()
-tweet = client.x.tweets.get_tweet(tweet_id)
+tweet = client.x.tweets.get_tweet(tweet_id)  # raw REST endpoint: GET /api/v1/x/tweets?tweetId=...
 tweets, users = client.x.search.search("AI", count=20)
 
 # Write Operations

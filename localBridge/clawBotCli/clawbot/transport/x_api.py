@@ -25,8 +25,10 @@ class XApiTransport(BaseApiTransport):
         return self.request_json("GET", "/api/v1/x/timeline", params=params)
 
     def get_tweet_raw(self, tweet_id: str, tab_id: Optional[int] = None) -> Dict[Any, Any]:
-        params = {"tabId": tab_id} if tab_id else {}
-        return self.request_json("GET", f"/api/v1/x/tweets/{tweet_id}", params=params)
+        params = {"tweetId": tweet_id}
+        if tab_id:
+            params["tabId"] = tab_id
+        return self.request_json("GET", "/api/v1/x/tweets", params=params)
 
     def get_tweet_replies_raw(self, tweet_id: str, cursor: Optional[str] = None, tab_id: Optional[int] = None) -> Dict[Any, Any]:
         params = {}

@@ -20,6 +20,7 @@
     "test:e2e:get-x-status": "npm run build && npm run typecheck:tests && tsx tests/mcp-get-x-status.e2e.ts",
     "test:e2e:get-x-basic-info": "npm run build && npm run typecheck:tests && tsx tests/mcp-get-x-basic-info.e2e.ts",
     "test:e2e:get-home-timeline": "npm run build && npm run typecheck:tests && tsx tests/mcp-get-home-timeline.e2e.ts",
+    "test:e2e:get-tweet": "npm run build && npm run typecheck:tests && tsx tests/mcp-get-tweet.e2e.ts",
     "lint": "eslint ."
   },
   "dependencies": {

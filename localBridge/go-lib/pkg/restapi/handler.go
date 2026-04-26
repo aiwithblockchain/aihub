@@ -273,8 +273,8 @@ func (h *Handler) tweetResourceDispatch(w http.ResponseWriter, r *http.Request) 
 	switch {
 	case len(parts) == 1:
 		id := newID("http_tweet")
-		h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_tweet", "tweetClaw",
-			types.QueryTweetRequest{TweetID: tweetID, TabID: parseTabID(r)}), 8000,
+		h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_tweet_detail", "tweetClaw",
+			types.QueryTweetDetailRequest{TweetID: tweetID, TabID: parseTabID(r)}), 8000,
 			func(data []byte) { writeRawPayload(w, data) })
 	case len(parts) == 2 && parts[1] == "replies":
 		id := newID("http_tweet_replies")

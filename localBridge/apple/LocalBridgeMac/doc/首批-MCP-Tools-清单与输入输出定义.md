@@ -409,7 +409,7 @@ MCP 层对外暴露稳定错误码，而不是直接透出内部错误文本。
 ```
 
 ## 对应现有能力
-- `GET /api/v1/x/tweets/{tweetId}`
+- `GET /api/v1/x/tweets?tweetId=...`
 
 ## 典型错误
 - `INVALID_ARGUMENT`
@@ -841,7 +841,7 @@ MCP 层对外暴露稳定错误码，而不是直接透出内部错误文本。
 | `get_x_status` | `GET /api/v1/x/status` |
 | `get_x_basic_info` | `GET /api/v1/x/basic_info` |
 | `get_home_timeline` | `GET /api/v1/x/timeline` |
-| `get_tweet` | `GET /api/v1/x/tweets/{tweetId}` |
+| `get_tweet` | `GET /api/v1/x/tweets?tweetId=...` |
 | `get_tweet_replies` | `GET /api/v1/x/tweets/{tweetId}/replies` |
 | `get_user_profile` | `GET /api/v1/x/users` |
 | `search_tweets` | `GET /api/v1/x/search` |

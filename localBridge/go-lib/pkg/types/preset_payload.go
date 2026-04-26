@@ -38,11 +38,6 @@ type QueryTweetDetailRequest struct {
 	TabID   *int   `json:"tabId"`
 }
 
-type QueryTweetRequest struct {
-	TweetID string `json:"tweetId"`
-	TabID   *int   `json:"tabId"`
-}
-
 type QueryTweetRepliesRequest struct {
 	TweetID string `json:"tweetId"`
 	TabID   *int   `json:"tabId"`

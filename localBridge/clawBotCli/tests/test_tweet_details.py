@@ -32,9 +32,9 @@ def extract_tweet_id_from_timeline():
 
 
 def test_get_tweet(tweet_id=None):
-    """Test GET /api/v1/x/tweets/{tweetId}"""
+    """Test GET /api/v1/x/tweets?tweetId=..."""
     print("\n" + "="*60)
-    print("Testing: GET /api/v1/x/tweets/{tweetId}")
+    print("Testing: GET /api/v1/x/tweets?tweetId=...")
     print("="*60)
 
     if not tweet_id:

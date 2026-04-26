@@ -4,7 +4,6 @@ Test Read APIs (Timeline, Tweet, User Profile, Search)
 """
 import sys
 import os
-import json
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -32,9 +31,9 @@ def test_timeline():
 
 
 def test_get_tweet():
-    """Test GET /api/v1/x/tweets/{tweetId}"""
+    """Test GET /api/v1/x/tweets?tweetId=..."""
     print("\n" + "="*60)
-    print("Testing: GET /api/v1/x/tweets/{tweetId}")
+    print("Testing: GET /api/v1/x/tweets?tweetId=...")
     print("="*60)
 
     # 需要用户提供真实的 tweet ID

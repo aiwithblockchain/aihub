@@ -32,3 +32,12 @@ export const getHomeTimelineInputSchema = z
   .strict();
 
 export type GetHomeTimelineInput = z.infer<typeof getHomeTimelineInputSchema>;
+
+export const getTweetInputSchema = z
+  .object({
+    tweetId: z.string().min(1),
+    timeoutMs: timeoutMsSchema.optional(),
+  })
+  .strict();
+
+export type GetTweetInput = z.infer<typeof getTweetInputSchema>;

@@ -48,6 +48,10 @@ export interface XHomeTimeline {
   [key: string]: unknown;
 }
 
+export interface XTweetDetail {
+  [key: string]: unknown;
+}
+
 export interface XApiAdapterDeps {
   client: LocalBridgeClient;
   logger: Logger;
@@ -79,5 +83,16 @@ export class XApiAdapter {
     this.deps.logger.debug('Getting X home timeline from LocalBridge');
 
     return this.deps.client.get<XHomeTimeline>('/api/v1/x/timeline', timeoutMs);
+  }
+
+  async getTweet(tweetId: string, timeoutMs?: number): Promise<XTweetDetail> {
+    this.deps.logger.debug('Getting X tweet detail from LocalBridge', {
+      tweetId,
+    });
+
+    return this.deps.client.get<XTweetDetail>(
+      `/api/v1/x/tweets/${encodeURIComponent(tweetId)}`,
+      timeoutMs,
+    );
   }
 }

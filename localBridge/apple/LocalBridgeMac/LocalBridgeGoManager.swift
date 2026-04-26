@@ -229,18 +229,6 @@ final class LocalBridgeGoManager {
         )
     }
 
-    func sendQueryTweet(tweetId: String, tabId: Int? = nil, instanceId: String? = nil) {
-        invokePlugin(
-            clientName: "tweetClaw",
-            messageType: "request.query_tweet",
-            instanceId: instanceId,
-            payload: QueryTweetPayload(tweetId: tweetId, tabId: tabId),
-            timeoutMs: 8_000,
-            notificationName: "ExecActionReceived",
-            format: .prettyJSON
-        )
-    }
-
     func sendQueryTweetReplies(tweetId: String, cursor: String? = nil, tabId: Int? = nil, instanceId: String? = nil) {
         print("[LocalBridgeMac] GoManager sendQueryTweetReplies tweetId=\(tweetId) cursor=\(cursor ?? "<nil>") tabId=\(tabId.map(String.init) ?? "<nil>") instanceId=\(instanceId ?? "<nil>")")
         invokePlugin(
@@ -426,11 +414,6 @@ private extension LocalBridgeGoManager {
     }
 
     struct QueryTweetDetailPayload: Encodable {
-        let tweetId: String
-        let tabId: Int?
-    }
-
-    struct QueryTweetPayload: Encodable {
         let tweetId: String
         let tabId: Int?
     }

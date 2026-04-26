@@ -4,6 +4,7 @@ import { registerListXInstancesTool } from '../tools/context/listXInstances.js';
 import { registerGetXStatusTool } from '../tools/context/getXStatus.js';
 import { registerGetXBasicInfoTool } from '../tools/context/getXBasicInfo.js';
 import { registerGetHomeTimelineTool } from '../tools/context/getHomeTimeline.js';
+import { registerGetTweetTool } from '../tools/context/getTweet.js';
 
 export function registerTools(server: McpServer, deps: AppDeps): void {
   const enabledTools = deps.config.enabledTools;
@@ -22,5 +23,9 @@ export function registerTools(server: McpServer, deps: AppDeps): void {
 
   if (enabledTools === null || enabledTools.includes('get_home_timeline')) {
     registerGetHomeTimelineTool(server, deps);
+  }
+
+  if (enabledTools === null || enabledTools.includes('get_tweet')) {
+    registerGetTweetTool(server, deps);
   }
 }

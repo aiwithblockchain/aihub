@@ -32,6 +32,7 @@ async function main(): Promise<void> {
     const getHomeTimelineTool = toolsResult.tools.find(
       (tool) => tool.name === 'get_home_timeline',
     );
+    const getTweetTool = toolsResult.tools.find((tool) => tool.name === 'get_tweet');
 
     assert(listXInstancesTool, 'Expected list_x_instances in tools/list response.');
     assert(
@@ -58,6 +59,12 @@ async function main(): Promise<void> {
     assert(
       getHomeTimelineTool.description === 'Get the current X home timeline raw payload.',
       'Unexpected description for get_home_timeline.',
+    );
+
+    assert(getTweetTool, 'Expected get_tweet in tools/list response.');
+    assert(
+      getTweetTool.description === 'Get the current X tweet detail raw payload by tweet ID.',
+      'Unexpected description for get_tweet.',
     );
 
     console.log(

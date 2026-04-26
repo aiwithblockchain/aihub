@@ -1991,10 +1991,6 @@ class LocalBridgeWebSocketServer {
             self.sendHttpResponse(connection, status: "500 Internal Server Error", body: "{\"error\":\"decode_failed\"}")
         }
 
-        if type == .requestQueryTweet && tweetId == nil {
-            self.pendingHttpCallbacks.removeValue(forKey: reqId)
-            self.sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":{\"code\":\"INVALID_ARGUMENT\",\"message\":\"tweetId is required\",\"details\":null}}")
-            return
         } else if type == .requestQueryTweetReplies && tweetId == nil {
             self.pendingHttpCallbacks.removeValue(forKey: reqId)
             self.sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":{\"code\":\"INVALID_ARGUMENT\",\"message\":\"tweetId is required\",\"details\":null}}")
@@ -2009,9 +2005,7 @@ class LocalBridgeWebSocketServer {
             return
         }
 
-        if type == .requestQueryTweet, let tid = tweetId {
-            self.sendBaseMessage(wsClient, id: reqId, type: type, payload: QueryTweetRequestPayload(tweetId: tid, tabId: tabId))
-        } else if type == .requestQueryTweetReplies, let tid = tweetId {
+        if type == .requestQueryTweetReplies, let tid = tweetId {
             print("[LocalBridgeMac] REST query tweet replies tweetId=\(tid) cursor=\(cursor ?? "<nil>") tabId=\(tabId.map(String.init) ?? "<nil>")")
             self.sendBaseMessage(wsClient, id: reqId, type: type, payload: QueryTweetRepliesRequestPayload(tweetId: tid, tabId: tabId, cursor: cursor))
         } else if type == .requestQueryTweetDetail, let tid = tweetId {
