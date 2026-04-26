@@ -90,6 +90,8 @@ func StopDefault() {
 }
 
 func GetDefaultInstances() []websocket.InstanceSnapshot {
-	if global == nil { return nil }
+	if global == nil {
+		return []websocket.InstanceSnapshot{}
+	}
 	return global.GetInstances()
 }

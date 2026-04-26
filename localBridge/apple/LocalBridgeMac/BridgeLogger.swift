@@ -8,7 +8,7 @@ final class BridgeLogger {
     /// 日志更新通知名，UI 监听此通知刷新显示
     static let didUpdateNotification = Notification.Name("BridgeLoggerDidUpdate")
 
-    private let maxLines = 500
+    private let maxLines = 2000
     private var lines: [String] = []
     private let queue = DispatchQueue(label: "com.localbridgemac.logger", qos: .utility)
     private let formatter: DateFormatter = {

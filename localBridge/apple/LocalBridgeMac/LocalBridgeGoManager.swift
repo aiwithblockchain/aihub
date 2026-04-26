@@ -2,6 +2,8 @@ import Foundation
 import LocalBridge
 
 final class LocalBridgeGoManager {
+    static let instancesDidChangeNotification = Notification.Name("LocalBridgeInstancesDidChange")
+
     struct InstanceSnapshot: Decodable {
         let clientName: String
         let instanceId: String
@@ -18,6 +20,7 @@ final class LocalBridgeGoManager {
     private let session = URLSession(configuration: .default)
     private var logPollTimer: Timer?
     private var lastLogCount: Int = 0
+    private var lastInstancesSignature: String?
 
     func start() {
         // 加载配置并保存到 Go 的配置文件
@@ -30,6 +33,7 @@ final class LocalBridgeGoManager {
             BridgeLogger.shared.log("[LocalBridgeMac] LocalBridgeStart failed with code \(code)")
         }
 
+        lastInstancesSignature = makeInstancesSignature(from: getConnectedInstances())
         startLogPolling()
     }
 
@@ -66,6 +70,7 @@ final class LocalBridgeGoManager {
 
     func getConnectedInstances() -> [InstanceSnapshot] {
         guard let rawPointer = LocalBridgeGetInstancesJSON() else {
+            BridgeLogger.shared.log("[LocalBridgeMac] LocalBridgeGetInstancesJSON returned nil pointer")
             return []
         }
 
@@ -73,7 +78,13 @@ final class LocalBridgeGoManager {
             LocalBridgeFreeString(rawPointer)
         }
 
-        let data = Data(bytes: rawPointer, count: Int(strlen(rawPointer)))
+        let rawLength = Int(strlen(rawPointer))
+        guard rawLength > 0 else {
+            BridgeLogger.shared.log("[LocalBridgeMac] LocalBridgeGetInstancesJSON returned empty payload")
+            return []
+        }
+
+        let data = Data(bytes: rawPointer, count: rawLength)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
             try Self.decodeGoDate(from: decoder)
@@ -82,7 +93,8 @@ final class LocalBridgeGoManager {
         do {
             return try decoder.decode([InstanceSnapshot].self, from: data)
         } catch {
-            BridgeLogger.shared.log("[LocalBridgeMac] Failed to decode instances JSON: \(error.localizedDescription)")
+            let rawText = String(data: data, encoding: .utf8) ?? "<non-utf8>"
+            BridgeLogger.shared.log("[LocalBridgeMac] Failed to decode instances JSON: \(error.localizedDescription), raw=\(rawText)")
             return []
         }
     }
@@ -108,13 +120,44 @@ final class LocalBridgeGoManager {
         guard let lines = try? JSONDecoder().decode([String].self, from: data) else { return }
 
         // 增量处理：只把新增的行写入 BridgeLogger
-        guard lines.count > lastLogCount else { return }
+        guard lines.count > lastLogCount else {
+            notifyIfInstancesChanged()
+            return
+        }
         let newLines = Array(lines.dropFirst(lastLogCount))
         lastLogCount = lines.count
 
         for line in newLines {
             BridgeLogger.shared.log("[Go] \(line)")
         }
+
+        notifyIfInstancesChanged()
+    }
+
+    private func notifyIfInstancesChanged() {
+        let snapshots = getConnectedInstances()
+        let signature = makeInstancesSignature(from: snapshots)
+        guard signature != lastInstancesSignature else { return }
+        lastInstancesSignature = signature
+
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(
+                name: Self.instancesDidChangeNotification,
+                object: self,
+                userInfo: ["instances": snapshots]
+            )
+        }
+    }
+
+    private func makeInstancesSignature(from snapshots: [InstanceSnapshot]) -> String {
+        snapshots
+            .map { snapshot in
+                let name = snapshot.instanceName ?? ""
+                let screenName = snapshot.xScreenName ?? ""
+                return "\(snapshot.clientName)|\(snapshot.instanceId)|\(name)|\(screenName)|\(snapshot.connectedAt.timeIntervalSince1970)|\(snapshot.isTemporary)"
+            }
+            .sorted()
+            .joined(separator: "\n")
     }
 
     func sendQueryXTabsStatus(instanceId: String? = nil) {

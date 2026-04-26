@@ -20,6 +20,7 @@
 		69C2BE0E2F73D3C900173318 /* ai_claw_api_docs.json in Resources */ = {isa = PBXBuildFile; fileRef = 69C2BE0D2F73D3C900173318 /* ai_claw_api_docs.json */; };
 		69C2BE112F73E78D00173318 /* Localizations.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69C2BE102F73E78D00173318 /* Localizations.swift */; };
 		69C2BE122F73E78D00173318 /* LanguageManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69C2BE0F2F73E78D00173318 /* LanguageManager.swift */; };
+		69D000000000000000000001 /* ToastPresenter.swift in Sources */ = {isa = PBXBuildFile; fileRef = 69D000000000000000000002 /* ToastPresenter.swift */; };
 		A10000000000000000000030 /* LocalBridgeiOSApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000022 /* LocalBridgeiOSApp.swift */; };
 		A10000000000000000000031 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000023 /* ContentView.swift */; };
 		A10000000000000000000032 /* LocalBridgeMacApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A10000000000000000000024 /* LocalBridgeMacApp.swift */; };
@@ -55,6 +56,7 @@
 		69C2BE0D2F73D3C900173318 /* ai_claw_api_docs.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = ai_claw_api_docs.json; sourceTree = "<group>"; };
 		69C2BE0F2F73E78D00173318 /* LanguageManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LanguageManager.swift; sourceTree = "<group>"; };
 		69C2BE102F73E78D00173318 /* Localizations.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Localizations.swift; sourceTree = "<group>"; };
+		69D000000000000000000002 /* ToastPresenter.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ToastPresenter.swift; sourceTree = "<group>"; };
 		A10000000000000000000020 /* LocalBridgeiOS.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = LocalBridgeiOS.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000021 /* OpenHub.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = OpenHub.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		A10000000000000000000022 /* LocalBridgeiOSApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LocalBridgeiOSApp.swift; sourceTree = "<group>"; };
@@ -158,6 +160,7 @@
 				A10000000000000000000027 /* ConversationsSplitViewController.swift */,
 				69C2BE0F2F73E78D00173318 /* LanguageManager.swift */,
 				69C2BE102F73E78D00173318 /* Localizations.swift */,
+				69D000000000000000000002 /* ToastPresenter.swift */,
 				A10000000000000000000028 /* SidebarViewController.swift */,
 				A10000000000000000000029 /* DetailViewController.swift */,
 				A1000000000000000000002A /* Conversation.swift */,
@@ -333,6 +336,7 @@
 				A10000000000000000000035 /* ConversationsSplitViewController.swift in Sources */,
 				69C2BE112F73E78D00173318 /* Localizations.swift in Sources */,
 				69C2BE122F73E78D00173318 /* LanguageManager.swift in Sources */,
+				69D000000000000000000001 /* ToastPresenter.swift in Sources */,
 				69B055D32F691DC20076AC1D /* InstancesPanelViewController.swift in Sources */,
 				69B055D62F692B160076AC1D /* BridgeLogsViewController.swift in Sources */,
 				69B055D72F692B160076AC1D /* BridgeLogger.swift in Sources */,

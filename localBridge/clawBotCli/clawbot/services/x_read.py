@@ -7,9 +7,11 @@ from typing import List, Optional, Tuple
 from clawbot.domain.models import XTweet, XUser
 from clawbot.domain.x_parsers import (
     extract_first_timeline_tweet,
+    extract_focal_tweet,
     extract_pinned_tweet_id_from_profile,
     extract_search_tweets_and_users,
     extract_timeline_tweets,
+    extract_tweet_detail_replies,
     parse_tweet_result,
     parse_user_profile,
 )
@@ -29,50 +31,19 @@ class XReadService:
     def get_first_timeline_tweet(self, tab_id: Optional[int] = None) -> Optional[XTweet]:
         return extract_first_timeline_tweet(self.get_timeline_raw(tab_id=tab_id))
 
-    def get_tweet_raw(self, tweet_id: str, tab_id: Optional[int] = None):
-        return self.transport.get_tweet_raw(tweet_id=tweet_id, tab_id=tab_id)
+    def get_tweet_raw(self, tweet_id: str, tab_id: Optional[int] = None, instance_id: Optional[str] = None):
+        return self.transport.get_tweet_raw(tweet_id=tweet_id, tab_id=tab_id, instance_id=instance_id)
 
-    def get_tweet(self, tweet_id: str, tab_id: Optional[int] = None) -> XTweet:
-        raw = self.get_tweet_raw(tweet_id=tweet_id, tab_id=tab_id)
-        data = raw.get("data", {}) if isinstance(raw, dict) else {}
-        if isinstance(data, dict) and "data" in data:
-            data = data["data"]
-        result = data.get("threaded_conversation_with_injections_v2", {}).get("instructions", [])
-        if result:
-            for instruction in result:
-                if instruction.get("type") != "TimelineAddEntries":
-                    continue
-                for entry in instruction.get("entries", []):
-                    tweet_result = (
-                        entry.get("content", {})
-                        .get("itemContent", {})
-                        .get("tweet_results", {})
-                        .get("result", {})
-                    )
-                    if tweet_result:
-                        return parse_tweet_result(tweet_result)
+    def get_tweet(self, tweet_id: str, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> XTweet:
+        raw = self.get_tweet_raw(tweet_id=tweet_id, tab_id=tab_id, instance_id=instance_id)
+        focal_tweet = extract_focal_tweet(raw, tweet_id)
+        if focal_tweet:
+            return focal_tweet
         return XTweet(id=tweet_id, raw=raw)
 
-    def get_tweet_replies(self, tweet_id: str, cursor: Optional[str] = None, tab_id: Optional[int] = None) -> List[XTweet]:
-        raw = self.transport.get_tweet_replies_raw(tweet_id=tweet_id, cursor=cursor, tab_id=tab_id)
-        data = raw.get("data", {}) if isinstance(raw, dict) else {}
-        if isinstance(data, dict) and "data" in data:
-            data = data["data"]
-        instructions = data.get("threaded_conversation_with_injections_v2", {}).get("instructions", [])
-        tweets: List[XTweet] = []
-        for instruction in instructions:
-            if instruction.get("type") != "TimelineAddEntries":
-                continue
-            for entry in instruction.get("entries", []):
-                tweet_result = (
-                    entry.get("content", {})
-                    .get("itemContent", {})
-                    .get("tweet_results", {})
-                    .get("result", {})
-                )
-                if tweet_result:
-                    tweets.append(parse_tweet_result(tweet_result))
-        return tweets
+    def get_tweet_replies(self, tweet_id: str, cursor: Optional[str] = None, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> List[XTweet]:
+        raw = self.transport.get_tweet_replies_raw(tweet_id=tweet_id, cursor=cursor, tab_id=tab_id, instance_id=instance_id)
+        return extract_tweet_detail_replies(raw, tweet_id=tweet_id)
 
     def get_user(self, screen_name: str, tab_id: Optional[int] = None) -> XUser:
         return parse_user_profile(self.transport.get_user_profile_raw(screen_name=screen_name, tab_id=tab_id))

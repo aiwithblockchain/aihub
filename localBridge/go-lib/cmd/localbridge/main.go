@@ -16,7 +16,7 @@ import (
 
 // ─── 内存日志环形缓冲 ─────────────────────────────────────────────────────────
 
-const maxLogLines = 500
+const maxLogLines = 2000
 
 var logBuf struct {
 	mu    sync.Mutex
@@ -67,8 +67,10 @@ func LocalBridgeStop() {
 //export LocalBridgeGetInstancesJSON
 func LocalBridgeGetInstancesJSON() *C.char {
 	instances := bridge.GetDefaultInstances()
+	log.Printf("[Bridge] LocalBridgeGetInstancesJSON called: total=%d", len(instances))
 	data, err := json.Marshal(instances)
 	if err != nil {
+		log.Printf("[Bridge] LocalBridgeGetInstancesJSON marshal failed: %v", err)
 		return C.CString("[]")
 	}
 	return C.CString(string(data))
@@ -81,7 +83,7 @@ func LocalBridgeFreeString(s *C.char) {
 	C.free(unsafe.Pointer(s))
 }
 
-// LocalBridgeGetLogsJSON 返回当前全量日志的 JSON 数组字符串（最多 500 条）
+// LocalBridgeGetLogsJSON 返回当前全量日志的 JSON 数组字符串（最多 2000 条）
 // 调用方使用完毕后 **必须** 调用 LocalBridgeFreeString 释放内存
 //
 //export LocalBridgeGetLogsJSON

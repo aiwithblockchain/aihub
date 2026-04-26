@@ -1,86 +1,102 @@
-import sys
+#!/usr/bin/env python3
+"""
+Live media upload smoke test for clawBotCli.
+
+This is a focused upload-only script. It does not publish a tweet.
+Use test_publish.py when you want upload + publish together.
+Examples:
+  python3 tests/test_media_upload.py --image sample.jpg --yes
+  python3 tests/test_media_upload.py --video clip.mp4 --instance-id xxx --yes
+"""
+import argparse
 import os
-import tempfile
-import unittest
-from unittest.mock import Mock, patch
+import sys
+from pathlib import Path
+from typing import List
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-from clawbot.errors import MediaUploadError
-from utils.task_client import TaskClient
-from utils.chunked_uploader import ChunkedUploader
-from utils.progress_display import ProgressDisplay
-from utils.api_client import MediaUploadTask
+from clawbot import ClawBotClient
 
-class TestMediaUploadTask(unittest.TestCase):
+TEST_MEDIA_DIR = Path(__file__).resolve().parent.parent / "test_media"
 
-    def setUp(self):
-        self.task_client = Mock(spec=TaskClient)
-        self.uploader = Mock(spec=ChunkedUploader)
-        self.progress = Mock(spec=ProgressDisplay)
-        self.media_upload = MediaUploadTask(
-            self.task_client,
-            self.uploader,
-            self.progress
-        )
-        with tempfile.NamedTemporaryFile("wb", delete=False, suffix=".mp4") as handle:
-            handle.write(b"test-data")
-            self.video_path = handle.name
 
-    def tearDown(self):
-        if os.path.exists(self.video_path):
-            os.unlink(self.video_path)
+def resolve_media_path(path_text: str) -> str:
+    path = Path(path_text).expanduser()
+    if path.exists():
+        return str(path)
+    candidate = TEST_MEDIA_DIR / path_text
+    if candidate.exists():
+        return str(candidate)
+    raise FileNotFoundError(f"Media file not found: {path_text}")
 
-    def test_upload_video_success(self):
-        """测试视频上传成功"""
-        self.task_client.create_task.return_value = "task_123"
-        self.uploader.upload_file.return_value = (10, 50000000, "video/mp4")
-        self.task_client.wait_for_completion.return_value = {'state': 'completed'}
-        self.task_client.get_task_result.return_value = b'{"mediaId": "media_456"}'
 
-        media_id = self.media_upload.upload_video(
-            self.video_path,
-            instance_id="instance_xxx",
-            tab_id=123
-        )
+def gather_media_paths(args: argparse.Namespace) -> List[str]:
+    paths: List[str] = []
+    if args.image:
+        paths.append(resolve_media_path(args.image))
+    if args.images:
+        raw_items = [item.strip() for item in args.images.split(",") if item.strip()]
+        if len(raw_items) > 4:
+            raise ValueError("At most 4 images are supported")
+        paths.extend(resolve_media_path(item) for item in raw_items)
+    if args.video:
+        paths.append(resolve_media_path(args.video))
+    if not paths:
+        raise ValueError("At least one of --image, --images, or --video is required")
+    return paths
 
-        self.assertEqual(media_id, "media_456")
-        self.task_client.create_task.assert_called_once()
-        self.task_client.seal_input.assert_called_once()
-        self.task_client.start_task.assert_called_once()
 
-    def test_upload_video_failure(self):
-        """测试视频上传失败"""
-        self.task_client.create_task.return_value = "task_123"
-        self.uploader.upload_file.return_value = (10, 50000000, "video/mp4")
-        self.task_client.wait_for_completion.side_effect = MediaUploadError('Network error')
+def confirm_or_exit(message: str, assume_yes: bool) -> None:
+    print(message)
+    if assume_yes:
+        return
+    confirm = input("Confirm upload? (yes/no): ").strip().lower()
+    if confirm != "yes":
+        print("⏭️  Skipped")
+        raise SystemExit(0)
 
-        with self.assertRaises(MediaUploadError) as context:
-            self.media_upload.upload_video(
-                self.video_path,
-                instance_id="instance_xxx",
-                tab_id=123
-            )
 
-        self.assertIn('Network error', str(context.exception))
+def main() -> int:
+    parser = argparse.ArgumentParser(description="Run media upload smoke tests without publishing")
+    parser.add_argument("--image", type=str, help="Single image path, absolute or relative to test_media")
+    parser.add_argument("--images", type=str, help="Comma-separated image paths, absolute or relative to test_media")
+    parser.add_argument("--video", type=str, help="Video path, absolute or relative to test_media")
+    parser.add_argument("--instance-id", type=str, help="Explicit instanceId for upload")
+    parser.add_argument("--tab-id", type=int, help="Optional tabId for upload")
+    parser.add_argument("--yes", action="store_true", help="Skip interactive confirmation")
+    args = parser.parse_args()
 
-    def test_upload_video_keyboard_interrupt(self):
-        """测试 KeyboardInterrupt 时正确取消任务"""
-        self.task_client.create_task.return_value = "task_123"
-        self.uploader.upload_file.return_value = (10, 50000000, "video/mp4")
+    media_paths = gather_media_paths(args)
 
-        # 抛出 KeyboardInterrupt 来模拟用户中断
-        self.task_client.wait_for_completion.side_effect = KeyboardInterrupt()
+    print("\n🧪 Testing Media Upload")
+    print("=" * 60)
+    print("⚠️  WARNING: This uploads real media into the X workflow")
+    print("=" * 60)
+    print(f"Media files: {media_paths}")
+    if args.instance_id:
+        print(f"Instance ID: {args.instance_id}")
+    if args.tab_id is not None:
+        print(f"Tab ID: {args.tab_id}")
 
-        with self.assertRaises(KeyboardInterrupt):
-            self.media_upload.upload_video(
-                self.video_path,
-                instance_id="instance_xxx",
-                tab_id=123
-            )
+    confirm_or_exit("⚠️  Real media upload task will be executed.", args.yes)
 
-        # 重点断言：必须调用 cancel_task 取消后台队列
-        self.task_client.cancel_task.assert_called_once_with("task_123")
+    client = ClawBotClient()
+    uploaded_ids: List[str] = []
 
-if __name__ == '__main__':
-    unittest.main()
+    for media_path in media_paths:
+        print(f"\n📤 Uploading: {media_path}")
+        result = client.media.upload(media_path, instance_id=args.instance_id, tab_id=args.tab_id)
+        print(f"✅ Uploaded media_id: {result.media_id}")
+        uploaded_ids.append(result.media_id)
+
+    print("\n" + "=" * 60)
+    print("Test Summary:")
+    print("=" * 60)
+    print(f"✅ PASS - uploaded {len(uploaded_ids)} media file(s)")
+    print(f"Media IDs: {uploaded_ids}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

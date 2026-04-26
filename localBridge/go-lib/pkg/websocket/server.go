@@ -53,9 +53,9 @@ func (s *ClientSession) writerLoop(server *Server) {
 		select {
 		case msg := <-s.sendQueue:
 			if err := s.Conn.WriteMessage(gorillaws.TextMessage, msg); err != nil {
-				log.Printf("[WS] write error: %v", err)
+				log.Printf("[WS] write error: client=%s instance=%s sessionID=%s remote=%s err=%v", s.ClientName, s.InstanceID, s.SessionID, s.Conn.RemoteAddr(), err)
 				// 写失败时通知 server 进入统一关闭路径
-				go server.closeSession(s)
+				go server.closeSessionWithReason(s, fmt.Sprintf("write error: %v", err))
 				return
 			}
 		case <-s.closeCh:
@@ -274,12 +274,12 @@ func (s *Server) Stop() {
 
 // handleConn 每个 WS 连接的读循环（单独 goroutine）
 func (s *Server) handleConn(conn *gorillaws.Conn) {
-	log.Printf("[WS] new connection from %s", conn.RemoteAddr())
+	log.Printf("[WS] new connection from remote=%s", conn.RemoteAddr())
 	for {
 		_, data, err := conn.ReadMessage()
 		if err != nil {
-			log.Printf("[WS] read error (%s): %v", conn.RemoteAddr(), err)
-			s.closeSessionByConn(conn)
+			log.Printf("[WS] read error: remote=%s err=%v", conn.RemoteAddr(), err)
+			s.closeSessionByConn(conn, fmt.Sprintf("read error: %v", err))
 			return
 		}
 		s.handleMessage(data, conn)
@@ -323,7 +323,7 @@ func (s *Server) handleMessage(data []byte, conn *gorillaws.Conn) {
 func (s *Server) handleClientHello(data []byte, conn *gorillaws.Conn) {
 	var msg types.Message[types.ClientHelloPayload]
 	if err := json.Unmarshal(data, &msg); err != nil {
-		log.Printf("[WS] invalid client.hello: %v", err)
+		log.Printf("[WS] invalid client.hello: remote=%s err=%v", conn.RemoteAddr(), err)
 		return
 	}
 	clientName := msg.Payload.ClientName
@@ -332,7 +332,7 @@ func (s *Server) handleClientHello(data []byte, conn *gorillaws.Conn) {
 	if instanceID == "" {
 		instanceID = "tmp-" + uuid.New().String()
 	}
-	log.Printf("[WS] hello: clientName=%s, instanceId=%s, instanceName=%s", clientName, instanceID, instanceName)
+	log.Printf("[WS] hello: client=%s instance=%s instanceName=%s version=%s remote=%s capabilities=%v", clientName, instanceID, instanceName, msg.Payload.ClientVersion, conn.RemoteAddr(), msg.Payload.Capabilities)
 
 	// 第一阶段:锁内摘取旧 session 并注册新 session
 	s.mu.Lock()
@@ -390,10 +390,12 @@ func (s *Server) handlePing(peek types.PeekMessage, conn *gorillaws.Conn) {
 		}
 	}
 	s.mu.RUnlock()
-	log.Printf("[WS] received ping: id=%s from=%s", peek.ID, clientName)
 	if targetSess != nil {
+		log.Printf("[WS] received ping: id=%s client=%s instance=%s sessionID=%s remote=%s", peek.ID, targetSess.ClientName, targetSess.InstanceID, targetSess.SessionID, targetSess.Conn.RemoteAddr())
 		s.sendPong(targetSess, peek.ID, clientName)
+		return
 	}
+	log.Printf("[WS] received ping from unknown connection: id=%s client=%s remote=%s", peek.ID, clientName, conn.RemoteAddr())
 }
 
 func (s *Server) removeSession(sess *ClientSession) {
@@ -413,7 +415,13 @@ func (s *Server) removeSession(sess *ClientSession) {
 }
 
 func (s *Server) closeSession(sess *ClientSession) {
+	s.closeSessionWithReason(sess, "unspecified")
+}
+
+func (s *Server) closeSessionWithReason(sess *ClientSession, reason string) {
 	sess.closeOnce.Do(func() {
+		log.Printf("[WS] closing session: client=%s instance=%s sessionID=%s remote=%s reason=%s", sess.ClientName, sess.InstanceID, sess.SessionID, sess.Conn.RemoteAddr(), reason)
+
 		// 1. 先关闭底层连接,打断正在进行的 I/O
 		sess.Conn.Close()
 
@@ -424,7 +432,7 @@ func (s *Server) closeSession(sess *ClientSession) {
 		select {
 		case <-sess.writerDone:
 		case <-time.After(5 * time.Second):
-			log.Printf("[WS] writerLoop timeout for %s/%s", sess.ClientName, sess.InstanceID)
+			log.Printf("[WS] writerLoop timeout: client=%s instance=%s sessionID=%s", sess.ClientName, sess.InstanceID, sess.SessionID)
 		}
 
 		// 4. 清理回调和注册
@@ -438,7 +446,7 @@ func (s *Server) closeSession(sess *ClientSession) {
 	})
 }
 
-func (s *Server) closeSessionByConn(conn *gorillaws.Conn) {
+func (s *Server) closeSessionByConn(conn *gorillaws.Conn, reason string) {
 	s.mu.RLock()
 	var targetSess *ClientSession
 	for _, sessions := range s.sessions {
@@ -455,8 +463,10 @@ func (s *Server) closeSessionByConn(conn *gorillaws.Conn) {
 	s.mu.RUnlock()
 
 	if targetSess != nil {
-		s.closeSession(targetSess)
+		s.closeSessionWithReason(targetSess, reason)
+		return
 	}
+	log.Printf("[WS] closeSessionByConn skipped: remote=%s reason=%s", conn.RemoteAddr(), reason)
 }
 
 func (s *Server) touchConn(conn *gorillaws.Conn) {
@@ -581,7 +591,7 @@ func (s *Server) cleanupSessionCallbacks(sessionID string) {
 func (s *Server) GetInstances() []InstanceSnapshot {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
-	var result []InstanceSnapshot
+	result := make([]InstanceSnapshot, 0)
 	for clientName, sessions := range s.sessions {
 		for instanceID, sess := range sessions {
 			_ = clientName
@@ -598,6 +608,7 @@ func (s *Server) GetInstances() []InstanceSnapshot {
 			})
 		}
 	}
+	log.Printf("[WS] snapshot export: total=%d instances=%v", len(result), result)
 	return result
 }
 
@@ -619,6 +630,7 @@ func (s *Server) runHeartbeat() {
 					lastSeen := sess.LastSeenAt
 					sess.mu.Unlock()
 					if now.Sub(lastSeen) > heartbeatTimeout {
+						log.Printf("[WS] heartbeat stale candidate: client=%s instance=%s sessionID=%s remote=%s lastSeen=%s age=%s", sess.ClientName, sess.InstanceID, sess.SessionID, sess.Conn.RemoteAddr(), lastSeen.Format(time.RFC3339Nano), now.Sub(lastSeen))
 						stale = append(stale, sess)
 					}
 				}

@@ -11,7 +11,13 @@ export class LocalBridgeSocket {
   private instanceId: string = '';
   private instanceName: string = '';
   private static readonly RECONNECT_ALARM_NAME = 'tweetclaw-reconnect';
-  
+
+  private identityLabel(): string {
+    const id = this.instanceId || 'unknown-instance';
+    const name = this.instanceName || 'unknown-name';
+    return `instanceId=${id} instanceName=${name}`;
+  }
+
   public queryXTabsHandler: (() => Promise<any>) | null = null;
   public queryXBasicInfoHandler: (() => Promise<any>) | null = null;
   public queryXhsAccountInfoHandler: (() => Promise<any>) | null = null;
@@ -22,7 +28,6 @@ export class LocalBridgeSocket {
   public navigateTabHandler: ((payload: any) => Promise<any>) | null = null;
   public execActionHandler: ((payload: any) => Promise<any>) | null = null;
   public queryHomeTimelineHandler: ((payload: any) => Promise<any>) | null = null;
-  public queryTweetHandler: ((payload: any) => Promise<any>) | null = null;
   public queryTweetRepliesHandler: ((payload: any) => Promise<any>) | null = null;
   public queryTweetDetailHandler: ((payload: any) => Promise<any>) | null = null;
   public queryUserProfileHandler: ((payload: any) => Promise<any>) | null = null;
@@ -50,10 +55,29 @@ export class LocalBridgeSocket {
     return this.WS_URL;
   }
 
+  public getDebugIdentityLabel(): string {
+    return this.identityLabel();
+  }
+
   public handleReconnectAlarm() {
-    console.log('[tweetClaw] Reconnect alarm triggered');
+    console.log(`[tweetClaw] Reconnect alarm triggered, ${this.identityLabel()} nextAttempt=${this.reconnectAttempts + 1}`);
     this.reconnectAttempts++;
     this.connect();
+  }
+
+  public disconnect(reason: string) {
+    console.log(`[tweetClaw] disconnecting websocket: ${reason}, ${this.identityLabel()}`);
+    this.clearReconnectAlarm();
+    this.stopHeartbeat();
+    this.serverInfo = null;
+    this.isConnecting = false;
+    this.reconnectAttempts = 0;
+
+    if (this.ws) {
+      this.ws.onclose = null;
+      this.ws.close();
+      this.ws = null;
+    }
   }
   
   public reconnect(host: string, port: number) {
@@ -77,7 +101,7 @@ export class LocalBridgeSocket {
     if (this.ws && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN)) {
       return;
     }
-    
+
     // Check dynamic host and port
     try {
       if (typeof chrome !== 'undefined' && chrome.storage) {
@@ -91,13 +115,13 @@ export class LocalBridgeSocket {
     }
     
     this.isConnecting = true;
-    console.log(`[tweetClaw] websocket connecting to ${this.WS_URL}...`);
-    
+    console.log(`[tweetClaw] websocket connecting to ${this.WS_URL}, ${this.identityLabel()} reconnectAttempts=${this.reconnectAttempts}`);
+
     try {
       this.ws = new WebSocket(this.WS_URL);
-      
+
       this.ws.onopen = async () => {
-        console.log('[tweetClaw] websocket open');
+        console.log(`[tweetClaw] websocket open, ${this.identityLabel()}`);
         this.isConnecting = false;
         this.reconnectAttempts = 0;
         this.lastPongTimestamp = Date.now();
@@ -107,11 +131,12 @@ export class LocalBridgeSocket {
             this.instanceId = await getOrCreateInstanceId();
         }
         this.instanceName = await getOrCreateInstanceName();
+        console.log(`[tweetClaw] websocket identity ready, ${this.identityLabel()}`);
         this.sendHello();
       };
-      
-      this.ws.onclose = () => {
-        console.log('[tweetClaw] websocket closed');
+
+      this.ws.onclose = (event) => {
+        console.log(`[tweetClaw] websocket closed, ${this.identityLabel()} code=${event.code} reason=${event.reason || 'n/a'} wasClean=${event.wasClean}`);
         this.isConnecting = false;
         this.serverInfo = null;
         this.stopHeartbeat();
@@ -120,7 +145,7 @@ export class LocalBridgeSocket {
       
       this.ws.onerror = () => {
         // Use regular log to stay silent in Chrome extension error list
-        console.log('[tweetClaw] connection notice: server offline');
+        console.log(`[tweetClaw] connection notice: server offline, ${this.identityLabel()} url=${this.WS_URL}`);
         this.isConnecting = false;
       };
       
@@ -134,9 +159,10 @@ export class LocalBridgeSocket {
     }
   }
   
+
   private scheduleReconnect() {
     const delayInMinutes = this.getReconnectDelayInMinutes();
-    console.log(`[tweetClaw] websocket reconnect scheduled in ${delayInMinutes} minute(s) (attempt ${this.reconnectAttempts + 1})`);
+    console.log(`[tweetClaw] websocket reconnect scheduled in ${delayInMinutes} minute(s) (attempt ${this.reconnectAttempts + 1}), ${this.identityLabel()}`);
 
     // Use Chrome Alarms API for reliable reconnection
     if (typeof chrome !== 'undefined' && chrome.alarms) {
@@ -177,7 +203,7 @@ export class LocalBridgeSocket {
         incognito: chrome.extension.inIncognitoContext
       }
     };
-    console.log(`[tweetClaw] sending endpoint info to server: ${JSON.stringify(hello.payload)}`);
+    console.log(`[tweetClaw] sending endpoint info to server, ${this.identityLabel()}: ${JSON.stringify(hello.payload)}`);
     this.send(hello);
   }
   
@@ -186,7 +212,7 @@ export class LocalBridgeSocket {
       const msg = JSON.parse(data) as BaseMessage;
       this.lastServerMessageTimestamp = Date.now();
       if (msg.type !== MESSAGE_TYPES.PONG && msg.type !== MESSAGE_TYPES.PING) {
-        console.log(`[tweetClaw] received message: ${msg.type}`);
+        console.log(`[tweetClaw] received message: ${msg.type}, ${this.identityLabel()}`);
       }
       
       switch (msg.type) {
@@ -194,7 +220,7 @@ export class LocalBridgeSocket {
           this.handleHelloAck(msg as BaseMessage<ServerHelloAckPayload>);
           break;
         case MESSAGE_TYPES.PONG:
-          console.log(`[tweetClaw] received pong: id=${msg.id}`);
+          console.log(`[tweetClaw] received pong: id=${msg.id}, ${this.identityLabel()}`);
           this.lastPongTimestamp = Date.now();
           break;
         case MESSAGE_TYPES.REQUEST_QUERY_X_TABS_STATUS:
@@ -230,9 +256,6 @@ export class LocalBridgeSocket {
         case MESSAGE_TYPES.REQUEST_QUERY_HOME_TIMELINE:
           this.handleGenericQuery(msg, this.queryHomeTimelineHandler, MESSAGE_TYPES.RESPONSE_QUERY_HOME_TIMELINE);
           break;
-        case MESSAGE_TYPES.REQUEST_QUERY_TWEET:
-          this.handleGenericQuery(msg, this.queryTweetHandler, MESSAGE_TYPES.RESPONSE_QUERY_TWEET);
-          break;
         case MESSAGE_TYPES.REQUEST_QUERY_TWEET_REPLIES:
           this.handleGenericQuery(msg, this.queryTweetRepliesHandler, MESSAGE_TYPES.RESPONSE_QUERY_TWEET_REPLIES);
           break;
@@ -263,8 +286,8 @@ export class LocalBridgeSocket {
   }
   
   private handleHelloAck(msg: BaseMessage<ServerHelloAckPayload>) {
-    console.log('[tweetClaw] received server.hello_ack');
-    console.log(`[tweetClaw] received endpoint info from server: ${JSON.stringify(msg.payload)}`);
+    console.log(`[tweetClaw] received server.hello_ack, ${this.identityLabel()}`);
+    console.log(`[tweetClaw] received endpoint info from server, ${this.identityLabel()}: ${JSON.stringify(msg.payload)}`);
     this.serverInfo = msg.payload;
     this.startHeartbeat(msg.payload.heartbeatIntervalMs || 20000);
   }
@@ -633,7 +656,7 @@ export class LocalBridgeSocket {
       const sinceLastPong = this.lastPongTimestamp > 0 ? now - this.lastPongTimestamp : Number.POSITIVE_INFINITY;
       const sinceLastServerMessage = this.lastServerMessageTimestamp > 0 ? now - this.lastServerMessageTimestamp : Number.POSITIVE_INFINITY;
       if (Math.min(sinceLastPong, sinceLastServerMessage) > 60000) {
-        console.error(`[tweetClaw] pong timeout, closing socket (sinceLastPongMs=${sinceLastPong}, sinceLastServerMessageMs=${sinceLastServerMessage})`);
+        console.error(`[tweetClaw] pong timeout, closing socket, ${this.identityLabel()} (sinceLastPongMs=${sinceLastPong}, sinceLastServerMessageMs=${sinceLastServerMessage})`);
         this.ws?.close();
         return;
       }
@@ -659,7 +682,7 @@ export class LocalBridgeSocket {
         heartbeatIntervalMs: 20000
       }
     };
-    console.log(`[tweetClaw] sending ping: id=${ping.id}`);
+    console.log(`[tweetClaw] sending ping: id=${ping.id}, ${this.identityLabel()}`);
     this.send(ping);
   }
   

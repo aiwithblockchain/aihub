@@ -419,26 +419,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
-    if (message.type === 'FETCH_TWEET') {
-        (async () => {
-            try {
-                const data = await performQuery('TweetDetail', {
-                    focalTweetId: message.tweetId,
-                    with_rux_injections: false,
-                    includePromotedContent: true,
-                    withCommunity: true,
-                    withQuickPromoteEligibilityTweetFields: true,
-                    withBirdwatchNotes: true,
-                    withVoice: true
-                });
-                sendResponse({ success: true, data });
-            } catch (e: any) {
-                sendResponse({ success: false, error: e.message });
-            }
-        })();
-        return true;
-    }
-
     if (message.type === 'FETCH_TWEET_REPLIES') {
         (async () => {
             try {

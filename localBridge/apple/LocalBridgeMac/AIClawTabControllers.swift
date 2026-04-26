@@ -12,10 +12,6 @@ final class AIClawBotViewController: NSViewController {
     private let stackView = FlippedStackView()
     private let headerSeparator = NSView()
     
-    // Toast 提示
-    private var toastView: NSView?
-    private var toastTimer: Timer?
-
     struct ApiDoc: Codable {
         let id: String
         let name: String
@@ -430,64 +426,7 @@ final class AIClawBotViewController: NSViewController {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
         pasteboard.setString(label.stringValue, forType: .string)
-        
-        showToast(LanguageManager.shared.localized("common.copied"))
-    }
 
-    private func showToast(_ message: String) {
-        toastTimer?.invalidate()
-        toastView?.removeFromSuperview()
-
-        let container = NSView()
-        container.wantsLayer = true
-        container.layer?.backgroundColor = DSV2.primary.cgColor
-        container.layer?.cornerRadius = 12
-        container.layer?.shadowColor = NSColor.black.cgColor
-        container.layer?.shadowOpacity = 0.3
-        container.layer?.shadowRadius = 10
-        container.layer?.shadowOffset = CGSize(width: 0, height: 4)
-        container.translatesAutoresizingMaskIntoConstraints = false
-
-        let label = NSTextField(labelWithString: message)
-        label.font = NSFont.systemFont(ofSize: 13, weight: .medium)
-        label.textColor = .white
-        label.alignment = .center
-        label.translatesAutoresizingMaskIntoConstraints = false
-        container.addSubview(label)
-
-        view.addSubview(container)
-        self.toastView = container
-
-        NSLayoutConstraint.activate([
-            label.centerYAnchor.constraint(equalTo: container.centerYAnchor),
-            label.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 16),
-            label.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -16),
-            container.heightAnchor.constraint(equalToConstant: 36),
-            container.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            container.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -40)
-        ])
-
-        container.alphaValue = 0
-
-        NSAnimationContext.runAnimationGroup { context in
-            context.duration = 0.3
-            context.timingFunction = CAMediaTimingFunction(name: .easeOut)
-            container.animator().alphaValue = 1
-        }
-
-        toastTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: false) { [weak self] _ in
-            self?.hideToast()
-        }
-    }
-
-    private func hideToast() {
-        guard let toast = toastView else { return }
-        NSAnimationContext.runAnimationGroup({ context in
-            context.duration = 0.3
-            context.timingFunction = CAMediaTimingFunction(name: .easeIn)
-            toast.animator().alphaValue = 0
-        }) {
-            toast.removeFromSuperview()
-        }
+        showToast(LanguageManager.shared.localized("common.copied"), style: .success)
     }
 }

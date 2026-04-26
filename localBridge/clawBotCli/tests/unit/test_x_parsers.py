@@ -3,9 +3,11 @@ import unittest
 from clawbot.domain.models import XStatus, XTweet, XUser
 from clawbot.domain.x_parsers import (
     extract_first_timeline_tweet,
+    extract_focal_tweet,
     extract_pinned_tweet_id_from_profile,
     extract_search_tweets_and_users,
     extract_timeline_tweets,
+    extract_tweet_detail_replies,
     parse_basic_user,
     parse_user_profile,
     parse_x_status,
@@ -160,6 +162,295 @@ class TestXParsers(unittest.TestCase):
         self.assertEqual(len(tweets), 1)
         self.assertEqual(len(users), 1)
         self.assertEqual(users[0].screen_name, "bob")
+
+    def test_extract_focal_tweet_prefers_requested_id_over_first_reply(self):
+        raw = {
+            "data": {
+                "data": {
+                    "threaded_conversation_with_injections_v2": {
+                        "instructions": [
+                            {
+                                "type": "TimelineAddEntries",
+                                "entries": [
+                                    {
+                                        "entryId": "conversationthread-r1",
+                                        "content": {
+                                            "items": [
+                                                {
+                                                    "item": {
+                                                        "entryId": "conversationthread-r1-tweet-r1",
+                                                        "content": {
+                                                            "itemContent": {
+                                                                "tweet_results": {
+                                                                    "result": {
+                                                                        "rest_id": "reply-1",
+                                                                        "legacy": {"full_text": "reply first"},
+                                                                        "core": {
+                                                                            "user_results": {
+                                                                                "result": {
+                                                                                    "rest_id": "u-reply",
+                                                                                    "legacy": {"screen_name": "reply_user"},
+                                                                                }
+                                                                            }
+                                                                        },
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                    }
+                                                },
+                                                {
+                                                    "item": {
+                                                        "entryId": "conversationthread-root-tweet-root-1",
+                                                        "content": {
+                                                            "itemContent": {
+                                                                "tweet_results": {
+                                                                    "result": {
+                                                                        "rest_id": "root-1",
+                                                                        "legacy": {"full_text": "target tweet"},
+                                                                        "core": {
+                                                                            "user_results": {
+                                                                                "result": {
+                                                                                    "rest_id": "u-root",
+                                                                                    "legacy": {"screen_name": "root_user"},
+                                                                                }
+                                                                            }
+                                                                        },
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                    }
+                                                },
+                                            ]
+                                        },
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+        tweet = extract_focal_tweet(raw, "root-1")
+        self.assertIsNotNone(tweet)
+        self.assertEqual(tweet.id, "root-1")
+        self.assertEqual(tweet.author_screen_name, "root_user")
+
+    def test_extract_focal_tweet_unwraps_visibility_wrapper(self):
+        raw = {
+            "data": {
+                "data": {
+                    "threaded_conversation_with_injections_v2": {
+                        "instructions": [
+                            {
+                                "type": "TimelineAddEntries",
+                                "entries": [
+                                    {
+                                        "entryId": "tweet-target",
+                                        "content": {
+                                            "itemContent": {
+                                                "tweet_results": {
+                                                    "result": {
+                                                        "__typename": "TweetWithVisibilityResults",
+                                                        "tweet": {
+                                                            "rest_id": "target-1",
+                                                            "legacy": {"full_text": "wrapped tweet"},
+                                                            "core": {
+                                                                "user_results": {
+                                                                    "result": {
+                                                                        "rest_id": "u1",
+                                                                        "legacy": {"screen_name": "wrapped_user"},
+                                                                    }
+                                                                }
+                                                            },
+                                                        },
+                                                    }
+                                                }
+                                            }
+                                        },
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+        tweet = extract_focal_tweet(raw, "target-1")
+        self.assertIsNotNone(tweet)
+        self.assertEqual(tweet.id, "target-1")
+        self.assertEqual(tweet.text, "wrapped tweet")
+
+    def test_extract_focal_tweet_uses_user_core_when_legacy_fields_are_missing(self):
+        raw = {
+            "data": {
+                "data": {
+                    "threaded_conversation_with_injections_v2": {
+                        "instructions": [
+                            {
+                                "type": "TimelineAddEntries",
+                                "entries": [
+                                    {
+                                        "entryId": "tweet-target",
+                                        "content": {
+                                            "itemContent": {
+                                                "tweet_results": {
+                                                    "result": {
+                                                        "rest_id": "target-1",
+                                                        "legacy": {"full_text": "wrapped tweet"},
+                                                        "core": {
+                                                            "user_results": {
+                                                                "result": {
+                                                                    "rest_id": "u1",
+                                                                    "core": {
+                                                                        "name": "Bybit",
+                                                                        "screen_name": "Bybit_Official",
+                                                                    },
+                                                                    "legacy": {
+                                                                        "description": "profile only"
+                                                                    },
+                                                                }
+                                                            }
+                                                        },
+                                                    }
+                                                }
+                                            }
+                                        },
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+        tweet = extract_focal_tweet(raw, "target-1")
+        self.assertIsNotNone(tweet)
+        self.assertEqual(tweet.author_name, "Bybit")
+        self.assertEqual(tweet.author_screen_name, "Bybit_Official")
+
+    def test_extract_tweet_detail_replies_skips_focal_and_promoted(self):
+        raw = {
+            "data": {
+                "data": {
+                    "threaded_conversation_with_injections_v2": {
+                        "instructions": [
+                            {
+                                "type": "TimelineAddEntries",
+                                "entries": [
+                                    {
+                                        "entryId": "conversationthread-root",
+                                        "content": {
+                                            "items": [
+                                                {
+                                                    "item": {
+                                                        "entryId": "conversationthread-root-tweet-root-1",
+                                                        "content": {
+                                                            "itemContent": {
+                                                                "tweet_results": {
+                                                                    "result": {
+                                                                        "rest_id": "root-1",
+                                                                        "legacy": {"full_text": "target tweet"},
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                    }
+                                                },
+                                                {
+                                                    "item": {
+                                                        "entryId": "conversationthread-reply-tweet-reply-1",
+                                                        "content": {
+                                                            "itemContent": {
+                                                                "tweet_results": {
+                                                                    "result": {
+                                                                        "rest_id": "reply-1",
+                                                                        "legacy": {"full_text": "reply tweet"},
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                    }
+                                                },
+                                            ]
+                                        },
+                                    },
+                                    {
+                                        "entryId": "conversationthread-promoted-promoted-tweet-ad-1",
+                                        "content": {
+                                            "itemContent": {
+                                                "promotedMetadata": {"impressionId": "ad-1"},
+                                                "tweet_results": {
+                                                    "result": {
+                                                        "rest_id": "ad-1",
+                                                        "legacy": {"full_text": "sponsored"},
+                                                    }
+                                                },
+                                            }
+                                        },
+                                    },
+                                ],
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+        tweets = extract_tweet_detail_replies(raw, tweet_id="root-1")
+        self.assertEqual([tweet.id for tweet in tweets], ["reply-1"])
+
+    def test_extract_tweet_detail_replies_reads_module_items_with_direct_item_content(self):
+        raw = {
+            "data": {
+                "data": {
+                    "threaded_conversation_with_injections_v2": {
+                        "instructions": [
+                            {
+                                "type": "TimelineAddEntries",
+                                "entries": [
+                                    {
+                                        "entryId": "tweet-root-1",
+                                        "content": {
+                                            "itemContent": {
+                                                "tweet_results": {
+                                                    "result": {
+                                                        "rest_id": "root-1",
+                                                        "legacy": {"full_text": "target tweet"},
+                                                    }
+                                                }
+                                            }
+                                        },
+                                    },
+                                    {
+                                        "entryId": "conversationthread-reply-1",
+                                        "content": {
+                                            "items": [
+                                                {
+                                                    "entryId": "conversationthread-reply-1-tweet-reply-1",
+                                                    "item": {
+                                                        "itemContent": {
+                                                            "tweet_results": {
+                                                                "result": {
+                                                                    "rest_id": "reply-1",
+                                                                    "legacy": {"full_text": "reply tweet"},
+                                                                }
+                                                            }
+                                                        }
+                                                    }
+                                                }
+                                            ]
+                                        },
+                                    },
+                                ],
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+        tweets = extract_tweet_detail_replies(raw, tweet_id="root-1")
+        self.assertEqual([tweet.id for tweet in tweets], ["reply-1"])
 
     def test_extract_pinned_tweet_id(self):
         raw = {

@@ -28,8 +28,6 @@ export type MessageType =
   | 'response.exec_action'
   | 'request.query_home_timeline'
   | 'response.query_home_timeline'
-  | 'request.query_tweet'
-  | 'response.query_tweet'
   | 'request.query_tweet_replies'
   | 'response.query_tweet_replies'
   | 'request.query_tweet_detail'
@@ -74,8 +72,6 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_EXEC_ACTION: 'response.exec_action',
   REQUEST_QUERY_HOME_TIMELINE: 'request.query_home_timeline',
   RESPONSE_QUERY_HOME_TIMELINE: 'response.query_home_timeline',
-  REQUEST_QUERY_TWEET: 'request.query_tweet',
-  RESPONSE_QUERY_TWEET: 'response.query_tweet',
   REQUEST_QUERY_TWEET_REPLIES: 'request.query_tweet_replies',
   RESPONSE_QUERY_TWEET_REPLIES: 'response.query_tweet_replies',
   REQUEST_QUERY_TWEET_DETAIL: 'request.query_tweet_detail',
@@ -205,11 +201,6 @@ export interface ExecActionRequestPayload {
 }
 
 export interface QueryTweetDetailRequestPayload {
-  tweetId: string;
-  tabId?: number;
-}
-
-export interface QueryTweetRequestPayload {
   tweetId: string;
   tabId?: number;
 }

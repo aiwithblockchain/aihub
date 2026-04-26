@@ -97,7 +97,6 @@ localBridge.closeTabHandler = closeXTab;
 localBridge.navigateTabHandler = navigateXTab;
 localBridge.execActionHandler = execAction;
 localBridge.queryHomeTimelineHandler = queryHomeTimeline;
-localBridge.queryTweetHandler = queryTweet;
 localBridge.queryTweetRepliesHandler = queryTweetReplies;
 localBridge.queryTweetDetailHandler = queryTweetDetail;
 localBridge.queryUserProfileHandler = queryUserProfile;
@@ -108,13 +107,19 @@ localBridge.queryUserTweetsHandler = queryUserTweets;
 let taskCoordinator: BackgroundTaskCoordinator | null = null;
 let taskCoordinatorReady = false;
 
+async function ensureBridgeConnected(reason: string) {
+    console.log(`[TweetClaw-BG] ensure bridge connected: ${reason}, ${localBridge.getDebugIdentityLabel()}`);
+    await localBridge.connect();
+}
+
 chrome.storage.local.get(['wsHost', 'wsPort', 'restHost', 'restPort']).then(async res => {
     const wsHost = res.wsHost || '127.0.0.1';
     const wsPort = res.wsPort || 10086;
     const restHost = res.restHost || wsHost;
     const restPort = res.restPort || 10088;
     const instanceId = await getOrCreateInstanceId();
-    
+    console.log(`[TweetClaw-BG] background bootstrap resolved instanceId=${instanceId} ws=${wsHost}:${wsPort} rest=${restHost}:${restPort}`);
+
     taskCoordinator = new BackgroundTaskCoordinator(localBridge, {
         localBridgeBaseUrl: `http://${restHost}:${restPort}`,
         clientName: 'tweetClaw',
@@ -162,12 +167,25 @@ localBridge.handleReconnectAlarm = function() {
 // ── Listen for reconnect alarms ──────────────────────────────────
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'tweetclaw-reconnect') {
-        console.log('[TweetClaw-BG] Reconnect alarm triggered');
+        console.log(`[TweetClaw-BG] Reconnect alarm triggered, ${localBridge.getDebugIdentityLabel()}`);
         localBridge.handleReconnectAlarm();
     }
 });
 
+chrome.runtime.onStartup?.addListener(() => {
+    console.log(`[TweetClaw-BG] runtime startup, ${localBridge.getDebugIdentityLabel()}`);
+    ensureBridgeConnected('runtime startup').catch((e) => console.warn('[TweetClaw-BG] failed to connect bridge on startup', e));
+});
+
+chrome.runtime.onInstalled.addListener(() => {
+    initDefaultQueryKeys();
+    console.log(`[TweetClaw-BG] Extension installed/updated, ${localBridge.getDebugIdentityLabel()}`);
+    ensureBridgeConnected('runtime installed').catch((e) => console.warn('[TweetClaw-BG] failed to connect bridge on install', e));
+});
+
 chrome.runtime.onSuspend.addListener(() => {
+    console.log(`[TweetClaw-BG] runtime suspend, ${localBridge.getDebugIdentityLabel()}`);
+    localBridge.disconnect('runtime suspend');
     taskCoordinator?.handleDisconnect();
     backgroundSessionStore.clear();
 });
@@ -188,11 +206,6 @@ async function initDefaultQueryKeys() {
         console.log("[TweetClaw-BG] Default QueryIDs initialized");
     }
 }
-
-chrome.runtime.onInstalled.addListener(() => {
-    initDefaultQueryKeys();
-    console.log("[TweetClaw-BG] Extension installed/updated");
-});
 
 // ── 获取认证 UID ──────────────────────────────────────────────────
 async function getAuthenticUid(): Promise<string | null> {
@@ -826,37 +839,6 @@ export async function queryHomeTimeline(payload: QueryTimelinePayload): Promise<
 }
 
 /**
- * 查询推文详情 - 返回推特原始 GraphQL 响应
- */
-export async function queryTweet(payload: QueryTweetPayload): Promise<TwitterResponse> {
-    const { tweetId, tabId } = payload;
-    if (!tweetId) {
-        throw new Error('tweetId is required');
-    }
-
-    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    let targetTabId: number | undefined = tabId;
-    if (!targetTabId) {
-        const activeTab = xTabs.find(t => t.active) || xTabs[0];
-        targetTabId = activeTab?.id;
-    }
-    if (!targetTabId) {
-        throw new Error('No x.com tab found');
-    }
-
-    // 委托 Content Script 调用推特 API 并返回原始响应
-    const result = await chrome.tabs.sendMessage(targetTabId, {
-        type: 'FETCH_TWEET',
-        tweetId
-    }).catch((e: any) => {
-        throw new Error(`Failed to fetch tweet: ${e?.message}`);
-    });
-
-    // 直接返回推特原始 GraphQL 响应
-    return result;
-}
-
-/**
  * 查询推文回复 - 返回推特原始 GraphQL 响应
  */
 export async function queryTweetReplies(payload: QueryTweetRepliesPayload): Promise<TwitterResponse> {
@@ -887,7 +869,7 @@ export async function queryTweetReplies(payload: QueryTweetRepliesPayload): Prom
 }
 
 /**
- * 查询推文详情（旧版兼容接口）- 返回推特原始 GraphQL 响应
+ * 查询推文详情 - 返回推特原始 GraphQL 响应
  */
 export async function queryTweetDetail(payload: QueryTweetPayload): Promise<TwitterResponse> {
     const { tweetId, tabId } = payload;

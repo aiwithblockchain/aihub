@@ -249,6 +249,18 @@ struct Localizations {
             "en": "Clear",
             "zh": "清空"
         ],
+        "logs.cleared": [
+            "en": "Logs cleared",
+            "zh": "清空成功"
+        ],
+        "logs.already_empty": [
+            "en": "Logs are already empty",
+            "zh": "日志已为空"
+        ],
+        "logs.nothing_to_copy": [
+            "en": "Nothing to copy",
+            "zh": "暂无可复制内容"
+        ],
         "logs.empty": [
             "en": "No logs yet",
             "zh": "暂无日志"
@@ -464,6 +476,10 @@ struct Localizations {
         "common.copy": [
             "en": "Copy",
             "zh": "复制"
+        ],
+        "common.copied": [
+            "en": "Copied successfully",
+            "zh": "复制成功"
         ],
         "common.legacy": [
             "en": "(Legacy)",

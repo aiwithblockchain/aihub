@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 
 from clawbot.domain.models import XStatus, XTab, XTweet, XUser
 from clawbot.errors import ParseError
@@ -13,6 +13,48 @@ def _unwrap_data(response: Dict[str, Any]) -> Dict[str, Any]:
     if isinstance(data, dict) and "data" in data and isinstance(data["data"], dict):
         return data["data"]
     return data if isinstance(data, dict) else {}
+
+
+def _unwrap_tweet_result(result: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(result, dict):
+        return {}
+    if result.get("__typename") == "TweetWithVisibilityResults" and isinstance(result.get("tweet"), dict):
+        return result["tweet"]
+    return result
+
+
+def _extract_entry_tweet_result(entry: Dict[str, Any]) -> Dict[str, Any]:
+    if not isinstance(entry, dict):
+        return {}
+    item_content = entry.get("itemContent", {}) if isinstance(entry.get("itemContent"), dict) else {}
+    if not item_content:
+        content = entry.get("content", {}) if isinstance(entry.get("content"), dict) else {}
+        item_content = content.get("itemContent", {}) if isinstance(content.get("itemContent"), dict) else {}
+    result = item_content.get("tweet_results", {}).get("result", {}) if isinstance(item_content, dict) else {}
+    return _unwrap_tweet_result(result)
+
+
+def _iter_tweet_detail_entries(response: Dict[str, Any]) -> Iterator[Dict[str, Any]]:
+    data = _unwrap_data(response)
+    instructions = data.get("threaded_conversation_with_injections_v2", {}).get("instructions", [])
+    for instruction in instructions:
+        for entry in instruction.get("entries", []) or []:
+            if not isinstance(entry, dict):
+                continue
+            yield entry
+            content = entry.get("content", {})
+            items = content.get("items", []) if isinstance(content, dict) else []
+            for item in items:
+                nested_entry = item.get("item") if isinstance(item, dict) else None
+                if isinstance(nested_entry, dict):
+                    yield nested_entry
+
+
+def _is_promoted_entry(entry: Dict[str, Any]) -> bool:
+    entry_id = entry.get("entryId", "") if isinstance(entry, dict) else ""
+    content = entry.get("content", {}) if isinstance(entry, dict) else {}
+    item_content = content.get("itemContent", {}) if isinstance(content, dict) else {}
+    return "promoted-" in entry_id or "promotedMetadata" in item_content
 
 
 def parse_x_status(response: Dict[str, Any]) -> XStatus:
@@ -64,16 +106,18 @@ def parse_user_profile(response: Dict[str, Any]) -> XUser:
 
 
 def parse_tweet_result(result: Dict[str, Any]) -> XTweet:
+    result = _unwrap_tweet_result(result)
     legacy = result.get("legacy", {}) if isinstance(result, dict) else {}
     core = result.get("core", {}) if isinstance(result, dict) else {}
     user_result = core.get("user_results", {}).get("result", {}) if isinstance(core, dict) else {}
     user_legacy = user_result.get("legacy", {}) if isinstance(user_result, dict) else {}
+    user_core = user_result.get("core", {}) if isinstance(user_result, dict) else {}
     return XTweet(
         id=result.get("rest_id"),
         text=legacy.get("full_text") or legacy.get("text"),
         author_id=user_result.get("rest_id"),
-        author_name=user_legacy.get("name"),
-        author_screen_name=user_legacy.get("screen_name"),
+        author_name=user_legacy.get("name") or user_core.get("name"),
+        author_screen_name=user_legacy.get("screen_name") or user_core.get("screen_name"),
         raw=result,
     )
 
@@ -138,6 +182,33 @@ def extract_search_tweets_and_users(response: Dict[str, Any]) -> Tuple[List[XTwe
                     )
                 )
     return tweets, users
+
+
+def extract_focal_tweet(response: Dict[str, Any], tweet_id: str) -> Optional[XTweet]:
+    for entry in _iter_tweet_detail_entries(response):
+        if _is_promoted_entry(entry):
+            continue
+        result = _extract_entry_tweet_result(entry)
+        if result.get("rest_id") == tweet_id:
+            return parse_tweet_result(result)
+    return None
+
+
+def extract_tweet_detail_replies(response: Dict[str, Any], tweet_id: Optional[str] = None) -> List[XTweet]:
+    tweets: List[XTweet] = []
+    seen_ids: set[str] = set()
+
+    for entry in _iter_tweet_detail_entries(response):
+        if _is_promoted_entry(entry):
+            continue
+        result = _extract_entry_tweet_result(entry)
+        rest_id = result.get("rest_id")
+        if not rest_id or rest_id == tweet_id or rest_id in seen_ids:
+            continue
+        seen_ids.add(rest_id)
+        tweets.append(parse_tweet_result(result))
+
+    return tweets
 
 
 def extract_pinned_tweet_id_from_profile(response: Dict[str, Any]) -> Optional[str]:

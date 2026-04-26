@@ -38,7 +38,8 @@ user = client.x.users.get_user("elonmusk")
 
 # Read Operations
 tweets = client.x.timeline.list_timeline_tweets()
-tweet = client.x.tweets.get_tweet(tweet_id)  # raw REST endpoint: GET /api/v1/x/tweets?tweetId=...
+tweet = client.x.tweets.get_tweet(tweet_id)  # REST still calls GET /api/v1/x/tweets?tweetId=..., but Python returns the structured focal tweet extracted from raw TweetDetail
+replies = client.x.tweets.get_tweet_replies(tweet_id)  # REST still calls GET /api/v1/x/tweets/{tweet_id}/replies, but Python returns structured reply tweets extracted from the raw replies payload
 tweets, users = client.x.search.search("AI", count=20)
 
 # Write Operations

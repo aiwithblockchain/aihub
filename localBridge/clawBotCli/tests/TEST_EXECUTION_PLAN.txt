@@ -1,0 +1,185 @@
+ClawBot CLI Manual Test Plan
+============================
+
+Purpose
+-------
+This plan is for slow, manual, one-test-at-a-time execution. After each executed test, stop and wait for the user's next command.
+
+Working rules
+-------------
+1. Execute only one test item at a time.
+2. After each test:
+   - record result
+   - patch code or test if needed
+   - mark the item status
+   - stop and wait for the next command
+3. Prefer read flows first, then write flows.
+4. Write tests must use clearly labeled test content so the resulting X actions are easy to identify.
+5. Media tests may use files under `test_media/`.
+6. For multi-instance environments, prefer explicit `instanceId` when the script supports it.
+
+Status legend
+-------------
+- [ ] not started
+- [~] in progress
+- [x] done
+- [!] blocked / needs script update
+
+Phase 0, Baseline unit and parser safety
+----------------------------------------
+These are local safety checks before live account actions.
+
+- [ ] `tests/unit/test_x_parsers.py`
+  Goal: verify focal tweet extraction, nested reply extraction, visibility wrapper handling, author fallback.
+- [ ] `tests/unit/test_x_parser_edge_cases.py`
+  Goal: verify parser edge cases for latest TweetDetail shapes.
+- [ ] `tests/unit/test_services.py`
+  Goal: verify `instance_id` propagation and service-layer tweet/reply behavior.
+- [ ] `tests/unit/test_media_service.py`
+  Goal: verify media service success path.
+- [ ] `tests/unit/test_media_service_failures.py`
+  Goal: verify media failure handling.
+- [ ] `tests/unit/test_client_smoke.py`
+  Goal: verify basic client wiring.
+- [ ] `tests/unit/test_workflows.py`
+  Goal: verify workflow-level unit behavior.
+- [ ] `tests/unit/test_task_client_failures.py`
+  Goal: verify task client failure handling.
+- [ ] `tests/unit/test_legacy_media_upload_task.py`
+  Goal: verify legacy task-based media upload behavior.
+
+Phase 1, Read-only live API tests
+---------------------------------
+Run these before any write action.
+
+1. [ ] `tests/test_status.py`
+   Goal: confirm service is reachable and current X session is healthy.
+2. [ ] `tests/test_metadata.py`
+   Goal: verify environment / metadata endpoints.
+3. [ ] `tests/test_basic_read.py`
+   Goal: confirm basic timeline-style reads still work.
+4. [ ] `tests/test_read_apis.py`
+   Goal: verify timeline, single tweet, user profile, search.
+   Note: for single tweet, prefer a real tweet ID that we can later reuse in reply/detail checks.
+5. [ ] `tests/test_tweet_details.py`
+   Goal: verify canonical single-tweet path and replies path against real data.
+   Focus:
+   - focal tweet matches requested `tweet_id`
+   - nested replies can be extracted
+   - no regression from old duplicate single-tweet behavior
+6. [ ] `tests/test_user_search.py`
+   Goal: verify user search behavior.
+7. [ ] `tests/test_user_tweets.py`
+   Goal: verify fetching tweets for a user.
+8. [ ] `tests/test_tab_control.py`
+   Goal: verify tab listing / selection support if needed by later tests.
+9. [ ] `tests/integration/test_read_flows.py`
+   Goal: run integrated read flow coverage after the simpler read scripts pass.
+10. [ ] `tests/integration/test_tweet_search_flows.py`
+    Goal: integrated tweet/search read flow validation.
+11. [ ] `tests/integration/test_status_metadata_flows.py`
+    Goal: integrated status + metadata validation.
+
+Phase 2, Low-risk AI / workflow reads
+-------------------------------------
+These are still mostly non-destructive, but may depend on AI/browser state.
+
+- [ ] `tests/test_ai_status.py`
+- [ ] `tests/test_ai_navigate.py`
+- [ ] `tests/test_ai_message.py`
+- [ ] `tests/test_ai_new_conversation.py`
+- [ ] `tests/test_ai_claw.py`
+- [ ] `tests/test_ai_workflow.py`
+- [ ] `tests/integration/test_ai_workflow.py`
+- [ ] `tests/test_workflow.py`
+- [ ] `tests/integration/test_workflow_flows.py`
+
+Goal: confirm AI assistant flows still align with the current LocalBridge and client wiring.
+
+Phase 3, Write live API tests, safest to riskiest
+-------------------------------------------------
+Only start these after read paths are stable.
+
+Recommended test tweet text templates
+-------------------------------------
+Use explicit labels so cleanup is easy.
+
+A. Plain post
+`[ClawBot test] Read/write regression check for LocalBridge + clawBotCli. Safe to ignore.`
+
+B. Reply post
+`[ClawBot test reply] Verifying canonical tweet detail / replies flow.`
+
+C. Media post
+`[ClawBot media test] Verifying media upload path from clawBotCli tests.`
+
+Write order
+-----------
+1. [ ] `tests/test_write_apis.py`
+   Goal: basic create tweet, like, retweet.
+   Notes:
+   - Start with create tweet only.
+   - If the script bundles multiple actions, execute carefully and skip actions not approved for that turn.
+2. [ ] `tests/test_publish.py`
+   Goal: verify publish path in the main client.
+3. [ ] `tests/test_media_upload.py`
+   Goal: verify media upload path using `test_media/` assets.
+4. [ ] `tests/test_actions.py`
+   Goal: verify core action endpoints.
+5. [ ] `tests/test_like_retweet.py`
+   Goal: verify like and retweet endpoints explicitly.
+6. [ ] `tests/test_bookmark_follow.py`
+   Goal: verify bookmark/follow actions.
+7. [ ] `tests/test_reverse_actions.py`
+   Goal: verify unlike/unretweet/unbookmark/unfollow cleanup paths.
+8. [ ] `tests/test_delete.py`
+   Goal: verify tweet deletion for test-created content.
+
+Phase 4, Full integration sweep
+-------------------------------
+Run only after the itemized tests above are stable.
+
+- [ ] `tests/integration_test.py`
+- [ ] `tests/integration/test_workflow_flows.py` if not already completed in Phase 2
+
+Patch expectations before execution
+-----------------------------------
+Some scripts are older than the latest API design. Before or after each test, check whether the script needs a surgical update.
+
+High-priority likely updates
+----------------------------
+1. `tests/test_read_apis.py`
+   - likely needs explicit `instanceId` support for multi-instance setups
+   - may need better verification that `get_tweet()` returns the focal tweet for the requested ID
+2. `tests/test_tweet_details.py`
+   - should verify the latest canonical logic more explicitly
+   - should prefer checking focal tweet match, nested reply extraction, and latest raw-vs-structured semantics
+3. `tests/test_write_apis.py`
+   - currently interactive and broad
+   - may need splitting or flags so we can run one action at a time safely
+4. any live write script
+   - may need a common way to inject `instanceId`
+   - may need clearer logging of created tweet IDs for later cleanup
+
+Per-test execution record template
+----------------------------------
+Copy this block under the relevant test when we execute it.
+
+- Test file:
+- Purpose:
+- Command used:
+- Inputs used:
+- Result: PASS / FAIL / BLOCKED
+- Needed code changes:
+- Needed test-script changes:
+- Follow-up test:
+
+Suggested first test
+--------------------
+Start with:
+- `tests/unit/test_services.py`
+
+Why:
+- It directly covers the latest service-layer API design.
+- It is cheap, deterministic, and does not touch the live X account.
+- If this is red, live testing is premature.

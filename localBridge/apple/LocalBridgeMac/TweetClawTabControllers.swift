@@ -147,6 +147,13 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             object: nil
         )
 
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleInstancesDidChange),
+            name: LocalBridgeGoManager.instancesDidChangeNotification,
+            object: nil
+        )
+
         // 初始化文本
         headerTitleLabel.stringValue = LanguageManager.shared.localized("tweetclaw.title")
 
@@ -156,17 +163,26 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     @objc private func handleLanguageChange() {
         headerTitleLabel.stringValue = LanguageManager.shared.localized("tweetclaw.title")
         instanceLabel.stringValue = LanguageManager.shared.localized("tweetclaw.target_instance")
-        
+
         // Refresh instance popup if empty
         if instanceSnapshots.isEmpty {
             applyInstances([])
         }
-        
+
         // Refresh API card list
         tableView.reloadData()
-        
+
         // Refresh detail view
         updateSelectedDetail()
+    }
+
+    @objc private func handleInstancesDidChange(_ notification: Notification) {
+        if let snapshots = notification.userInfo?["instances"] as? [LocalBridgeGoManager.InstanceSnapshot] {
+            applyInstances(snapshots.filter { $0.clientName == "tweetClaw" })
+            return
+        }
+
+        loadInstances()
     }
 
     @objc private func handleThemeChange() {

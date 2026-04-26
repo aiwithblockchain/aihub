@@ -56,6 +56,128 @@ class TestServices(unittest.TestCase):
         self.assertIsInstance(user, XUser)
         self.assertEqual(user.screen_name, "alice")
 
+    def test_x_read_get_tweet_returns_focal_tweet_not_first_reply(self):
+        transport = Mock()
+        transport.get_tweet_raw.return_value = {
+            "data": {
+                "data": {
+                    "threaded_conversation_with_injections_v2": {
+                        "instructions": [
+                            {
+                                "type": "TimelineAddEntries",
+                                "entries": [
+                                    {
+                                        "entryId": "conversationthread-root",
+                                        "content": {
+                                            "items": [
+                                                {
+                                                    "item": {
+                                                        "entryId": "conversationthread-reply-tweet-reply-1",
+                                                        "content": {
+                                                            "itemContent": {
+                                                                "tweet_results": {
+                                                                    "result": {
+                                                                        "rest_id": "reply-1",
+                                                                        "legacy": {"full_text": "reply tweet"},
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                    }
+                                                },
+                                                {
+                                                    "item": {
+                                                        "entryId": "conversationthread-root-tweet-root-1",
+                                                        "content": {
+                                                            "itemContent": {
+                                                                "tweet_results": {
+                                                                    "result": {
+                                                                        "rest_id": "root-1",
+                                                                        "legacy": {"full_text": "target tweet"},
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                    }
+                                                },
+                                            ]
+                                        },
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+        service = XReadService(transport)
+        tweet = service.get_tweet("root-1", instance_id="instance-1")
+        self.assertIsInstance(tweet, XTweet)
+        self.assertEqual(tweet.id, "root-1")
+        self.assertEqual(tweet.text, "target tweet")
+        transport.get_tweet_raw.assert_called_once_with(tweet_id="root-1", tab_id=None, instance_id="instance-1")
+
+    def test_x_read_get_tweet_replies_skips_focal_tweet(self):
+        transport = Mock()
+        transport.get_tweet_replies_raw.return_value = {
+            "data": {
+                "data": {
+                    "threaded_conversation_with_injections_v2": {
+                        "instructions": [
+                            {
+                                "type": "TimelineAddEntries",
+                                "entries": [
+                                    {
+                                        "entryId": "conversationthread-root",
+                                        "content": {
+                                            "items": [
+                                                {
+                                                    "item": {
+                                                        "entryId": "conversationthread-root-tweet-root-1",
+                                                        "content": {
+                                                            "itemContent": {
+                                                                "tweet_results": {
+                                                                    "result": {
+                                                                        "rest_id": "root-1",
+                                                                        "legacy": {"full_text": "target tweet"},
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                    }
+                                                },
+                                                {
+                                                    "item": {
+                                                        "entryId": "conversationthread-reply-tweet-reply-1",
+                                                        "content": {
+                                                            "itemContent": {
+                                                                "tweet_results": {
+                                                                    "result": {
+                                                                        "rest_id": "reply-1",
+                                                                        "legacy": {"full_text": "reply tweet"},
+                                                                    }
+                                                                }
+                                                            }
+                                                        },
+                                                    }
+                                                },
+                                            ]
+                                        },
+                                    }
+                                ],
+                            }
+                        ]
+                    }
+                }
+            }
+        }
+        service = XReadService(transport)
+        tweets = service.get_tweet_replies("root-1", instance_id="instance-1")
+        self.assertEqual([tweet.id for tweet in tweets], ["reply-1"])
+        transport.get_tweet_replies_raw.assert_called_once_with(
+            tweet_id="root-1", cursor=None, tab_id=None, instance_id="instance-1"
+        )
+
     def test_ai_chat_send_message(self):
         transport = Mock()
         transport.send_message_raw.return_value = {

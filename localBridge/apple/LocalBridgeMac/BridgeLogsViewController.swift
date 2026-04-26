@@ -376,14 +376,27 @@ final class BridgeLogsViewController: NSViewController {
     // MARK: - Actions
 
     @objc private func clearClicked() {
+        let lines = BridgeLogger.shared.snapshot()
+        guard !lines.isEmpty else {
+            showToast(LanguageManager.shared.localized("logs.already_empty"), style: .warning)
+            return
+        }
+
         BridgeLogger.shared.clear()
+        showToast(LanguageManager.shared.localized("logs.cleared"), style: .success)
     }
 
     @objc private func copyClicked() {
         let lines = BridgeLogger.shared.snapshot()
+        guard !lines.isEmpty else {
+            showToast(LanguageManager.shared.localized("logs.nothing_to_copy"), style: .warning)
+            return
+        }
+
         let text = lines.joined(separator: "\n")
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+        showToast(LanguageManager.shared.localized("common.copied"), style: .success)
     }
 
     @objc private func toggleAutoScroll() {

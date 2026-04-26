@@ -46,6 +46,13 @@ final class InstancesPanelViewController: NSViewController {
             object: nil
         )
 
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleInstancesDidChange),
+            name: LocalBridgeGoManager.instancesDidChangeNotification,
+            object: nil
+        )
+
         // 初始化文本
         updateText()
     }
@@ -58,6 +65,17 @@ final class InstancesPanelViewController: NSViewController {
 
     @objc private func handleLanguageChange() {
         updateText()
+    }
+
+    @objc private func handleInstancesDidChange(_ notification: Notification) {
+        if let snapshots = notification.userInfo?["instances"] as? [LocalBridgeGoManager.InstanceSnapshot] {
+            instances = snapshots
+            rebuildGridView()
+            updateEmptyState()
+            return
+        }
+
+        refresh()
     }
 
     private func updateText() {
