@@ -1261,7 +1261,7 @@ class LocalBridgeWebSocketServer {
                         self.handleGenericQueryHttpRequest(
                             connection,
                             requestData: data,
-                            type: .requestQueryTweet,
+                            type: .requestQueryTweetDetail,
                             parsedRequest: parsedRequest,
                             pathTweetId: tweetResource.tweetId
                         )
@@ -1991,7 +1991,7 @@ class LocalBridgeWebSocketServer {
             self.sendHttpResponse(connection, status: "500 Internal Server Error", body: "{\"error\":\"decode_failed\"}")
         }
 
-        } else if type == .requestQueryTweetReplies && tweetId == nil {
+        if type == .requestQueryTweetReplies && tweetId == nil {
             self.pendingHttpCallbacks.removeValue(forKey: reqId)
             self.sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":{\"code\":\"INVALID_ARGUMENT\",\"message\":\"tweetId is required\",\"details\":null}}")
             return
