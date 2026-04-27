@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"path/filepath"
@@ -191,14 +192,15 @@ func (h *Handler) bridge(
 	timeoutMs int,
 	onResp func([]byte),
 ) {
-	// 从 HTTP header 或 query parameter 中提取 instanceId
-	instanceId := r.URL.Query().Get("instanceId")
-	if instanceId == "" {
-		instanceId = r.Header.Get("X-Instance-ID")
-	}
+	queryInstanceId := r.URL.Query().Get("instanceId")
+	headerInstanceId := r.Header.Get("X-Instance-ID")
+	bodyInstanceId := instanceIDFromRequest(r, msg)
+	log.Printf("[REST] bridge client=%s msgID=%s path=%s queryInstanceId=%q headerInstanceId=%q bodyOrFallbackInstanceId=%q", clientName, msgID, r.URL.Path, queryInstanceId, headerInstanceId, bodyInstanceId)
+	instanceId := bodyInstanceId
 
 	sess, err := h.ws.ResolveConn(clientName, instanceId)
 	if err != nil {
+		log.Printf("[REST] bridge resolve failed client=%s msgID=%s path=%s instanceId=%q err=%v", clientName, msgID, r.URL.Path, instanceId, err)
 		jsonErr(w, 503, err.Error())
 		return
 	}
@@ -221,6 +223,62 @@ func (h *Handler) bridge(
 		h.ws.RemoveCallback(msgID)
 		jsonErr(w, 504, fmt.Sprintf("timeout after %ds", timeoutMs/1000))
 	}
+}
+
+func instanceIDFromRequest(r *http.Request, msg interface{}) string {
+	instanceId := r.URL.Query().Get("instanceId")
+	if instanceId != "" {
+		return instanceId
+	}
+
+	instanceId = r.Header.Get("X-Instance-ID")
+	if instanceId != "" {
+		return instanceId
+	}
+
+	switch payload := msg.(type) {
+	case types.RawMessage:
+		return instanceIDFromRawPayload(payload.Payload)
+	case *types.RawMessage:
+		if payload == nil {
+			return ""
+		}
+		return instanceIDFromRawPayload(payload.Payload)
+	case types.Message[types.OpenTabRequest]:
+		return payload.Payload.InstanceID
+	case *types.Message[types.OpenTabRequest]:
+		if payload == nil {
+			return ""
+		}
+		return payload.Payload.InstanceID
+	case types.Message[types.CloseTabRequest]:
+		return payload.Payload.InstanceID
+	case *types.Message[types.CloseTabRequest]:
+		if payload == nil {
+			return ""
+		}
+		return payload.Payload.InstanceID
+	case types.Message[types.NavigateTabRequest]:
+		return payload.Payload.InstanceID
+	case *types.Message[types.NavigateTabRequest]:
+		if payload == nil {
+			return ""
+		}
+		return payload.Payload.InstanceID
+	default:
+		return ""
+	}
+}
+
+func instanceIDFromRawPayload(payload json.RawMessage) string {
+	var body struct {
+		InstanceID string `json:"instanceId"`
+	}
+	if err := json.Unmarshal(payload, &body); err != nil {
+		log.Printf("[REST] instanceIDFromRawPayload unmarshal failed: %v", err)
+		return ""
+	}
+	return body.InstanceID
 }
 
 // --- tweetClaw 端点 ---
@@ -356,6 +414,7 @@ func (h *Handler) openTab(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, 400, err.Error())
 		return
 	}
+	log.Printf("[REST] openTab decoded path=%q instanceId=%q req=%+v", req.Path, req.InstanceID, req)
 	id := newID("http_open_tab")
 	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.open_tab", "tweetClaw", req), 5000,
 		func(data []byte) { writeRawPayload(w, data) })
@@ -367,6 +426,7 @@ func (h *Handler) closeTab(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, 400, err.Error())
 		return
 	}
+	log.Printf("[REST] closeTab decoded tabId=%d instanceId=%q req=%+v", req.TabID, req.InstanceID, req)
 	id := newID("http_close_tab")
 	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.close_tab", "tweetClaw", req), 5000,
 		func(data []byte) { writeRawPayload(w, data) })
@@ -378,6 +438,7 @@ func (h *Handler) navigateTab(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, 400, err.Error())
 		return
 	}
+	log.Printf("[REST] navigateTab decoded path=%q tabId=%v instanceId=%q req=%+v", req.Path, req.TabID, req.InstanceID, req)
 	id := newID("http_nav_tab")
 	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.navigate_tab", "tweetClaw", req), 5000,
 		func(data []byte) { writeRawPayload(w, data) })

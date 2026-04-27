@@ -13,7 +13,7 @@ async function main(): Promise<void> {
   ensureBuiltServer();
 
   const upstreamServer = createServer((request, response) => {
-    if (request.url !== '/api/v1/x/tweets/111/replies?cursor=CURSOR_1') {
+    if (request.url !== '/api/v1/x/tweets/111/replies?cursor=CURSOR_1&instanceId=test-instance') {
       response.writeHead(404, { 'content-type': 'application/json' });
       response.end('{"error":"not_found"}');
       return;
@@ -110,6 +110,7 @@ async function main(): Promise<void> {
       arguments: {
         tweetId: '111',
         cursor: 'CURSOR_1',
+        instanceId: 'test-instance',
       },
     });
 

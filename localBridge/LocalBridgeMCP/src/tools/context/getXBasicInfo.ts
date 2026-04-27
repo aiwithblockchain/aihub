@@ -20,11 +20,12 @@ export function registerGetXBasicInfoTool(
       const meta = buildMeta();
 
       try {
-        const basicInfo = await deps.xApiAdapter.getBasicInfo(input.timeoutMs);
+        const basicInfo = await deps.xApiAdapter.getBasicInfo(input.instanceId, input.timeoutMs);
 
         deps.logger.info('get_x_basic_info succeeded', {
           isLoggedIn: basicInfo.isLoggedIn,
           screenName: basicInfo.screenName ?? null,
+          instanceId: input.instanceId ?? null,
         });
 
         return successResult(
@@ -40,6 +41,7 @@ export function registerGetXBasicInfoTool(
         deps.logger.error('get_x_basic_info failed', {
           code: mapped.code,
           message: mapped.message,
+          instanceId: input.instanceId ?? null,
         });
 
         return errorResult(mapped, meta);

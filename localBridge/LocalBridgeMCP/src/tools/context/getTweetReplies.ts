@@ -23,12 +23,14 @@ export function registerGetTweetRepliesTool(
         const replies = await deps.xApiAdapter.getTweetReplies(
           input.tweetId,
           input.cursor,
+          input.instanceId,
           input.timeoutMs,
         );
 
         deps.logger.info('get_tweet_replies succeeded', {
           tweetId: input.tweetId,
           hasCursor: input.cursor !== undefined,
+          instanceId: input.instanceId ?? null,
         });
 
         return successResult(
@@ -47,6 +49,7 @@ export function registerGetTweetRepliesTool(
           message: mapped.message,
           tweetId: input.tweetId,
           hasCursor: input.cursor !== undefined,
+          instanceId: input.instanceId ?? null,
         });
 
         return errorResult(mapped, meta);

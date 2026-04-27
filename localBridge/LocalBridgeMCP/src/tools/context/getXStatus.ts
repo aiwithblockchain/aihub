@@ -17,12 +17,13 @@ export function registerGetXStatusTool(server: McpServer, deps: AppDeps): void {
       const meta = buildMeta();
 
       try {
-        const status = await deps.xApiAdapter.getStatus(input.timeoutMs);
+        const status = await deps.xApiAdapter.getStatus(input.instanceId, input.timeoutMs);
 
         deps.logger.info('get_x_status succeeded', {
           hasXTabs: status.hasXTabs,
           isLoggedIn: status.isLoggedIn,
           tabCount: status.tabs.length,
+          instanceId: input.instanceId ?? null,
         });
 
         return successResult(
@@ -38,6 +39,7 @@ export function registerGetXStatusTool(server: McpServer, deps: AppDeps): void {
         deps.logger.error('get_x_status failed', {
           code: mapped.code,
           message: mapped.message,
+          instanceId: input.instanceId ?? null,
         });
 
         return errorResult(mapped, meta);

@@ -19,9 +19,11 @@ export function registerGetHomeTimelineTool(
       const meta = buildMeta();
 
       try {
-        const timeline = await deps.xApiAdapter.getHomeTimeline(input.timeoutMs);
+        const timeline = await deps.xApiAdapter.getHomeTimeline(input.instanceId, input.timeoutMs);
 
-        deps.logger.info('get_home_timeline succeeded');
+        deps.logger.info('get_home_timeline succeeded', {
+          instanceId: input.instanceId ?? null,
+        });
 
         return successResult(
           {
@@ -35,6 +37,7 @@ export function registerGetHomeTimelineTool(
         deps.logger.error('get_home_timeline failed', {
           code: mapped.code,
           message: mapped.message,
+          instanceId: input.instanceId ?? null,
         });
 
         return errorResult(mapped, meta);

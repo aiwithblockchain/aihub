@@ -69,7 +69,9 @@ async function main(): Promise<void> {
 
     const statusResult = await client.callTool({
       name: 'get_x_status',
-      arguments: {},
+      arguments: {
+        instanceId,
+      },
     });
     assert(!statusResult.isError, 'Expected get_x_status to succeed.');
     const statusPayload = statusResult.structuredContent as {
@@ -86,7 +88,9 @@ async function main(): Promise<void> {
 
     const basicInfoResult = await client.callTool({
       name: 'get_x_basic_info',
-      arguments: {},
+      arguments: {
+        instanceId,
+      },
     });
     assert(!basicInfoResult.isError, 'Expected get_x_basic_info to succeed.');
     const basicInfoPayload = basicInfoResult.structuredContent as {
@@ -117,7 +121,9 @@ async function main(): Promise<void> {
 
     const timelineResult = await client.callTool({
       name: 'get_home_timeline',
-      arguments: {},
+      arguments: {
+        instanceId,
+      },
     });
     assert(!timelineResult.isError, 'Expected get_home_timeline to succeed.');
     const timelinePayload = timelineResult.structuredContent as {
@@ -157,6 +163,7 @@ async function main(): Promise<void> {
       name: 'get_user_profile',
       arguments: {
         screenName: resolvedScreenName,
+        instanceId,
       },
     });
     assert(!userProfileResult.isError, 'Expected get_user_profile to succeed.');
@@ -165,10 +172,13 @@ async function main(): Promise<void> {
       data?: {
         screenName?: string;
         raw?: {
+          success?: boolean;
           data?: {
-            user?: {
-              result?: {
-                rest_id?: string;
+            data?: {
+              user?: {
+                result?: {
+                  rest_id?: string;
+                };
               };
             };
           };
@@ -181,7 +191,7 @@ async function main(): Promise<void> {
       'Expected returned screenName to match queried screenName.',
     );
     assert(
-      userProfilePayload.data?.raw?.data?.user?.result?.rest_id !== undefined,
+      userProfilePayload.data?.raw?.data?.data?.user?.result?.rest_id !== undefined,
       'Expected user profile raw payload to contain user rest_id.',
     );
 

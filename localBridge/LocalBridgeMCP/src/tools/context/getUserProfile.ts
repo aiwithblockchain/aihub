@@ -21,11 +21,13 @@ export function registerGetUserProfileTool(
       try {
         const profile = await deps.xApiAdapter.getUserProfile(
           input.screenName,
+          input.instanceId,
           input.timeoutMs,
         );
 
         deps.logger.info('get_user_profile succeeded', {
           screenName: input.screenName,
+          instanceId: input.instanceId ?? null,
         });
 
         return successResult(
@@ -42,6 +44,7 @@ export function registerGetUserProfileTool(
           code: mapped.code,
           message: mapped.message,
           screenName: input.screenName,
+          instanceId: input.instanceId ?? null,
         });
 
         return errorResult(mapped, meta);

@@ -13,7 +13,7 @@ async function main(): Promise<void> {
   ensureBuiltServer();
 
   const upstreamServer = createServer((request, response) => {
-    if (request.url !== '/api/v1/x/timeline') {
+    if (request.url !== '/api/v1/x/timeline?instanceId=test-instance') {
       response.writeHead(404, { 'content-type': 'application/json' });
       response.end('{"error":"not_found"}');
       return;
@@ -83,7 +83,9 @@ async function main(): Promise<void> {
 
     const callResult = await client.callTool({
       name: 'get_home_timeline',
-      arguments: {},
+      arguments: {
+        instanceId: 'test-instance',
+      },
     });
 
     assert(!callResult.isError, 'Expected get_home_timeline tool call to succeed.');

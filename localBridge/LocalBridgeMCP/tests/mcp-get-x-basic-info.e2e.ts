@@ -13,7 +13,7 @@ async function main(): Promise<void> {
   ensureBuiltServer();
 
   const upstreamServer = createServer((request, response) => {
-    if (request.url !== '/api/v1/x/basic_info') {
+    if (request.url !== '/api/v1/x/basic_info?instanceId=test-instance') {
       response.writeHead(404, { 'content-type': 'application/json' });
       response.end('{"error":"not_found"}');
       return;
@@ -77,7 +77,9 @@ async function main(): Promise<void> {
 
     const callResult = await client.callTool({
       name: 'get_x_basic_info',
-      arguments: {},
+      arguments: {
+        instanceId: 'test-instance',
+      },
     });
 
     assert(!callResult.isError, 'Expected get_x_basic_info tool call to succeed.');

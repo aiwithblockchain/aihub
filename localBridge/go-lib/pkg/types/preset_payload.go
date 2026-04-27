@@ -8,16 +8,19 @@ package types
 // ---- Tab 操作请求 ----
 
 type OpenTabRequest struct {
-	Path string `json:"path"`
+	Path       string `json:"path"`
+	InstanceID string `json:"instanceId,omitempty"`
 }
 
 type CloseTabRequest struct {
-	TabID int `json:"tabId"`
+	TabID      int    `json:"tabId"`
+	InstanceID string `json:"instanceId,omitempty"`
 }
 
 type NavigateTabRequest struct {
-	TabID *int   `json:"tabId"`
-	Path  string `json:"path"`
+	TabID      *int   `json:"tabId"`
+	Path       string `json:"path"`
+	InstanceID string `json:"instanceId,omitempty"`
 }
 
 // ---- Exec Action 请求 ----

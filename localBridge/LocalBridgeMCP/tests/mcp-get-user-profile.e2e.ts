@@ -13,7 +13,7 @@ async function main(): Promise<void> {
   ensureBuiltServer();
 
   const upstreamServer = createServer((request, response) => {
-    if (request.url !== '/api/v1/x/users?screenName=test_user') {
+    if (request.url !== '/api/v1/x/users?screenName=test_user&instanceId=test-instance') {
       response.writeHead(404, { 'content-type': 'application/json' });
       response.end('{"error":"not_found"}');
       return;
@@ -75,6 +75,7 @@ async function main(): Promise<void> {
       name: 'get_user_profile',
       arguments: {
         screenName: 'test_user',
+        instanceId: 'test-instance',
       },
     });
 

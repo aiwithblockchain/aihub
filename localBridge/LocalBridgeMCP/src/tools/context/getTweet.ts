@@ -16,10 +16,15 @@ export function registerGetTweetTool(server: McpServer, deps: AppDeps): void {
       const meta = buildMeta();
 
       try {
-        const tweet = await deps.xApiAdapter.getTweet(input.tweetId, input.timeoutMs);
+        const tweet = await deps.xApiAdapter.getTweet(
+          input.tweetId,
+          input.instanceId,
+          input.timeoutMs,
+        );
 
         deps.logger.info('get_tweet succeeded', {
           tweetId: input.tweetId,
+          instanceId: input.instanceId ?? null,
         });
 
         return successResult(
@@ -36,6 +41,7 @@ export function registerGetTweetTool(server: McpServer, deps: AppDeps): void {
           code: mapped.code,
           message: mapped.message,
           tweetId: input.tweetId,
+          instanceId: input.instanceId ?? null,
         });
 
         return errorResult(mapped, meta);
