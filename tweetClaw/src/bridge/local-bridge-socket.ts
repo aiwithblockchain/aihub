@@ -12,6 +12,32 @@ interface LifecycleTrailEntry {
   extra?: Record<string, unknown>;
 }
 
+const CONSOLE_LIFECYCLE_EVENTS = new Set([
+  'sw_boot',
+  'runtime_startup',
+  'runtime_installed',
+  'runtime_suspend',
+  'window_created',
+  'window_removed',
+  'manual_reconnect',
+  'desired_inactive',
+  'inactive',
+  'disconnect_called',
+  'connect_begin',
+  'connect_skipped',
+  'connect_exception',
+  'ws_open',
+  'ws_close',
+  'ws_error',
+  'hello_ack',
+  'reconnect_scheduled',
+  'reconnect_skipped',
+  'bg_alarm_reconnect',
+  'alarm_reconnect',
+  'alarm_reconnect_skipped',
+  'socket_event_ignored'
+]);
+
 export class LocalBridgeSocket {
   private ws: WebSocket | null = null;
   private reconnectAttempts = 0;
@@ -21,6 +47,8 @@ export class LocalBridgeSocket {
   private lastServerMessageTimestamp = 0;
   private instanceId: string = '';
   private instanceName: string = '';
+  private desiredActive = false;
+  private connectionGeneration = 0;
   private static readonly RECONNECT_ALARM_NAME = 'tweetclaw-reconnect';
   private static readonly LIFECYCLE_TRAIL_KEY = 'bridge.lifecycleTrail';
   private static readonly LIFECYCLE_PREVIOUS_TRAIL_KEY = 'bridge.lifecycleTrail.previous';
@@ -56,7 +84,6 @@ export class LocalBridgeSocket {
   
   constructor() {
     void this.bootstrapLifecycleTrail();
-    this.connect();
   }
 
   private async ensureIdentityLoaded() {
@@ -139,7 +166,9 @@ export class LocalBridgeSocket {
       extra
     };
 
-    console.log(`[tweetClaw] lifecycle event ${JSON.stringify(entry)}`);
+    if (CONSOLE_LIFECYCLE_EVENTS.has(event)) {
+      console.log(`[tweetClaw] lifecycle event ${JSON.stringify(entry)}`);
+    }
 
     try {
       if (typeof chrome === 'undefined' || !chrome.storage?.local) {
@@ -191,8 +220,18 @@ export class LocalBridgeSocket {
       hasHeartbeatInterval: !!this.heartbeatInterval,
       hasServerInfo: !!this.serverInfo,
       lastPongTimestamp: this.lastPongTimestamp,
-      lastServerMessageTimestamp: this.lastServerMessageTimestamp
+      lastServerMessageTimestamp: this.lastServerMessageTimestamp,
+      desiredActive: this.desiredActive,
+      connectionGeneration: this.connectionGeneration
     };
+  }
+
+  public async setDesiredActive(active: boolean, reason: string, extra?: Record<string, unknown>) {
+    this.desiredActive = active;
+    await this.recordLifecycleEvent(active ? 'desired_active' : 'desired_inactive', reason, {
+      ...this.getConnectionDebugState(),
+      ...(extra || {})
+    });
   }
 
   public async recordActivityState(event: 'active' | 'inactive', reason: string, extra?: Record<string, unknown>) {
@@ -202,19 +241,58 @@ export class LocalBridgeSocket {
     });
   }
 
-  public handleReconnectAlarm() {
-    void this.recordLifecycleEvent('alarm_reconnect', 'chrome alarm fired');
-    console.log(`[tweetClaw] Reconnect alarm triggered, ${this.identityLabel()} nextAttempt=${this.reconnectAttempts + 1}`);
+  public async ensureConnected(reason: string) {
+    await this.connect(reason);
+  }
+
+  public ensureDisconnected(reason: string) {
+    this.disconnect(reason);
+  }
+
+  public async handleReconnectAlarm(windowCount?: number) {
+    if (!this.desiredActive) {
+      void this.recordLifecycleEvent('alarm_reconnect_skipped', 'desiredActive=false', {
+        windowCount: windowCount ?? null,
+        ...this.getConnectionDebugState()
+      });
+      console.log(`[tweetClaw] reconnect alarm skipped: desiredActive=false, ${this.identityLabel()}`);
+      this.clearReconnectAlarm();
+      return;
+    }
+
+    if (typeof windowCount === 'number' && windowCount <= 0) {
+      void this.recordLifecycleEvent('alarm_reconnect_skipped', 'windowCount=0', {
+        windowCount,
+        ...this.getConnectionDebugState()
+      });
+      console.log(`[tweetClaw] reconnect alarm skipped: windowCount=0, ${this.identityLabel()}`);
+      this.clearReconnectAlarm();
+      return;
+    }
+
+    void this.recordLifecycleEvent('alarm_reconnect', 'chrome alarm fired', {
+      windowCount: windowCount ?? null,
+      ...this.getConnectionDebugState()
+    });
+    console.log(`[tweetClaw] Reconnect alarm triggered, ${this.identityLabel()} nextAttempt=${this.reconnectAttempts + 1} windowCount=${windowCount ?? 'unknown'}`);
     this.reconnectAttempts++;
-    this.connect();
+    void this.connect('alarm reconnect fired');
   }
 
   public disconnect(reason: string) {
+    const hadSocket = !!this.ws;
+    const readyState = this.ws?.readyState ?? null;
+    this.desiredActive = false;
+    this.connectionGeneration += 1;
+    const generation = this.connectionGeneration;
+
     void this.recordLifecycleEvent('disconnect_called', reason, {
-      hasSocket: !!this.ws,
-      readyState: this.ws?.readyState ?? null
+      generation,
+      hadSocket,
+      readyState,
+      ...this.getConnectionDebugState()
     });
-    console.log(`[tweetClaw] disconnecting websocket: ${reason}, ${this.identityLabel()}`);
+    console.log(`[tweetClaw] disconnecting websocket: ${reason}, ${this.identityLabel()} generation=${generation}`);
     this.clearReconnectAlarm();
     this.stopHeartbeat();
     this.serverInfo = null;
@@ -223,9 +301,14 @@ export class LocalBridgeSocket {
 
     if (this.ws) {
       this.ws.onclose = null;
+      this.ws.onerror = null;
+      this.ws.onmessage = null;
       this.ws.close();
       this.ws = null;
+      return;
     }
+
+    console.log(`[tweetClaw] ensureDisconnected skipped: already disconnected, ${this.identityLabel()} generation=${generation}`);
   }
   
   public reconnect(host: string, port: number) {
@@ -234,25 +317,52 @@ export class LocalBridgeSocket {
     this.WS_URL = `ws://${host}:${port}/ws`;
     this.isConnecting = false;
     this.clearReconnectAlarm();
+    this.desiredActive = true;
     if (this.ws) {
       this.ws.onclose = null; // prevent standard reconnect loop
+      this.ws.onerror = null;
+      this.ws.onmessage = null;
       this.ws.close();
       this.ws = null;
     }
     this.reconnectAttempts = 0;
-    this.connect();
+    void this.connect('manual reconnect');
   }
-  
+
   private isConnecting = false;
-  
-  public async connect() {
+
+  public async connect(reason: string = 'connect called') {
     await this.bootstrapLifecycleTrail();
     await this.ensureIdentityLoaded();
 
-    if (this.isConnecting) return;
-    if (this.ws && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN)) {
+    if (!this.desiredActive) {
+      void this.recordLifecycleEvent('connect_skipped', 'desiredActive=false', {
+        reason,
+        ...this.getConnectionDebugState()
+      });
+      console.log(`[tweetClaw] ensureConnected skipped: desiredActive=false, ${this.identityLabel()} reason=${reason}`);
       return;
     }
+
+    if (this.isConnecting) {
+      void this.recordLifecycleEvent('connect_skipped', 'already connecting', {
+        reason,
+        ...this.getConnectionDebugState()
+      });
+      console.log(`[tweetClaw] ensureConnected skipped: already connecting, ${this.identityLabel()} reason=${reason}`);
+      return;
+    }
+    if (this.ws && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN)) {
+      this.clearReconnectAlarm();
+      void this.recordLifecycleEvent('connect_skipped', 'already open or connecting socket', {
+        reason,
+        ...this.getConnectionDebugState()
+      });
+      console.log(`[tweetClaw] ensureConnected skipped: socket already active, ${this.identityLabel()} reason=${reason} readyState=${this.ws.readyState}`);
+      return;
+    }
+
+    this.isConnecting = true;
 
     // Check dynamic host and port
     try {
@@ -265,82 +375,164 @@ export class LocalBridgeSocket {
     } catch (e) {
       console.warn('[tweetClaw] failed to get dynamic config', e);
     }
-    
-    this.isConnecting = true;
-    void this.recordLifecycleEvent('connect_begin', 'connect called', {
+
+    if (!this.desiredActive) {
+      this.isConnecting = false;
+      void this.recordLifecycleEvent('connect_skipped', 'desiredActive=false after config load', {
+        reason,
+        ...this.getConnectionDebugState()
+      });
+      console.log(`[tweetClaw] ensureConnected skipped after config load: desiredActive=false, ${this.identityLabel()} reason=${reason}`);
+      return;
+    }
+
+    if (this.ws && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN)) {
+      this.isConnecting = false;
+      this.clearReconnectAlarm();
+      void this.recordLifecycleEvent('connect_skipped', 'socket became active during config load', {
+        reason,
+        ...this.getConnectionDebugState()
+      });
+      console.log(`[tweetClaw] ensureConnected skipped after config load: socket already active, ${this.identityLabel()} reason=${reason} readyState=${this.ws.readyState}`);
+      return;
+    }
+
+    this.connectionGeneration += 1;
+    const generation = this.connectionGeneration;
+    void this.recordLifecycleEvent('connect_begin', reason, {
+      generation,
       reconnectAttempts: this.reconnectAttempts,
-      wsUrl: this.WS_URL
+      wsUrl: this.WS_URL,
+      desiredActive: this.desiredActive
     });
-    console.log(`[tweetClaw] websocket connecting to ${this.WS_URL}, ${this.identityLabel()} reconnectAttempts=${this.reconnectAttempts}`);
+    console.log(`[tweetClaw] websocket connecting to ${this.WS_URL}, ${this.identityLabel()} reconnectAttempts=${this.reconnectAttempts} generation=${generation} reason=${reason}`);
 
     try {
-      this.ws = new WebSocket(this.WS_URL);
+      const socket = new WebSocket(this.WS_URL);
+      this.ws = socket;
 
-      this.ws.onopen = async () => {
-        void this.recordLifecycleEvent('ws_open');
-        console.log(`[tweetClaw] websocket open, ${this.identityLabel()}`);
+      socket.onopen = async () => {
+        if (generation !== this.connectionGeneration || this.ws !== socket) {
+          void this.recordLifecycleEvent('socket_event_ignored', 'stale onopen generation', {
+            generation,
+            currentGeneration: this.connectionGeneration
+          });
+          console.log(`[tweetClaw] socket event ignored: stale generation onopen, ${this.identityLabel()} generation=${generation} current=${this.connectionGeneration}`);
+          socket.close();
+          return;
+        }
+
+        void this.recordLifecycleEvent('ws_open', undefined, { generation });
+        console.log(`[tweetClaw] websocket open, ${this.identityLabel()} generation=${generation}`);
         this.isConnecting = false;
         this.reconnectAttempts = 0;
         this.lastPongTimestamp = Date.now();
         this.lastServerMessageTimestamp = Date.now();
-        // 确保 instanceId 已加载，并且每次重连时获取最新的 instanceName
         if (!this.instanceId) {
             this.instanceId = await getOrCreateInstanceId();
         }
         this.instanceName = await getOrCreateInstanceName();
-        void this.recordLifecycleEvent('identity_ready');
-        console.log(`[tweetClaw] websocket identity ready, ${this.identityLabel()}`);
+        void this.recordLifecycleEvent('identity_ready', undefined, { generation });
+        console.log(`[tweetClaw] websocket identity ready, ${this.identityLabel()} generation=${generation}`);
         this.sendHello();
       };
 
-      this.ws.onclose = (event) => {
+      socket.onclose = (event) => {
+        if (generation !== this.connectionGeneration) {
+          void this.recordLifecycleEvent('socket_event_ignored', 'stale onclose generation', {
+            generation,
+            currentGeneration: this.connectionGeneration,
+            code: event.code,
+            reason: event.reason || ''
+          });
+          console.log(`[tweetClaw] socket event ignored: stale generation onclose, ${this.identityLabel()} generation=${generation} current=${this.connectionGeneration}`);
+          return;
+        }
+
         void this.recordLifecycleEvent('ws_close', 'websocket onclose', {
+          generation,
           code: event.code,
           reason: event.reason || '',
-          wasClean: event.wasClean
+          wasClean: event.wasClean,
+          desiredActive: this.desiredActive
         });
-        console.log(`[tweetClaw] websocket closed, ${this.identityLabel()} code=${event.code} reason=${event.reason || 'n/a'} wasClean=${event.wasClean}`);
+        console.log(`[tweetClaw] websocket closed, ${this.identityLabel()} generation=${generation} code=${event.code} reason=${event.reason || 'n/a'} wasClean=${event.wasClean} desiredActive=${this.desiredActive}`);
         this.isConnecting = false;
         this.serverInfo = null;
         this.stopHeartbeat();
+        if (this.ws === socket) {
+          this.ws = null;
+        }
+        if (!this.desiredActive) {
+          console.log(`[tweetClaw] reconnect skipped after close: desiredActive=false, ${this.identityLabel()} generation=${generation}`);
+          return;
+        }
         this.scheduleReconnect();
       };
-      
-      this.ws.onerror = (event) => {
+
+      socket.onerror = (event) => {
+        if (generation !== this.connectionGeneration) {
+          void this.recordLifecycleEvent('socket_event_ignored', 'stale onerror generation', {
+            generation,
+            currentGeneration: this.connectionGeneration,
+            eventType: event.type
+          });
+          console.log(`[tweetClaw] socket event ignored: stale generation onerror, ${this.identityLabel()} generation=${generation} current=${this.connectionGeneration}`);
+          return;
+        }
+
         void this.recordLifecycleEvent('ws_error', 'websocket onerror', {
-          eventType: event.type
+          generation,
+          eventType: event.type,
+          desiredActive: this.desiredActive
         });
-        // Use regular log to stay silent in Chrome extension error list
-        console.log(`[tweetClaw] connection notice: server offline, ${this.identityLabel()} url=${this.WS_URL}`);
+        console.log(`[tweetClaw] connection notice: server offline, ${this.identityLabel()} url=${this.WS_URL} generation=${generation}`);
         this.isConnecting = false;
       };
-      
-      this.ws.onmessage = (event) => {
+
+      socket.onmessage = (event) => {
+        if (generation !== this.connectionGeneration || this.ws !== socket) {
+          return;
+        }
         this.handleMessage(event.data);
       };
     } catch (e) {
       void this.recordLifecycleEvent('connect_exception', 'websocket constructor threw', {
+        generation,
         error: e instanceof Error ? e.message : String(e)
       });
       console.log('[tweetClaw] initialization notice:', e);
       this.isConnecting = false;
-      this.scheduleReconnect();
+      if (this.desiredActive) {
+        this.scheduleReconnect();
+      }
     }
   }
   
 
   private scheduleReconnect() {
+    if (!this.desiredActive) {
+      void this.recordLifecycleEvent('reconnect_skipped', 'desiredActive=false', {
+        ...this.getConnectionDebugState()
+      });
+      console.log(`[tweetClaw] reconnect skipped: desiredActive=false, ${this.identityLabel()}`);
+      this.clearReconnectAlarm();
+      return;
+    }
+
     const delayInMinutes = this.getReconnectDelayInMinutes();
     void this.recordLifecycleEvent('reconnect_scheduled', 'schedule reconnect', {
       delayInMinutes,
-      nextAttempt: this.reconnectAttempts + 1
+      nextAttempt: this.reconnectAttempts + 1,
+      desiredActive: this.desiredActive
     });
-    console.log(`[tweetClaw] websocket reconnect scheduled in ${delayInMinutes} minute(s) (attempt ${this.reconnectAttempts + 1}), ${this.identityLabel()}`);
+    console.log(`[tweetClaw] websocket reconnect scheduled in ${delayInMinutes} minute(s) (attempt ${this.reconnectAttempts + 1}), ${this.identityLabel()} desiredActive=${this.desiredActive}`);
 
-    // Use Chrome Alarms API for reliable reconnection
     if (typeof chrome !== 'undefined' && chrome.alarms) {
-      chrome.alarms.create(LocalBridgeSocket.RECONNECT_ALARM_NAME, {
-        delayInMinutes: delayInMinutes
+      chrome.alarms.clear(LocalBridgeSocket.RECONNECT_ALARM_NAME, () => {
+        chrome.alarms.create(LocalBridgeSocket.RECONNECT_ALARM_NAME, {
+          delayInMinutes: delayInMinutes
+        });
       });
     }
   }
@@ -377,7 +569,7 @@ export class LocalBridgeSocket {
         incognito: chrome.extension.inIncognitoContext
       }
     };
-    console.log(`[tweetClaw] sending endpoint info to server, ${this.identityLabel()}: ${JSON.stringify(hello.payload)}`);
+    console.log(`[tweetClaw] sending hello, ${this.identityLabel()} clientVersion=${hello.payload.clientVersion}`);
     this.send(hello);
   }
   
@@ -385,7 +577,7 @@ export class LocalBridgeSocket {
     try {
       const msg = JSON.parse(data) as BaseMessage;
       this.lastServerMessageTimestamp = Date.now();
-      if (msg.type !== MESSAGE_TYPES.PONG && msg.type !== MESSAGE_TYPES.PING) {
+      if (msg.type !== MESSAGE_TYPES.PONG && msg.type !== MESSAGE_TYPES.PING && msg.type !== MESSAGE_TYPES.SERVER_HELLO_ACK) {
         console.log(`[tweetClaw] received message: ${msg.type}, ${this.identityLabel()}`);
       }
       
@@ -461,10 +653,13 @@ export class LocalBridgeSocket {
   
   private handleHelloAck(msg: BaseMessage<ServerHelloAckPayload>) {
     void this.recordLifecycleEvent('hello_ack', undefined, {
-      heartbeatIntervalMs: msg.payload.heartbeatIntervalMs || 20000
+      heartbeatIntervalMs: msg.payload.heartbeatIntervalMs || 20000,
+      desiredActive: this.desiredActive,
+      generation: this.connectionGeneration
     });
     console.log(`[tweetClaw] received server.hello_ack, ${this.identityLabel()}`);
     console.log(`[tweetClaw] received endpoint info from server, ${this.identityLabel()}: ${JSON.stringify(msg.payload)}`);
+    this.clearReconnectAlarm();
     this.serverInfo = msg.payload;
     this.startHeartbeat(msg.payload.heartbeatIntervalMs || 20000);
   }

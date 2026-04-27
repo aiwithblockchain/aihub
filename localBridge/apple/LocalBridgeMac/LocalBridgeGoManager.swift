@@ -19,8 +19,11 @@ final class LocalBridgeGoManager {
     private static let defaultExecuteTaskTimeoutMs = 210_000
     private let session = URLSession(configuration: .default)
     private var logPollTimer: Timer?
-    private var lastLogCount: Int = 0
+    private var lastGoLogSnapshot: [String] = []
     private var lastInstancesSignature: String?
+    private let pollQueue = DispatchQueue(label: "com.localbridgemac.go-poll", qos: .utility)
+    private let stateQueue = DispatchQueue(label: "com.localbridgemac.go-state", qos: .utility)
+    private var isPollingLogs = false
 
     func start() {
         // 加载配置并保存到 Go 的配置文件
@@ -33,7 +36,16 @@ final class LocalBridgeGoManager {
             BridgeLogger.shared.log("[LocalBridgeMac] LocalBridgeStart failed with code \(code)")
         }
 
-        lastInstancesSignature = makeInstancesSignature(from: getConnectedInstances())
+        pollQueue.async { [weak self] in
+            guard let self = self else { return }
+            let snapshots = self.getConnectedInstances()
+            let logLines = self.currentGoLogLines()
+            self.stateQueue.sync {
+                self.lastInstancesSignature = self.makeInstancesSignature(from: snapshots)
+                self.lastGoLogSnapshot = logLines
+            }
+        }
+
         startLogPolling()
     }
 
@@ -102,46 +114,72 @@ final class LocalBridgeGoManager {
     // MARK: - Go Log Polling
 
     func startLogPolling() {
+        stopLogPolling()
         logPollTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
-            self?.pollGoLogs()
+            self?.pollGoLogsAsync()
         }
     }
 
     func stopLogPolling() {
         logPollTimer?.invalidate()
         logPollTimer = nil
+        stateQueue.sync {
+            isPollingLogs = false
+        }
     }
 
     func clearDisplayedLogs() {
-        lastLogCount = currentGoLogCount()
+        pollQueue.async { [weak self] in
+            guard let self = self else { return }
+            let currentLines = self.currentGoLogLines()
+            self.stateQueue.sync {
+                self.lastGoLogSnapshot = currentLines
+            }
+        }
     }
 
-    private func currentGoLogCount() -> Int {
-        guard let ptr = LocalBridgeGetLogsJSON() else { return 0 }
+    private func currentGoLogLines() -> [String] {
+        guard let ptr = LocalBridgeGetLogsJSON() else { return [] }
         defer { LocalBridgeFreeString(ptr) }
 
         let data = Data(bytes: ptr, count: Int(strlen(ptr)))
-        guard let lines = try? JSONDecoder().decode([String].self, from: data) else { return 0 }
-        return lines.count
+        return (try? JSONDecoder().decode([String].self, from: data)) ?? []
+    }
+
+    private func pollGoLogsAsync() {
+        let shouldPoll = stateQueue.sync { () -> Bool in
+            if isPollingLogs {
+                return false
+            }
+            isPollingLogs = true
+            return true
+        }
+
+        guard shouldPoll else { return }
+
+        pollQueue.async { [weak self] in
+            guard let self = self else { return }
+            self.pollGoLogs()
+            self.stateQueue.sync {
+                self.isPollingLogs = false
+            }
+        }
     }
 
     private func pollGoLogs() {
-        guard let ptr = LocalBridgeGetLogsJSON() else { return }
-        defer { LocalBridgeFreeString(ptr) }
+        let lines = currentGoLogLines()
+        let previousSnapshot = stateQueue.sync { lastGoLogSnapshot }
 
-        let data = Data(bytes: ptr, count: Int(strlen(ptr)))
-        guard let lines = try? JSONDecoder().decode([String].self, from: data) else { return }
+        let effectivePreviousSnapshot = lines.count < previousSnapshot.count ? [] : previousSnapshot
+        let sharedPrefixCount = zip(effectivePreviousSnapshot, lines).prefix { $0 == $1 }.count
+        let newLines = lines.count > sharedPrefixCount ? Array(lines.dropFirst(sharedPrefixCount)) : []
 
-        // 增量处理：只把新增的行写入 BridgeLogger
-        guard lines.count > lastLogCount else {
-            notifyIfInstancesChanged()
-            return
+        stateQueue.sync {
+            self.lastGoLogSnapshot = lines
         }
-        let newLines = Array(lines.dropFirst(lastLogCount))
-        lastLogCount = lines.count
 
-        for line in newLines {
-            BridgeLogger.shared.log("[Go] \(line)")
+        if !newLines.isEmpty {
+            BridgeLogger.shared.append(newLines.map { "[Go] \($0)" })
         }
 
         notifyIfInstancesChanged()
@@ -150,8 +188,14 @@ final class LocalBridgeGoManager {
     private func notifyIfInstancesChanged() {
         let snapshots = getConnectedInstances()
         let signature = makeInstancesSignature(from: snapshots)
-        guard signature != lastInstancesSignature else { return }
-        lastInstancesSignature = signature
+
+        let didChange = stateQueue.sync { () -> Bool in
+            guard signature != lastInstancesSignature else { return false }
+            lastInstancesSignature = signature
+            return true
+        }
+
+        guard didChange else { return }
 
         DispatchQueue.main.async {
             NotificationCenter.default.post(

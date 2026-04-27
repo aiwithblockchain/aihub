@@ -220,7 +220,12 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
 
     /// 从 AppDelegate 加载 tweetClaw 实例列表，更新下拉框
     private func loadInstances() {
-        applyInstances(fetchInstances())
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let snapshots = self?.fetchInstances() ?? []
+            DispatchQueue.main.async {
+                self?.applyInstances(snapshots)
+            }
+        }
     }
 
     private func fetchInstances() -> [LocalBridgeGoManager.InstanceSnapshot] {

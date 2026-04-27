@@ -125,12 +125,38 @@ Run these before any write action.
    - `GET /api/v1/x/tweets/{tweetId}/replies` PASS
    - Focal tweet matched the requested `tweet_id`
    - Replies extraction excluded the focal tweet itself
-6. [ ] `tests/test_user_search.py`
+6. [x] `tests/test_user_search.py`
    Goal: verify user search behavior.
-7. [ ] `tests/test_user_tweets.py`
+   Result: PASS
+   Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_user_search.py`
+   Notes:
+   - `GET /api/v1/x/users` PASS
+   - `GET /api/v1/x/search` PASS
+   - Pagination API call succeeded
+7. [x] `tests/test_user_tweets.py`
    Goal: verify fetching tweets for a user.
-8. [ ] `tests/test_tab_control.py`
+   Result: PASS
+   Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_user_tweets.py`
+   Inputs used:
+   - `instanceId`: auto-selected first connected instance
+   - `screen_name`: defaulted to `elonmusk`
+   Notes:
+   - Initial run failed in multi-instance mode on `GET /api/v1/x/users`
+   - Patched `clawbot/transport/x_api.py` and `clawbot/services/x_read.py` to propagate `instance_id`
+   - Patched script to auto-resolve first instance and accept `--instance-id`
+   - Rerun PASS, fetched tweets for resolved user ID
+8. [x] `tests/test_tab_control.py`
    Goal: verify tab listing / selection support if needed by later tests.
+   Result: PASS
+   Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_tab_control.py`
+   Notes:
+   - `POST /tweetclaw/open-tab` PASS
+   - Waits 5 seconds after open and 5 seconds after navigate for visual verification
+   - Confirms current X tab count after open and verifies the opened `tabId` is present
+   - `POST /tweetclaw/navigate-tab` PASS
+   - Post-navigate tab listing showed the opened tab URL changed to `https://x.com/notifications`
+   - `POST /tweetclaw/close-tab` PASS
+   - Final tab listing confirmed the opened `tabId` was removed after close
 9. [ ] `tests/integration/test_read_flows.py`
    Goal: run integrated read flow coverage after the simpler read scripts pass.
 10. [ ] `tests/integration/test_tweet_search_flows.py`

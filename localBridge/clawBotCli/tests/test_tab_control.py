@@ -14,6 +14,28 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from clawbot import ClawBotClient
 
 
+NAVIGATE_WAIT_SECONDS = 5
+
+
+def list_x_tabs(client: ClawBotClient, label: str):
+    """Print current X tabs and return them."""
+    print("\n" + "="*60)
+    print(f"Checking X tabs: {label}")
+    print("="*60)
+
+    tabs = client.x.status.list_tabs()
+    print(f"Found {len(tabs)} X tab(s)")
+    for index, tab in enumerate(tabs, 1):
+        print(f"  [{index}] tabId={tab.tab_id} title={tab.title!r} url={tab.url!r}")
+    return tabs
+
+
+
+def has_tab(tabs, tab_id):
+    return any(tab.tab_id == tab_id for tab in tabs)
+
+
+
 def test_open_tab():
     """Test POST /tweetclaw/open-tab"""
     print("\n" + "="*60)
@@ -36,6 +58,7 @@ def test_open_tab():
     else:
         print("❌ Failed to open tab")
         return False, None
+
 
 
 def test_navigate_tab(tab_id=None):
@@ -62,6 +85,7 @@ def test_navigate_tab(tab_id=None):
     else:
         print("❌ Navigation failed")
         return False
+
 
 
 def test_close_tab(tab_id):
@@ -95,6 +119,7 @@ if __name__ == "__main__":
 
     results = []
     tab_id = None
+    client = ClawBotClient()
 
     # Test 1: Open tab
     passed, tab_id = test_open_tab()
@@ -102,18 +127,45 @@ if __name__ == "__main__":
 
     if tab_id:
         # Wait for tab to load
-        print("\n⏳ Waiting 2 seconds for tab to load...")
-        time.sleep(2)
+        print(f"\n⏳ Waiting {NAVIGATE_WAIT_SECONDS} seconds for tab to load before verification...")
+        time.sleep(NAVIGATE_WAIT_SECONDS)
+
+        tabs_after_open = list_x_tabs(client, "after open-tab")
+        opened_tab_present = has_tab(tabs_after_open, tab_id)
+        if opened_tab_present:
+            print(f"✅ Opened tab {tab_id} is present in current X tabs")
+        else:
+            print(f"❌ Opened tab {tab_id} is missing from current X tabs")
+        results.append(("Verify Opened Tab Present", opened_tab_present))
 
         # Test 2: Navigate tab
         results.append(("Navigate Tab", test_navigate_tab(tab_id)))
 
-        # Wait before closing
-        print("\n⏳ Waiting 1 second before closing...")
-        time.sleep(1)
+        print(f"\n⏳ Waiting {NAVIGATE_WAIT_SECONDS} seconds after navigation for visual verification...")
+        time.sleep(NAVIGATE_WAIT_SECONDS)
+
+        tabs_after_navigate = list_x_tabs(client, "after navigate-tab")
+        navigated_tab_present = has_tab(tabs_after_navigate, tab_id)
+        if navigated_tab_present:
+            print(f"✅ Navigated tab {tab_id} is still present before close")
+        else:
+            print(f"❌ Navigated tab {tab_id} is missing before close")
+        results.append(("Verify Tab Present Before Close", navigated_tab_present))
 
         # Test 3: Close tab
-        results.append(("Close Tab", test_close_tab(tab_id)))
+        close_passed = test_close_tab(tab_id)
+        results.append(("Close Tab", close_passed))
+
+        print("\n⏳ Waiting 2 seconds after close before final verification...")
+        time.sleep(2)
+
+        tabs_after_close = list_x_tabs(client, "after close-tab")
+        closed_tab_absent = not has_tab(tabs_after_close, tab_id)
+        if closed_tab_absent:
+            print(f"✅ Closed tab {tab_id} is no longer present in current X tabs")
+        else:
+            print(f"❌ Closed tab {tab_id} is still present in current X tabs")
+        results.append(("Verify Closed Tab Removed", closed_tab_absent))
 
     print("\n" + "="*60)
     print("Test Summary:")

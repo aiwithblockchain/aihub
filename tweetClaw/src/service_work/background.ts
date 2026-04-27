@@ -88,7 +88,6 @@ function releaseUploadSession(sessionId: string) {
 // Initialize LocalBridge Socket
 const localBridge = new LocalBridgeSocket();
 void localBridge.recordLifecycleEvent('sw_boot', 'background service worker evaluated');
-void logProfileActivityState('active', 'service worker boot');
 localBridge.queryXTabsHandler = queryXTabsStatus;
 localBridge.queryXBasicInfoHandler = queryXBasicInfo;
 localBridge.queryXhsAccountInfoHandler = queryXhsAccountInfo;
@@ -108,11 +107,6 @@ localBridge.queryUserTweetsHandler = queryUserTweets;
 // Initialize Background Task Coordinator
 let taskCoordinator: BackgroundTaskCoordinator | null = null;
 let taskCoordinatorReady = false;
-
-async function ensureBridgeConnected(reason: string) {
-    console.log(`[TweetClaw-BG] ensure bridge connected: ${reason}, ${localBridge.getDebugIdentityLabel()}`);
-    await localBridge.connect();
-}
 
 async function getWindowCount(): Promise<number> {
     if (!chrome.windows?.getAll) {
@@ -138,6 +132,58 @@ async function logProfileActivityState(event: 'active' | 'inactive', reason: str
     void localBridge.recordActivityState(event, reason, payload);
     console.log(`[TweetClaw-BG] profile ${event}: reason=${reason} windowCount=${windowCount}, ${localBridge.getDebugIdentityLabel()} state=${JSON.stringify(localBridge.getConnectionDebugState())} extra=${JSON.stringify(extra || {})}`);
 }
+
+async function reconcileBridgeActivity(reason: string, extra?: Record<string, unknown>) {
+    const windowCount = await getWindowCount();
+    const payload = {
+        reason,
+        windowCount,
+        ...(extra || {})
+    };
+
+    if (windowCount === 0) {
+        await localBridge.setDesiredActive(false, reason, payload);
+        void localBridge.recordActivityState('inactive', reason, payload);
+        console.log(`[TweetClaw-BG] reconcile bridge inactive: reason=${reason} windowCount=0, ${localBridge.getDebugIdentityLabel()} state=${JSON.stringify(localBridge.getConnectionDebugState())} extra=${JSON.stringify(extra || {})}`);
+        localBridge.ensureDisconnected(reason);
+        taskCoordinator?.handleDisconnect();
+        backgroundSessionStore.clear();
+        return;
+    }
+
+    await localBridge.setDesiredActive(true, reason, payload);
+    void localBridge.recordActivityState('active', reason, payload);
+    console.log(`[TweetClaw-BG] reconcile bridge active: reason=${reason} windowCount=${windowCount}, ${localBridge.getDebugIdentityLabel()} state=${JSON.stringify(localBridge.getConnectionDebugState())} extra=${JSON.stringify(extra || {})}`);
+    await localBridge.ensureConnected(reason);
+}
+
+let reconcileInFlight: Promise<void> | null = null;
+let pendingReconcileRequest: { reason: string; extra?: Record<string, unknown> } | null = null;
+
+function requestBridgeReconcile(reason: string, extra?: Record<string, unknown>) {
+    pendingReconcileRequest = { reason, extra };
+
+    if (reconcileInFlight) {
+        console.log(`[TweetClaw-BG] reconcile request coalesced: reason=${reason}, ${localBridge.getDebugIdentityLabel()} extra=${JSON.stringify(extra || {})}`);
+        return reconcileInFlight;
+    }
+
+    reconcileInFlight = (async () => {
+        while (pendingReconcileRequest) {
+            const request = pendingReconcileRequest;
+            pendingReconcileRequest = null;
+            await reconcileBridgeActivity(request.reason, request.extra);
+        }
+    })().finally(() => {
+        reconcileInFlight = null;
+    });
+
+    return reconcileInFlight;
+}
+
+requestBridgeReconcile('service worker boot', {
+    trigger: 'service worker boot'
+}).catch((e) => console.warn('[TweetClaw-BG] failed to reconcile bridge on service worker boot', e));
 
 chrome.storage.local.get(['wsHost', 'wsPort', 'restHost', 'restPort']).then(async res => {
     const wsHost = res.wsHost || '127.0.0.1';
@@ -186,63 +232,92 @@ chrome.storage.local.get(['wsHost', 'wsPort', 'restHost', 'restPort']).then(asyn
 
 // hook reconnect to flush background task coordinator cancelling stale runs
 const originalHandleReconnect = localBridge.handleReconnectAlarm.bind(localBridge);
-localBridge.handleReconnectAlarm = function() {
+localBridge.handleReconnectAlarm = function(windowCount?: number) {
     if (taskCoordinator) taskCoordinator.handleDisconnect();
-    originalHandleReconnect();
+    return originalHandleReconnect(windowCount);
 };
 
 // ── Listen for reconnect alarms ──────────────────────────────────
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'tweetclaw-reconnect') {
-        void logProfileActivityState('active', 'alarm reconnect fired', {
-            alarmName: alarm.name
-        });
         void localBridge.recordLifecycleEvent('bg_alarm_reconnect', 'background onAlarm listener', {
             alarmName: alarm.name
         });
-        console.log(`[TweetClaw-BG] Reconnect alarm triggered, ${localBridge.getDebugIdentityLabel()}`);
-        localBridge.handleReconnectAlarm();
+        void (async () => {
+            const windowCount = await getWindowCount();
+            if (windowCount === 0) {
+                await localBridge.setDesiredActive(false, 'alarm reconnect fired', {
+                    alarmName: alarm.name,
+                    trigger: 'chrome.alarms.onAlarm',
+                    windowCount
+                });
+                void localBridge.recordActivityState('inactive', 'alarm reconnect fired', {
+                    alarmName: alarm.name,
+                    trigger: 'chrome.alarms.onAlarm',
+                    windowCount
+                });
+                console.log(`[TweetClaw-BG] reconnect alarm skipped by reconcile: windowCount=0, ${localBridge.getDebugIdentityLabel()} state=${JSON.stringify(localBridge.getConnectionDebugState())}`);
+                localBridge.handleReconnectAlarm(windowCount);
+                taskCoordinator?.handleDisconnect();
+                backgroundSessionStore.clear();
+                return;
+            }
+
+            console.log(`[TweetClaw-BG] reconnect alarm delegates to active reconcile, windowCount=${windowCount}, ${localBridge.getDebugIdentityLabel()}`);
+            await requestBridgeReconcile('alarm reconnect fired', {
+                alarmName: alarm.name,
+                trigger: 'chrome.alarms.onAlarm',
+                windowCount
+            });
+        })().catch((e) => console.warn('[TweetClaw-BG] failed to reconcile bridge on alarm', e));
     }
 });
 
 chrome.runtime.onStartup?.addListener(() => {
-    void logProfileActivityState('active', 'chrome.runtime.onStartup');
     void localBridge.recordLifecycleEvent('runtime_startup', 'chrome.runtime.onStartup');
     console.log(`[TweetClaw-BG] runtime startup, ${localBridge.getDebugIdentityLabel()}`);
-    ensureBridgeConnected('runtime startup').catch((e) => console.warn('[TweetClaw-BG] failed to connect bridge on startup', e));
+    void requestBridgeReconcile('runtime startup', {
+        trigger: 'chrome.runtime.onStartup'
+    }).catch((e) => console.warn('[TweetClaw-BG] failed to reconcile bridge on startup', e));
 });
 
 chrome.runtime.onInstalled.addListener(() => {
     initDefaultQueryKeys();
-    void logProfileActivityState('active', 'chrome.runtime.onInstalled');
     void localBridge.recordLifecycleEvent('runtime_installed', 'chrome.runtime.onInstalled');
     console.log(`[TweetClaw-BG] Extension installed/updated, ${localBridge.getDebugIdentityLabel()}`);
-    ensureBridgeConnected('runtime installed').catch((e) => console.warn('[TweetClaw-BG] failed to connect bridge on install', e));
+    void requestBridgeReconcile('runtime installed', {
+        trigger: 'chrome.runtime.onInstalled'
+    }).catch((e) => console.warn('[TweetClaw-BG] failed to reconcile bridge on install', e));
 });
 
 chrome.runtime.onSuspend.addListener(() => {
-    void logProfileActivityState('inactive', 'chrome.runtime.onSuspend');
     void localBridge.recordLifecycleEvent('runtime_suspend', 'chrome.runtime.onSuspend');
     console.log(`[TweetClaw-BG] runtime suspend, ${localBridge.getDebugIdentityLabel()}`);
-    localBridge.disconnect('runtime suspend');
+    localBridge.ensureDisconnected('runtime suspend');
     taskCoordinator?.handleDisconnect();
     backgroundSessionStore.clear();
 });
 
 chrome.windows?.onCreated?.addListener((window) => {
-    void logProfileActivityState('active', 'chrome.windows.onCreated', {
+    void localBridge.recordLifecycleEvent('window_created', 'chrome.windows.onCreated', {
         windowId: window.id ?? null,
         windowType: window.type ?? null
     });
+    void requestBridgeReconcile('window created', {
+        windowId: window.id ?? null,
+        windowType: window.type ?? null,
+        trigger: 'chrome.windows.onCreated'
+    }).catch((e) => console.warn('[TweetClaw-BG] failed to reconcile bridge on window created', e));
 });
 
 chrome.windows?.onRemoved?.addListener((windowId) => {
-    void logProfileActivityState('inactive', 'chrome.windows.onRemoved', {
-        windowId
-    });
     void localBridge.recordLifecycleEvent('window_removed', 'chrome.windows.onRemoved', {
         windowId
     });
+    void requestBridgeReconcile('window removed', {
+        windowId,
+        trigger: 'chrome.windows.onRemoved'
+    }).catch((e) => console.warn('[TweetClaw-BG] failed to reconcile bridge on window removed', e));
 });
 
 // ── 初始化默认 QueryID 映射 ───────────────────────────────────────

@@ -42,10 +42,12 @@ class XApiTransport(BaseApiTransport):
             params["instanceId"] = instance_id
         return self.request_json("GET", f"/api/v1/x/tweets/{tweet_id}/replies", params=params)
 
-    def get_user_profile_raw(self, screen_name: str, tab_id: Optional[int] = None) -> Dict[Any, Any]:
+    def get_user_profile_raw(self, screen_name: str, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
         params = {"screenName": screen_name}
         if tab_id:
             params["tabId"] = tab_id
+        if instance_id:
+            params["instanceId"] = instance_id
         return self.request_json("GET", "/api/v1/x/users", params=params)
 
     def search_raw(self, query: str, cursor: Optional[str] = None, count: int = 20, tab_id: Optional[int] = None) -> Dict[Any, Any]:
@@ -56,12 +58,14 @@ class XApiTransport(BaseApiTransport):
             params["tabId"] = tab_id
         return self.request_json("GET", "/api/v1/x/search", params=params)
 
-    def get_user_tweets_raw(self, user_id: str, cursor: Optional[str] = None, count: int = 20, tab_id: Optional[int] = None) -> Dict[Any, Any]:
+    def get_user_tweets_raw(self, user_id: str, cursor: Optional[str] = None, count: int = 20, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
         params = {"userId": user_id, "count": count}
         if cursor:
             params["cursor"] = cursor
         if tab_id:
             params["tabId"] = tab_id
+        if instance_id:
+            params["instanceId"] = instance_id
         return self.request_json("GET", "/api/v1/x/user_tweets", params=params)
 
     def create_tweet_raw(self, text: str, media_ids: Optional[List[str]] = None) -> Dict[Any, Any]:

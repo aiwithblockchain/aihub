@@ -16,6 +16,7 @@ final class BridgeLogsViewController: NSViewController {
     private let subtitleLabel = NSTextField(labelWithString: "SYSTEM ENGINE & BRIDGE TRAFFIC LOGS")
     private var autoScrollLabel: NSTextField!
     private let headerSeparator = NSView()
+    private var reloadScheduled = false
 
     override func loadView() {
         view = NSView()
@@ -370,7 +371,18 @@ final class BridgeLogsViewController: NSViewController {
     // MARK: - Notifications
 
     @objc private func onLogUpdate() {
-        reloadLogs()
+        scheduleReloadLogs()
+    }
+
+    private func scheduleReloadLogs() {
+        guard !reloadScheduled else { return }
+        reloadScheduled = true
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.reloadScheduled = false
+            self.reloadLogs()
+        }
     }
 
     // MARK: - Actions

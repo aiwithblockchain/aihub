@@ -8,13 +8,41 @@ import sys
 import os
 import json
 import argparse
+from typing import Any, Optional
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from clawbot import ClawBotClient
 
 
-def test_user_tweets_by_id(user_id: str, count: int = 10):
+def resolve_instance_id(client: ClawBotClient, preferred_instance_id: Optional[str]) -> Optional[str]:
+    if preferred_instance_id:
+        print(f"Using explicit instanceId: {preferred_instance_id}")
+        return preferred_instance_id
+
+    instances_payload: Any = client.x_transport.get_instances_raw()
+    if isinstance(instances_payload, dict):
+        instances = instances_payload.get("instances") or []
+    elif isinstance(instances_payload, list):
+        instances = instances_payload
+    else:
+        instances = []
+
+    if not instances:
+        print("No connected instances found, continuing without instanceId")
+        return None
+
+    first_instance = instances[0]
+    instance_id = first_instance.get("instanceId") or first_instance.get("id")
+    if not instance_id:
+        print("First instance has no instanceId, continuing without instanceId")
+        return None
+
+    print(f"Auto-selected first instanceId: {instance_id}")
+    return str(instance_id)
+
+
+def test_user_tweets_by_id(user_id: str, count: int = 10, instance_id: Optional[str] = None):
     """Test GET /api/v1/x/user_tweets with user ID"""
     print("\n" + "="*60)
     print("Testing: GET /api/v1/x/user_tweets (by user ID)")
@@ -23,7 +51,7 @@ def test_user_tweets_by_id(user_id: str, count: int = 10):
     print(f"Testing with user_id: {user_id}, count: {count}")
 
     client = ClawBotClient()
-    tweets = client.x.users.get_user_tweets(user_id=user_id, count=count)
+    tweets = client.x.users.get_user_tweets(user_id=user_id, count=count, instance_id=instance_id)
 
     print(f"\nRetrieved {len(tweets)} tweets")
 
@@ -48,7 +76,7 @@ def test_user_tweets_by_id(user_id: str, count: int = 10):
         return True
 
 
-def test_user_tweets_by_name(screen_name: str, count: int = 10):
+def test_user_tweets_by_name(screen_name: str, count: int = 10, instance_id: Optional[str] = None):
     """Test GET /api/v1/x/user_tweets with screen name (requires lookup first)"""
     print("\n" + "="*60)
     print("Testing: GET /api/v1/x/user_tweets (by screen name)")
@@ -59,7 +87,7 @@ def test_user_tweets_by_name(screen_name: str, count: int = 10):
     client = ClawBotClient()
 
     # First get user profile to obtain user ID
-    user = client.x.users.get_user(screen_name)
+    user = client.x.users.get_user(screen_name, instance_id=instance_id)
 
     if not user.id:
         print(f"❌ Failed to get user ID for @{screen_name}")
@@ -71,7 +99,7 @@ def test_user_tweets_by_name(screen_name: str, count: int = 10):
 
     # Now get user tweets
     print(f"\nStep 2: Fetching tweets for user {user.id}")
-    tweets = client.x.users.get_user_tweets(user_id=user.id, count=count)
+    tweets = client.x.users.get_user_tweets(user_id=user.id, count=count, instance_id=instance_id)
 
     print(f"\nRetrieved {len(tweets)} tweets")
 
@@ -90,7 +118,7 @@ def test_user_tweets_by_name(screen_name: str, count: int = 10):
         return True
 
 
-def test_user_tweets_pagination(user_id: str):
+def test_user_tweets_pagination(user_id: str, instance_id: Optional[str] = None):
     """Test pagination with cursor"""
     print("\n" + "="*60)
     print("Testing: User tweets pagination")
@@ -100,7 +128,7 @@ def test_user_tweets_pagination(user_id: str):
 
     # Get first page
     print("Fetching first page (5 tweets)...")
-    tweets_page1 = client.x.users.get_user_tweets(user_id=user_id, count=5)
+    tweets_page1 = client.x.users.get_user_tweets(user_id=user_id, count=5, instance_id=instance_id)
 
     if not tweets_page1:
         print("⚠️  No tweets found, skipping pagination test")
@@ -121,23 +149,27 @@ if __name__ == "__main__":
     parser.add_argument('--id', type=str, help='User ID to test (e.g., 44196397)')
     parser.add_argument('--name', type=str, help='Screen name to test (e.g., elonmusk)')
     parser.add_argument('--count', type=int, default=10, help='Number of tweets to fetch (default: 10)')
+    parser.add_argument('--instance-id', type=str, help='Explicit instanceId for multi-instance setups')
 
     args = parser.parse_args()
 
     print("\n🧪 Testing User Tweets API")
     print("="*60)
 
+    client = ClawBotClient()
+    resolved_instance_id = resolve_instance_id(client, args.instance_id)
+
     results = []
 
     if args.id:
-        results.append(("User Tweets by ID", test_user_tweets_by_id(args.id, args.count)))
-        results.append(("Pagination", test_user_tweets_pagination(args.id)))
+        results.append(("User Tweets by ID", test_user_tweets_by_id(args.id, args.count, resolved_instance_id)))
+        results.append(("Pagination", test_user_tweets_pagination(args.id, resolved_instance_id)))
     elif args.name:
-        results.append(("User Tweets by Name", test_user_tweets_by_name(args.name, args.count)))
+        results.append(("User Tweets by Name", test_user_tweets_by_name(args.name, args.count, resolved_instance_id)))
     else:
         # Default test with well-known account
         print("No --id or --name provided, using default test account")
-        results.append(("User Tweets by Name", test_user_tweets_by_name("elonmusk", 5)))
+        results.append(("User Tweets by Name", test_user_tweets_by_name("elonmusk", 5, resolved_instance_id)))
 
     print("\n" + "="*60)
     print("Test Summary:")

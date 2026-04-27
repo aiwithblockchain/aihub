@@ -45,15 +45,15 @@ class XReadService:
         raw = self.transport.get_tweet_replies_raw(tweet_id=tweet_id, cursor=cursor, tab_id=tab_id, instance_id=instance_id)
         return extract_tweet_detail_replies(raw, tweet_id=tweet_id)
 
-    def get_user(self, screen_name: str, tab_id: Optional[int] = None) -> XUser:
-        return parse_user_profile(self.transport.get_user_profile_raw(screen_name=screen_name, tab_id=tab_id))
+    def get_user(self, screen_name: str, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> XUser:
+        return parse_user_profile(self.transport.get_user_profile_raw(screen_name=screen_name, tab_id=tab_id, instance_id=instance_id))
 
-    def get_pinned_tweet(self, screen_name: str, tab_id: Optional[int] = None) -> Optional[XTweet]:
-        profile_raw = self.transport.get_user_profile_raw(screen_name=screen_name, tab_id=tab_id)
+    def get_pinned_tweet(self, screen_name: str, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Optional[XTweet]:
+        profile_raw = self.transport.get_user_profile_raw(screen_name=screen_name, tab_id=tab_id, instance_id=instance_id)
         pinned_tweet_id = extract_pinned_tweet_id_from_profile(profile_raw)
         if not pinned_tweet_id:
             return None
-        return self.get_tweet(pinned_tweet_id, tab_id=tab_id)
+        return self.get_tweet(pinned_tweet_id, tab_id=tab_id, instance_id=instance_id)
 
     def search(self, query: str, count: int = 20, cursor: Optional[str] = None, tab_id: Optional[int] = None) -> Tuple[List[XTweet], List[XUser]]:
         raw = self.transport.search_raw(query=query, count=count, cursor=cursor, tab_id=tab_id)
@@ -71,8 +71,8 @@ class XReadService:
         _, users = self.search(query=query, count=5, tab_id=tab_id)
         return users[0] if users else None
 
-    def get_user_tweets(self, user_id: str, count: int = 20, cursor: Optional[str] = None, tab_id: Optional[int] = None) -> List[XTweet]:
-        raw = self.transport.get_user_tweets_raw(user_id=user_id, count=count, cursor=cursor, tab_id=tab_id)
+    def get_user_tweets(self, user_id: str, count: int = 20, cursor: Optional[str] = None, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> List[XTweet]:
+        raw = self.transport.get_user_tweets_raw(user_id=user_id, count=count, cursor=cursor, tab_id=tab_id, instance_id=instance_id)
         data = raw.get("data", {}) if isinstance(raw, dict) else {}
         if isinstance(data, dict) and "data" in data:
             data = data["data"]

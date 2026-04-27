@@ -16,21 +16,45 @@ final class BridgeLogger {
         df.dateFormat = "HH:mm:ss.SSS"
         return df
     }()
+    private var notificationScheduled = false
+    private var hasPendingChanges = false
 
     private init() {}
 
     /// 记录一条日志，线程安全，自动附加时间戳，并发送 UI 更新通知
     func log(_ message: String) {
+        append([message])
+    }
+
+    func append(_ messages: [String]) {
+        guard !messages.isEmpty else { return }
+
         queue.async { [weak self] in
             guard let self = self else { return }
             let timestamp = self.formatter.string(from: Date())
-            let line = "[\(timestamp)] \(message)"
-            self.lines.append(line)
+            let newLines = messages.map { "[\(timestamp)] \($0)" }
+            self.lines.append(contentsOf: newLines)
             if self.lines.count > self.maxLines {
                 self.lines.removeFirst(self.lines.count - self.maxLines)
             }
-            DispatchQueue.main.async {
-                NotificationCenter.default.post(name: BridgeLogger.didUpdateNotification, object: nil)
+            self.hasPendingChanges = true
+            self.scheduleNotificationIfNeeded()
+        }
+    }
+
+    private func scheduleNotificationIfNeeded() {
+        guard !notificationScheduled else { return }
+        notificationScheduled = true
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            NotificationCenter.default.post(name: BridgeLogger.didUpdateNotification, object: nil)
+            self.queue.async {
+                self.notificationScheduled = false
+                if self.hasPendingChanges {
+                    self.hasPendingChanges = false
+                    self.scheduleNotificationIfNeeded()
+                }
             }
         }
     }
@@ -43,10 +67,10 @@ final class BridgeLogger {
     /// 清空所有日志
     func clear() {
         queue.async { [weak self] in
-            self?.lines.removeAll()
-            DispatchQueue.main.async {
-                NotificationCenter.default.post(name: BridgeLogger.didUpdateNotification, object: nil)
-            }
+            guard let self = self else { return }
+            self.lines.removeAll()
+            self.hasPendingChanges = true
+            self.scheduleNotificationIfNeeded()
         }
     }
 }

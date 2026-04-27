@@ -128,9 +128,15 @@ final class InstancesPanelViewController: NSViewController {
 
     /// 刷新实例列表（DetailViewController 切换到此面板时调用）
     func refresh() {
-        instances = AppDelegate.shared?.getConnectedInstances() ?? []
-        rebuildGridView()
-        updateEmptyState()
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            let snapshots = AppDelegate.shared?.getConnectedInstances() ?? []
+            DispatchQueue.main.async {
+                guard let self = self else { return }
+                self.instances = snapshots
+                self.rebuildGridView()
+                self.updateEmptyState()
+            }
+        }
     }
 
     // MARK: - Setup
