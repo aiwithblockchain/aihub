@@ -7,6 +7,7 @@ import sys
 import json
 import os
 import argparse
+from typing import Any, Optional, Tuple
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -14,11 +15,41 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from clawbot import ClawBotClient
 
 
-def get_tweet_and_user_by_id(tweet_id):
+def confirm_or_exit(message: str, assume_yes: bool) -> None:
+    print(message)
+    if assume_yes:
+        return
+    confirm = input("Continue? (yes/no): ").strip().lower()
+    if confirm != "yes":
+        print("⏭️  Skipped")
+        raise SystemExit(0)
+
+
+def resolve_instance_id(client: ClawBotClient, preferred_instance_id: Optional[str] = None) -> Optional[str]:
+    if preferred_instance_id:
+        return preferred_instance_id
+
+    instances_payload: Any = client.x.status.get_instances()
+    if isinstance(instances_payload, dict):
+        instances = instances_payload.get("instances") or []
+    elif isinstance(instances_payload, list):
+        instances = instances_payload
+    else:
+        instances = []
+
+    if not instances:
+        return None
+
+    first_instance = instances[0]
+    instance_id = first_instance.get("instanceId") or first_instance.get("id")
+    return str(instance_id) if instance_id else None
+
+
+def get_tweet_and_user_by_id(tweet_id: str, instance_id: Optional[str]) -> Tuple[str, Optional[str]]:
     """Get tweet details and extract user ID from specified tweet"""
     print(f"\n📋 Fetching tweet details for ID: {tweet_id}...")
     client = ClawBotClient()
-    tweet = client.x.tweets.get_tweet(tweet_id)
+    tweet = client.x.tweets.get_tweet(tweet_id, instance_id=instance_id)
 
     if tweet and tweet.author_id:
         user_id = tweet.author_id
@@ -29,11 +60,11 @@ def get_tweet_and_user_by_id(tweet_id):
         return tweet_id, None
 
 
-def extract_tweet_and_user_from_timeline():
+def extract_tweet_and_user_from_timeline(instance_id: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
     """Extract a tweet ID and user ID from timeline for testing"""
     print("\n📋 Extracting tweet ID and user ID from timeline...")
     client = ClawBotClient()
-    tweet = client.x.timeline.get_first_timeline_tweet()
+    tweet = client.x.timeline.get_first_timeline_tweet(instance_id=instance_id)
 
     if tweet and tweet.id and tweet.author_id:
         print(f"✅ Found tweet ID: {tweet.id}")
@@ -44,16 +75,16 @@ def extract_tweet_and_user_from_timeline():
         return None, None
 
 
-def test_positive_actions(tweet_id=None):
+def test_positive_actions(tweet_id: Optional[str] = None, instance_id: Optional[str] = None, assume_yes: bool = False):
     """Test all positive actions: Like, Retweet, Bookmark, Follow"""
     print("\n" + "="*60)
     print("Testing: Positive Actions (Like, Retweet, Bookmark, Follow)")
     print("="*60)
 
     if tweet_id:
-        tweet_id, user_id = get_tweet_and_user_by_id(tweet_id)
+        tweet_id, user_id = get_tweet_and_user_by_id(tweet_id, instance_id=instance_id)
     else:
-        tweet_id, user_id = extract_tweet_and_user_from_timeline()
+        tweet_id, user_id = extract_tweet_and_user_from_timeline(instance_id=instance_id)
 
     if not tweet_id or not user_id:
         print("❌ Failed to extract tweet ID or user ID")
@@ -61,11 +92,8 @@ def test_positive_actions(tweet_id=None):
 
     print(f"\nUsing tweet ID: {tweet_id}")
     print(f"Using user ID: {user_id}")
-    print("\n⚠️  This will perform 4 real actions on your X account!")
-    confirm = input("Continue? (yes/no): ").strip().lower()
-    if confirm != "yes":
-        print("⏭️  Skipped")
-        return False
+    print(f"Using instance_id: {instance_id}")
+    confirm_or_exit("\n⚠️  This will perform 4 real actions on your X account!", assume_yes)
 
     client = ClawBotClient()
     actions_data = {}
@@ -74,7 +102,7 @@ def test_positive_actions(tweet_id=None):
     # Test 1: Like
     print("\n" + "-"*60)
     print("📍 Testing like...")
-    result = client.x.actions.like(tweet_id)
+    result = client.x.actions.like(tweet_id, instance_id=instance_id)
     print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
     if result.success:
@@ -91,7 +119,7 @@ def test_positive_actions(tweet_id=None):
     # Test 2: Retweet
     print("\n" + "-"*60)
     print("📍 Testing retweet...")
-    result = client.x.actions.retweet(tweet_id)
+    result = client.x.actions.retweet(tweet_id, instance_id=instance_id)
     print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
     if result.success:
@@ -107,7 +135,7 @@ def test_positive_actions(tweet_id=None):
     # Test 3: Bookmark
     print("\n" + "-"*60)
     print("📍 Testing bookmark...")
-    result = client.x.actions.bookmark(tweet_id)
+    result = client.x.actions.bookmark(tweet_id, instance_id=instance_id)
     print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
     if result.success:
@@ -123,7 +151,7 @@ def test_positive_actions(tweet_id=None):
     # Test 4: Follow
     print("\n" + "-"*60)
     print("📍 Testing follow...")
-    result = client.x.actions.follow(user_id)
+    result = client.x.actions.follow(user_id, instance_id=instance_id)
     print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
     if result.success:
@@ -148,6 +176,8 @@ def test_positive_actions(tweet_id=None):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description='Test positive actions on X')
     parser.add_argument('--tweet-id', type=str, help='Specify tweet ID to test (optional)')
+    parser.add_argument('--instance-id', type=str, help='Explicit instanceId for multi-instance routing')
+    parser.add_argument('--yes', action='store_true', help='Skip interactive confirmation')
     args = parser.parse_args()
 
     print("\n🧪 Testing Positive Actions (Scenario 7)")
@@ -155,7 +185,11 @@ if __name__ == "__main__":
     print("⚠️  WARNING: These tests perform real actions on your X account!")
     print("="*60)
 
-    results = test_positive_actions(tweet_id=args.tweet_id)
+    bootstrap_client = ClawBotClient()
+    instance_id = resolve_instance_id(bootstrap_client, preferred_instance_id=args.instance_id)
+    print(f"Resolved instance_id: {instance_id}")
+
+    results = test_positive_actions(tweet_id=args.tweet_id, instance_id=instance_id, assume_yes=args.yes)
 
     if results:
         print("\n" + "="*60)

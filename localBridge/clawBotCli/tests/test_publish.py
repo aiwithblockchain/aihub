@@ -13,7 +13,7 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional
+from typing import Any, List, Optional
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -63,6 +63,26 @@ def confirm_or_exit(message: str, assume_yes: bool) -> None:
         raise SystemExit(0)
 
 
+def resolve_instance_id(client: ClawBotClient, preferred_instance_id: Optional[str] = None) -> Optional[str]:
+    if preferred_instance_id:
+        return preferred_instance_id
+
+    instances_payload: Any = client.x.status.get_instances()
+    if isinstance(instances_payload, dict):
+        instances = instances_payload.get("instances") or []
+    elif isinstance(instances_payload, list):
+        instances = instances_payload
+    else:
+        instances = []
+
+    if not instances:
+        return None
+
+    first_instance = instances[0]
+    instance_id = first_instance.get("instanceId") or first_instance.get("id")
+    return str(instance_id) if instance_id else None
+
+
 def upload_media(client: ClawBotClient, file_paths: List[str], instance_id: Optional[str], tab_id: Optional[int]) -> List[str]:
     media_ids: List[str] = []
     for file_path in file_paths:
@@ -73,8 +93,8 @@ def upload_media(client: ClawBotClient, file_paths: List[str], instance_id: Opti
     return media_ids
 
 
-def create_tweet(client: ClawBotClient, text: str, media_ids: Optional[List[str]] = None):
-    result = client.x.actions.create_tweet(text=text, media_ids=media_ids)
+def create_tweet(client: ClawBotClient, text: str, media_ids: Optional[List[str]] = None, instance_id: Optional[str] = None):
+    result = client.x.actions.create_tweet(text=text, media_ids=media_ids, instance_id=instance_id)
     raw = result.raw if hasattr(result, "raw") else {}
     print(str(raw)[:800] + "...")
     if result.success:
@@ -85,8 +105,8 @@ def create_tweet(client: ClawBotClient, text: str, media_ids: Optional[List[str]
     return False
 
 
-def create_reply(client: ClawBotClient, tweet_id: str, text: str, media_ids: Optional[List[str]] = None):
-    result = client.x.actions.reply(tweet_id=tweet_id, text=text, media_ids=media_ids)
+def create_reply(client: ClawBotClient, tweet_id: str, text: str, media_ids: Optional[List[str]] = None, instance_id: Optional[str] = None):
+    result = client.x.actions.reply(tweet_id=tweet_id, text=text, media_ids=media_ids, instance_id=instance_id)
     raw = result.raw if hasattr(result, "raw") else {}
     print(str(raw)[:800] + "...")
     if result.success:
@@ -104,7 +124,7 @@ def main() -> int:
     parser.add_argument("--images", type=str, help="Comma-separated image paths, absolute or relative to test_media")
     parser.add_argument("--video", type=str, help="Video path, absolute or relative to test_media")
     parser.add_argument("--reply-to", type=str, help="Reply target tweet ID")
-    parser.add_argument("--instance-id", type=str, help="Explicit instanceId for media upload")
+    parser.add_argument("--instance-id", type=str, help="Explicit instanceId for multi-instance routing")
     parser.add_argument("--tab-id", type=int, help="Optional tabId for media upload")
     parser.add_argument("--yes", action="store_true", help="Skip interactive confirmation")
     args = parser.parse_args()
@@ -130,12 +150,14 @@ def main() -> int:
     confirm_or_exit("⚠️  Real publish action will be executed.", args.yes)
 
     client = ClawBotClient()
-    media_ids = upload_media(client, media_paths, args.instance_id, args.tab_id) if media_paths else None
+    instance_id = resolve_instance_id(client, preferred_instance_id=args.instance_id)
+    print(f"Resolved instance_id: {instance_id}")
+    media_ids = upload_media(client, media_paths, instance_id, args.tab_id) if media_paths else None
 
     if args.reply_to:
-        success = create_reply(client, args.reply_to, text, media_ids)
+        success = create_reply(client, args.reply_to, text, media_ids, instance_id=instance_id)
     else:
-        success = create_tweet(client, text, media_ids)
+        success = create_tweet(client, text, media_ids, instance_id=instance_id)
 
     print("\n" + "=" * 60)
     print("Test Summary:")

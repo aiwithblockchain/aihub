@@ -12,7 +12,7 @@ import argparse
 import os
 import sys
 from pathlib import Path
-from typing import List
+from typing import Any, List, Optional
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -57,6 +57,26 @@ def confirm_or_exit(message: str, assume_yes: bool) -> None:
         raise SystemExit(0)
 
 
+def resolve_instance_id(client: ClawBotClient, preferred_instance_id: Optional[str] = None) -> Optional[str]:
+    if preferred_instance_id:
+        return preferred_instance_id
+
+    instances_payload: Any = client.x.status.get_instances()
+    if isinstance(instances_payload, dict):
+        instances = instances_payload.get("instances") or []
+    elif isinstance(instances_payload, list):
+        instances = instances_payload
+    else:
+        instances = []
+
+    if not instances:
+        return None
+
+    first_instance = instances[0]
+    instance_id = first_instance.get("instanceId") or first_instance.get("id")
+    return str(instance_id) if instance_id else None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run media upload smoke tests without publishing")
     parser.add_argument("--image", type=str, help="Single image path, absolute or relative to test_media")
@@ -74,19 +94,19 @@ def main() -> int:
     print("⚠️  WARNING: This uploads real media into the X workflow")
     print("=" * 60)
     print(f"Media files: {media_paths}")
-    if args.instance_id:
-        print(f"Instance ID: {args.instance_id}")
     if args.tab_id is not None:
         print(f"Tab ID: {args.tab_id}")
 
     confirm_or_exit("⚠️  Real media upload task will be executed.", args.yes)
 
     client = ClawBotClient()
+    instance_id = resolve_instance_id(client, preferred_instance_id=args.instance_id)
+    print(f"Resolved instance_id: {instance_id}")
     uploaded_ids: List[str] = []
 
     for media_path in media_paths:
         print(f"\n📤 Uploading: {media_path}")
-        result = client.media.upload(media_path, instance_id=args.instance_id, tab_id=args.tab_id)
+        result = client.media.upload(media_path, instance_id=instance_id, tab_id=args.tab_id)
         print(f"✅ Uploaded media_id: {result.media_id}")
         uploaded_ids.append(result.media_id)
 

@@ -345,26 +345,120 @@ Write order
    - Rerun PASS, created tweet ID `2048731104702583278`
    Notes:
    - Next safe step is still separate: run only one follow-up write action on a later turn
-2. [ ] `tests/test_publish.py`
+2. [x] `tests/test_publish.py`
    Goal: verify publish path in the main client.
-3. [ ] `tests/test_media_upload.py`
+   Result: PASS
+   Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_publish.py --yes`
+   Inputs used:
+   - plain publish mode, no reply target, no media files
+   - `instanceId`: auto-resolved to `0d508524-f738-4dd6-929a-0d37d4d5b202`
+   - `tweet text`: `[ClawBot test] Read/write regression check for LocalBridge + clawBotCli. Safe to ignore. (2026-04-27 19:53:58)`
+   Notes:
+   - Patched script to auto-resolve `instance_id`, accept `--instance-id`, and pass explicit instance routing into publish and reply actions
+   - Reused the new multi-instance-safe write transport behavior from `clawbot/transport/x_api.py`
+   - Plain publish rerun PASS, created tweet ID `2048732394014888257`
+   - Media and reply branches of this script were not exercised in this turn
+3. [x] `tests/test_media_upload.py`
    Goal: verify media upload path using `test_media/` assets.
-4. [ ] `tests/test_actions.py`
+   Result: PASS
+   Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_media_upload.py --image app_1.png --yes`
+   Inputs used:
+   - `image`: `app_1.png`
+   - `instanceId`: auto-resolved to `0d508524-f738-4dd6-929a-0d37d4d5b202`
+   - `tabId`: not set
+   Notes:
+   - Patched script to auto-resolve `instance_id` when not supplied explicitly, matching the rest of the multi-instance-safe test suite
+   - Verified upload-only path without publishing a tweet
+   - Upload task completed successfully with media ID `2048733282334892032`
+   - Live progress output showed a direct upload phase and completed cleanly
+4. [x] `tests/test_actions.py`
    Goal: verify core action endpoints.
-5. [ ] `tests/test_like_retweet.py`
+   Result: PASS
+   Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_actions.py --yes`
+   Inputs used:
+   - `tweet_id`: not supplied, script used timeline auto-discovery
+   - `instanceId`: auto-resolved to `0d508524-f738-4dd6-929a-0d37d4d5b202`
+   - discovered target tweet ID: `2048739013503111380`
+   - discovered target user ID: `1716359572896858112`
+   Notes:
+   - Initial earlier run failed with multi-instance `ambiguous_target` because the script still used read/action calls without explicit `instance_id`
+   - Patched `tests/test_actions.py` to auto-resolve `instance_id`, accept `--instance-id`, accept `--yes`, and pass explicit instance routing into tweet lookup, timeline lookup, and like/retweet/bookmark/follow actions
+   - A later retry was temporarily blocked by environment connectivity and timed out on timeline fetch while the VPN was down
+   - After network recovery, rerun PASS
+   - Live actions all succeeded: like, retweet, bookmark, follow
+   - Script saved cleanup/reference data to `localBridge/clawBotCli/test_actions.json`
+5. [x] `tests/test_like_retweet.py`
    Goal: verify like and retweet endpoints explicitly.
-6. [ ] `tests/test_bookmark_follow.py`
+   Result: PASS
+   Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_like_retweet.py --yes`
+   Inputs used:
+   - `instanceId`: auto-resolved to `0d508524-f738-4dd6-929a-0d37d4d5b202`
+   - like/unlike target tweet ID: `2040018467667988588`
+   - retweet/unretweet target tweet ID: `2047367411175711116`
+   Notes:
+   - Patched script to auto-resolve `instance_id`, accept `--instance-id`, accept `--yes`, and pass explicit instance routing into timeline lookup and like/unlike/retweet/unretweet actions
+   - Rerun PASS for both pairs: like/unlike and retweet/unretweet
+   - Unlike response returned `unfavorite_tweet: Done`
+   - Unretweet response returned the original source tweet ID, matching the intended target
+6. [x] `tests/test_bookmark_follow.py`
    Goal: verify bookmark/follow actions.
-7. [ ] `tests/test_reverse_actions.py`
+   Result: PASS
+   Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_bookmark_follow.py --yes`
+   Inputs used:
+   - `instanceId`: auto-resolved to `d951f0a1-d042-4e36-a868-9e6ababbfbd0`
+   - bookmark/unbookmark target tweet ID: `2048757340682297678`
+   - follow/unfollow target user ID: `1318419526132862976`
+   Notes:
+   - Patched script to auto-resolve `instance_id`, accept `--instance-id`, accept `--yes`, and pass explicit instance routing into timeline lookup and bookmark/unbookmark/follow/unfollow actions
+   - Rerun PASS for both pairs: bookmark/unbookmark and follow/unfollow
+   - Unbookmark response returned `tweet_bookmark_delete: Done`
+   - Follow and unfollow responses both returned the expected target profile payload for `@NousResearch`
+7. [x] `tests/test_reverse_actions.py`
    Goal: verify unlike/unretweet/unbookmark/unfollow cleanup paths.
-8. [ ] `tests/test_delete.py`
+   Result: PASS
+   Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_reverse_actions.py --yes`
+   Inputs used:
+   - `instanceId`: auto-resolved to `0d508524-f738-4dd6-929a-0d37d4d5b202`
+   - loaded action data from `localBridge/clawBotCli/test_actions.json`
+   - unlike target tweet ID: `2048739013503111380`
+   - unretweet target tweet ID: `2048739013503111380`
+   - unbookmark target tweet ID: `2048739013503111380`
+   - unfollow target user ID: `1716359572896858112`
+   Notes:
+   - Patched script to auto-resolve `instance_id`, accept `--instance-id`, accept `--yes`, and pass explicit instance routing into unlike/unretweet/unbookmark/unfollow actions
+   - Rerun PASS for all 4 reverse actions
+   - Unlike returned `unfavorite_tweet: Done`
+   - Unretweet returned the original source tweet ID, confirming correct target reversal
+   - Unbookmark returned `tweet_bookmark_delete: Done`
+   - Unfollow returned the expected target profile payload for `@PixVerse_`
+8. [x] `tests/test_delete.py`
    Goal: verify tweet deletion for test-created content.
+   Result: PASS
+   Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_delete.py --tweet-id 2048732394014888257 --force`
+   Inputs used:
+   - `tweet_id`: `2048732394014888257`
+   - `instanceId`: auto-resolved to `0d508524-f738-4dd6-929a-0d37d4d5b202`
+   Notes:
+   - User explicitly supplied the target tweet URL/ID for deletion
+   - Patched script to auto-resolve `instance_id`, accept `--instance-id`, and pass explicit instance routing into `delete_tweet(...)`
+   - Rerun PASS, delete response returned `delete_tweet` success payload
+   - Target tweet `2048732394014888257` should now be removed from X
 
 Phase 4, Full integration sweep
 -------------------------------
 Run only after the itemized tests above are stable.
 
-- [ ] `tests/integration_test.py`
+- [x] `tests/integration_test.py`
+  Goal: end-to-end media upload lifecycle smoke coverage for task client, chunked uploader, and cancellation flow.
+  Result: PASS
+  Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/integration_test.py`
+  Inputs used:
+  - generated temporary file `tests/dummy_integration.mp4`
+  - mocked `upload_input_part`, `create_task`, and cancellation path where appropriate
+  Notes:
+  - No script patch was needed in this turn
+  - Suite ran 3 tests and passed in `0.111s`
+  - Verified small-file connectivity assumptions, 12MB large-file chunking into 3 parts, and cancellation flow issuing `cancel_task("task_123")`
 - [ ] `tests/integration/test_workflow_flows.py` if not already completed in Phase 2
 
 Patch expectations before execution
