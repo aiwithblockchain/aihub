@@ -22,14 +22,14 @@ class XReadService:
     def __init__(self, transport: XApiTransport):
         self.transport = transport
 
-    def get_timeline_raw(self, tab_id: Optional[int] = None):
-        return self.transport.get_timeline_raw(tab_id=tab_id)
+    def get_timeline_raw(self, tab_id: Optional[int] = None, instance_id: Optional[str] = None):
+        return self.transport.get_timeline_raw(tab_id=tab_id, instance_id=instance_id)
 
-    def list_timeline_tweets(self, tab_id: Optional[int] = None) -> List[XTweet]:
-        return extract_timeline_tweets(self.get_timeline_raw(tab_id=tab_id))
+    def list_timeline_tweets(self, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> List[XTweet]:
+        return extract_timeline_tweets(self.get_timeline_raw(tab_id=tab_id, instance_id=instance_id))
 
-    def get_first_timeline_tweet(self, tab_id: Optional[int] = None) -> Optional[XTweet]:
-        return extract_first_timeline_tweet(self.get_timeline_raw(tab_id=tab_id))
+    def get_first_timeline_tweet(self, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Optional[XTweet]:
+        return extract_first_timeline_tweet(self.get_timeline_raw(tab_id=tab_id, instance_id=instance_id))
 
     def get_tweet_raw(self, tweet_id: str, tab_id: Optional[int] = None, instance_id: Optional[str] = None):
         return self.transport.get_tweet_raw(tweet_id=tweet_id, tab_id=tab_id, instance_id=instance_id)
@@ -55,20 +55,20 @@ class XReadService:
             return None
         return self.get_tweet(pinned_tweet_id, tab_id=tab_id, instance_id=instance_id)
 
-    def search(self, query: str, count: int = 20, cursor: Optional[str] = None, tab_id: Optional[int] = None) -> Tuple[List[XTweet], List[XUser]]:
-        raw = self.transport.search_raw(query=query, count=count, cursor=cursor, tab_id=tab_id)
+    def search(self, query: str, count: int = 20, cursor: Optional[str] = None, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Tuple[List[XTweet], List[XUser]]:
+        raw = self.transport.search_raw(query=query, count=count, cursor=cursor, tab_id=tab_id, instance_id=instance_id)
         return extract_search_tweets_and_users(raw)
 
-    def search_tweets(self, query: str, count: int = 20, cursor: Optional[str] = None, tab_id: Optional[int] = None) -> List[XTweet]:
-        tweets, _ = self.search(query=query, count=count, cursor=cursor, tab_id=tab_id)
+    def search_tweets(self, query: str, count: int = 20, cursor: Optional[str] = None, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> List[XTweet]:
+        tweets, _ = self.search(query=query, count=count, cursor=cursor, tab_id=tab_id, instance_id=instance_id)
         return tweets
 
-    def search_first_tweet(self, query: str, tab_id: Optional[int] = None) -> Optional[XTweet]:
-        tweets = self.search_tweets(query=query, count=5, tab_id=tab_id)
+    def search_first_tweet(self, query: str, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Optional[XTweet]:
+        tweets = self.search_tweets(query=query, count=5, tab_id=tab_id, instance_id=instance_id)
         return tweets[0] if tweets else None
 
-    def search_first_user(self, query: str, tab_id: Optional[int] = None) -> Optional[XUser]:
-        _, users = self.search(query=query, count=5, tab_id=tab_id)
+    def search_first_user(self, query: str, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Optional[XUser]:
+        _, users = self.search(query=query, count=5, tab_id=tab_id, instance_id=instance_id)
         return users[0] if users else None
 
     def get_user_tweets(self, user_id: str, count: int = 20, cursor: Optional[str] = None, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> List[XTweet]:

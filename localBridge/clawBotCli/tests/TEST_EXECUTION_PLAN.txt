@@ -157,18 +157,56 @@ Run these before any write action.
    - Post-navigate tab listing showed the opened tab URL changed to `https://x.com/notifications`
    - `POST /tweetclaw/close-tab` PASS
    - Final tab listing confirmed the opened `tabId` was removed after close
-9. [ ] `tests/integration/test_read_flows.py`
+9. [x] `tests/integration/test_read_flows.py`
    Goal: run integrated read flow coverage after the simpler read scripts pass.
-10. [ ] `tests/integration/test_tweet_search_flows.py`
+   Result: PASS
+   Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/integration/test_read_flows.py`
+   Inputs used:
+   - `instanceId`: auto-selected first connected instance for the user and timeline calls
+   Notes:
+   - Initial script used stale `client.x.users.get(...)` API and failed immediately
+   - Patched script to use `client.x.users.get_user(...)`
+   - Initial rerun exposed missing multi-instance support on timeline reads
+   - Patched `clawbot/transport/x_api.py` and `clawbot/services/x_read.py` so timeline reads also accept and propagate `instance_id`
+   - Final rerun PASS
+10. [x] `tests/integration/test_tweet_search_flows.py`
     Goal: integrated tweet/search read flow validation.
-11. [ ] `tests/integration/test_status_metadata_flows.py`
+    Result: PASS
+    Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/integration/test_tweet_search_flows.py`
+    Inputs used:
+    - `instanceId`: auto-selected first connected instance for timeline, tweet detail, and search calls
+    Notes:
+    - Initial script used timeline reads without `instance_id` and failed in multi-instance mode
+    - Patched script to auto-resolve first instance
+    - Patched stale `client.x.tweets.get(...)` call to `client.x.tweets.get_tweet(...)`
+    - Rerun exposed missing multi-instance support on search reads
+    - Patched `clawbot/transport/x_api.py` and `clawbot/services/x_read.py` so search reads also accept and propagate `instance_id`
+    - Final rerun PASS
+11. [x] `tests/integration/test_status_metadata_flows.py`
     Goal: integrated status + metadata validation.
+    Result: PASS
+    Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/integration/test_status_metadata_flows.py`
+    Inputs used:
+    - `instanceId`: auto-selected first connected instance for the status call
+    Notes:
+    - Initial run failed on `GET /api/v1/x/status` with multi-instance `ambiguous_target`
+    - Patched `clawbot/transport/x_api.py` so `get_status_raw()` and `get_basic_info_raw()` accept `instance_id`
+    - Patched `clawbot/services/x_status.py` so status/basic-info helpers propagate `instance_id`
+    - Patched script to auto-resolve first instance before calling `get_status()`
+    - Rerun PASS
 
 Phase 2, Low-risk AI / workflow reads
 -------------------------------------
 These are still mostly non-destructive, but may depend on AI/browser state.
 
-- [ ] `tests/test_ai_status.py`
+- [x] `tests/test_ai_status.py`
+  Goal: confirm AI status endpoint shape and current browser AI session state.
+  Result: PASS
+  Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_ai_status.py`
+  Notes:
+  - `GET /api/v1/ai/status` PASS
+  - Current run reported no AI tabs open: `hasAITabs=false`, `tabs=[]`
+  - Platform summary showed `chatgpt`, `gemini`, and `grok` all not logged in for this environment
 - [ ] `tests/test_ai_navigate.py`
 - [ ] `tests/test_ai_message.py`
 - [ ] `tests/test_ai_new_conversation.py`

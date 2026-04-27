@@ -13,24 +13,24 @@ class XStatusService:
     def __init__(self, transport: XApiTransport):
         self.transport = transport
 
-    def get_status(self) -> XStatus:
-        return parse_x_status(self.transport.get_status_raw())
+    def get_status(self, instance_id: Optional[str] = None) -> XStatus:
+        return parse_x_status(self.transport.get_status_raw(instance_id=instance_id))
 
-    def is_logged_in(self) -> bool:
-        return self.get_status().is_logged_in
+    def is_logged_in(self, instance_id: Optional[str] = None) -> bool:
+        return self.get_status(instance_id=instance_id).is_logged_in
 
-    def list_tabs(self) -> List[XTab]:
-        return self.get_status().tabs
+    def list_tabs(self, instance_id: Optional[str] = None) -> List[XTab]:
+        return self.get_status(instance_id=instance_id).tabs
 
-    def get_default_tab_id(self) -> Optional[int]:
-        tabs = self.list_tabs()
+    def get_default_tab_id(self, instance_id: Optional[str] = None) -> Optional[int]:
+        tabs = self.list_tabs(instance_id=instance_id)
         return tabs[0].tab_id if tabs else None
 
     def get_instances(self) -> Dict[str, Any] | List[Dict[str, Any]]:
         return self.transport.get_instances_raw()
 
-    def get_basic_info(self) -> XUser:
-        return parse_basic_user(self.transport.get_basic_info_raw())
+    def get_basic_info(self, instance_id: Optional[str] = None) -> XUser:
+        return parse_basic_user(self.transport.get_basic_info_raw(instance_id=instance_id))
 
     def get_docs_raw(self):
         return self.transport.get_docs_raw()

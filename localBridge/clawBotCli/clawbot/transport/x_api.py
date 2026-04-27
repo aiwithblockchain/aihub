@@ -11,17 +11,27 @@ class XApiTransport(BaseApiTransport):
     def get_docs_raw(self) -> Dict[Any, Any] | List[Dict[Any, Any]]:
         return self.request_json("GET", "/api/v1/x/docs")
 
-    def get_status_raw(self) -> Dict[Any, Any]:
-        return self.request_json("GET", "/api/v1/x/status")
+    def get_status_raw(self, instance_id: Optional[str] = None) -> Dict[Any, Any]:
+        params = {}
+        if instance_id:
+            params["instanceId"] = instance_id
+        return self.request_json("GET", "/api/v1/x/status", params=params)
 
     def get_instances_raw(self) -> Dict[Any, Any] | List[Dict[Any, Any]]:
         return self.request_json("GET", "/api/v1/x/instances")
 
-    def get_basic_info_raw(self) -> Dict[Any, Any]:
-        return self.request_json("GET", "/api/v1/x/basic_info")
+    def get_basic_info_raw(self, instance_id: Optional[str] = None) -> Dict[Any, Any]:
+        params = {}
+        if instance_id:
+            params["instanceId"] = instance_id
+        return self.request_json("GET", "/api/v1/x/basic_info", params=params)
 
-    def get_timeline_raw(self, tab_id: Optional[int] = None) -> Dict[Any, Any]:
-        params = {"tabId": tab_id} if tab_id else {}
+    def get_timeline_raw(self, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
+        params = {}
+        if tab_id:
+            params["tabId"] = tab_id
+        if instance_id:
+            params["instanceId"] = instance_id
         return self.request_json("GET", "/api/v1/x/timeline", params=params)
 
     def get_tweet_raw(self, tweet_id: str, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
@@ -50,12 +60,14 @@ class XApiTransport(BaseApiTransport):
             params["instanceId"] = instance_id
         return self.request_json("GET", "/api/v1/x/users", params=params)
 
-    def search_raw(self, query: str, cursor: Optional[str] = None, count: int = 20, tab_id: Optional[int] = None) -> Dict[Any, Any]:
+    def search_raw(self, query: str, cursor: Optional[str] = None, count: int = 20, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
         params = {"query": query, "count": count}
         if cursor:
             params["cursor"] = cursor
         if tab_id:
             params["tabId"] = tab_id
+        if instance_id:
+            params["instanceId"] = instance_id
         return self.request_json("GET", "/api/v1/x/search", params=params)
 
     def get_user_tweets_raw(self, user_id: str, cursor: Optional[str] = None, count: int = 20, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
