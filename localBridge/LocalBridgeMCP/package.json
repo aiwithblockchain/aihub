@@ -21,6 +21,9 @@
     "test:e2e:get-x-basic-info": "npm run build && npm run typecheck:tests && tsx tests/mcp-get-x-basic-info.e2e.ts",
     "test:e2e:get-home-timeline": "npm run build && npm run typecheck:tests && tsx tests/mcp-get-home-timeline.e2e.ts",
     "test:e2e:get-tweet": "npm run build && npm run typecheck:tests && tsx tests/mcp-get-tweet.e2e.ts",
+    "test:e2e:get-tweet-replies": "npm run build && npm run typecheck:tests && tsx tests/mcp-get-tweet-replies.e2e.ts",
+    "test:e2e:get-user-profile": "npm run build && npm run typecheck:tests && tsx tests/mcp-get-user-profile.e2e.ts",
+    "test:e2e:real-localbridge-smoke": "npm run build && npm run typecheck:tests && tsx tests/mcp-real-localbridge-smoke.e2e.ts",
     "lint": "eslint ."
   },
   "dependencies": {

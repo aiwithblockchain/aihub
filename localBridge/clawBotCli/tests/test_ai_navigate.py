@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from clawbot import ClawBotClient
 
+
 def main():
     # Parse arguments
     platform = sys.argv[1] if len(sys.argv) > 1 else 'chatgpt'
@@ -23,6 +24,15 @@ def main():
     print("="*60)
 
     client = ClawBotClient()
+    status = client.ai.status.get_status()
+    platforms = status.get('platforms', {}) if isinstance(status, dict) else {}
+    platform_status = platforms.get(platform, {}) if isinstance(platforms, dict) else {}
+
+    if not platform_status.get('hasTab'):
+        print("\n⛔ Blocked: No open tab found for target platform")
+        print("Please open and log into the target AI platform, then rerun this test.")
+        return 2
+
     result = client.ai.navigation.navigate(platform=platform)
 
     print("\n📋 Response:")
@@ -36,6 +46,7 @@ def main():
         error = result.message or 'Unknown error'
         print(f"\n❌ Failed: {error}")
         return 1
+
 
 if __name__ == '__main__':
     sys.exit(main())

@@ -41,3 +41,22 @@ export const getTweetInputSchema = z
   .strict();
 
 export type GetTweetInput = z.infer<typeof getTweetInputSchema>;
+
+export const getTweetRepliesInputSchema = z
+  .object({
+    tweetId: z.string().min(1),
+    cursor: z.string().min(1).optional(),
+    timeoutMs: timeoutMsSchema.optional(),
+  })
+  .strict();
+
+export type GetTweetRepliesInput = z.infer<typeof getTweetRepliesInputSchema>;
+
+export const getUserProfileInputSchema = z
+  .object({
+    screenName: z.string().min(1),
+    timeoutMs: timeoutMsSchema.optional(),
+  })
+  .strict();
+
+export type GetUserProfileInput = z.infer<typeof getUserProfileInputSchema>;

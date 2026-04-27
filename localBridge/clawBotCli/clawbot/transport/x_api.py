@@ -146,14 +146,34 @@ class XApiTransport(BaseApiTransport):
             payload["tabId"] = tab_id
         return self.request_json("DELETE", "/api/v1/x/mytweets", json=payload)
 
-    def open_tab_raw(self, path: str = "home") -> Dict[Any, Any]:
-        return self.request_json("POST", "/tweetclaw/open-tab", json={"path": path})
-
-    def close_tab_raw(self, tab_id: int) -> Dict[Any, Any]:
-        return self.request_json("POST", "/tweetclaw/close-tab", json={"tabId": tab_id})
-
-    def navigate_tab_raw(self, path: str, tab_id: Optional[int] = None) -> Dict[Any, Any]:
+    def open_tab_raw(self, path: str = "home", instance_id: Optional[str] = None) -> Dict[Any, Any]:
         payload = {"path": path}
+        headers = None
+        params = None
+        if instance_id:
+            payload["instanceId"] = instance_id
+            headers = {"X-Instance-ID": instance_id}
+            params = {"instanceId": instance_id}
+        return self.request_json("POST", "/tweetclaw/open-tab", json=payload, headers=headers, params=params)
+
+    def close_tab_raw(self, tab_id: int, instance_id: Optional[str] = None) -> Dict[Any, Any]:
+        payload = {"tabId": tab_id}
+        headers = None
+        params = None
+        if instance_id:
+            payload["instanceId"] = instance_id
+            headers = {"X-Instance-ID": instance_id}
+            params = {"instanceId": instance_id}
+        return self.request_json("POST", "/tweetclaw/close-tab", json=payload, headers=headers, params=params)
+
+    def navigate_tab_raw(self, path: str, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
+        payload = {"path": path}
+        headers = None
+        params = None
         if tab_id:
             payload["tabId"] = tab_id
-        return self.request_json("POST", "/tweetclaw/navigate-tab", json=payload)
+        if instance_id:
+            payload["instanceId"] = instance_id
+            headers = {"X-Instance-ID": instance_id}
+            params = {"instanceId": instance_id}
+        return self.request_json("POST", "/tweetclaw/navigate-tab", json=payload, headers=headers, params=params)

@@ -33,6 +33,12 @@ async function main(): Promise<void> {
       (tool) => tool.name === 'get_home_timeline',
     );
     const getTweetTool = toolsResult.tools.find((tool) => tool.name === 'get_tweet');
+    const getTweetRepliesTool = toolsResult.tools.find(
+      (tool) => tool.name === 'get_tweet_replies',
+    );
+    const getUserProfileTool = toolsResult.tools.find(
+      (tool) => tool.name === 'get_user_profile',
+    );
 
     assert(listXInstancesTool, 'Expected list_x_instances in tools/list response.');
     assert(
@@ -65,6 +71,20 @@ async function main(): Promise<void> {
     assert(
       getTweetTool.description === 'Get the current X tweet detail raw payload by tweet ID.',
       'Unexpected description for get_tweet.',
+    );
+
+    assert(getTweetRepliesTool, 'Expected get_tweet_replies in tools/list response.');
+    assert(
+      getTweetRepliesTool.description ===
+        'Get the current X tweet replies raw payload by tweet ID, with optional cursor pagination.',
+      'Unexpected description for get_tweet_replies.',
+    );
+
+    assert(getUserProfileTool, 'Expected get_user_profile in tools/list response.');
+    assert(
+      getUserProfileTool.description ===
+        'Get the current X user profile raw payload by screen name.',
+      'Unexpected description for get_user_profile.',
     );
 
     console.log(

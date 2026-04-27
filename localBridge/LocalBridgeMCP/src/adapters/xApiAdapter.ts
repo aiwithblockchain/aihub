@@ -52,6 +52,14 @@ export interface XTweetDetail {
   [key: string]: unknown;
 }
 
+export interface XTweetReplies {
+  [key: string]: unknown;
+}
+
+export interface XUserProfile {
+  [key: string]: unknown;
+}
+
 export interface XApiAdapterDeps {
   client: LocalBridgeClient;
   logger: Logger;
@@ -92,6 +100,43 @@ export class XApiAdapter {
 
     return this.deps.client.get<XTweetDetail>(
       `/api/v1/x/tweets/${encodeURIComponent(tweetId)}`,
+      timeoutMs,
+    );
+  }
+
+  async getTweetReplies(
+    tweetId: string,
+    cursor?: string,
+    timeoutMs?: number,
+  ): Promise<XTweetReplies> {
+    this.deps.logger.debug('Getting X tweet replies from LocalBridge', {
+      tweetId,
+      cursor: cursor ?? null,
+    });
+
+    const params = new URLSearchParams();
+    if (cursor !== undefined) {
+      params.set('cursor', cursor);
+    }
+
+    const path = params.size > 0
+      ? `/api/v1/x/tweets/${encodeURIComponent(tweetId)}/replies?${params.toString()}`
+      : `/api/v1/x/tweets/${encodeURIComponent(tweetId)}/replies`;
+
+    return this.deps.client.get<XTweetReplies>(path, timeoutMs);
+  }
+
+  async getUserProfile(screenName: string, timeoutMs?: number): Promise<XUserProfile> {
+    this.deps.logger.debug('Getting X user profile from LocalBridge', {
+      screenName,
+    });
+
+    const params = new URLSearchParams({
+      screenName,
+    });
+
+    return this.deps.client.get<XUserProfile>(
+      `/api/v1/x/users?${params.toString()}`,
       timeoutMs,
     );
   }

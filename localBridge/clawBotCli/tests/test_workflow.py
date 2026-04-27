@@ -7,13 +7,39 @@ Test Complete Workflow (Multiple APIs Combined)
 """
 import sys
 import os
-import json
 import time
+from typing import Any, Optional
 
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from clawbot import ClawBotClient
+
+
+def resolve_instance_id(client: ClawBotClient, preferred_instance_id: Optional[str] = None) -> Optional[str]:
+    if preferred_instance_id:
+        return preferred_instance_id
+
+    instances_payload: Any = client.x.status.get_instances()
+    if isinstance(instances_payload, dict):
+        instances = instances_payload.get("instances") or []
+    elif isinstance(instances_payload, list):
+        instances = instances_payload
+    else:
+        instances = []
+
+    if not instances:
+        return None
+
+    first_instance = instances[0]
+    instance_id = first_instance.get("instanceId") or first_instance.get("id")
+    return str(instance_id) if instance_id else None
+
+
+def should_run_live_actions() -> bool:
+    if len(sys.argv) > 1 and sys.argv[1] == "--run-live-actions":
+        return True
+    return sys.stdin.isatty()
 
 
 def workflow_read_and_interact():
@@ -30,10 +56,11 @@ def workflow_read_and_interact():
     print("="*60)
 
     client = ClawBotClient()
+    instance_id = resolve_instance_id(client)
 
     # Step 1: Check status
     print("\n📍 Step 1: Checking X status...")
-    status = client.x.status.get_status()
+    status = client.x.status.get_status(instance_id=instance_id)
     if not status.is_logged_in:
         print("❌ Not logged in")
         return False
@@ -41,7 +68,7 @@ def workflow_read_and_interact():
 
     # Step 2: Get timeline
     print("\n📍 Step 2: Fetching timeline...")
-    tweet = client.x.timeline.get_first_timeline_tweet()
+    tweet = client.x.timeline.get_first_timeline_tweet(instance_id=instance_id)
     if not tweet:
         print("❌ Failed to get timeline")
         return False
@@ -55,10 +82,18 @@ def workflow_read_and_interact():
         return False
     print(f"✅ Found tweet ID: {tweet_id}")
 
+    if not should_run_live_actions():
+        print("⏭️  Skipping like/unlike in non-interactive mode")
+        print("\n✅ Workflow 1 completed successfully")
+        return True
+
     # Step 4: Like tweet
     print("\n📍 Step 4: Liking tweet...")
     print("⚠️  This will like a real tweet!")
-    confirm = input("Continue? (yes/no): ").strip().lower()
+    if len(sys.argv) > 1 and sys.argv[1] == "--run-live-actions":
+        confirm = "yes"
+    else:
+        confirm = input("Continue? (yes/no): ").strip().lower()
     if confirm != "yes":
         print("⏭️  Workflow cancelled")
         return True
@@ -95,10 +130,11 @@ def workflow_search_and_profile():
     print("="*60)
 
     client = ClawBotClient()
+    instance_id = resolve_instance_id(client)
 
     # Step 1: Search
     print("\n📍 Step 1: Searching for 'AI'...")
-    tweets, users = client.x.search.search("AI", count=5)
+    tweets, users = client.x.search.search("AI", count=5, instance_id=instance_id)
     if not tweets and not users:
         print("❌ Search failed")
         return False
@@ -119,7 +155,7 @@ def workflow_search_and_profile():
 
     # Step 3: Get user profile
     print("\n📍 Step 3: Fetching user profile...")
-    user = client.x.users.get_user(screen_name)
+    user = client.x.users.get_user(screen_name, instance_id=instance_id)
     if not user:
         print("❌ Failed to get profile")
         return False
@@ -141,10 +177,11 @@ def workflow_tab_navigation():
     print("="*60)
 
     client = ClawBotClient()
+    instance_id = resolve_instance_id(client)
 
     # Step 1: Open tab
     print("\n📍 Step 1: Opening new tab...")
-    tab = client.x.tabs.open("home")
+    tab = client.x.tabs.open("home", instance_id=instance_id)
     if not tab or not tab.tab_id:
         print("❌ Failed to open tab")
         return False
@@ -155,7 +192,7 @@ def workflow_tab_navigation():
 
     # Step 2: Navigate
     print("\n📍 Step 2: Navigating to notifications...")
-    result = client.x.tabs.navigate("notifications", tab_id)
+    result = client.x.tabs.navigate("notifications", tab_id, instance_id=instance_id)
     if not result.success:
         print("❌ Navigation failed")
         return False
@@ -165,7 +202,7 @@ def workflow_tab_navigation():
 
     # Step 3: Close tab
     print("\n📍 Step 3: Closing tab...")
-    result = client.x.tabs.close(tab_id)
+    result = client.x.tabs.close(tab_id, instance_id=instance_id)
     if not result.success:
         print("❌ Failed to close tab")
         return False

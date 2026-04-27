@@ -13,12 +13,20 @@ class XTabsService:
     def __init__(self, transport: XApiTransport):
         self.transport = transport
 
-    def open(self, path: str = "home") -> XTab:
-        raw = self.transport.open_tab_raw(path=path)
+    def open(self, path: str = "home", instance_id: Optional[str] = None) -> XTab:
+        raw = self.transport.open_tab_raw(path=path, instance_id=instance_id)
         return XTab(tab_id=raw.get("tabId"), raw=raw)
 
-    def navigate(self, path: str, tab_id: Optional[int] = None):
-        return build_action_result("navigate_tab", self.transport.navigate_tab_raw(path=path, tab_id=tab_id), target_id=str(tab_id) if tab_id else None)
+    def navigate(self, path: str, tab_id: Optional[int] = None, instance_id: Optional[str] = None):
+        return build_action_result(
+            "navigate_tab",
+            self.transport.navigate_tab_raw(path=path, tab_id=tab_id, instance_id=instance_id),
+            target_id=str(tab_id) if tab_id else None,
+        )
 
-    def close(self, tab_id: int):
-        return build_action_result("close_tab", self.transport.close_tab_raw(tab_id=tab_id), target_id=str(tab_id))
+    def close(self, tab_id: int, instance_id: Optional[str] = None):
+        return build_action_result(
+            "close_tab",
+            self.transport.close_tab_raw(tab_id=tab_id, instance_id=instance_id),
+            target_id=str(tab_id),
+        )
