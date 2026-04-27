@@ -80,71 +80,141 @@ class XApiTransport(BaseApiTransport):
             params["instanceId"] = instance_id
         return self.request_json("GET", "/api/v1/x/user_tweets", params=params)
 
-    def create_tweet_raw(self, text: str, media_ids: Optional[List[str]] = None) -> Dict[Any, Any]:
+    def create_tweet_raw(self, text: str, media_ids: Optional[List[str]] = None, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
         payload = {"text": text}
+        params = None
+        headers = None
         if media_ids:
             payload["media_ids"] = media_ids
-        return self.request_json("POST", "/api/v1/x/tweets", json=payload)
+        if tab_id:
+            payload["tabId"] = tab_id
+        if instance_id:
+            payload["instanceId"] = instance_id
+            params = {"instanceId": instance_id}
+            headers = {"X-Instance-ID": instance_id}
+        return self.request_json("POST", "/api/v1/x/tweets", json=payload, params=params, headers=headers)
 
-    def create_reply_raw(self, tweet_id: str, text: str, media_ids: Optional[List[str]] = None) -> Dict[Any, Any]:
+    def create_reply_raw(self, tweet_id: str, text: str, media_ids: Optional[List[str]] = None, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
         payload = {"tweetId": tweet_id, "text": text}
+        params = None
+        headers = None
         if media_ids:
             payload["media_ids"] = media_ids
-        return self.request_json("POST", "/api/v1/x/replies", json=payload)
-
-    def like_tweet_raw(self, tweet_id: str, tab_id: Optional[int] = None) -> Dict[Any, Any]:
-        payload = {"tweetId": tweet_id}
         if tab_id:
             payload["tabId"] = tab_id
-        return self.request_json("POST", "/api/v1/x/likes", json=payload)
+        if instance_id:
+            payload["instanceId"] = instance_id
+            params = {"instanceId": instance_id}
+            headers = {"X-Instance-ID": instance_id}
+        return self.request_json("POST", "/api/v1/x/replies", json=payload, params=params, headers=headers)
 
-    def unlike_tweet_raw(self, tweet_id: str, tab_id: Optional[int] = None) -> Dict[Any, Any]:
+    def like_tweet_raw(self, tweet_id: str, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
         payload = {"tweetId": tweet_id}
+        params = None
+        headers = None
         if tab_id:
             payload["tabId"] = tab_id
-        return self.request_json("POST", "/api/v1/x/unlikes", json=payload)
+        if instance_id:
+            payload["instanceId"] = instance_id
+            params = {"instanceId": instance_id}
+            headers = {"X-Instance-ID": instance_id}
+        return self.request_json("POST", "/api/v1/x/likes", json=payload, params=params, headers=headers)
 
-    def retweet_raw(self, tweet_id: str, tab_id: Optional[int] = None) -> Dict[Any, Any]:
+    def unlike_tweet_raw(self, tweet_id: str, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
         payload = {"tweetId": tweet_id}
+        params = None
+        headers = None
         if tab_id:
             payload["tabId"] = tab_id
-        return self.request_json("POST", "/api/v1/x/retweets", json=payload)
+        if instance_id:
+            payload["instanceId"] = instance_id
+            params = {"instanceId": instance_id}
+            headers = {"X-Instance-ID": instance_id}
+        return self.request_json("POST", "/api/v1/x/unlikes", json=payload, params=params, headers=headers)
 
-    def unretweet_raw(self, tweet_id: str, tab_id: Optional[int] = None) -> Dict[Any, Any]:
+    def retweet_raw(self, tweet_id: str, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
         payload = {"tweetId": tweet_id}
+        params = None
+        headers = None
         if tab_id:
             payload["tabId"] = tab_id
-        return self.request_json("POST", "/api/v1/x/unretweets", json=payload)
+        if instance_id:
+            payload["instanceId"] = instance_id
+            params = {"instanceId": instance_id}
+            headers = {"X-Instance-ID": instance_id}
+        return self.request_json("POST", "/api/v1/x/retweets", json=payload, params=params, headers=headers)
 
-    def bookmark_tweet_raw(self, tweet_id: str, tab_id: Optional[int] = None) -> Dict[Any, Any]:
+    def unretweet_raw(self, tweet_id: str, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
         payload = {"tweetId": tweet_id}
+        params = None
+        headers = None
         if tab_id:
             payload["tabId"] = tab_id
-        return self.request_json("POST", "/api/v1/x/bookmarks", json=payload)
+        if instance_id:
+            payload["instanceId"] = instance_id
+            params = {"instanceId": instance_id}
+            headers = {"X-Instance-ID": instance_id}
+        return self.request_json("POST", "/api/v1/x/unretweets", json=payload, params=params, headers=headers)
 
-    def unbookmark_tweet_raw(self, tweet_id: str, tab_id: Optional[int] = None) -> Dict[Any, Any]:
+    def bookmark_tweet_raw(self, tweet_id: str, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
         payload = {"tweetId": tweet_id}
+        params = None
+        headers = None
         if tab_id:
             payload["tabId"] = tab_id
-        return self.request_json("POST", "/api/v1/x/unbookmarks", json=payload)
+        if instance_id:
+            payload["instanceId"] = instance_id
+            params = {"instanceId": instance_id}
+            headers = {"X-Instance-ID": instance_id}
+        return self.request_json("POST", "/api/v1/x/bookmarks", json=payload, params=params, headers=headers)
 
-    def follow_user_raw(self, user_id: str, tab_id: Optional[int] = None) -> Dict[Any, Any]:
+    def unbookmark_tweet_raw(self, tweet_id: str, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
+        payload = {"tweetId": tweet_id}
+        params = None
+        headers = None
+        if tab_id:
+            payload["tabId"] = tab_id
+        if instance_id:
+            payload["instanceId"] = instance_id
+            params = {"instanceId": instance_id}
+            headers = {"X-Instance-ID": instance_id}
+        return self.request_json("POST", "/api/v1/x/unbookmarks", json=payload, params=params, headers=headers)
+
+    def follow_user_raw(self, user_id: str, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
         payload = {"userId": user_id}
+        params = None
+        headers = None
         if tab_id:
             payload["tabId"] = tab_id
-        return self.request_json("POST", "/api/v1/x/follows", json=payload)
+        if instance_id:
+            payload["instanceId"] = instance_id
+            params = {"instanceId": instance_id}
+            headers = {"X-Instance-ID": instance_id}
+        return self.request_json("POST", "/api/v1/x/follows", json=payload, params=params, headers=headers)
 
-    def unfollow_user_raw(self, user_id: str, tab_id: Optional[int] = None) -> Dict[Any, Any]:
+    def unfollow_user_raw(self, user_id: str, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
         payload = {"userId": user_id}
+        params = None
+        headers = None
         if tab_id:
             payload["tabId"] = tab_id
-        return self.request_json("POST", "/api/v1/x/unfollows", json=payload)
+        if instance_id:
+            payload["instanceId"] = instance_id
+            params = {"instanceId": instance_id}
+            headers = {"X-Instance-ID": instance_id}
+        return self.request_json("POST", "/api/v1/x/unfollows", json=payload, params=params, headers=headers)
 
-    def delete_tweet_raw(self, tweet_id: str, tab_id: Optional[int] = None) -> Dict[Any, Any]:
+    def delete_tweet_raw(self, tweet_id: str, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
         payload = {"tweetId": tweet_id}
+        params = None
+        headers = None
         if tab_id:
             payload["tabId"] = tab_id
-        return self.request_json("DELETE", "/api/v1/x/mytweets", json=payload)
+        if instance_id:
+            payload["instanceId"] = instance_id
+            params = {"instanceId": instance_id}
+            headers = {"X-Instance-ID": instance_id}
+        return self.request_json("DELETE", "/api/v1/x/mytweets", json=payload, params=params, headers=headers)
 
     def open_tab_raw(self, path: str = "home", instance_id: Optional[str] = None) -> Dict[Any, Any]:
         payload = {"path": path}

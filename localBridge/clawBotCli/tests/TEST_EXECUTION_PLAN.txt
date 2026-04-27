@@ -301,6 +301,13 @@ Notes:
 - Patched status call to pass `instance_id`
 - Patched search call to pass `instance_id`
 - Rerun PASS, workflow integration smoke tests completed successfully
+- Follow-up clawbot client enhancement added optional `instance_id` plumbing for write/action helpers in `clawbot/services/x_actions.py` and `clawbot/transport/x_api.py`
+- Follow-up workflow enhancement added optional `instance_id` threading in `clawbot/workflows/common.py`
+- Added `examples/multi_instance_example.py` to show explicit instance selection and routing while preserving old single-target usage
+- Verification notes for the new example:
+  - `python3 -m py_compile ...` PASS for updated client/workflow/example files
+  - `examples/multi_instance_example.py` resolved an instance, read status/search successfully, opened a tab, navigated it, and reached close
+  - Close response returned `{'success': False, 'reason': 'not_found'}` even though the route resolved the correct instance, so write-path `instance_id` plumbing is good but close semantics still look flaky in the live environment
 
 Phase 3, Write live API tests, safest to riskiest
 -------------------------------------------------
@@ -321,11 +328,23 @@ C. Media post
 
 Write order
 -----------
-1. [ ] `tests/test_write_apis.py`
+1. [x] `tests/test_write_apis.py`
    Goal: basic create tweet, like, retweet.
+   Result: PASS
+   Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_write_apis.py --action create --yes`
+   Inputs used:
+   - `action`: `create`
+   - `instanceId`: auto-resolved to `0d508524-f738-4dd6-929a-0d37d4d5b202`
+   - `tweet text`: `[ClawBot test] Read/write regression check for LocalBridge + clawBotCli. Safe to ignore. (2026-04-27 19:48:51)`
    Notes:
-   - Start with create tweet only.
-   - If the script bundles multiple actions, execute carefully and skip actions not approved for that turn.
+   - Started with create only, as planned. Did not run like or retweet in this turn.
+   - Initial create attempt failed with `POST /api/v1/x/tweets failed: ambiguous_target ... specify instanceId (status=503)` even though the Python client now sent body `instanceId`
+   - This exposed another server/client compatibility wrinkle: write routes still needed the same query/header fallback that tab routes benefited from
+   - Patched `clawbot/transport/x_api.py` write methods to send `instanceId` redundantly in body, query params, and `X-Instance-ID` header for compatibility
+   - Patched `tests/test_write_apis.py` to auto-resolve `instance_id`, accept `--instance-id`, and pass it into create/like/retweet actions
+   - Rerun PASS, created tweet ID `2048731104702583278`
+   Notes:
+   - Next safe step is still separate: run only one follow-up write action on a later turn
 2. [ ] `tests/test_publish.py`
    Goal: verify publish path in the main client.
 3. [ ] `tests/test_media_upload.py`
