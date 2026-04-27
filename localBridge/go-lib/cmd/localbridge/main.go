@@ -67,7 +67,6 @@ func LocalBridgeStop() {
 //export LocalBridgeGetInstancesJSON
 func LocalBridgeGetInstancesJSON() *C.char {
 	instances := bridge.GetDefaultInstances()
-	log.Printf("[Bridge] LocalBridgeGetInstancesJSON called: total=%d", len(instances))
 	data, err := json.Marshal(instances)
 	if err != nil {
 		log.Printf("[Bridge] LocalBridgeGetInstancesJSON marshal failed: %v", err)

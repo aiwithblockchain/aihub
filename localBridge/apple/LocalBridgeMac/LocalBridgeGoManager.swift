@@ -102,7 +102,7 @@ final class LocalBridgeGoManager {
     // MARK: - Go Log Polling
 
     func startLogPolling() {
-        logPollTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
+        logPollTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
             self?.pollGoLogs()
         }
     }

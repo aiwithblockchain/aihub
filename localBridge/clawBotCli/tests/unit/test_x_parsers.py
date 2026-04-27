@@ -47,6 +47,24 @@ class TestXParsers(unittest.TestCase):
         self.assertEqual(user.id, "u1")
         self.assertEqual(user.screen_name, "alice")
 
+    def test_parse_basic_user_uses_core_when_legacy_is_missing(self):
+        raw = {
+            "data": {
+                "data": {
+                    "user": {
+                        "result": {
+                            "rest_id": "u2",
+                            "core": {"name": "MeshNetProtocol", "screen_name": "1DU1Gf7oElR2h28"},
+                        }
+                    }
+                }
+            }
+        }
+        user = parse_basic_user(raw)
+        self.assertEqual(user.id, "u2")
+        self.assertEqual(user.name, "MeshNetProtocol")
+        self.assertEqual(user.screen_name, "1DU1Gf7oElR2h28")
+
     def test_parse_user_profile(self):
         raw = {
             "data": {

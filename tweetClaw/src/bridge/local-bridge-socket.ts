@@ -179,6 +179,29 @@ export class LocalBridgeSocket {
     return this.identityLabel();
   }
 
+  public getConnectionDebugState(): Record<string, unknown> {
+    return {
+      instanceId: this.instanceId || 'unknown-instance',
+      instanceName: this.instanceName || 'unknown-name',
+      hasSocket: !!this.ws,
+      readyState: this.ws?.readyState ?? null,
+      reconnectAttempts: this.reconnectAttempts,
+      wsUrl: this.WS_URL,
+      isConnecting: this.isConnecting,
+      hasHeartbeatInterval: !!this.heartbeatInterval,
+      hasServerInfo: !!this.serverInfo,
+      lastPongTimestamp: this.lastPongTimestamp,
+      lastServerMessageTimestamp: this.lastServerMessageTimestamp
+    };
+  }
+
+  public async recordActivityState(event: 'active' | 'inactive', reason: string, extra?: Record<string, unknown>) {
+    await this.recordLifecycleEvent(event, reason, {
+      ...this.getConnectionDebugState(),
+      ...(extra || {})
+    });
+  }
+
   public handleReconnectAlarm() {
     void this.recordLifecycleEvent('alarm_reconnect', 'chrome alarm fired');
     console.log(`[tweetClaw] Reconnect alarm triggered, ${this.identityLabel()} nextAttempt=${this.reconnectAttempts + 1}`);

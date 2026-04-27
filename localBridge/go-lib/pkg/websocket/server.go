@@ -608,7 +608,6 @@ func (s *Server) GetInstances() []InstanceSnapshot {
 			})
 		}
 	}
-	log.Printf("[WS] snapshot export: total=%d instances=%v", len(result), result)
 	return result
 }
 

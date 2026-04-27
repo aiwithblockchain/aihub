@@ -46,11 +46,14 @@ def resolve_instance_id(client: ClawBotClient, preferred_instance_id: Optional[s
     return str(instance_id)
 
 
-def prompt_if_missing(value: Optional[str], prompt: str) -> Optional[str]:
+def prompt_if_missing(value: Optional[str], prompt: str, default: Optional[str] = None) -> Optional[str]:
     if value:
         return value
-    entered = input(prompt).strip()
-    return entered or None
+    try:
+        entered = input(prompt).strip()
+    except EOFError:
+        return default
+    return entered or default
 
 
 def print_json_preview(label: str, payload: Any, limit: int = 800) -> None:
@@ -60,7 +63,7 @@ def print_json_preview(label: str, payload: Any, limit: int = 800) -> None:
     print(f"{label}:\n{preview}")
 
 
-def test_timeline(client: ClawBotClient, tab_id: Optional[int]) -> bool:
+def test_timeline(client: ClawBotClient, tab_id: Optional[int]) -> tuple[bool, Optional[str]]:
     print("\n" + "=" * 60)
     print("Testing: GET /api/v1/x/timeline")
     print("=" * 60)
@@ -72,10 +75,10 @@ def test_timeline(client: ClawBotClient, tab_id: Optional[int]) -> bool:
         print(f"First tweet id: {first.id}")
         print(f"First tweet text: {first.text[:120] if first.text else 'N/A'}")
         print("✅ Timeline fetched successfully")
-        return True
+        return True, first.id
 
     print("⚠️  No tweets found")
-    return True
+    return True, None
 
 
 def test_get_tweet(client: ClawBotClient, tweet_id: Optional[str], instance_id: Optional[str], tab_id: Optional[int]) -> bool:
@@ -114,7 +117,7 @@ def test_user_profile(client: ClawBotClient, screen_name: Optional[str], tab_id:
     print("Testing: GET /api/v1/x/users")
     print("=" * 60)
 
-    screen_name = screen_name or input("Enter a screen name to test (default: elonmusk): ").strip() or "elonmusk"
+    screen_name = prompt_if_missing(screen_name, "Enter a screen name to test (default: elonmusk): ", default="elonmusk")
     user = client.x.users.get_user(screen_name, tab_id=tab_id)
 
     if user and user.screen_name:
@@ -130,7 +133,7 @@ def test_search(client: ClawBotClient, query: Optional[str], tab_id: Optional[in
     print("Testing: GET /api/v1/x/search")
     print("=" * 60)
 
-    query = query or input("Enter search query (default: AI): ").strip() or "AI"
+    query = prompt_if_missing(query, "Enter search query (default: AI): ", default="AI")
     tweets, users = client.x.search.search(query, count=5, tab_id=tab_id)
 
     print(f"✅ Search completed: found {len(tweets)} tweets, {len(users)} users")
@@ -153,17 +156,22 @@ def main() -> int:
     client = ClawBotClient()
     resolved_instance_id = resolve_instance_id(client, args.instance_id)
 
-    tests = []
+    timeline_ok = True
+    inferred_tweet_id: Optional[str] = None
     if args.only in (None, "timeline"):
-        tests.append(("Timeline", lambda: test_timeline(client, args.tab_id)))
-    if args.only in (None, "tweet"):
-        tests.append(("Get Tweet", lambda: test_get_tweet(client, args.tweet_id, resolved_instance_id, args.tab_id)))
-    if args.only in (None, "user"):
-        tests.append(("User Profile", lambda: test_user_profile(client, args.screen_name, args.tab_id)))
-    if args.only in (None, "search"):
-        tests.append(("Search", lambda: test_search(client, args.query, args.tab_id)))
+        timeline_ok, inferred_tweet_id = test_timeline(client, args.tab_id)
 
-    results = [(name, fn()) for name, fn in tests]
+    effective_tweet_id = args.tweet_id or inferred_tweet_id
+
+    results = []
+    if args.only in (None, "timeline"):
+        results.append(("Timeline", timeline_ok))
+    if args.only in (None, "tweet"):
+        results.append(("Get Tweet", test_get_tweet(client, effective_tweet_id, resolved_instance_id, args.tab_id)))
+    if args.only in (None, "user"):
+        results.append(("User Profile", test_user_profile(client, args.screen_name, args.tab_id)))
+    if args.only in (None, "search"):
+        results.append(("Search", test_search(client, args.query, args.tab_id)))
 
     print("\n" + "=" * 60)
     print("Test Summary:")

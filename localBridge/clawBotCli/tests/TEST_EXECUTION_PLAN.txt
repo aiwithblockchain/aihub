@@ -70,21 +70,61 @@ Phase 1, Read-only live API tests
 ---------------------------------
 Run these before any write action.
 
-1. [ ] `tests/test_status.py`
+1. [x] `tests/test_status.py`
    Goal: confirm service is reachable and current X session is healthy.
-2. [ ] `tests/test_metadata.py`
+   Result: PASS
+   Command used: `PYTHONPATH=localBridge/clawBotCli python3 localBridge/clawBotCli/tests/test_status.py`
+   Notes:
+   - `GET /api/v1/x/status` PASS
+   - `GET /api/v1/x/instances` PASS
+   - `GET /api/v1/x/basic_info` PASS
+   - Initial block was environmental: no active `x.com` tab
+   - Current basic_info payload uses `user.result.core.name` and `user.result.core.screen_name`, so `parse_basic_user()` was updated to fall back from `legacy` to `core`
+2. [x] `tests/test_metadata.py`
    Goal: verify environment / metadata endpoints.
-3. [ ] `tests/test_basic_read.py`
+   Result: PASS
+   Command used: `PYTHONPATH=localBridge/clawBotCli python3 localBridge/clawBotCli/tests/test_metadata.py`
+   Notes:
+   - `GET /api/v1/x/docs` PASS
+   - `GET /api/v1/x/status` PASS
+   - `GET /api/v1/x/instances` PASS
+   - Docs returned 24 API definitions
+   - Expected APIs found: `query_x_status`, `query_x_basic_info`, `create_tweet`
+3. [x] `tests/test_basic_read.py`
    Goal: confirm basic timeline-style reads still work.
-4. [ ] `tests/test_read_apis.py`
+   Result: PASS
+   Command used: `PYTHONPATH=localBridge/clawBotCli python3 localBridge/clawBotCli/tests/test_basic_read.py`
+   Notes:
+   - `GET /api/v1/x/basic_info` PASS
+   - `GET /api/v1/x/timeline` PASS
+   - Timeline returned 83 tweets in this run
+4. [x] `tests/test_read_apis.py`
    Goal: verify timeline, single tweet, user profile, search.
-   Note: for single tweet, prefer a real tweet ID that we can later reuse in reply/detail checks.
-5. [ ] `tests/test_tweet_details.py`
+   Result: PASS
+   Command used: `PYTHONPATH=localBridge/clawBotCli python3 localBridge/clawBotCli/tests/test_read_apis.py`
+   Inputs used:
+   - `instanceId`: auto-selected first connected instance
+   - `tweet_id`: auto-reused first timeline tweet ID from the same run
+   - `screen_name`: defaulted to `elonmusk` when stdin is unavailable
+   - `query`: defaulted to `AI` when stdin is unavailable
+   Notes:
+   - `GET /api/v1/x/timeline` PASS
+   - `GET /api/v1/x/tweets?tweetId=...` PASS
+   - `GET /api/v1/x/users` PASS
+   - `GET /api/v1/x/search` PASS
+   - Script was patched to tolerate non-interactive execution and reuse the first timeline tweet as the default single-tweet target
+5. [x] `tests/test_tweet_details.py`
    Goal: verify canonical single-tweet path and replies path against real data.
-   Focus:
-   - focal tweet matches requested `tweet_id`
-   - nested replies can be extracted
-   - no regression from old duplicate single-tweet behavior
+   Result: PASS
+   Command used: `PYTHONPATH=localBridge/clawBotCli python3 localBridge/clawBotCli/tests/test_tweet_details.py`
+   Inputs used:
+   - `instanceId`: auto-selected first connected instance
+   - `tweet_id`: auto-extracted first timeline tweet ID from the same run
+   Notes:
+   - `GET /api/v1/x/tweets?tweetId=...` PASS
+   - `GET /api/v1/x/tweets/{tweetId}/replies` PASS
+   - Focal tweet matched the requested `tweet_id`
+   - Replies extraction excluded the focal tweet itself
 6. [ ] `tests/test_user_search.py`
    Goal: verify user search behavior.
 7. [ ] `tests/test_user_tweets.py`

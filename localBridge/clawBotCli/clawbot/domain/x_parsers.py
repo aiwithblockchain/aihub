@@ -83,10 +83,11 @@ def parse_basic_user(response: Dict[str, Any]) -> XUser:
     if not user_result:
         user_result = data.get("user", {}).get("result", {})
     legacy = user_result.get("legacy", {}) if isinstance(user_result, dict) else {}
+    core = user_result.get("core", {}) if isinstance(user_result, dict) else {}
     return XUser(
         id=user_result.get("rest_id"),
-        name=legacy.get("name"),
-        screen_name=legacy.get("screen_name"),
+        name=legacy.get("name") or core.get("name"),
+        screen_name=legacy.get("screen_name") or core.get("screen_name"),
         description=legacy.get("description"),
         raw=response,
     )
@@ -96,10 +97,11 @@ def parse_user_profile(response: Dict[str, Any]) -> XUser:
     data = _unwrap_data(response)
     user_result = data.get("user", {}).get("result", {})
     legacy = user_result.get("legacy", {}) if isinstance(user_result, dict) else {}
+    core = user_result.get("core", {}) if isinstance(user_result, dict) else {}
     return XUser(
         id=user_result.get("rest_id"),
-        name=legacy.get("name"),
-        screen_name=legacy.get("screen_name"),
+        name=legacy.get("name") or core.get("name"),
+        screen_name=legacy.get("screen_name") or core.get("screen_name"),
         description=legacy.get("description"),
         raw=response,
     )

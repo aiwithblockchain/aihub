@@ -88,6 +88,7 @@ function releaseUploadSession(sessionId: string) {
 // Initialize LocalBridge Socket
 const localBridge = new LocalBridgeSocket();
 void localBridge.recordLifecycleEvent('sw_boot', 'background service worker evaluated');
+void logProfileActivityState('active', 'service worker boot');
 localBridge.queryXTabsHandler = queryXTabsStatus;
 localBridge.queryXBasicInfoHandler = queryXBasicInfo;
 localBridge.queryXhsAccountInfoHandler = queryXhsAccountInfo;
@@ -111,6 +112,31 @@ let taskCoordinatorReady = false;
 async function ensureBridgeConnected(reason: string) {
     console.log(`[TweetClaw-BG] ensure bridge connected: ${reason}, ${localBridge.getDebugIdentityLabel()}`);
     await localBridge.connect();
+}
+
+async function getWindowCount(): Promise<number> {
+    if (!chrome.windows?.getAll) {
+        return -1;
+    }
+
+    try {
+        const windows = await chrome.windows.getAll({ populate: false });
+        return windows.length;
+    } catch (e) {
+        console.warn('[TweetClaw-BG] failed to read windows for activity log', e);
+        return -1;
+    }
+}
+
+async function logProfileActivityState(event: 'active' | 'inactive', reason: string, extra?: Record<string, unknown>) {
+    const windowCount = await getWindowCount();
+    const payload = {
+        windowCount,
+        ...extra
+    };
+
+    void localBridge.recordActivityState(event, reason, payload);
+    console.log(`[TweetClaw-BG] profile ${event}: reason=${reason} windowCount=${windowCount}, ${localBridge.getDebugIdentityLabel()} state=${JSON.stringify(localBridge.getConnectionDebugState())} extra=${JSON.stringify(extra || {})}`);
 }
 
 chrome.storage.local.get(['wsHost', 'wsPort', 'restHost', 'restPort']).then(async res => {
@@ -168,6 +194,9 @@ localBridge.handleReconnectAlarm = function() {
 // ── Listen for reconnect alarms ──────────────────────────────────
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'tweetclaw-reconnect') {
+        void logProfileActivityState('active', 'alarm reconnect fired', {
+            alarmName: alarm.name
+        });
         void localBridge.recordLifecycleEvent('bg_alarm_reconnect', 'background onAlarm listener', {
             alarmName: alarm.name
         });
@@ -177,6 +206,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 });
 
 chrome.runtime.onStartup?.addListener(() => {
+    void logProfileActivityState('active', 'chrome.runtime.onStartup');
     void localBridge.recordLifecycleEvent('runtime_startup', 'chrome.runtime.onStartup');
     console.log(`[TweetClaw-BG] runtime startup, ${localBridge.getDebugIdentityLabel()}`);
     ensureBridgeConnected('runtime startup').catch((e) => console.warn('[TweetClaw-BG] failed to connect bridge on startup', e));
@@ -184,12 +214,14 @@ chrome.runtime.onStartup?.addListener(() => {
 
 chrome.runtime.onInstalled.addListener(() => {
     initDefaultQueryKeys();
+    void logProfileActivityState('active', 'chrome.runtime.onInstalled');
     void localBridge.recordLifecycleEvent('runtime_installed', 'chrome.runtime.onInstalled');
     console.log(`[TweetClaw-BG] Extension installed/updated, ${localBridge.getDebugIdentityLabel()}`);
     ensureBridgeConnected('runtime installed').catch((e) => console.warn('[TweetClaw-BG] failed to connect bridge on install', e));
 });
 
 chrome.runtime.onSuspend.addListener(() => {
+    void logProfileActivityState('inactive', 'chrome.runtime.onSuspend');
     void localBridge.recordLifecycleEvent('runtime_suspend', 'chrome.runtime.onSuspend');
     console.log(`[TweetClaw-BG] runtime suspend, ${localBridge.getDebugIdentityLabel()}`);
     localBridge.disconnect('runtime suspend');
@@ -197,7 +229,17 @@ chrome.runtime.onSuspend.addListener(() => {
     backgroundSessionStore.clear();
 });
 
+chrome.windows?.onCreated?.addListener((window) => {
+    void logProfileActivityState('active', 'chrome.windows.onCreated', {
+        windowId: window.id ?? null,
+        windowType: window.type ?? null
+    });
+});
+
 chrome.windows?.onRemoved?.addListener((windowId) => {
+    void logProfileActivityState('inactive', 'chrome.windows.onRemoved', {
+        windowId
+    });
     void localBridge.recordLifecycleEvent('window_removed', 'chrome.windows.onRemoved', {
         windowId
     });
