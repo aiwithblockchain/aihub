@@ -278,13 +278,29 @@ These are still mostly non-destructive, but may depend on AI/browser state.
   - Patched script to auto-resolve first instance and propagate `instance_id` through status, timeline, search, profile, and tab-control calls
   - Patched script to skip like/unlike in non-interactive mode unless explicitly invoked with `--run-live-actions`
   - Patched `clawbot/transport/x_api.py` and `clawbot/services/x_tabs.py` so tab open/navigate/close now accept `instance_id`
-  - LocalBridge shortcut tab routing only honored `instanceId` via query/header, not JSON body, so direct JSON-only requests still reproduced `ambiguous_target`
-  - Patched `clawbot/transport/x_api.py` to send `instanceId` via query and `X-Instance-ID` header for tab open/navigate/close calls
-  - Patched LocalBridge Go payload structs and `restapi/handler.go` bridge logic to read `instanceId` from tab-control request bodies too
+  - LocalBridge shortcut tab routing initially only honored `instanceId` via query/header, so direct JSON-only requests still reproduced `ambiguous_target`
+  - Added REST decode / bridge debug logs in `go-lib/pkg/restapi/handler.go` and verified `readJSON(...)` decoded `instanceId` correctly for `open-tab`
+  - Located the real server-side bug in `instanceIDFromRequest(...)`: it did not extract `instanceId` from typed shortcut messages like `types.Message[types.OpenTabRequest]`, `types.Message[types.CloseTabRequest]`, and `types.Message[types.NavigateTabRequest]`
+  - Patched LocalBridge Go payload structs and `restapi/handler.go` so tab-control body `instanceId` is extracted from typed shortcut messages too
+  - Direct JSON-only validation now PASS for all three routes:
+    - `POST /tweetclaw/open-tab` returned `200` with `{"success":true,"tabId":305061168,"url":"https://x.com/home"}`
+    - `POST /tweetclaw/navigate-tab` returned `{"success":true,"tabId":305061168,...}`
+    - `POST /tweetclaw/close-tab` returned `{"success":true,"reason":"success"}`
+  - Bridge logs confirmed `bodyOrFallbackInstanceId="0d508524-f738-4dd6-929a-0d37d4d5b202"` for open, navigate, and close after the fix
   - Final rerun PASS, all 3 workflows passed including tab open, navigate, and close
-- [ ] `tests/integration/test_workflow_flows.py`
+- [x] `tests/integration/test_workflow_flows.py`
 
 Goal: confirm AI assistant flows still align with the current LocalBridge and client wiring.
+Result: PASS
+Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/integration/test_workflow_flows.py`
+Inputs used:
+- `instanceId`: auto-selected first connected instance for status and search calls
+Notes:
+- Initial run failed on `GET /api/v1/x/status` with multi-instance `ambiguous_target`
+- Patched script to auto-resolve first connected instance via `GET /api/v1/x/instances`
+- Patched status call to pass `instance_id`
+- Patched search call to pass `instance_id`
+- Rerun PASS, workflow integration smoke tests completed successfully
 
 Phase 3, Write live API tests, safest to riskiest
 -------------------------------------------------
