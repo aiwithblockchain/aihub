@@ -298,6 +298,8 @@ final class SettingsViewController: NSViewController {
     private var aiClawCardTitle: NSTextField!
     private var tweetClawCardTitle: NSTextField!
     private var restAPICardTitle: NSTextField!
+    private var logsCardTitle: NSTextField!
+    private lazy var bridgeLogsViewController = BridgeLogsViewController()
 
     // 配置数据
     private var currentConfig: BridgeConfig = BridgeConfig.load()
@@ -355,6 +357,7 @@ final class SettingsViewController: NSViewController {
         aiClawCardTitle?.stringValue = LanguageManager.shared.localized("settings.aiclaw_websocket").uppercased()
         tweetClawCardTitle?.stringValue = LanguageManager.shared.localized("settings.tweetclaw_websocket").uppercased()
         restAPICardTitle?.stringValue = LanguageManager.shared.localized("settings.rest_api").uppercased()
+        logsCardTitle?.stringValue = LanguageManager.shared.localized("logs.title").uppercased()
         languageLabel?.stringValue = LanguageManager.shared.localized("settings.language")
         languageDescLabel?.stringValue = LanguageManager.shared.localized("settings.language.description")
         themeLabel?.stringValue = LanguageManager.shared.localized("settings.theme")
@@ -514,12 +517,14 @@ final class SettingsViewController: NSViewController {
         let aiClawCard = makeServiceCard(serviceName: "aiClaw", title: LanguageManager.shared.localized("settings.aiclaw_websocket"), icon: "network", defaultPort: 10087)
         let tweetClawCard = makeServiceCard(serviceName: "tweetClaw", title: LanguageManager.shared.localized("settings.tweetclaw_websocket"), icon: "network", defaultPort: 10086)
         let restAPICard = makeServiceCard(serviceName: "restAPI", title: LanguageManager.shared.localized("settings.rest_api"), icon: "server.rack", defaultPort: 10088)
+        let logsCard = makeLogsCard()
 
         let cardStack = NSStackView(views: [
             generalCard,
             aiClawCard,
             tweetClawCard,
             restAPICard,
+            logsCard,
             makeBottomAboutRow()
         ])
         cardStack.orientation = .vertical
@@ -571,8 +576,83 @@ final class SettingsViewController: NSViewController {
             generalCard.widthAnchor.constraint(equalTo: cardStack.widthAnchor),
             aiClawCard.widthAnchor.constraint(equalTo: cardStack.widthAnchor),
             tweetClawCard.widthAnchor.constraint(equalTo: cardStack.widthAnchor),
-            restAPICard.widthAnchor.constraint(equalTo: cardStack.widthAnchor)
+            restAPICard.widthAnchor.constraint(equalTo: cardStack.widthAnchor),
+            logsCard.widthAnchor.constraint(equalTo: cardStack.widthAnchor)
         ])
+    }
+
+    private func makeLogsCard() -> NSView {
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        let actionsRow = NSStackView(views: [makeLogsActionButton(icon: "trash", title: LanguageManager.shared.localized("logs.clear"), action: #selector(clearLogsFromSettings)), makeLogsActionButton(icon: "folder", title: "Reveal Log File", action: #selector(revealLogFile))])
+        actionsRow.orientation = .horizontal
+        actionsRow.spacing = DSV2.spacing4
+        actionsRow.alignment = .centerY
+        actionsRow.translatesAutoresizingMaskIntoConstraints = false
+
+        addChild(bridgeLogsViewController)
+        let logsView = bridgeLogsViewController.view
+        logsView.translatesAutoresizingMaskIntoConstraints = false
+
+        container.addSubview(actionsRow)
+        container.addSubview(logsView)
+
+        NSLayoutConstraint.activate([
+            actionsRow.topAnchor.constraint(equalTo: container.topAnchor),
+            actionsRow.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            actionsRow.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor),
+
+            logsView.topAnchor.constraint(equalTo: actionsRow.bottomAnchor, constant: DSV2.spacing4),
+            logsView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            logsView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            logsView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            logsView.heightAnchor.constraint(equalToConstant: 420)
+        ])
+
+        let card = makeCollapsibleCard(
+            title: LanguageManager.shared.localized("logs.title"),
+            icon: "list.bullet.rectangle.portrait",
+            iconColor: DSV2.tertiary,
+            contentView: container
+        )
+
+        if let titleLabel = findTitleLabel(in: card) {
+            logsCardTitle = titleLabel
+        }
+
+        return card
+    }
+
+    private func makeLogsActionButton(icon: String, title: String, action: Selector) -> NSButton {
+        let button = NSButton(title: title, target: self, action: action)
+        button.bezelStyle = .rounded
+        button.translatesAutoresizingMaskIntoConstraints = false
+        if #available(macOS 11.0, *) {
+            button.image = NSImage(systemSymbolName: icon, accessibilityDescription: title)
+            button.imagePosition = .imageLeading
+        }
+        return button
+    }
+
+    @objc private func clearLogsFromSettings() {
+        let text = BridgeLogger.shared.currentLogText()
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+
+        BridgeLogger.shared.clearLogs { [weak self] in
+            AppDelegate.shared?.clearBridgeLogs()
+            CustomAlert.showSuccess(
+                title: LanguageManager.shared.localized("logs.clear"),
+                message: LanguageManager.shared.localized("logs.cleared"),
+                parentWindow: self?.view.window
+            )
+        }
+    }
+
+    @objc private func revealLogFile() {
+        NSWorkspace.shared.activateFileViewerSelecting([BridgeLogger.shared.fileURL])
     }
 
     private func makeServiceCard(serviceName: String, title: String, icon: String, defaultPort: Int) -> NSView {

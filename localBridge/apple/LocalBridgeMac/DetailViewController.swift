@@ -9,7 +9,6 @@ final class DetailViewController: NSViewController {
 
     private let placeholderLabel = NSTextField(labelWithString: "")
     private let instancesPanelView = InstancesPanelViewController()
-    private let bridgeLogsVC = BridgeLogsViewController()
 
     override func loadView() {
         view = NSView()
@@ -63,7 +62,6 @@ final class DetailViewController: NSViewController {
         clawVC.view.isHidden = conversation.type != .tweetclaw
         aiClawVC.view.isHidden = conversation.type != .aiclaw
         instancesPanelView.view.isHidden = conversation.type != .instances
-        bridgeLogsVC.view.isHidden = conversation.type != .logs
 
         if conversation.type == .tweetclaw {
             clawVC.selectDefaultRow()
@@ -104,12 +102,6 @@ private extension DetailViewController {
         view.addSubview(instancesPanelView.view)
         instancesPanelView.view.isHidden = true
 
-        // Bridge Logs
-        addChild(bridgeLogsVC)
-        bridgeLogsVC.view.translatesAutoresizingMaskIntoConstraints = false
-        view.addSubview(bridgeLogsVC.view)
-        bridgeLogsVC.view.isHidden = true
-
         NSLayoutConstraint.activate([
             placeholderLabel.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             placeholderLabel.centerYAnchor.constraint(equalTo: view.centerYAnchor),
@@ -127,12 +119,7 @@ private extension DetailViewController {
             instancesPanelView.view.topAnchor.constraint(equalTo: view.topAnchor),
             instancesPanelView.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             instancesPanelView.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            instancesPanelView.view.bottomAnchor.constraint(equalTo: view.bottomAnchor),
-
-            bridgeLogsVC.view.topAnchor.constraint(equalTo: view.topAnchor),
-            bridgeLogsVC.view.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            bridgeLogsVC.view.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            bridgeLogsVC.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            instancesPanelView.view.bottomAnchor.constraint(equalTo: view.bottomAnchor)
         ])
     }
 }

@@ -1,15 +1,16 @@
 import Foundation
 
-/// 轻量级内存环形缓冲日志管理器
-/// 最多保留 maxLines 条日志，超过后自动丢弃最旧的
+/// 文件主存储的日志管理器
+/// 写入走后台串行队列，UI 仅消费最近缓存和磁盘真相源
 final class BridgeLogger {
     static let shared = BridgeLogger()
 
     /// 日志更新通知名，UI 监听此通知刷新显示
     static let didUpdateNotification = Notification.Name("BridgeLoggerDidUpdate")
 
-    private let maxLines = 2000
-    private var lines: [String] = []
+    private let maxCachedLines = 2000
+    private let maxReadBytes = 512 * 1024
+    private var recentLines: [String] = []
     private let queue = DispatchQueue(label: "com.localbridgemac.logger", qos: .utility)
     private let formatter: DateFormatter = {
         let df = DateFormatter()
@@ -18,8 +19,27 @@ final class BridgeLogger {
     }()
     private var notificationScheduled = false
     private var hasPendingChanges = false
+    private let fileManager = FileManager.default
+    private let logFileURL: URL
 
-    private init() {}
+    private init() {
+        let appSupportDirectory = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
+            ?? fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Library/Application Support", isDirectory: true)
+        let logsDirectory = appSupportDirectory
+            .appendingPathComponent("LocalBridgeMac", isDirectory: true)
+            .appendingPathComponent("Logs", isDirectory: true)
+        self.logFileURL = logsDirectory.appendingPathComponent("bridge.log", isDirectory: false)
+
+        try? fileManager.createDirectory(at: logsDirectory, withIntermediateDirectories: true)
+        if !fileManager.fileExists(atPath: logFileURL.path) {
+            fileManager.createFile(atPath: logFileURL.path, contents: nil)
+        }
+        self.recentLines = Self.readTailLines(from: logFileURL, maxBytes: maxReadBytes)
+    }
+
+    var fileURL: URL {
+        logFileURL
+    }
 
     /// 记录一条日志，线程安全，自动附加时间戳，并发送 UI 更新通知
     func log(_ message: String) {
@@ -33,12 +53,29 @@ final class BridgeLogger {
             guard let self = self else { return }
             let timestamp = self.formatter.string(from: Date())
             let newLines = messages.map { "[\(timestamp)] \($0)" }
-            self.lines.append(contentsOf: newLines)
-            if self.lines.count > self.maxLines {
-                self.lines.removeFirst(self.lines.count - self.maxLines)
+            let payload = newLines.joined(separator: "\n") + "\n"
+            self.appendToFile(payload)
+            self.recentLines.append(contentsOf: newLines)
+            if self.recentLines.count > self.maxCachedLines {
+                self.recentLines.removeFirst(self.recentLines.count - self.maxCachedLines)
             }
             self.hasPendingChanges = true
             self.scheduleNotificationIfNeeded()
+        }
+    }
+
+    private func appendToFile(_ payload: String) {
+        guard let data = payload.data(using: .utf8) else { return }
+        do {
+            if !fileManager.fileExists(atPath: logFileURL.path) {
+                fileManager.createFile(atPath: logFileURL.path, contents: nil)
+            }
+            let handle = try FileHandle(forWritingTo: logFileURL)
+            defer { try? handle.close() }
+            try handle.seekToEnd()
+            try handle.write(contentsOf: data)
+        } catch {
+            // Avoid recursive logging here
         }
     }
 
@@ -59,18 +96,54 @@ final class BridgeLogger {
         }
     }
 
-    /// 返回当前所有日志行的快照（主线程调用）
-    func snapshot() -> [String] {
-        queue.sync { lines }
+    /// 返回当前日志的文本内容
+    func currentLogText() -> String {
+        queue.sync {
+            Self.readText(from: logFileURL, maxBytes: maxReadBytes)
+        }
     }
 
-    /// 清空所有日志
-    func clear() {
+    /// 返回当前所有日志行的快照
+    func snapshot() -> [String] {
+        queue.sync {
+            let text = Self.readText(from: logFileURL, maxBytes: maxReadBytes)
+            return text.isEmpty ? [] : text.split(separator: "\n", omittingEmptySubsequences: false).map(String.init).filter { !$0.isEmpty }
+        }
+    }
+
+    /// 清空所有日志，并在完成后回调
+    func clearLogs(completion: (() -> Void)? = nil) {
         queue.async { [weak self] in
             guard let self = self else { return }
-            self.lines.removeAll()
+            self.recentLines.removeAll()
+            if self.fileManager.fileExists(atPath: self.logFileURL.path) {
+                try? Data().write(to: self.logFileURL, options: .atomic)
+            } else {
+                self.fileManager.createFile(atPath: self.logFileURL.path, contents: nil)
+            }
             self.hasPendingChanges = true
             self.scheduleNotificationIfNeeded()
+            if let completion = completion {
+                DispatchQueue.main.async {
+                    completion()
+                }
+            }
         }
+    }
+
+    func clear() {
+        clearLogs()
+    }
+
+    private static func readText(from fileURL: URL, maxBytes: Int) -> String {
+        guard let data = try? Data(contentsOf: fileURL) else { return "" }
+        let slice = data.count > maxBytes ? data.suffix(maxBytes) : data[...]
+        return String(data: Data(slice), encoding: .utf8) ?? ""
+    }
+
+    private static func readTailLines(from fileURL: URL, maxBytes: Int) -> [String] {
+        let text = readText(from: fileURL, maxBytes: maxBytes)
+        guard !text.isEmpty else { return [] }
+        return text.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
     }
 }

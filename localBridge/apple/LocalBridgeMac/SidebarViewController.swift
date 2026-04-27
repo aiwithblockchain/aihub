@@ -37,13 +37,6 @@ final class SidebarViewController: NSViewController {
                 timestamp: LanguageManager.shared.localized("common.now")
             ),
             Conversation(
-                type: .logs,
-                title: LanguageManager.shared.localized("sidebar.logs.title"),
-                subtitle: LanguageManager.shared.localized("sidebar.logs.subtitle"),
-                preview: LanguageManager.shared.localized("sidebar.logs.preview"),
-                timestamp: LanguageManager.shared.localized("common.now")
-            ),
-            Conversation(
                 type: .instances,
                 title: LanguageManager.shared.localized("sidebar.instances.title"),
                 subtitle: LanguageManager.shared.localized("sidebar.instances.subtitle"),
