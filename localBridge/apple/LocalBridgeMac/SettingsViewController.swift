@@ -591,11 +591,17 @@ final class SettingsViewController: NSViewController {
         actionsRow.alignment = .centerY
         actionsRow.translatesAutoresizingMaskIntoConstraints = false
 
+        let hintLabel = NSTextField(labelWithString: LanguageManager.shared.localized("logs.settings_hint"))
+        hintLabel.font = DSV2.fontLabelSm
+        hintLabel.textColor = DSV2.onSurfaceVariant
+        hintLabel.translatesAutoresizingMaskIntoConstraints = false
+
         addChild(bridgeLogsViewController)
         let logsView = bridgeLogsViewController.view
         logsView.translatesAutoresizingMaskIntoConstraints = false
 
         container.addSubview(actionsRow)
+        container.addSubview(hintLabel)
         container.addSubview(logsView)
 
         NSLayoutConstraint.activate([
@@ -603,7 +609,11 @@ final class SettingsViewController: NSViewController {
             actionsRow.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             actionsRow.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor),
 
-            logsView.topAnchor.constraint(equalTo: actionsRow.bottomAnchor, constant: DSV2.spacing4),
+            hintLabel.topAnchor.constraint(equalTo: actionsRow.bottomAnchor, constant: DSV2.spacing2),
+            hintLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            hintLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+
+            logsView.topAnchor.constraint(equalTo: hintLabel.bottomAnchor, constant: DSV2.spacing4),
             logsView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             logsView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
             logsView.bottomAnchor.constraint(equalTo: container.bottomAnchor),

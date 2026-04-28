@@ -4,7 +4,6 @@ final class BridgeLogsViewController: NSViewController {
 
     private var textView: NSTextView!
     private var scrollView: NSScrollView!
-    private let clearButton = NSButton(title: "", target: nil, action: #selector(clearClicked))
     private let copyButton = NSButton(title: "", target: nil, action: #selector(copyClicked))
     private let autoScrollCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: #selector(toggleAutoScroll))
     private let logCountLabel = NSTextField(labelWithString: "0 \(LanguageManager.shared.localized("logs.entries"))")
@@ -14,6 +13,7 @@ final class BridgeLogsViewController: NSViewController {
     private let headerImageView = NSImageView()
     private var titleLabel: NSTextField!
     private let subtitleLabel = NSTextField(labelWithString: "SYSTEM ENGINE & BRIDGE TRAFFIC LOGS")
+    private let displayHintLabel = NSTextField(labelWithString: LanguageManager.shared.localized("logs.display_hint"))
     private var autoScrollLabel: NSTextField!
     private let headerSeparator = NSView()
     private var reloadScheduled = false
@@ -52,8 +52,8 @@ final class BridgeLogsViewController: NSViewController {
 
     @objc private func handleLanguageChange() {
         titleLabel.stringValue = LanguageManager.shared.localized("logs.title")
+        displayHintLabel.stringValue = LanguageManager.shared.localized("logs.display_hint")
         autoScrollLabel.stringValue = LanguageManager.shared.localized("logs.auto_scroll")
-        clearButton.toolTip = LanguageManager.shared.localized("logs.clear")
         copyButton.toolTip = LanguageManager.shared.localized("common.copy")
         reloadLogs()
     }
@@ -81,7 +81,6 @@ final class BridgeLogsViewController: NSViewController {
 
         // 更新按钮
         updateButtonTheme(copyButton, isDestructive: false)
-        updateButtonTheme(clearButton, isDestructive: true)
 
         // 重新加载日志以更新颜色
         reloadLogs()
@@ -142,6 +141,10 @@ final class BridgeLogsViewController: NSViewController {
         logCountLabel.alignment = .center
         logCountLabel.translatesAutoresizingMaskIntoConstraints = false
 
+        displayHintLabel.font = DSV2.fontLabelSm
+        displayHintLabel.textColor = DSV2.onSurfaceVariant
+        displayHintLabel.translatesAutoresizingMaskIntoConstraints = false
+
         // Auto-scroll toggle
         autoScrollLabel = NSTextField(labelWithString: LanguageManager.shared.localized("logs.auto_scroll"))
         autoScrollLabel.font = DSV2.fontLabelSm
@@ -154,7 +157,6 @@ final class BridgeLogsViewController: NSViewController {
 
         // Action buttons
         setupActionButton(copyButton, icon: "doc.on.doc", tooltip: LanguageManager.shared.localized("common.copy"))
-        setupActionButton(clearButton, icon: "trash", tooltip: LanguageManager.shared.localized("logs.clear"), isDestructive: true)
 
         // Header layout
         let headerLeft = NSStackView(views: [headerImageView, titleLabel, logCountLabel])
@@ -167,7 +169,7 @@ final class BridgeLogsViewController: NSViewController {
         autoScrollRow.spacing = DSV2.spacing2
         autoScrollRow.alignment = .centerY
 
-        let buttonRow = NSStackView(views: [autoScrollRow, copyButton, clearButton])
+        let buttonRow = NSStackView(views: [autoScrollRow, copyButton])
         buttonRow.orientation = .horizontal
         buttonRow.spacing = DSV2.spacing4
         buttonRow.alignment = .centerY
@@ -177,7 +179,7 @@ final class BridgeLogsViewController: NSViewController {
         topRow.alignment = .centerY
         topRow.translatesAutoresizingMaskIntoConstraints = false
 
-        let headerStack = NSStackView(views: [topRow, subtitleLabel])
+        let headerStack = NSStackView(views: [topRow, subtitleLabel, displayHintLabel])
         headerStack.orientation = .vertical
         headerStack.spacing = 4
         headerStack.alignment = .leading
@@ -246,8 +248,7 @@ final class BridgeLogsViewController: NSViewController {
     // MARK: - Data
 
     private func reloadLogs() {
-        let text = BridgeLogger.shared.currentLogText()
-        let lines = text.isEmpty ? [] : text.split(separator: "\n", omittingEmptySubsequences: true).map(String.init)
+        let lines = BridgeLogger.shared.displaySnapshot()
 
         // Format logs with colors and styling
         let attributedString = NSMutableAttributedString()
@@ -387,19 +388,6 @@ final class BridgeLogsViewController: NSViewController {
     }
 
     // MARK: - Actions
-
-    @objc private func clearClicked() {
-        let text = BridgeLogger.shared.currentLogText()
-        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
-            showToast(LanguageManager.shared.localized("logs.already_empty"), style: .warning)
-            return
-        }
-
-        BridgeLogger.shared.clearLogs { [weak self] in
-            AppDelegate.shared?.clearBridgeLogs()
-            self?.showToast(LanguageManager.shared.localized("logs.cleared"), style: .success)
-        }
-    }
 
     @objc private func copyClicked() {
         let text = BridgeLogger.shared.currentLogText()

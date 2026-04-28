@@ -273,6 +273,14 @@ struct Localizations {
             "en": "ENTRIES",
             "zh": "条记录"
         ],
+        "logs.display_hint": [
+            "en": "Showing latest 1000 lines",
+            "zh": "仅显示最近 1000 条日志"
+        ],
+        "logs.settings_hint": [
+            "en": "Logs are stored on disk, the viewer shows the latest 1000 lines, and older archives are rotated and pruned automatically.",
+            "zh": "日志会长期保存在文件中，界面仅显示最近 1000 条，旧日志会自动轮转归档并按保留期清理。"
+        ],
 
         // MARK: - Instances Panel
         "instances.title": [

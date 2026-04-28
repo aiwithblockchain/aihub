@@ -1,4 +1,5 @@
 import Foundation
+import Darwin
 import LocalBridge
 
 final class LocalBridgeGoManager {
@@ -17,9 +18,11 @@ final class LocalBridgeGoManager {
     }
 
     private static let defaultExecuteTaskTimeoutMs = 210_000
+    private static let maxRebasedGoLines = 1000
     private let session = URLSession(configuration: .default)
     private var logPollTimer: Timer?
     private var lastGoLogSnapshot: [String] = []
+    private var pendingPostClearGoSnapshot: [String]?
     private var lastInstancesSignature: String?
     private let pollQueue = DispatchQueue(label: "com.localbridgemac.go-poll", qos: .utility)
     private let stateQueue = DispatchQueue(label: "com.localbridgemac.go-state", qos: .utility)
@@ -131,9 +134,10 @@ final class LocalBridgeGoManager {
     func clearDisplayedLogs() {
         pollQueue.async { [weak self] in
             guard let self = self else { return }
-            let currentLines = self.currentGoLogLines()
+            self.clearGoLogBufferIfAvailable()
             self.stateQueue.sync {
-                self.lastGoLogSnapshot = currentLines
+                self.lastGoLogSnapshot = []
+                self.pendingPostClearGoSnapshot = nil
             }
         }
     }
@@ -168,14 +172,58 @@ final class LocalBridgeGoManager {
 
     private func pollGoLogs() {
         let lines = currentGoLogLines()
-        let previousSnapshot = stateQueue.sync { lastGoLogSnapshot }
+        let state = stateQueue.sync {
+            (previousSnapshot: lastGoLogSnapshot, pendingPostClearSnapshot: pendingPostClearGoSnapshot)
+        }
+        let previousSnapshot = state.previousSnapshot
+        let pendingPostClearSnapshot = state.pendingPostClearSnapshot
 
-        let effectivePreviousSnapshot = lines.count < previousSnapshot.count ? [] : previousSnapshot
-        let sharedPrefixCount = zip(effectivePreviousSnapshot, lines).prefix { $0 == $1 }.count
-        let newLines = lines.count > sharedPrefixCount ? Array(lines.dropFirst(sharedPrefixCount)) : []
+        let newLines: [String]
+        let nextPendingPostClearSnapshot: [String]?
+
+        if lines.isEmpty {
+            newLines = []
+            nextPendingPostClearSnapshot = pendingPostClearSnapshot
+        } else if let pendingSnapshot = pendingPostClearSnapshot {
+            if lines.count >= pendingSnapshot.count,
+               Array(lines.prefix(pendingSnapshot.count)) == pendingSnapshot {
+                newLines = Array(lines.dropFirst(pendingSnapshot.count))
+                nextPendingPostClearSnapshot = nil
+            } else {
+                newLines = []
+                nextPendingPostClearSnapshot = lines
+            }
+        } else if previousSnapshot.isEmpty {
+            newLines = []
+            nextPendingPostClearSnapshot = lines
+        } else if lines.count >= previousSnapshot.count,
+                  Array(lines.prefix(previousSnapshot.count)) == previousSnapshot {
+            newLines = Array(lines.dropFirst(previousSnapshot.count))
+            nextPendingPostClearSnapshot = nil
+        } else if lines.count < previousSnapshot.count {
+            let rebasedLines = Array(lines.suffix(Self.maxRebasedGoLines))
+            if !rebasedLines.isEmpty {
+                BridgeLogger.shared.log("[Go] log snapshot reset detected, rebasing to recent tail")
+            }
+            newLines = rebasedLines
+            nextPendingPostClearSnapshot = nil
+        } else {
+            let sharedPrefixCount = zip(previousSnapshot, lines).prefix { $0 == $1 }.count
+            if sharedPrefixCount == previousSnapshot.count {
+                newLines = Array(lines.dropFirst(sharedPrefixCount))
+            } else {
+                let rebasedLines = Array(lines.suffix(Self.maxRebasedGoLines))
+                if !rebasedLines.isEmpty {
+                    BridgeLogger.shared.log("[Go] log snapshot discontinuity detected, rebasing to recent tail")
+                }
+                newLines = rebasedLines
+            }
+            nextPendingPostClearSnapshot = nil
+        }
 
         stateQueue.sync {
             self.lastGoLogSnapshot = lines
+            self.pendingPostClearGoSnapshot = nextPendingPostClearSnapshot
         }
 
         if !newLines.isEmpty {
@@ -204,6 +252,17 @@ final class LocalBridgeGoManager {
                 userInfo: ["instances": snapshots]
             )
         }
+    }
+
+    private func clearGoLogBufferIfAvailable() {
+        let symbolName = "LocalBridgeClearLogs"
+        guard let handle = dlopen(nil, RTLD_NOW),
+              let symbol = dlsym(handle, symbolName) else {
+            return
+        }
+        typealias ClearLogsFunction = @convention(c) () -> Void
+        let clearLogs = unsafeBitCast(symbol, to: ClearLogsFunction.self)
+        clearLogs()
     }
 
     private func makeInstancesSignature(from snapshots: [InstanceSnapshot]) -> String {
