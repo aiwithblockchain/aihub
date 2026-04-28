@@ -8,7 +8,7 @@ final class BridgeLogger {
     /// 日志更新通知名，UI 监听此通知刷新显示
     static let didUpdateNotification = Notification.Name("BridgeLoggerDidUpdate")
 
-    private static let debugMaxActiveLogBytes = 128 * 1024
+    private static let debugMaxActiveLogBytes = 32 * 1024
     private static let releaseMaxActiveLogBytes = 5 * 1024 * 1024
 
     private let displayMaxLines = 1000
@@ -33,6 +33,7 @@ final class BridgeLogger {
     private let logFileURL: URL
     private let logsDirectoryURL: URL
     private let archiveDirectoryURL: URL
+    private let rotationModeLabel: String
 
     private init() {
         let appSupportDirectory = fileManager.urls(for: .applicationSupportDirectory, in: .userDomainMask).first
@@ -43,11 +44,10 @@ final class BridgeLogger {
         self.logsDirectoryURL = logsDirectory
         self.archiveDirectoryURL = logsDirectory.appendingPathComponent("archive", isDirectory: true)
         self.logFileURL = logsDirectory.appendingPathComponent("bridge.log", isDirectory: false)
-        #if DEBUG
-        self.maxActiveLogBytes = Self.debugMaxActiveLogBytes
-        #else
-        self.maxActiveLogBytes = Self.releaseMaxActiveLogBytes
-        #endif
+        let buildProductsPath = Bundle.main.bundlePath
+        let isDebugBuild = buildProductsPath.contains("/Build/Products/Debug/")
+        self.maxActiveLogBytes = isDebugBuild ? Self.debugMaxActiveLogBytes : Self.releaseMaxActiveLogBytes
+        self.rotationModeLabel = isDebugBuild ? "DEBUG" : "RELEASE"
 
         try? fileManager.createDirectory(at: logsDirectoryURL, withIntermediateDirectories: true)
         try? fileManager.createDirectory(at: archiveDirectoryURL, withIntermediateDirectories: true)
@@ -56,7 +56,10 @@ final class BridgeLogger {
         }
         self.recentLines = Self.readTailLines(from: logFileURL, maxBytes: maxReadBytes, maxLines: displayMaxLines)
         queue.async { [weak self] in
-            self?.pruneExpiredArchives()
+            guard let self = self else { return }
+            self.pruneExpiredArchives()
+            self.rotateIfNeeded(forAdditionalBytes: 0)
+            self.log("[BridgeLogger] initialized in \(self.rotationModeLabel) mode, rotation threshold=\(self.maxActiveLogBytes) bytes, bundle=\(buildProductsPath), file=\(self.logFileURL.path)")
         }
     }
 
@@ -173,7 +176,18 @@ final class BridgeLogger {
 
     private func rotateIfNeeded(forAdditionalBytes additionalBytes: Int) {
         let currentSize = (try? fileManager.attributesOfItem(atPath: logFileURL.path)[.size] as? NSNumber)?.intValue ?? 0
-        guard currentSize + additionalBytes > maxActiveLogBytes else { return }
+        let projectedSize = currentSize + additionalBytes
+
+        if currentSize == 0 || currentSize >= (maxActiveLogBytes / 2) {
+            appendToRecentLines([
+                "[\(formatter.string(from: Date()))] [Log] rotate check mode=\(rotationModeLabel) current=\(currentSize) additional=\(additionalBytes) projected=\(projectedSize) threshold=\(maxActiveLogBytes) file=\(logFileURL.lastPathComponent)"
+            ])
+        }
+
+        if projectedSize <= maxActiveLogBytes {
+            return
+        }
+        appendToRecentLines(["[\(formatter.string(from: Date()))] [Log] rotating active log at \(currentSize) bytes with threshold \(maxActiveLogBytes) bytes"])
         archiveCurrentLog()
         pruneExpiredArchives()
     }
