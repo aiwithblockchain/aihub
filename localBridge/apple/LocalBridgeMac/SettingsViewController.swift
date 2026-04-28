@@ -300,6 +300,16 @@ final class SettingsViewController: NSViewController {
     private var restAPICardTitle: NSTextField!
     private var logsCardTitle: NSTextField!
     private lazy var bridgeLogsViewController = BridgeLogsViewController()
+    private lazy var clearLogsButton = makeLogsActionButton(
+        icon: "trash",
+        title: LanguageManager.shared.localized("logs.clear"),
+        action: #selector(clearLogsFromSettings)
+    )
+    private lazy var revealLogFileButton = makeLogsActionButton(
+        icon: "folder",
+        title: "Reveal Log File",
+        action: #selector(revealLogFile)
+    )
 
     // 配置数据
     private var currentConfig: BridgeConfig = BridgeConfig.load()
@@ -358,6 +368,9 @@ final class SettingsViewController: NSViewController {
         tweetClawCardTitle?.stringValue = LanguageManager.shared.localized("settings.tweetclaw_websocket").uppercased()
         restAPICardTitle?.stringValue = LanguageManager.shared.localized("settings.rest_api").uppercased()
         logsCardTitle?.stringValue = LanguageManager.shared.localized("logs.title").uppercased()
+        clearLogsButton.title = LanguageManager.shared.localized("logs.clear")
+        applyLogsActionButtonStyle(clearLogsButton, icon: "trash", title: clearLogsButton.title)
+        applyLogsActionButtonStyle(revealLogFileButton, icon: "folder", title: revealLogFileButton.title)
         languageLabel?.stringValue = LanguageManager.shared.localized("settings.language")
         languageDescLabel?.stringValue = LanguageManager.shared.localized("settings.language.description")
         themeLabel?.stringValue = LanguageManager.shared.localized("settings.theme")
@@ -387,6 +400,30 @@ final class SettingsViewController: NSViewController {
         applyTheme()
     }
 
+    private func applyLogsActionButtonStyle(_ button: NSButton, icon: String, title: String) {
+        button.isBordered = false
+        button.wantsLayer = true
+        button.bezelStyle = .rounded
+        button.font = DSV2.fontLabelMd
+        button.contentTintColor = DSV2.onSurface
+        button.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
+        button.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.35).cgColor
+        button.layer?.borderWidth = 1
+        button.layer?.cornerRadius = DSV2.radiusButton
+
+        let attributes: [NSAttributedString.Key: Any] = [
+            .foregroundColor: DSV2.onSurface,
+            .font: DSV2.fontLabelMd
+        ]
+        button.attributedTitle = NSAttributedString(string: title, attributes: attributes)
+
+        if #available(macOS 11.0, *) {
+            button.image = NSImage(systemSymbolName: icon, accessibilityDescription: title)
+            button.imagePosition = .imageLeading
+            button.contentTintColor = DSV2.onSurface
+        }
+    }
+
     private func applyTheme() {
         // 更新主视图背景
         view.layer?.backgroundColor = DSV2.surface.cgColor
@@ -396,6 +433,8 @@ final class SettingsViewController: NSViewController {
         subtitleLabel.textColor = DSV2.onSurfaceTertiary
         headerImageView.contentTintColor = DSV2.primary
         headerSeparator.layer?.backgroundColor = DSV2.divider.withAlphaComponent(0.8).cgColor
+        applyLogsActionButtonStyle(clearLogsButton, icon: "trash", title: clearLogsButton.title)
+        applyLogsActionButtonStyle(revealLogFileButton, icon: "folder", title: revealLogFileButton.title)
 
         // 更新分段按钮外观
         languageSegmentedControl?.updateSegmentedControlTheme()
@@ -585,7 +624,7 @@ final class SettingsViewController: NSViewController {
         let container = NSView()
         container.translatesAutoresizingMaskIntoConstraints = false
 
-        let actionsRow = NSStackView(views: [makeLogsActionButton(icon: "trash", title: LanguageManager.shared.localized("logs.clear"), action: #selector(clearLogsFromSettings)), makeLogsActionButton(icon: "folder", title: "Reveal Log File", action: #selector(revealLogFile))])
+        let actionsRow = NSStackView(views: [clearLogsButton, revealLogFileButton])
         actionsRow.orientation = .horizontal
         actionsRow.spacing = DSV2.spacing4
         actionsRow.alignment = .centerY
@@ -636,12 +675,10 @@ final class SettingsViewController: NSViewController {
 
     private func makeLogsActionButton(icon: String, title: String, action: Selector) -> NSButton {
         let button = NSButton(title: title, target: self, action: action)
-        button.bezelStyle = .rounded
         button.translatesAutoresizingMaskIntoConstraints = false
-        if #available(macOS 11.0, *) {
-            button.image = NSImage(systemSymbolName: icon, accessibilityDescription: title)
-            button.imagePosition = .imageLeading
-        }
+        button.heightAnchor.constraint(equalToConstant: 38).isActive = true
+        button.widthAnchor.constraint(greaterThanOrEqualToConstant: 140).isActive = true
+        applyLogsActionButtonStyle(button, icon: icon, title: title)
         return button
     }
 
