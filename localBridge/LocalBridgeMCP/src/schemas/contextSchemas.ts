@@ -1,7 +1,11 @@
 import { z } from 'zod';
-import { timeoutMsSchema } from './common.js';
-
-const instanceIdSchema = z.string().min(1);
+import {
+  countSchema,
+  cursorSchema,
+  instanceIdSchema,
+  tabIdSchema,
+  timeoutMsSchema,
+} from './common.js';
 
 export const listXInstancesInputSchema = z
   .object({
@@ -68,3 +72,16 @@ export const getUserProfileInputSchema = z
   .strict();
 
 export type GetUserProfileInput = z.infer<typeof getUserProfileInputSchema>;
+
+export const searchTweetsInputSchema = z
+  .object({
+    query: z.string().min(1),
+    count: countSchema.optional(),
+    cursor: cursorSchema.optional(),
+    instanceId: instanceIdSchema.optional(),
+    tabId: tabIdSchema.optional(),
+    timeoutMs: timeoutMsSchema.optional(),
+  })
+  .strict();
+
+export type SearchTweetsInput = z.infer<typeof searchTweetsInputSchema>;

@@ -60,6 +60,10 @@ export interface XUserProfile {
   [key: string]: unknown;
 }
 
+export interface XSearchTimeline {
+  [key: string]: unknown;
+}
+
 export interface XApiAdapterDeps {
   client: LocalBridgeClient;
   logger: Logger;
@@ -181,6 +185,48 @@ export class XApiAdapter {
 
     return this.deps.client.get<XUserProfile>(
       `/api/v1/x/users?${params.toString()}`,
+      timeoutMs,
+    );
+  }
+
+  async searchTweets(
+    query: string,
+    count?: number,
+    cursor?: string,
+    instanceId?: string,
+    tabId?: number,
+    timeoutMs?: number,
+  ): Promise<XSearchTimeline> {
+    this.deps.logger.debug('Searching X tweets from LocalBridge', {
+      query,
+      count: count ?? null,
+      cursor: cursor ?? null,
+      instanceId: instanceId ?? null,
+      tabId: tabId ?? null,
+    });
+
+    const params = new URLSearchParams({
+      query,
+    });
+
+    if (count !== undefined) {
+      params.set('count', String(count));
+    }
+
+    if (cursor !== undefined) {
+      params.set('cursor', cursor);
+    }
+
+    if (instanceId !== undefined) {
+      params.set('instanceId', instanceId);
+    }
+
+    if (tabId !== undefined) {
+      params.set('tabId', String(tabId));
+    }
+
+    return this.deps.client.get<XSearchTimeline>(
+      `/api/v1/x/search?${params.toString()}`,
       timeoutMs,
     );
   }

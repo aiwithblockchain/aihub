@@ -7,6 +7,7 @@ import { registerGetHomeTimelineTool } from '../tools/context/getHomeTimeline.js
 import { registerGetTweetTool } from '../tools/context/getTweet.js';
 import { registerGetTweetRepliesTool } from '../tools/context/getTweetReplies.js';
 import { registerGetUserProfileTool } from '../tools/context/getUserProfile.js';
+import { registerSearchTweetsTool } from '../tools/context/searchTweets.js';
 
 export function registerTools(server: McpServer, deps: AppDeps): void {
   const enabledTools = deps.config.enabledTools;
@@ -37,5 +38,9 @@ export function registerTools(server: McpServer, deps: AppDeps): void {
 
   if (enabledTools === null || enabledTools.includes('get_user_profile')) {
     registerGetUserProfileTool(server, deps);
+  }
+
+  if (enabledTools === null || enabledTools.includes('search_tweets')) {
+    registerSearchTweetsTool(server, deps);
   }
 }

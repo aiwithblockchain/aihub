@@ -39,6 +39,9 @@ async function main(): Promise<void> {
     const getUserProfileTool = toolsResult.tools.find(
       (tool) => tool.name === 'get_user_profile',
     );
+    const searchTweetsTool = toolsResult.tools.find(
+      (tool) => tool.name === 'search_tweets',
+    );
 
     assert(listXInstancesTool, 'Expected list_x_instances in tools/list response.');
     assert(
@@ -85,6 +88,13 @@ async function main(): Promise<void> {
       getUserProfileTool.description ===
         'Get the current X user profile raw payload by screen name.',
       'Unexpected description for get_user_profile.',
+    );
+
+    assert(searchTweetsTool, 'Expected search_tweets in tools/list response.');
+    assert(
+      searchTweetsTool.description ===
+        'Search X tweets by query, with optional count, cursor, instance, and tab routing.',
+      'Unexpected description for search_tweets.',
     );
 
     console.log(

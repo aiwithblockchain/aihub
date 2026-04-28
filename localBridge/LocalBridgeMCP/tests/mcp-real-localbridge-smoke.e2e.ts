@@ -45,6 +45,7 @@ async function main(): Promise<void> {
     assert(toolNames.includes('get_tweet'), 'Expected get_tweet tool.');
     assert(toolNames.includes('get_tweet_replies'), 'Expected get_tweet_replies tool.');
     assert(toolNames.includes('get_user_profile'), 'Expected get_user_profile tool.');
+    assert(toolNames.includes('search_tweets'), 'Expected search_tweets tool.');
 
     const listInstances = await client.callTool({
       name: 'list_x_instances',
@@ -151,6 +152,118 @@ async function main(): Promise<void> {
       'Expected timeline instructions array in raw payload.',
     );
 
+    const candidateTweetId =
+      timelinePayload.data?.raw?.data?.data?.home?.home_timeline_urt?.instructions
+        ?.flatMap((instruction) => {
+          if (
+            typeof instruction !== 'object' ||
+            instruction === null ||
+            !('entries' in instruction) ||
+            !Array.isArray(instruction.entries)
+          ) {
+            return [];
+          }
+
+          return instruction.entries;
+        })
+        .map((entry) => {
+          if (
+            typeof entry !== 'object' ||
+            entry === null ||
+            !('content' in entry) ||
+            typeof entry.content !== 'object' ||
+            entry.content === null ||
+            !('itemContent' in entry.content) ||
+            typeof entry.content.itemContent !== 'object' ||
+            entry.content.itemContent === null ||
+            !('tweet_results' in entry.content.itemContent) ||
+            typeof entry.content.itemContent.tweet_results !== 'object' ||
+            entry.content.itemContent.tweet_results === null ||
+            !('result' in entry.content.itemContent.tweet_results) ||
+            typeof entry.content.itemContent.tweet_results.result !== 'object' ||
+            entry.content.itemContent.tweet_results.result === null ||
+            !('rest_id' in entry.content.itemContent.tweet_results.result)
+          ) {
+            return null;
+          }
+
+          const { rest_id: restId } = entry.content.itemContent.tweet_results.result as {
+            rest_id?: unknown;
+          };
+          return typeof restId === 'string' && restId.length > 0 ? restId : null;
+        })
+        .find((tweetId) => tweetId !== null);
+    assert(
+      typeof candidateTweetId === 'string' && candidateTweetId.length > 0,
+      'Expected to resolve a tweetId from timeline raw payload.',
+    );
+
+    const tweetResult = await client.callTool({
+      name: 'get_tweet',
+      arguments: {
+        tweetId: candidateTweetId,
+        instanceId,
+      },
+    });
+    assert(!tweetResult.isError, 'Expected get_tweet to succeed.');
+    const tweetPayload = tweetResult.structuredContent as {
+      success?: boolean;
+      data?: {
+        tweetId?: string;
+        raw?: {
+          data?: {
+            data?: {
+              threaded_conversation_with_injections_v2?: {
+                instructions?: unknown[];
+              };
+            };
+          };
+        } | null;
+      } | null;
+    };
+    assert(tweetPayload.success === true, 'Expected get_tweet success.');
+    assert(tweetPayload.data?.tweetId === candidateTweetId, 'Expected returned tweetId to match queried tweetId.');
+    assert(
+      Array.isArray(
+        tweetPayload.data?.raw?.data?.data?.threaded_conversation_with_injections_v2?.instructions,
+      ),
+      'Expected tweet detail instructions array in raw payload.',
+    );
+
+    const repliesResult = await client.callTool({
+      name: 'get_tweet_replies',
+      arguments: {
+        tweetId: candidateTweetId,
+        instanceId,
+      },
+    });
+    assert(!repliesResult.isError, 'Expected get_tweet_replies to succeed.');
+    const repliesPayload = repliesResult.structuredContent as {
+      success?: boolean;
+      data?: {
+        tweetId?: string;
+        cursor?: string | null;
+        raw?: {
+          data?: {
+            data?: {
+              threaded_conversation_with_injections_v2?: {
+                instructions?: unknown[];
+              };
+            };
+          };
+        } | null;
+      } | null;
+    };
+    assert(repliesPayload.success === true, 'Expected get_tweet_replies success.');
+    assert(repliesPayload.data?.tweetId === candidateTweetId, 'Expected replies tweetId to match queried tweetId.');
+    assert(repliesPayload.data?.cursor === null, 'Expected replies cursor to be null when omitted.');
+    assert(
+      Array.isArray(
+        repliesPayload.data?.raw?.data?.data?.threaded_conversation_with_injections_v2?.instructions,
+      ),
+      'Expected tweet replies instructions array in raw payload.',
+    );
+
     const resolvedScreenName =
       basicInfoPayload.data?.raw?.data?.user?.result?.legacy?.screen_name ??
       basicInfoPayload.data?.raw?.data?.user?.result?.core?.screen_name;
@@ -181,6 +294,12 @@ async function main(): Promise<void> {
                 };
               };
             };
+          } | {
+            user?: {
+              result?: {
+                rest_id?: string;
+              };
+            };
           };
         } | null;
       } | null;
@@ -190,9 +309,95 @@ async function main(): Promise<void> {
       userProfilePayload.data?.screenName === resolvedScreenName,
       'Expected returned screenName to match queried screenName.',
     );
+    const userProfileData = userProfilePayload.data?.raw?.data as
+      | {
+        data?: {
+          user?: {
+            result?: {
+              rest_id?: string;
+            };
+          };
+        };
+      }
+      | {
+        user?: {
+          result?: {
+            rest_id?: string;
+          };
+        };
+      }
+      | undefined;
+    const nestedUserProfileData = userProfileData as {
+      data?: {
+        user?: {
+          result?: {
+            rest_id?: string;
+          };
+        };
+      };
+    } | undefined;
+    const flatUserProfileData = userProfileData as {
+      user?: {
+        result?: {
+          rest_id?: string;
+        };
+      };
+    } | undefined;
+    const userProfileRestId =
+      nestedUserProfileData?.data?.user?.result?.rest_id ??
+      flatUserProfileData?.user?.result?.rest_id;
     assert(
-      userProfilePayload.data?.raw?.data?.data?.user?.result?.rest_id !== undefined,
+      userProfileRestId !== undefined,
       'Expected user profile raw payload to contain user rest_id.',
+    );
+
+    const searchResult = await client.callTool({
+      name: 'search_tweets',
+      arguments: {
+        query: resolvedScreenName,
+        count: 5,
+        instanceId,
+      },
+    });
+    assert(!searchResult.isError, 'Expected search_tweets to succeed.');
+    const searchPayload = searchResult.structuredContent as {
+      success?: boolean;
+      data?: {
+        raw?: {
+          data?: {
+            data?: {
+              search_by_raw_query?: {
+                search_timeline?: {
+                  timeline?: {
+                    instructions?: unknown[];
+                    metadata?: {
+                      cursor?: string;
+                    };
+                  };
+                };
+              };
+            };
+          };
+        } | null;
+        summary?: {
+          query?: string;
+          tweetCount?: number | null;
+          nextCursor?: string | null;
+        };
+      } | null;
+    };
+    assert(searchPayload.success === true, 'Expected search_tweets success.');
+    assert(searchPayload.data?.summary?.query === resolvedScreenName, 'Expected search query summary to match.');
+    assert(
+      typeof searchPayload.data?.summary?.tweetCount === 'number' ||
+        searchPayload.data?.summary?.tweetCount === null,
+      'Expected search tweetCount summary to be number or null.',
+    );
+    assert(
+      Array.isArray(
+        searchPayload.data?.raw?.data?.data?.search_by_raw_query?.search_timeline?.timeline?.instructions,
+      ),
+      'Expected search timeline instructions array in raw payload.',
     );
 
     console.log(
@@ -207,7 +412,10 @@ async function main(): Promise<void> {
             'get_x_status',
             'get_x_basic_info',
             'get_home_timeline',
+            'get_tweet',
+            'get_tweet_replies',
             'get_user_profile',
+            'search_tweets',
           ],
         },
         null,

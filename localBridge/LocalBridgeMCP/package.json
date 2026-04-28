@@ -23,6 +23,7 @@
     "test:e2e:get-tweet": "npm run build && npm run typecheck:tests && tsx tests/mcp-get-tweet.e2e.ts",
     "test:e2e:get-tweet-replies": "npm run build && npm run typecheck:tests && tsx tests/mcp-get-tweet-replies.e2e.ts",
     "test:e2e:get-user-profile": "npm run build && npm run typecheck:tests && tsx tests/mcp-get-user-profile.e2e.ts",
+    "test:e2e:search-tweets": "npm run build && npm run typecheck:tests && tsx tests/mcp-search-tweets.e2e.ts",
     "test:e2e:real-localbridge-smoke": "npm run build && npm run typecheck:tests && tsx tests/mcp-real-localbridge-smoke.e2e.ts",
     "lint": "eslint ."
   },
