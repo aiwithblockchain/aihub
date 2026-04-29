@@ -2,8 +2,9 @@ import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     static private(set) var shared: AppDelegate?
-    
+
     private var statusItem: NSStatusItem?
+    private var logMaintenanceTimer: Timer?
     private lazy var mainWindowController = MainWindowController()
     private let goServer = LocalBridgeGoManager()
 
@@ -15,6 +16,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
 
         goServer.start()
+        BridgeLogger.shared.runMaintenance(reason: "app-launch")
+        startLogMaintenanceTimer()
 
         NotificationCenter.default.addObserver(self, selector: #selector(restartWebSocketServer), name: NSNotification.Name("RestartWebSocketServer"), object: nil)
 
@@ -25,7 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: LanguageManager.languageDidChangeNotification,
             object: nil
         )
-        
+
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         self.statusItem = statusItem
 
@@ -49,6 +52,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.async { [weak self] in
             self?.openMainWindow()
         }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        logMaintenanceTimer?.invalidate()
+        logMaintenanceTimer = nil
     }
 
     @objc private func handleLanguageChange() {
@@ -102,6 +110,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(targetPolicy)
         if isVisible {
             NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+
+    private func startLogMaintenanceTimer() {
+        logMaintenanceTimer?.invalidate()
+        logMaintenanceTimer = Timer.scheduledTimer(withTimeInterval: BridgeLogger.maintenanceInterval, repeats: true) { _ in
+            BridgeLogger.shared.runMaintenance(reason: "hourly-timer")
         }
     }
 
