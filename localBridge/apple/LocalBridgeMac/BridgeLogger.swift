@@ -232,10 +232,6 @@ final class BridgeLogger {
         let currentSize = currentActiveLogBytes()
         let projectedSize = currentSize + additionalBytes
 
-        if currentSize == 0 || currentSize >= (maxActiveLogBytes / 2) {
-            recordInternalLog("[Log] rotate check mode=\(rotationModeLabel) current=\(currentSize) additional=\(additionalBytes) projected=\(projectedSize) threshold=\(maxActiveLogBytes) file=\(logFileURL.lastPathComponent)")
-        }
-
         if projectedSize <= maxActiveLogBytes {
             return
         }
