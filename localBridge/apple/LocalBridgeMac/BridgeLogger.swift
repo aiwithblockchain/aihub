@@ -10,12 +10,16 @@ final class BridgeLogger {
 
     private static let debugMaxActiveLogBytes = 32 * 1024
     private static let releaseMaxActiveLogBytes = 1 * 1024 * 1024
-    static let maintenanceInterval: TimeInterval = 60 * 60
-    private static let maxArchiveDirectoryBytes: UInt64 = 500 * 1024 * 1024
+    private static let debugMaintenanceInterval: TimeInterval = 15 * 60
+    private static let releaseMaintenanceInterval: TimeInterval = 60 * 60
+    private static let debugMaxArchiveDirectoryBytes: UInt64 = 100 * 1024 * 1024
+    private static let releaseMaxArchiveDirectoryBytes: UInt64 = 500 * 1024 * 1024
 
     private let displayMaxLines = 1000
     private let maxReadBytes = 512 * 1024
     private let maxActiveLogBytes: Int
+    private let maintenanceInterval: TimeInterval
+    private let maxArchiveDirectoryBytes: UInt64
     private let logRetentionDays = 3
     private var recentLines: [String] = []
     private let queue = DispatchQueue(label: "com.localbridgemac.logger", qos: .utility)
@@ -60,6 +64,8 @@ final class BridgeLogger {
         let buildProductsPath = Bundle.main.bundlePath
         let isDebugBuild = buildProductsPath.contains("/Build/Products/Debug/")
         self.maxActiveLogBytes = isDebugBuild ? Self.debugMaxActiveLogBytes : Self.releaseMaxActiveLogBytes
+        self.maintenanceInterval = isDebugBuild ? Self.debugMaintenanceInterval : Self.releaseMaintenanceInterval
+        self.maxArchiveDirectoryBytes = isDebugBuild ? Self.debugMaxArchiveDirectoryBytes : Self.releaseMaxArchiveDirectoryBytes
         self.rotationModeLabel = isDebugBuild ? "DEBUG" : "RELEASE"
 
         try? fileManager.createDirectory(at: logsDirectoryURL, withIntermediateDirectories: true)
@@ -70,7 +76,7 @@ final class BridgeLogger {
         self.recentLines = Self.readTailLines(from: logFileURL, maxBytes: maxReadBytes, maxLines: displayMaxLines)
         queue.async { [weak self] in
             guard let self = self else { return }
-            self.recordInternalLog("[BridgeLogger] initialized in \(self.rotationModeLabel) mode, rotation threshold=\(self.maxActiveLogBytes) bytes, retentionDays=\(self.logRetentionDays), archiveLimit=\(Self.maxArchiveDirectoryBytes) bytes, bundle=\(buildProductsPath), file=\(self.logFileURL.path)")
+            self.recordInternalLog("[BridgeLogger] initialized in \(self.rotationModeLabel) mode, rotation threshold=\(self.maxActiveLogBytes) bytes, maintenanceInterval=\(Int(self.maintenanceInterval))s, retentionDays=\(self.logRetentionDays), archiveLimit=\(self.maxArchiveDirectoryBytes) bytes, bundle=\(buildProductsPath), file=\(self.logFileURL.path)")
         }
     }
 
@@ -80,6 +86,10 @@ final class BridgeLogger {
 
     var logsDirectoryURLForReveal: URL {
         logsDirectoryURL
+    }
+
+    var maintenanceIntervalForScheduling: TimeInterval {
+        maintenanceInterval
     }
 
     func runMaintenance(reason: String = "manual") {
@@ -128,7 +138,7 @@ final class BridgeLogger {
         let activeBytesBefore = currentActiveLogBytes()
         let archivesBefore = listArchiveFiles()
         let archiveBytesBefore = archivesBefore.reduce(UInt64(0)) { $0 + $1.sizeBytes }
-        recordInternalLog("[Log] maintenance started reason=\(reason) mode=\(rotationModeLabel) activeBytes=\(activeBytesBefore) archiveFiles=\(archivesBefore.count) archiveBytes=\(archiveBytesBefore) threshold=\(maxActiveLogBytes) archiveLimit=\(Self.maxArchiveDirectoryBytes)")
+        recordInternalLog("[Log] maintenance started reason=\(reason) mode=\(rotationModeLabel) activeBytes=\(activeBytesBefore) archiveFiles=\(archivesBefore.count) archiveBytes=\(archiveBytesBefore) threshold=\(maxActiveLogBytes) archiveLimit=\(maxArchiveDirectoryBytes) maintenanceInterval=\(Int(maintenanceInterval))s")
 
         rotateIfNeeded(forAdditionalBytes: 0)
         let expiredPruneResult = pruneExpiredArchives()
@@ -137,7 +147,7 @@ final class BridgeLogger {
         let activeBytesAfter = currentActiveLogBytes()
         let archivesAfter = listArchiveFiles()
         let archiveBytesAfter = archivesAfter.reduce(UInt64(0)) { $0 + $1.sizeBytes }
-        recordInternalLog("[Log] maintenance finished reason=\(reason) activeBytes=\(activeBytesAfter) archiveFiles=\(archivesAfter.count) archiveBytes=\(archiveBytesAfter) expiredDeleted=\(expiredPruneResult.deletedCount) expiredReclaimed=\(expiredPruneResult.reclaimedBytes) sizeDeleted=\(sizePruneResult.deletedCount) sizeReclaimed=\(sizePruneResult.reclaimedBytes)")
+            recordInternalLog("[Log] maintenance finished reason=\(reason) activeBytes=\(activeBytesAfter) archiveFiles=\(archivesAfter.count) archiveBytes=\(archiveBytesAfter) expiredDeleted=\(expiredPruneResult.deletedCount) expiredReclaimed=\(expiredPruneResult.reclaimedBytes) sizeDeleted=\(sizePruneResult.deletedCount) sizeReclaimed=\(sizePruneResult.reclaimedBytes) archiveLimit=\(maxArchiveDirectoryBytes) maintenanceInterval=\(Int(maintenanceInterval))s")
     }
 
     private func currentActiveLogBytes() -> Int {
@@ -332,8 +342,8 @@ final class BridgeLogger {
             return PruneResult(deletedCount: 0, reclaimedBytes: 0)
         }
 
-        guard totalSize > Self.maxArchiveDirectoryBytes else {
-            recordInternalLog("[Log] archive size check passed usage=\(totalSize) bytes limit=\(Self.maxArchiveDirectoryBytes) bytes files=\(archives.count)")
+        guard totalSize > maxArchiveDirectoryBytes else {
+            recordInternalLog("[Log] archive size check passed usage=\(totalSize) bytes limit=\(maxArchiveDirectoryBytes) bytes files=\(archives.count)")
             return PruneResult(deletedCount: 0, reclaimedBytes: 0)
         }
 
@@ -352,7 +362,7 @@ final class BridgeLogger {
         }
 
         if deletedCount > 0 {
-            recordInternalLog("[Log] pruned archive files by size deleted=\(deletedCount) reclaimed=\(reclaimedBytes) bytes previousArchiveUsage=\(totalSize) bytes limit=\(Self.maxArchiveDirectoryBytes) bytes")
+            recordInternalLog("[Log] pruned archive files by size deleted=\(deletedCount) reclaimed=\(reclaimedBytes) bytes previousArchiveUsage=\(totalSize) bytes limit=\(maxArchiveDirectoryBytes) bytes")
         }
 
         return PruneResult(deletedCount: deletedCount, reclaimedBytes: reclaimedBytes)
