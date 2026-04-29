@@ -116,7 +116,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func startLogMaintenanceTimer() {
         logMaintenanceTimer?.invalidate()
         logMaintenanceTimer = Timer.scheduledTimer(withTimeInterval: BridgeLogger.shared.maintenanceIntervalForScheduling, repeats: true) { _ in
-            BridgeLogger.shared.runMaintenance(reason: "hourly-timer")
+            BridgeLogger.shared.runMaintenance(reason: "scheduled-timer")
         }
     }
 
