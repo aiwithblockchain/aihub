@@ -80,12 +80,16 @@ class XApiTransport(BaseApiTransport):
             params["instanceId"] = instance_id
         return self.request_json("GET", "/api/v1/x/user_tweets", params=params)
 
-    def create_tweet_raw(self, text: str, media_ids: Optional[List[str]] = None, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
+    def create_tweet_raw(self, text: str, media_ids: Optional[List[str]] = None,
+                         attachment_url: Optional[str] = None,
+                         tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
         payload = {"text": text}
         params = None
         headers = None
         if media_ids:
             payload["media_ids"] = media_ids
+        if attachment_url:
+            payload["attachmentUrl"] = attachment_url
         if tab_id:
             payload["tabId"] = tab_id
         if instance_id:

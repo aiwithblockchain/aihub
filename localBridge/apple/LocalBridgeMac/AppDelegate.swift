@@ -162,7 +162,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func sendQueryTweetReplies(tweetId: String, cursor: String? = nil, tabId: Int? = nil, instanceId: String? = nil) {
-        print("[LocalBridgeMac] AppDelegate sendQueryTweetReplies tweetId=\(tweetId) cursor=\(cursor ?? "<nil>") tabId=\(tabId.map(String.init) ?? "<nil>") instanceId=\(instanceId ?? "<nil>")")
         goServer.sendQueryTweetReplies(tweetId: tweetId, cursor: cursor, tabId: tabId, instanceId: instanceId)
     }
 

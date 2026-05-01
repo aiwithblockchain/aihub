@@ -210,6 +210,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     disallowed_reply_options: null
                 };
                 break;
+            case 'quote_tweet':
+                // 引用转发：本质上是 CreateTweet + attachment_url
+                op = 'CreateTweet';
+                vars = {
+                    tweet_text: message.text || '',
+                    attachment_url: message.attachmentUrl || '',
+                    media: {
+                        media_entities: (message.media_ids || []).map((id: string) => ({ media_id: id, tagged_users: [] })),
+                        possibly_sensitive: false
+                    },
+                    semantic_annotation_ids: [],
+                    broadcast: true,
+                    disallowed_reply_options: null
+                };
+                break;
             case 'unlike':
                 op = 'UnfavoriteTweet';
                 vars = { tweet_id: message.tweetId };

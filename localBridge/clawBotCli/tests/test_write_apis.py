@@ -120,11 +120,45 @@ def test_retweet(client: ClawBotClient, tweet_id: str, instance_id: Optional[str
     return False
 
 
+def test_quote_tweet(client: ClawBotClient, text: str, quote_url: str, instance_id: Optional[str]) -> bool:
+    print("\n" + "=" * 60)
+    print("Testing: POST /api/v1/x/tweets (quote tweet)")
+    print("=" * 60)
+    print(f"Tweet text: {text}")
+    print(f"Quote URL: {quote_url}")
+    print(f"instance_id: {instance_id}")
+
+    result = client.x.actions.create_tweet(text=text, attachment_url=quote_url, instance_id=instance_id)
+    print_json_preview(result.raw)
+
+    data = result.raw.get("data", {}) if isinstance(result.raw, dict) else {}
+    if isinstance(data, dict) and "data" in data:
+        data = data["data"]
+    tweet_result = data.get("create_tweet", {}).get("tweet_results", {}).get("result", {}) if isinstance(data, dict) else {}
+    legacy = tweet_result.get("legacy", {}) if isinstance(tweet_result, dict) else {}
+    is_quote_status = legacy.get("is_quote_status")
+
+    if result.success and is_quote_status is True:
+        print("✅ Quote tweet created successfully")
+        print(f"Created tweet ID: {result.target_id or 'unknown'}")
+        return True
+
+    if result.success:
+        print("❌ Tweet was created, but it was not posted as a quote tweet")
+        print(f"Created tweet ID: {result.target_id or 'unknown'}")
+        print(f"legacy.is_quote_status = {is_quote_status!r}")
+        return False
+
+    print("❌ Failed to create quote tweet")
+    return False
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Run one write API smoke test at a time")
-    parser.add_argument("--action", required=True, choices=["create", "like", "retweet"], help="Action to test")
+    parser.add_argument("--action", required=True, choices=["create", "like", "retweet", "quote"], help="Action to test")
     parser.add_argument("--tweet-id", type=str, help="Tweet ID for like/retweet")
-    parser.add_argument("--text", type=str, help="Tweet text for create action")
+    parser.add_argument("--text", type=str, help="Tweet text for create/quote action")
+    parser.add_argument("--quote-url", type=str, help="Tweet URL to quote (for quote action)")
     parser.add_argument("--instance-id", type=str, help="Explicit instanceId for multi-instance routing")
     parser.add_argument("--yes", action="store_true", help="Skip interactive confirmation")
     args = parser.parse_args()
@@ -142,6 +176,14 @@ def main() -> int:
         text = args.text or build_default_text()
         confirm_or_exit("⚠️  This will post a real tweet to your account!", args.yes)
         passed = test_create_tweet(client, text, instance_id)
+    elif args.action == "quote":
+        text = args.text or build_default_text()
+        quote_url = args.quote_url or input("Enter tweet URL to quote: ").strip()
+        if not quote_url:
+            print("❌ quote_url is required for quote action")
+            return 1
+        confirm_or_exit("⚠️  This will post a real quote tweet to your account!", args.yes)
+        passed = test_quote_tweet(client, text, quote_url, instance_id)
     else:
         tweet_id = args.tweet_id or input("Enter tweet ID to use: ").strip()
         if not tweet_id:

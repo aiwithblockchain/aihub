@@ -12,8 +12,13 @@ class XActionsService:
     def __init__(self, transport: XApiTransport):
         self.transport = transport
 
-    def create_tweet(self, text: str, media_ids: Optional[List[str]] = None, tab_id: Optional[int] = None, instance_id: Optional[str] = None):
-        raw = self.transport.create_tweet_raw(text=text, media_ids=media_ids, tab_id=tab_id, instance_id=instance_id)
+    def create_tweet(self, text: str, media_ids: Optional[List[str]] = None,
+                     attachment_url: Optional[str] = None,
+                     tab_id: Optional[int] = None, instance_id: Optional[str] = None):
+        raw = self.transport.create_tweet_raw(
+            text=text, media_ids=media_ids, attachment_url=attachment_url,
+            tab_id=tab_id, instance_id=instance_id
+        )
         target_id = None
         data = raw.get("data", {}) if isinstance(raw, dict) else {}
         if isinstance(data, dict) and "data" in data:

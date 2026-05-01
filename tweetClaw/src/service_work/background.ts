@@ -33,6 +33,7 @@ interface ExecActionPayload {
     tabId?: number;
     text?: string;
     media_ids?: string[];
+    attachmentUrl?: string;
 }
 
 interface QueryTimelinePayload {
@@ -913,8 +914,8 @@ export async function navigateXTab(payload: NavigateTabRequestPayload): Promise<
  * 执行推特操作（like, retweet, follow 等）- 返回推特原始响应
  */
 export async function execAction(payload: ExecActionPayload): Promise<TwitterResponse> {
-    const { action, tweetId, userId, tabId, text, media_ids } = payload;
-    console.log(`[TweetClaw-BG] execAction: ${action}`, { tweetId, userId, tabId, media_ids });
+    const { action, tweetId, userId, tabId, text, media_ids, attachmentUrl } = payload;
+    console.log(`[TweetClaw-BG] execAction: ${action}`, { tweetId, userId, tabId, media_ids, attachmentUrl });
 
     let targetTabId = tabId;
     if (!targetTabId) {
@@ -934,7 +935,8 @@ export async function execAction(payload: ExecActionPayload): Promise<TwitterRes
         tweetId,
         userId,
         text,
-        media_ids
+        media_ids,
+        attachmentUrl
     }).catch((e: any) => {
         throw new Error(`Failed to execute action: ${e?.message}`);
     });

@@ -192,10 +192,7 @@ func (h *Handler) bridge(
 	timeoutMs int,
 	onResp func([]byte),
 ) {
-	queryInstanceId := r.URL.Query().Get("instanceId")
-	headerInstanceId := r.Header.Get("X-Instance-ID")
 	bodyInstanceId := instanceIDFromRequest(r, msg)
-	log.Printf("[REST] bridge client=%s msgID=%s path=%s queryInstanceId=%q headerInstanceId=%q bodyOrFallbackInstanceId=%q", clientName, msgID, r.URL.Path, queryInstanceId, headerInstanceId, bodyInstanceId)
 	instanceId := bodyInstanceId
 
 	sess, err := h.ws.ResolveConn(clientName, instanceId)
@@ -304,7 +301,21 @@ func (h *Handler) timeline(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) tweetsDispatch(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
-		h.execAction(w, r, "post_tweet")
+		var req types.ExecActionRequest
+		if err := readJSON(r, &req); err != nil {
+			jsonErr(w, 400, err.Error())
+			return
+		}
+
+		action := "post_tweet"
+		if req.AttachmentURL != nil && *req.AttachmentURL != "" {
+			action = "quote_tweet"
+		}
+		req.Action = action
+
+		id := newID("http_exec")
+		h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.exec_action", "tweetClaw", req), 8000,
+			func(data []byte) { writeRawPayload(w, data) })
 	} else {
 		id := newID("http_tweet_detail")
 		tweetID := r.URL.Query().Get("tweetId")
@@ -414,7 +425,6 @@ func (h *Handler) openTab(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, 400, err.Error())
 		return
 	}
-	log.Printf("[REST] openTab decoded path=%q instanceId=%q req=%+v", req.Path, req.InstanceID, req)
 	id := newID("http_open_tab")
 	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.open_tab", "tweetClaw", req), 5000,
 		func(data []byte) { writeRawPayload(w, data) })
@@ -426,7 +436,6 @@ func (h *Handler) closeTab(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, 400, err.Error())
 		return
 	}
-	log.Printf("[REST] closeTab decoded tabId=%d instanceId=%q req=%+v", req.TabID, req.InstanceID, req)
 	id := newID("http_close_tab")
 	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.close_tab", "tweetClaw", req), 5000,
 		func(data []byte) { writeRawPayload(w, data) })
@@ -438,7 +447,6 @@ func (h *Handler) navigateTab(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, 400, err.Error())
 		return
 	}
-	log.Printf("[REST] navigateTab decoded path=%q tabId=%v instanceId=%q req=%+v", req.Path, req.TabID, req.InstanceID, req)
 	id := newID("http_nav_tab")
 	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.navigate_tab", "tweetClaw", req), 5000,
 		func(data []byte) { writeRawPayload(w, data) })

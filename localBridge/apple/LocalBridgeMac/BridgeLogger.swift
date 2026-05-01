@@ -343,22 +343,24 @@ final class BridgeLogger {
             return PruneResult(deletedCount: 0, reclaimedBytes: 0)
         }
 
-        let deleteCount = max(1, archives.count / 2)
         var deletedCount = 0
         var reclaimedBytes: UInt64 = 0
+        var remainingBytes = totalSize
 
-        for archive in archives.prefix(deleteCount) {
+        for archive in archives {
+            guard remainingBytes > maxArchiveDirectoryBytes else { break }
             do {
                 try fileManager.removeItem(at: archive.url)
                 deletedCount += 1
                 reclaimedBytes += archive.sizeBytes
+                remainingBytes -= archive.sizeBytes
             } catch {
                 continue
             }
         }
 
         if deletedCount > 0 {
-            recordInternalLog("[Log] pruned archive files by size deleted=\(deletedCount) reclaimed=\(reclaimedBytes) bytes previousArchiveUsage=\(totalSize) bytes limit=\(maxArchiveDirectoryBytes) bytes")
+            recordInternalLog("[Log] pruned archive files by size deleted=\(deletedCount) reclaimed=\(reclaimedBytes) bytes previousArchiveUsage=\(totalSize) bytes remaining=\(remainingBytes) limit=\(maxArchiveDirectoryBytes) bytes")
         }
 
         return PruneResult(deletedCount: deletedCount, reclaimedBytes: reclaimedBytes)

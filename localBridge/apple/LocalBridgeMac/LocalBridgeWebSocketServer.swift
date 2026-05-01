@@ -321,7 +321,6 @@ class LocalBridgeWebSocketServer {
     }
     
     private func handleIncomingMessage(data: Data, from connection: NWConnection) {
-        print("[LocalBridgeMac] handling incoming message, size: \(data.count)")
         let decoder = JSONDecoder()
         do {
             // Use a lightweight peek to check message type without full payload decoding
@@ -398,7 +397,6 @@ class LocalBridgeWebSocketServer {
 
                 
             case .responseQueryXTabsStatus:
-                print("[LocalBridgeMac] received response.query_x_tabs_status")
                 self.handleQueryXTabsResponse(data: data)
                 if let callback = self.pendingHttpCallbacks[peekMsg.id] {
                     callback(data)
@@ -407,7 +405,6 @@ class LocalBridgeWebSocketServer {
                 self.pendingUiRequests.remove(peekMsg.id)
 
             case .responseQueryAITabsStatus:
-                print("[LocalBridgeMac] received response.query_ai_tabs_status")
                 self.handleQueryAITabsResponse(data: data)
                 if let callback = self.pendingHttpCallbacks[peekMsg.id] {
                     callback(data)
@@ -416,7 +413,6 @@ class LocalBridgeWebSocketServer {
                 self.pendingUiRequests.remove(peekMsg.id)
                 
             case .responseExecuteTaskResult:
-                print("[LocalBridgeMac] received response.execute_task_result")
                 self.handleExecuteTaskResponse(data: data)
                 if let callback = self.pendingHttpCallbacks[peekMsg.id] {
                     callback(data)
@@ -426,7 +422,6 @@ class LocalBridgeWebSocketServer {
                 self.pendingUiRequestTitles.removeValue(forKey: peekMsg.id)
 
             case .responseQueryXBasicInfo:
-                print("[LocalBridgeMac] received response.query_x_basic_info")
                 self.handleQueryXBasicInfoResponse(data: data)
                 if let callback = self.pendingHttpCallbacks[peekMsg.id] {
                     callback(data)
@@ -435,7 +430,6 @@ class LocalBridgeWebSocketServer {
                 self.pendingUiRequests.remove(peekMsg.id)
                 
             case .responseOpenTab:
-                print("[LocalBridgeMac] received response.open_tab")
                 self.handleOpenTabResponse(data: data)
                 if let callback = self.pendingHttpCallbacks[peekMsg.id] {
                     callback(data)
@@ -444,7 +438,6 @@ class LocalBridgeWebSocketServer {
                 self.pendingUiRequests.remove(peekMsg.id)
 
             case .responseCloseTab:
-                print("[LocalBridgeMac] received response.close_tab")
                 self.handleCloseTabResponse(data: data)
                 if let callback = self.pendingHttpCallbacks[peekMsg.id] {
                     callback(data)
@@ -453,7 +446,6 @@ class LocalBridgeWebSocketServer {
                 self.pendingUiRequests.remove(peekMsg.id)
                 
             case .responseNavigateTab:
-                print("[LocalBridgeMac] received response.navigate_tab")
                 self.handleNavigateTabResponse(data: data)
                 if let callback = self.pendingHttpCallbacks[peekMsg.id] {
                     callback(data)
@@ -462,7 +454,6 @@ class LocalBridgeWebSocketServer {
                 self.pendingUiRequests.remove(peekMsg.id)
                 
             case .responseExecAction:
-                print("[LocalBridgeMac] received response.exec_action")
                 if let callback = self.pendingHttpCallbacks[peekMsg.id] {
                     callback(data)
                     self.pendingHttpCallbacks.removeValue(forKey: peekMsg.id)
@@ -485,14 +476,12 @@ class LocalBridgeWebSocketServer {
                 }
 
             case .responseQueryHomeTimeline, .responseQueryTweetDetail, .responseQueryUserProfile, .responseQuerySearchTimeline:
-                print("[LocalBridgeMac] received generic query response: \(peekMsg.type)")
                 if let callback = self.pendingHttpCallbacks[peekMsg.id] {
                     callback(data)
                     self.pendingHttpCallbacks.removeValue(forKey: peekMsg.id)
                 }
                 
             case .responseError:
-                print("[LocalBridgeMac] received response.error")
                 if self.pendingUiRequests.contains(peekMsg.id) {
                     self.pendingUiRequests.remove(peekMsg.id)
                     let errorMsg = "Error: Received response.error from extension"
@@ -510,9 +499,9 @@ class LocalBridgeWebSocketServer {
                     callback(data)
                     self.pendingHttpCallbacks.removeValue(forKey: peekMsg.id)
                 }
-                
+
             default:
-                print("[LocalBridgeMac] unhandled message type: \(peekMsg.type)")
+                break
             }
         } catch {
             print("[LocalBridgeMac] failed to decode message: \(error)")
@@ -610,16 +599,7 @@ class LocalBridgeWebSocketServer {
         do {
             let resp = try decoder.decode(BaseMessage<QueryXTabsStatusResponsePayload>.self, from: data)
             let p = resp.payload
-            
-            print("[LocalBridgeMac] query_x_tabs_status success")
-            print("[LocalBridgeMac] hasXTabs=\(p.hasXTabs)")
-            print("[LocalBridgeMac] isLoggedIn=\(p.isLoggedIn)")
-            print("[LocalBridgeMac] activeXTabId=\(String(describing: p.activeXTabId))")
-            print("[LocalBridgeMac] activeXUrl=\(p.activeXUrl ?? "null")")
-            
-            let tabsInfo = p.tabs.map { "{tabId:\($0.tabId),url:\($0.url),active:\($0.active)}" }.joined(separator: ",")
-            print("[LocalBridgeMac] tabs=[\(tabsInfo)]")
-            
+
             // Format nice JSON string for UI text view
             let encoder = JSONEncoder()
             encoder.outputFormatting = .prettyPrinted
@@ -639,13 +619,7 @@ class LocalBridgeWebSocketServer {
         do {
             let resp = try decoder.decode(BaseMessage<QueryAITabsStatusResponsePayload>.self, from: data)
             let p = resp.payload
-            
-            print("[LocalBridgeMac] query_ai_tabs_status success")
-            print("[LocalBridgeMac] hasAITabs=\(p.hasAITabs)")
-            
-            let tabsInfo = p.tabs.map { "{tabId:\($0.tabId),platform:\($0.platform),url:\($0.url),active:\($0.active)}" }.joined(separator: ",")
-            print("[LocalBridgeMac] tabs=[\(tabsInfo)]")
-            
+
             // Format nice JSON string for UI text view
             let encoder = JSONEncoder()
             encoder.outputFormatting = .prettyPrinted

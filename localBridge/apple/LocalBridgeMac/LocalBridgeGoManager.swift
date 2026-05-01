@@ -389,7 +389,6 @@ final class LocalBridgeGoManager {
     }
 
     func sendQueryTweetReplies(tweetId: String, cursor: String? = nil, tabId: Int? = nil, instanceId: String? = nil) {
-        print("[LocalBridgeMac] GoManager sendQueryTweetReplies tweetId=\(tweetId) cursor=\(cursor ?? "<nil>") tabId=\(tabId.map(String.init) ?? "<nil>") instanceId=\(instanceId ?? "<nil>")")
         invokePlugin(
             clientName: "tweetClaw",
             messageType: "request.query_tweet_replies",

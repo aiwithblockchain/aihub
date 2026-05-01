@@ -191,13 +191,14 @@ export interface NavigateTabResponsePayload {
 
 export interface ExecActionRequestPayload {
   action: 'like' | 'retweet' | 'bookmark' | 'follow' | 'unfollow'
-       | 'post_tweet' | 'reply_tweet' | 'unlike' | 'unretweet' | 'unbookmark'
+       | 'post_tweet' | 'reply_tweet' | 'quote_tweet' | 'unlike' | 'unretweet' | 'unbookmark'
        | 'delete_tweet';
   tweetId?: string;
   userId?: string;
   tabId?: number;
   text?: string;    // 新增：发推文 / 回复时的文字内容
   media_ids?: string[];  // 新增：媒体 ID 列表
+  attachmentUrl?: string; // 新增：quote tweet 时被引用推文的 URL
 }
 
 export interface QueryTweetDetailRequestPayload {

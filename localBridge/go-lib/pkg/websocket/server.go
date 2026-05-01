@@ -391,7 +391,6 @@ func (s *Server) handlePing(peek types.PeekMessage, conn *gorillaws.Conn) {
 	}
 	s.mu.RUnlock()
 	if targetSess != nil {
-		log.Printf("[WS] received ping: id=%s client=%s instance=%s sessionID=%s remote=%s", peek.ID, targetSess.ClientName, targetSess.InstanceID, targetSess.SessionID, targetSess.Conn.RemoteAddr())
 		s.sendPong(targetSess, peek.ID, clientName)
 		return
 	}
@@ -663,7 +662,6 @@ func (s *Server) sendHelloAck(sess *ClientSession, replyID, target string) {
 		log.Printf("[WS] failed to send hello_ack to %s: %v", target, err)
 		return
 	}
-	log.Printf("[WS] sent hello_ack to %s", target)
 }
 
 func (s *Server) sendPong(sess *ClientSession, replyID, target string) {
@@ -678,5 +676,4 @@ func (s *Server) sendPong(sess *ClientSession, replyID, target string) {
 		log.Printf("[WS] failed to send pong to %s: %v", target, err)
 		return
 	}
-	log.Printf("[WS] sent pong: id=%s to=%s", replyID, target)
 }
