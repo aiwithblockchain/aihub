@@ -12,8 +12,8 @@ final class BridgeLogger {
     private static let releaseMaxActiveLogBytes = 1 * 1024 * 1024
     private static let debugMaintenanceInterval: TimeInterval = 15 * 60
     private static let releaseMaintenanceInterval: TimeInterval = 60 * 60
-    private static let debugMaxArchiveDirectoryBytes: UInt64 = 100 * 1024 * 1024
-    private static let releaseMaxArchiveDirectoryBytes: UInt64 = 500 * 1024 * 1024
+    private static let debugMaxArchiveDirectoryBytes: UInt64 = 50 * 1024 * 1024
+    private static let releaseMaxArchiveDirectoryBytes: UInt64 = 200 * 1024 * 1024
 
     private let displayMaxLines = 1000
     private let maxReadBytes = 512 * 1024
