@@ -2,6 +2,15 @@ package main
 
 /*
 #include <stdlib.h>
+
+typedef const char *(*resolve_x_oauth_access_token_fn)(const char *twitter_id);
+
+static inline const char *call_resolve_x_oauth_access_token_fn(resolve_x_oauth_access_token_fn fn, const char *twitter_id) {
+	if (fn == NULL) {
+		return NULL;
+	}
+	return fn(twitter_id);
+}
 */
 import "C"
 import (
@@ -30,6 +39,16 @@ var bridgeState struct {
 
 type bridgeLogWriter struct{}
 
+type xOAuthAccessTokenResolver interface {
+	ResolveXOAuthAccessToken(string) string
+}
+
+type cgoXOAuthAccessTokenResolver struct {
+	fn C.resolve_x_oauth_access_token_fn
+}
+
+var xOAuthResolver xOAuthAccessTokenResolver
+
 type xOAuthAccessTokenRequest struct {
 	TwitterID string `json:"twitter_id"`
 }
@@ -51,6 +70,22 @@ func (bridgeLogWriter) Write(p []byte) (int, error) {
 	}
 	logBuf.mu.Unlock()
 	return len(p), nil
+}
+
+func (r cgoXOAuthAccessTokenResolver) ResolveXOAuthAccessToken(twitterID string) string {
+	if r.fn == nil {
+		return ""
+	}
+
+	cTwitterID := C.CString(twitterID)
+	defer C.free(unsafe.Pointer(cTwitterID))
+
+	resolved := C.call_resolve_x_oauth_access_token_fn(r.fn, cTwitterID)
+	if resolved == nil {
+		return ""
+	}
+
+	return C.GoString(resolved)
 }
 
 func init() {
@@ -103,7 +138,23 @@ func resolveXOAuthAccessToken(twitterID string) (*xOAuthAccessTokenResponse, err
 	if strings.TrimSpace(twitterID) == "" {
 		return nil, errors.New("twitter_id is required")
 	}
-	return nil, errors.New("not implemented")
+	if xOAuthResolver == nil {
+		return nil, errors.New("resolver_unavailable")
+	}
+
+	payload := strings.TrimSpace(xOAuthResolver.ResolveXOAuthAccessToken(twitterID))
+	if payload == "" {
+		return nil, errors.New("token_unavailable")
+	}
+
+	var response xOAuthAccessTokenResponse
+	if err := json.Unmarshal([]byte(payload), &response); err != nil {
+		return nil, err
+	}
+	if strings.TrimSpace(response.AccessToken) == "" {
+		return nil, errors.New("token_unavailable")
+	}
+	return &response, nil
 }
 
 func decodeJSONBody(r *http.Request, v interface{}) error {
@@ -173,6 +224,15 @@ func LocalBridgeGetLogsJSON() *C.char {
 		return C.CString("[]")
 	}
 	return C.CString(string(data))
+}
+
+//export SetXOAuthAccessTokenResolver
+func SetXOAuthAccessTokenResolver(resolver C.resolve_x_oauth_access_token_fn) {
+	if resolver == nil {
+		xOAuthResolver = nil
+		return
+	}
+	xOAuthResolver = cgoXOAuthAccessTokenResolver{fn: resolver}
 }
 
 func main() {}
