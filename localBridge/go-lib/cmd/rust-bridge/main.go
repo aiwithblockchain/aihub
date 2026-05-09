@@ -6,7 +6,9 @@ package main
 import "C"
 import (
 	"encoding/json"
+	"errors"
 	"log"
+	"net/http"
 	"strings"
 	"sync"
 	"unsafe"
@@ -27,6 +29,18 @@ var bridgeState struct {
 }
 
 type bridgeLogWriter struct{}
+
+type xOAuthAccessTokenRequest struct {
+	TwitterID string `json:"twitter_id"`
+}
+
+type xOAuthAccessTokenResponse struct {
+	TwitterID     string `json:"twitter_id"`
+	AccessToken   string `json:"access_token"`
+	TokenType     string `json:"token_type"`
+	ExpiresAt     *int64 `json:"expires_at,omitempty"`
+	AccountSource string `json:"account_source"`
+}
 
 func (bridgeLogWriter) Write(p []byte) (int, error) {
 	line := strings.TrimRight(string(p), "\n")
@@ -56,9 +70,63 @@ func getLastErr() string {
 	return bridgeState.lastErr
 }
 
+func registerRustBridgeRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/api/v1/x/oauth/access-token", handleXOAuthAccessToken)
+}
+
+func handleXOAuthAccessToken(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+
+	var req xOAuthAccessTokenRequest
+	if err := decodeJSONBody(r, &req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	if strings.TrimSpace(req.TwitterID) == "" {
+		writeJSONError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+
+	response, err := resolveXOAuthAccessToken(req.TwitterID)
+	if err != nil {
+		writeJSONError(w, http.StatusServiceUnavailable, "token_unavailable")
+		return
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
+func resolveXOAuthAccessToken(twitterID string) (*xOAuthAccessTokenResponse, error) {
+	if strings.TrimSpace(twitterID) == "" {
+		return nil, errors.New("twitter_id is required")
+	}
+	return nil, errors.New("not implemented")
+}
+
+func decodeJSONBody(r *http.Request, v interface{}) error {
+	defer r.Body.Close()
+	return json.NewDecoder(r.Body).Decode(v)
+}
+
+func writeJSON(w http.ResponseWriter, status int, payload interface{}) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(status)
+	_ = json.NewEncoder(w).Encode(payload)
+}
+
+func writeJSONError(w http.ResponseWriter, status int, message string) {
+	if status == http.StatusMethodNotAllowed {
+		w.Header().Set("Allow", http.MethodPost)
+	}
+	writeJSON(w, status, map[string]string{"error": message})
+}
+
 //export LocalBridgeStart
 func LocalBridgeStart() C.int {
-	if err := bridge.StartDefault(); err != nil {
+	if err := bridge.StartDefaultWithRESTRegistrar(registerRustBridgeRoutes); err != nil {
 		setLastErr(err.Error())
 		return -1
 	}

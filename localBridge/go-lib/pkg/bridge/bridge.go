@@ -15,17 +15,17 @@ type Bridge struct {
 var global *Bridge
 
 func New(cfg config.Config) *Bridge {
-	ws := websocket.NewServer()
+	return NewWithRESTRegistrar(cfg, nil)
+}
 
-	// 将配置转换为 WebSocket 和 REST API 所需的格式
-	wsAddresses := convertToWSAddresses(cfg.TweetClawWS.Addresses)
-	wsAddresses = append(wsAddresses, convertToWSAddresses(cfg.AIClawWS.Addresses)...)
+func NewWithRESTRegistrar(cfg config.Config, registrar restapi.RouteRegistrar) *Bridge {
+	ws := websocket.NewServer()
 	restAddresses := convertToRESTAddresses(cfg.RestAPI.Addresses)
 
 	return &Bridge{
 		cfg:        cfg,
 		wsServer:   ws,
-		restServer: restapi.NewServer(restAddresses, ws),
+		restServer: restapi.NewServerWithRegistrar(restAddresses, ws, registrar),
 	}
 }
 
@@ -77,8 +77,12 @@ func convertToRESTAddresses(addrs []config.ListenAddress) []restapi.ListenAddres
 // 包级单例方法，供 CGo export 层调用
 
 func StartDefault() error {
+	return StartDefaultWithRESTRegistrar(nil)
+}
+
+func StartDefaultWithRESTRegistrar(registrar restapi.RouteRegistrar) error {
 	cfg := config.Load()
-	global = New(cfg)
+	global = NewWithRESTRegistrar(cfg, registrar)
 	return global.Start()
 }
 
