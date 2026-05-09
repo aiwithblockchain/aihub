@@ -4,6 +4,9 @@ package main
 #include <stdlib.h>
 
 typedef const char *(*resolve_x_oauth_access_token_fn)(const char *twitter_id);
+typedef void (*free_x_oauth_access_token_fn)(const char *value);
+typedef const char *(*handle_x_oauth_callback_fn)(const char *query_json);
+typedef void (*free_x_oauth_callback_fn)(const char *value);
 
 static inline const char *call_resolve_x_oauth_access_token_fn(resolve_x_oauth_access_token_fn fn, const char *twitter_id) {
 	if (fn == NULL) {
@@ -11,11 +14,33 @@ static inline const char *call_resolve_x_oauth_access_token_fn(resolve_x_oauth_a
 	}
 	return fn(twitter_id);
 }
+
+static inline const char *call_handle_x_oauth_callback_fn(handle_x_oauth_callback_fn fn, const char *query_json) {
+	if (fn == NULL) {
+		return NULL;
+	}
+	return fn(query_json);
+}
+
+static inline void call_free_x_oauth_access_token_fn(free_x_oauth_access_token_fn fn, const char *value) {
+	if (fn == NULL || value == NULL) {
+		return;
+	}
+	fn(value);
+}
+
+static inline void call_free_x_oauth_callback_fn(free_x_oauth_callback_fn fn, const char *value) {
+	if (fn == NULL || value == NULL) {
+		return;
+	}
+	fn(value);
+}
 */
 import "C"
 import (
 	"encoding/json"
 	"errors"
+	"html"
 	"log"
 	"net/http"
 	"strings"
@@ -39,15 +64,14 @@ var bridgeState struct {
 
 type bridgeLogWriter struct{}
 
-type xOAuthAccessTokenResolver interface {
-	ResolveXOAuthAccessToken(string) string
+type cgoXOAuthResolver struct {
+	accessToken       C.resolve_x_oauth_access_token_fn
+	freeAccessToken   C.free_x_oauth_access_token_fn
+	oauthCallback     C.handle_x_oauth_callback_fn
+	freeOAuthCallback C.free_x_oauth_callback_fn
 }
 
-type cgoXOAuthAccessTokenResolver struct {
-	fn C.resolve_x_oauth_access_token_fn
-}
-
-var xOAuthResolver xOAuthAccessTokenResolver
+var xResolver = &cgoXOAuthResolver{}
 
 type xOAuthAccessTokenRequest struct {
 	TwitterID string `json:"twitter_id"`
@@ -61,6 +85,20 @@ type xOAuthAccessTokenResponse struct {
 	AccountSource string `json:"account_source"`
 }
 
+type xOAuthCallbackRequest struct {
+	Code             string `json:"code,omitempty"`
+	State            string `json:"state,omitempty"`
+	Error            string `json:"error,omitempty"`
+	ErrorDescription string `json:"error_description,omitempty"`
+}
+
+type xOAuthCallbackResponse struct {
+	OK          bool   `json:"ok"`
+	HTML        string `json:"html,omitempty"`
+	ContentType string `json:"content_type,omitempty"`
+	Error       string `json:"error,omitempty"`
+}
+
 func (bridgeLogWriter) Write(p []byte) (int, error) {
 	line := strings.TrimRight(string(p), "\n")
 	logBuf.mu.Lock()
@@ -72,20 +110,40 @@ func (bridgeLogWriter) Write(p []byte) (int, error) {
 	return len(p), nil
 }
 
-func (r cgoXOAuthAccessTokenResolver) ResolveXOAuthAccessToken(twitterID string) string {
-	if r.fn == nil {
+func (r cgoXOAuthResolver) ResolveXOAuthAccessToken(twitterID string) string {
+	if r.accessToken == nil {
 		return ""
 	}
 
 	cTwitterID := C.CString(twitterID)
 	defer C.free(unsafe.Pointer(cTwitterID))
 
-	resolved := C.call_resolve_x_oauth_access_token_fn(r.fn, cTwitterID)
+	resolved := C.call_resolve_x_oauth_access_token_fn(r.accessToken, cTwitterID)
 	if resolved == nil {
 		return ""
 	}
 
-	return C.GoString(resolved)
+	value := C.GoString(resolved)
+	C.call_free_x_oauth_access_token_fn(r.freeAccessToken, resolved)
+	return value
+}
+
+func (h cgoXOAuthResolver) HandleXOAuthCallback(queryJSON string) string {
+	if h.oauthCallback == nil {
+		return ""
+	}
+
+	cQueryJSON := C.CString(queryJSON)
+	defer C.free(unsafe.Pointer(cQueryJSON))
+
+	resolved := C.call_handle_x_oauth_callback_fn(h.oauthCallback, cQueryJSON)
+	if resolved == nil {
+		return ""
+	}
+
+	value := C.GoString(resolved)
+	C.call_free_x_oauth_callback_fn(h.freeOAuthCallback, resolved)
+	return value
 }
 
 func init() {
@@ -107,6 +165,7 @@ func getLastErr() string {
 
 func registerRustBridgeRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/x/oauth/access-token", handleXOAuthAccessToken)
+	mux.HandleFunc("/oauth/callback", handleXOAuthCallback)
 }
 
 func handleXOAuthAccessToken(w http.ResponseWriter, r *http.Request) {
@@ -134,15 +193,47 @@ func handleXOAuthAccessToken(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusOK, response)
 }
 
+func handleXOAuthCallback(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w, http.MethodGet)
+		return
+	}
+
+	response, err := forwardXOAuthCallback(r)
+	if err != nil {
+		writeHTML(w, http.StatusServiceUnavailable, defaultXOAuthCallbackHTML(false, err.Error()))
+		return
+	}
+
+	status := http.StatusOK
+	if !response.OK {
+		status = http.StatusBadRequest
+	}
+
+	contentType := strings.TrimSpace(response.ContentType)
+	if contentType == "" {
+		contentType = "text/html; charset=utf-8"
+	}
+
+	body := response.HTML
+	if strings.TrimSpace(body) == "" {
+		body = defaultXOAuthCallbackHTML(response.OK, response.Error)
+	}
+
+	w.Header().Set("Content-Type", contentType)
+	w.WriteHeader(status)
+	_, _ = w.Write([]byte(body))
+}
+
 func resolveXOAuthAccessToken(twitterID string) (*xOAuthAccessTokenResponse, error) {
 	if strings.TrimSpace(twitterID) == "" {
 		return nil, errors.New("twitter_id is required")
 	}
-	if xOAuthResolver == nil {
+	if xResolver.accessToken == nil {
 		return nil, errors.New("resolver_unavailable")
 	}
 
-	payload := strings.TrimSpace(xOAuthResolver.ResolveXOAuthAccessToken(twitterID))
+	payload := strings.TrimSpace(xResolver.ResolveXOAuthAccessToken(twitterID))
 	if payload == "" {
 		return nil, errors.New("token_unavailable")
 	}
@@ -155,6 +246,46 @@ func resolveXOAuthAccessToken(twitterID string) (*xOAuthAccessTokenResponse, err
 		return nil, errors.New("token_unavailable")
 	}
 	return &response, nil
+}
+
+func forwardXOAuthCallback(r *http.Request) (*xOAuthCallbackResponse, error) {
+	if xResolver.oauthCallback == nil {
+		return nil, errors.New("callback_handler_unavailable")
+	}
+
+	requestPayload, err := json.Marshal(xOAuthCallbackRequest{
+		Code:             strings.TrimSpace(r.URL.Query().Get("code")),
+		State:            strings.TrimSpace(r.URL.Query().Get("state")),
+		Error:            strings.TrimSpace(r.URL.Query().Get("error")),
+		ErrorDescription: strings.TrimSpace(r.URL.Query().Get("error_description")),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	payload := strings.TrimSpace(xResolver.HandleXOAuthCallback(string(requestPayload)))
+	if payload == "" {
+		return nil, errors.New("callback_handler_unavailable")
+	}
+
+	var response xOAuthCallbackResponse
+	if err := json.Unmarshal([]byte(payload), &response); err != nil {
+		return nil, err
+	}
+	return &response, nil
+}
+
+func defaultXOAuthCallbackHTML(ok bool, message string) string {
+	title := "X OAuth 登录失败"
+	body := "请返回 TweetPilot 重试。"
+	if ok {
+		title = "X OAuth 登录成功"
+		body = "你可以关闭此页面并返回 TweetPilot。"
+	} else if strings.TrimSpace(message) != "" {
+		body = html.EscapeString(message)
+	}
+
+	return "<!doctype html><html><head><meta charset=\"utf-8\"><title>" + title + "</title></head><body><h1>" + title + "</h1><p>" + body + "</p></body></html>"
 }
 
 func decodeJSONBody(r *http.Request, v interface{}) error {
@@ -173,6 +304,17 @@ func writeJSONError(w http.ResponseWriter, status int, message string) {
 		w.Header().Set("Allow", http.MethodPost)
 	}
 	writeJSON(w, status, map[string]string{"error": message})
+}
+
+func writeMethodNotAllowed(w http.ResponseWriter, method string) {
+	w.Header().Set("Allow", method)
+	writeHTML(w, http.StatusMethodNotAllowed, "method not allowed")
+}
+
+func writeHTML(w http.ResponseWriter, status int, body string) {
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.WriteHeader(status)
+	_, _ = w.Write([]byte(body))
 }
 
 //export LocalBridgeStart
@@ -227,12 +369,31 @@ func LocalBridgeGetLogsJSON() *C.char {
 }
 
 //export SetXOAuthAccessTokenResolver
-func SetXOAuthAccessTokenResolver(resolver C.resolve_x_oauth_access_token_fn) {
+func SetXOAuthAccessTokenResolver(
+	resolver C.resolve_x_oauth_access_token_fn,
+	freeFn C.free_x_oauth_access_token_fn,
+) {
 	if resolver == nil {
-		xOAuthResolver = nil
+		xResolver.accessToken = nil
+		xResolver.freeAccessToken = nil
 		return
 	}
-	xOAuthResolver = cgoXOAuthAccessTokenResolver{fn: resolver}
+	xResolver.accessToken = resolver
+	xResolver.freeAccessToken = freeFn
+}
+
+//export SetXOAuthCallbackHandler
+func SetXOAuthCallbackHandler(
+	handler C.handle_x_oauth_callback_fn,
+	freeFn C.free_x_oauth_callback_fn,
+) {
+	if handler == nil {
+		xResolver.oauthCallback = nil
+		xResolver.freeOAuthCallback = nil
+		return
+	}
+	xResolver.oauthCallback = handler
+	xResolver.freeOAuthCallback = freeFn
 }
 
 func main() {}
