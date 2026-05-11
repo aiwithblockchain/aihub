@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -67,8 +66,6 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/ai/new_conversation", h.newConversation)
 	mux.HandleFunc("/api/v1/ai/navigate", h.navigateToPlatform)
 
-	// ★ 系统端点
-	mux.HandleFunc("/api/v1/x/docs", h.apiDocs)
 }
 
 func NewHandler(ws *websocket.Server) *Handler {
@@ -464,55 +461,38 @@ func (h *Handler) instances(w http.ResponseWriter, _ *http.Request) {
 	json.NewEncoder(w).Encode(xInstances)
 }
 
-func (h *Handler) apiDocs(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		jsonErr(w, 405, "method_not_allowed")
-		return
-	}
-
-	// 获取可执行文件路径
-	execPath, err := os.Executable()
-	var bundleResourcePath string
-	if err == nil {
-		fmt.Printf("[Go] Executable path: %s\n", execPath)
-		// 从可执行文件路径推导 Resources 目录
-		// 例如: /path/to/OpenHub.app/Contents/MacOS/OpenHub -> /path/to/OpenHub.app/Contents/Resources
-		if strings.Contains(execPath, ".app/Contents/MacOS/") {
-			bundleResourcePath = strings.Replace(execPath, "/Contents/MacOS/"+filepath.Base(execPath), "/Contents/Resources/api_docs.json", 1)
-			fmt.Printf("[Go] Bundle resource path: %s\n", bundleResourcePath)
+// NewAPIDocsHandler 返回一个 /api/v1/x/docs 的 http.HandlerFunc。
+// candidates 由各二进制的 main.go 传入，按优先级从高到低依次尝试。
+func NewAPIDocsHandler(candidates []string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			jsonErr(w, 405, "method_not_allowed")
+			return
 		}
-	}
 
-	candidatePaths := []string{
-		bundleResourcePath, // 优先尝试应用包内的 Resources 目录
-		"api_docs.json",
-		"LocalBridgeMac/api_docs.json",
-		os.ExpandEnv("$HOME/aiwithblockchain/aihub/localBridge/apple/LocalBridgeMac/api_docs.json"),
-	}
-
-	fmt.Printf("[Go] Trying to load api_docs.json from %d candidate paths\n", len(candidatePaths))
-	var data []byte
-	for i, path := range candidatePaths {
-		if path == "" {
-			continue
+		var data []byte
+		var lastErr error
+		for _, path := range candidates {
+			if path == "" {
+				continue
+			}
+			var err error
+			data, err = os.ReadFile(path)
+			if err == nil {
+				log.Printf("[REST] api_docs loaded from: %s", path)
+				break
+			}
+			lastErr = err
 		}
-		fmt.Printf("[Go] [%d] Trying: %s\n", i, path)
-		data, err = os.ReadFile(path)
-		if err == nil {
-			fmt.Printf("[Go] [%d] ✓ Successfully loaded from: %s\n", i, path)
-			break
-		} else {
-			fmt.Printf("[Go] [%d] ✗ Failed: %v\n", i, err)
+		if data == nil {
+			log.Printf("[REST] api_docs not found, last error: %v", lastErr)
+			jsonErr(w, 404, "api_docs not found")
+			return
 		}
-	}
-	if err != nil {
-		fmt.Printf("[Go] Error: api_docs.json not found in any candidate location\n")
-		jsonErr(w, 404, "api_docs.json not found")
-		return
-	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(data)
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(data)
+	}
 }
 
 // --- aiClaw 端点 ---

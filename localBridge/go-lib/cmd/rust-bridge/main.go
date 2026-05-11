@@ -43,11 +43,14 @@ import (
 	"html"
 	"log"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"unsafe"
 
 	"github.com/hyperorchid/localbridge/pkg/bridge"
+	"github.com/hyperorchid/localbridge/pkg/restapi"
 )
 
 const maxLogLines = 2000
@@ -163,7 +166,22 @@ func getLastErr() string {
 	return bridgeState.lastErr
 }
 
+// rustBridgeAPIDocsCandidates 返回 rust-bridge 专属的 api_docs 候选路径。
+// rust-bridge 以静态库形式链接进 TweetPilot，TweetPilot 启动时 resource_installer
+// 已将 resources/tweetpilot-home/ 下的文件同步到 ~/.tweetpilot/，因此直接读用户目录即可，
+// 无需推导 .app bundle 路径，且同样适用于 Windows（USERPROFILE\.tweetpilot）。
+func rustBridgeAPIDocsCandidates() []string {
+	homeDir, err := os.UserHomeDir()
+	if err != nil {
+		return nil
+	}
+	return []string{
+		filepath.Join(homeDir, ".tweetpilot", "rust_bridge_api_docs.json"),
+	}
+}
+
 func registerRustBridgeRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/api/v1/x/docs", restapi.NewAPIDocsHandler(rustBridgeAPIDocsCandidates()))
 	mux.HandleFunc("/api/v1/x/oauth/access-token", handleXOAuthAccessToken)
 	mux.HandleFunc("/oauth/callback", handleXOAuthCallback)
 }
