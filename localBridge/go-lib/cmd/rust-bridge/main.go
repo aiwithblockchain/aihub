@@ -7,6 +7,8 @@ typedef const char *(*resolve_x_oauth_access_token_fn)(const char *twitter_id);
 typedef void (*free_x_oauth_access_token_fn)(const char *value);
 typedef const char *(*handle_x_oauth_callback_fn)(const char *query_json);
 typedef void (*free_x_oauth_callback_fn)(const char *value);
+typedef const char *(*feishu_send_fn)(const char *text_json);
+typedef void (*free_feishu_send_fn)(const char *value);
 
 static inline const char *call_resolve_x_oauth_access_token_fn(resolve_x_oauth_access_token_fn fn, const char *twitter_id) {
 	if (fn == NULL) {
@@ -22,6 +24,13 @@ static inline const char *call_handle_x_oauth_callback_fn(handle_x_oauth_callbac
 	return fn(query_json);
 }
 
+static inline const char *call_feishu_send_fn(feishu_send_fn fn, const char *text_json) {
+	if (fn == NULL) {
+		return NULL;
+	}
+	return fn(text_json);
+}
+
 static inline void call_free_x_oauth_access_token_fn(free_x_oauth_access_token_fn fn, const char *value) {
 	if (fn == NULL || value == NULL) {
 		return;
@@ -30,6 +39,13 @@ static inline void call_free_x_oauth_access_token_fn(free_x_oauth_access_token_f
 }
 
 static inline void call_free_x_oauth_callback_fn(free_x_oauth_callback_fn fn, const char *value) {
+	if (fn == NULL || value == NULL) {
+		return;
+	}
+	fn(value);
+}
+
+static inline void call_free_feishu_send_fn(free_feishu_send_fn fn, const char *value) {
 	if (fn == NULL || value == NULL) {
 		return;
 	}
@@ -75,6 +91,22 @@ type cgoXOAuthResolver struct {
 }
 
 var xResolver = &cgoXOAuthResolver{}
+
+// feishu 主动发消息 cgo 回调持有
+var feishuSender struct {
+	mu     sync.Mutex
+	fn     C.feishu_send_fn
+	freeFn C.free_feishu_send_fn
+}
+
+type feishuSendRequest struct {
+	Text string `json:"text"`
+}
+
+type feishuSendResponse struct {
+	OK    bool   `json:"ok"`
+	Error string `json:"error,omitempty"`
+}
 
 type xOAuthAccessTokenRequest struct {
 	TwitterID string `json:"twitter_id"`
@@ -184,6 +216,7 @@ func registerRustBridgeRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/x/docs", restapi.NewAPIDocsHandler(rustBridgeAPIDocsCandidates()))
 	mux.HandleFunc("/api/v1/x/oauth/access-token", handleXOAuthAccessToken)
 	mux.HandleFunc("/oauth/callback", handleXOAuthCallback)
+	mux.HandleFunc("/api/v1/feishu/send", handleFeishuSend)
 }
 
 func handleXOAuthAccessToken(w http.ResponseWriter, r *http.Request) {
@@ -412,6 +445,85 @@ func SetXOAuthCallbackHandler(
 	}
 	xResolver.oauthCallback = handler
 	xResolver.freeOAuthCallback = freeFn
+}
+
+// handleFeishuSend 处理 POST /api/v1/feishu/send 请求。
+// 接收 {"text":"..."} 并通过 cgo 回调转发给 Rust feishu_bridge::agent::send_to_last_chat。
+func handleFeishuSend(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		writeJSONError(w, http.StatusMethodNotAllowed, "method_not_allowed")
+		return
+	}
+
+	var req feishuSendRequest
+	if err := decodeJSONBody(r, &req); err != nil {
+		writeJSONError(w, http.StatusBadRequest, "invalid_request")
+		return
+	}
+	if strings.TrimSpace(req.Text) == "" {
+		writeJSONError(w, http.StatusBadRequest, "text_required")
+		return
+	}
+
+	feishuSender.mu.Lock()
+	fn := feishuSender.fn
+	freeFn := feishuSender.freeFn
+	feishuSender.mu.Unlock()
+
+	if fn == nil {
+		log.Printf("[rust-bridge] feishu send: handler not registered")
+		writeJSON(w, http.StatusServiceUnavailable, feishuSendResponse{OK: false, Error: "handler_not_registered"})
+		return
+	}
+
+	// 序列化为 JSON 传给 Rust
+	payload, err := json.Marshal(req)
+	if err != nil {
+		writeJSON(w, http.StatusInternalServerError, feishuSendResponse{OK: false, Error: "marshal_error"})
+		return
+	}
+
+	cPayload := C.CString(string(payload))
+	defer C.free(unsafe.Pointer(cPayload))
+
+	result := C.call_feishu_send_fn(fn, cPayload)
+	if result == nil {
+		writeJSON(w, http.StatusServiceUnavailable, feishuSendResponse{OK: false, Error: "null_response"})
+		return
+	}
+
+	resultStr := C.GoString(result)
+	C.call_free_feishu_send_fn(freeFn, result)
+
+	log.Printf("[rust-bridge] feishu send result: %s", resultStr)
+
+	var resp feishuSendResponse
+	if err := json.Unmarshal([]byte(resultStr), &resp); err != nil {
+		writeJSON(w, http.StatusInternalServerError, feishuSendResponse{OK: false, Error: "parse_response_error"})
+		return
+	}
+
+	if resp.OK {
+		writeJSON(w, http.StatusOK, resp)
+	} else {
+		writeJSON(w, http.StatusServiceUnavailable, resp)
+	}
+}
+
+//export SetFeishuSendHandler
+func SetFeishuSendHandler(
+	fn C.feishu_send_fn,
+	freeFn C.free_feishu_send_fn,
+) {
+	feishuSender.mu.Lock()
+	defer feishuSender.mu.Unlock()
+	feishuSender.fn = fn
+	feishuSender.freeFn = freeFn
+	if fn == nil {
+		log.Printf("[rust-bridge] feishu send handler unregistered")
+	} else {
+		log.Printf("[rust-bridge] feishu send handler registered")
+	}
 }
 
 func main() {}
