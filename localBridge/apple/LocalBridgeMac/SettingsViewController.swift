@@ -278,13 +278,15 @@ class CollapsibleCardContainer: NSView {
 }
 
 final class SettingsViewController: NSViewController {
+    private let headerImageView = NSImageView()
     private let titleLabel = NSTextField(labelWithString: "")
+    private let subtitleLabel = NSTextField(labelWithString: "")
+    private let headerSeparator = NSView()
     private let stayOnTopCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: #selector(toggleStayOnTop))
     private var themeSegmentedControl: SegmentedControl!
     private var languageSegmentedControl: SegmentedControl!
 
     // UI labels that need to be updated on language change
-    private var subtitleLabel: NSTextField!
     private var generalCardTitle: NSTextField!
     private var checkboxLabel: NSTextField!
     private var checkboxHint: NSTextField!
@@ -292,9 +294,22 @@ final class SettingsViewController: NSViewController {
     private var themeDescLabel: NSTextField!
     private var languageLabel: NSTextField!
     private var languageDescLabel: NSTextField!
+    private var bottomVersionLabel: NSTextField!
     private var aiClawCardTitle: NSTextField!
     private var tweetClawCardTitle: NSTextField!
     private var restAPICardTitle: NSTextField!
+    private var logsCardTitle: NSTextField!
+    private lazy var bridgeLogsViewController = BridgeLogsViewController()
+    private lazy var clearLogsButton = makeLogsActionButton(
+        icon: "trash",
+        title: LanguageManager.shared.localized("logs.clear"),
+        action: #selector(clearLogsFromSettings)
+    )
+    private lazy var revealLogFileButton = makeLogsActionButton(
+        icon: "folder",
+        title: "Reveal Log File",
+        action: #selector(revealLogFile)
+    )
 
     // 配置数据
     private var currentConfig: BridgeConfig = BridgeConfig.load()
@@ -345,17 +360,28 @@ final class SettingsViewController: NSViewController {
 
     private func updateAllText() {
         titleLabel.stringValue = LanguageManager.shared.localized("settings.title")
-        subtitleLabel?.stringValue = LanguageManager.shared.localized("settings.subtitle")
+        subtitleLabel.stringValue = LanguageManager.shared.localized("settings.subtitle")
         checkboxLabel?.stringValue = LanguageManager.shared.localized("settings.keep_on_top")
         checkboxHint?.stringValue = LanguageManager.shared.localized("settings.keep_on_top.hint")
         generalCardTitle?.stringValue = LanguageManager.shared.localized("settings.general").uppercased()
-        aiClawCardTitle?.stringValue = LanguageManager.shared.localized("settings.aiclaw_websocket")
-        tweetClawCardTitle?.stringValue = LanguageManager.shared.localized("settings.tweetclaw_websocket")
-        restAPICardTitle?.stringValue = LanguageManager.shared.localized("settings.rest_api")
+        aiClawCardTitle?.stringValue = LanguageManager.shared.localized("settings.aiclaw_websocket").uppercased()
+        tweetClawCardTitle?.stringValue = LanguageManager.shared.localized("settings.tweetclaw_websocket").uppercased()
+        restAPICardTitle?.stringValue = LanguageManager.shared.localized("settings.rest_api").uppercased()
+        logsCardTitle?.stringValue = LanguageManager.shared.localized("logs.title").uppercased()
+        clearLogsButton.title = LanguageManager.shared.localized("logs.clear")
+        applyLogsActionButtonStyle(clearLogsButton, icon: "trash", title: clearLogsButton.title)
+        applyLogsActionButtonStyle(revealLogFileButton, icon: "folder", title: revealLogFileButton.title)
         languageLabel?.stringValue = LanguageManager.shared.localized("settings.language")
         languageDescLabel?.stringValue = LanguageManager.shared.localized("settings.language.description")
         themeLabel?.stringValue = LanguageManager.shared.localized("settings.theme")
         themeDescLabel?.stringValue = LanguageManager.shared.localized("settings.theme.description")
+        
+        if let bottomVersionLabel = bottomVersionLabel {
+            let versionString = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+            let buildString = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+            let formatStr = LanguageManager.shared.localized("settings.version_format")
+            bottomVersionLabel.stringValue = String(format: formatStr, versionString, buildString)
+        }
 
         // Update theme segmented control button labels
         themeSegmentedControl?.updateItems([
@@ -374,16 +400,45 @@ final class SettingsViewController: NSViewController {
         applyTheme()
     }
 
+    private func applyLogsActionButtonStyle(_ button: NSButton, icon: String, title: String) {
+        button.isBordered = false
+        button.wantsLayer = true
+        button.bezelStyle = .rounded
+        button.font = DSV2.fontLabelMd
+        button.contentTintColor = DSV2.onSurface
+        button.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
+        button.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.35).cgColor
+        button.layer?.borderWidth = 1
+        button.layer?.cornerRadius = DSV2.radiusButton
+
+        let attributes: [NSAttributedString.Key: Any] = [
+            .foregroundColor: DSV2.onSurface,
+            .font: DSV2.fontLabelMd
+        ]
+        button.attributedTitle = NSAttributedString(string: title, attributes: attributes)
+
+        if #available(macOS 11.0, *) {
+            button.image = NSImage(systemSymbolName: icon, accessibilityDescription: title)
+            button.imagePosition = .imageLeading
+            button.contentTintColor = DSV2.onSurface
+        }
+    }
+
     private func applyTheme() {
         // 更新主视图背景
         view.layer?.backgroundColor = DSV2.surface.cgColor
 
-        // 更新标题颜色
+        // 更新标题和副标题
         titleLabel.textColor = DSV2.onSurface
+        subtitleLabel.textColor = DSV2.onSurfaceTertiary
+        headerImageView.contentTintColor = DSV2.primary
+        headerSeparator.layer?.backgroundColor = DSV2.divider.withAlphaComponent(0.8).cgColor
+        applyLogsActionButtonStyle(clearLogsButton, icon: "trash", title: clearLogsButton.title)
+        applyLogsActionButtonStyle(revealLogFileButton, icon: "folder", title: revealLogFileButton.title)
 
         // 更新分段按钮外观
-        languageSegmentedControl?.updateTheme()
-        themeSegmentedControl?.updateTheme()
+        languageSegmentedControl?.updateSegmentedControlTheme()
+        themeSegmentedControl?.updateSegmentedControlTheme()
 
         // 递归更新所有卡片和子视图
         updateViewColors(view)
@@ -397,26 +452,43 @@ final class SettingsViewController: NSViewController {
         // 更新 layer 背景色
         if let layer = view.layer {
             // 检查是否是卡片背景
-            if layer.cornerRadius == 12 {
-                layer.backgroundColor = DSV2.surfaceContainerLow.cgColor
+            if layer.cornerRadius == DSV2.radiusContainer {
+                layer.backgroundColor = DSV2.surfaceContainerHigh.withAlphaComponent(0.8).cgColor
+                layer.borderColor = DSV2.cardBorder.withAlphaComponent(0.15).cgColor
             }
-            // 更新边框颜色
-            if layer.borderWidth > 0 {
+            // 检查是否是输入框容器背景
+            else if layer.cornerRadius == 8 || layer.cornerRadius == DSV2.radiusInput {
+                layer.backgroundColor = DSV2.surfaceContainerHigh.cgColor
+                layer.borderColor = DSV2.outlineVariant.withAlphaComponent(0.3).cgColor
+            }
+            // 更新分割线
+            if view is NSBox || (view.wantsLayer && view.frame.height <= 1) {
+                view.layer?.backgroundColor = DSV2.divider.cgColor
+            }
+            // 更新边框颜色 (如果不是卡片或输入框)
+            if layer.borderWidth > 0 && layer.cornerRadius != DSV2.radiusContainer && layer.cornerRadius != 8 && layer.cornerRadius != DSV2.radiusInput {
                 layer.borderColor = DSV2.outlineVariant.withAlphaComponent(0.3).cgColor
             }
         }
 
         // 更新文本颜色
-        if let textField = view as? NSTextField, !textField.isEditable || textField is CenteredTextField {
-            // 根据字体大小判断是标题还是普通文本
-            if let font = textField.font {
-                if font.pointSize >= 20 {
-                    textField.textColor = DSV2.onSurface
-                } else if font.pointSize >= 13 {
-                    textField.textColor = DSV2.onSurface
-                } else {
-                    textField.textColor = DSV2.onSurfaceVariant
+        if let textField = view as? NSTextField {
+            // 对所有非编辑状态的标签根据字体大小判断颜色
+            if textField === self.bottomVersionLabel {
+                textField.textColor = DSV2.onSurfaceVariant.withAlphaComponent(0.4)
+            } else if !textField.isEditable || textField is CenteredTextField {
+                if let font = textField.font {
+                    if font.pointSize >= 18 {
+                        textField.textColor = DSV2.onSurface
+                    } else if font.pointSize >= 13 {
+                        textField.textColor = DSV2.onSurface
+                    } else {
+                        textField.textColor = DSV2.onSurfaceVariant
+                    }
                 }
+            } else {
+                // 编辑状态的输入框文本颜色
+                textField.textColor = DSV2.onSurface
             }
         }
 
@@ -427,17 +499,42 @@ final class SettingsViewController: NSViewController {
     }
 
     private func setupUI() {
+        // Header Icon
+        if #available(macOS 11.0, *) {
+            headerImageView.image = NSImage(systemSymbolName: "gearshape.fill", accessibilityDescription: nil)
+            headerImageView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 20, weight: .semibold)
+            headerImageView.contentTintColor = DSV2.primary
+        }
+        headerImageView.translatesAutoresizingMaskIntoConstraints = false
+
         // Title
-        titleLabel.font = NSFont.systemFont(ofSize: 28, weight: .bold)
+        titleLabel.font = DSV2.fontTitleLg
         titleLabel.textColor = DSV2.onSurface
         titleLabel.stringValue = LanguageManager.shared.localized("settings.title")
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
 
         // Subtitle
-        subtitleLabel = NSTextField(labelWithString: LanguageManager.shared.localized("settings.subtitle"))
-        subtitleLabel.font = DSV2.fontBodyMd
-        subtitleLabel.textColor = DSV2.onSurfaceVariant
+        subtitleLabel.font = DSV2.fontLabelSm
+        subtitleLabel.textColor = DSV2.onSurfaceTertiary
+        subtitleLabel.stringValue = LanguageManager.shared.localized("settings.subtitle")
         subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        // Header layout
+        let headerLeft = NSStackView(views: [headerImageView, titleLabel])
+        headerLeft.orientation = .horizontal
+        headerLeft.spacing = DSV2.spacing2
+        headerLeft.alignment = .centerY
+
+        let headerStack = NSStackView(views: [headerLeft, subtitleLabel])
+        headerStack.orientation = .vertical
+        headerStack.spacing = 4
+        headerStack.alignment = .leading
+        headerStack.translatesAutoresizingMaskIntoConstraints = false
+
+        // Header Separator
+        headerSeparator.wantsLayer = true
+        headerSeparator.layer?.backgroundColor = DSV2.divider.withAlphaComponent(0.8).cgColor
+        headerSeparator.translatesAutoresizingMaskIntoConstraints = false
 
         // 配置复选框
         stayOnTopCheckbox.title = ""
@@ -459,56 +556,150 @@ final class SettingsViewController: NSViewController {
         let aiClawCard = makeServiceCard(serviceName: "aiClaw", title: LanguageManager.shared.localized("settings.aiclaw_websocket"), icon: "network", defaultPort: 10087)
         let tweetClawCard = makeServiceCard(serviceName: "tweetClaw", title: LanguageManager.shared.localized("settings.tweetclaw_websocket"), icon: "network", defaultPort: 10086)
         let restAPICard = makeServiceCard(serviceName: "restAPI", title: LanguageManager.shared.localized("settings.rest_api"), icon: "server.rack", defaultPort: 10088)
+        let logsCard = makeLogsCard()
 
-        let contentStack = NSStackView(views: [
-            titleLabel,
-            subtitleLabel,
+        let cardStack = NSStackView(views: [
             generalCard,
             aiClawCard,
             tweetClawCard,
-            restAPICard
+            restAPICard,
+            logsCard,
+            makeBottomAboutRow()
         ])
-        contentStack.orientation = .vertical
-        contentStack.alignment = .leading
-        contentStack.spacing = DSV2.spacing6
-        contentStack.translatesAutoresizingMaskIntoConstraints = false
+        cardStack.orientation = .vertical
+        cardStack.alignment = .leading
+        cardStack.spacing = DSV2.spacing4
+        cardStack.translatesAutoresizingMaskIntoConstraints = false
 
         // 创建滚动视图
         let scrollView = NSScrollView()
         scrollView.translatesAutoresizingMaskIntoConstraints = false
         scrollView.hasVerticalScroller = true
         scrollView.hasHorizontalScroller = false
-        scrollView.autohidesScrollers = true
         scrollView.drawsBackground = false
-        scrollView.contentInsets = NSEdgeInsets(top: 0, left: 0, bottom: 0, right: 0)
         scrollView.automaticallyAdjustsContentInsets = false
 
         // 将 contentStack 包装在一个容器中
         let containerView = SettingsFlippedView()
         containerView.translatesAutoresizingMaskIntoConstraints = false
-        containerView.addSubview(contentStack)
+        containerView.addSubview(cardStack)
 
         scrollView.documentView = containerView
+        DSV2.applyBrightScroller(to: scrollView)
 
+        view.addSubview(headerStack)
+        view.addSubview(headerSeparator)
         view.addSubview(scrollView)
 
         NSLayoutConstraint.activate([
-            scrollView.topAnchor.constraint(equalTo: view.topAnchor),
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing8),
-            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing8),
-            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing8),
+            headerStack.topAnchor.constraint(equalTo: view.topAnchor, constant: DSV2.spacing6),
+            headerStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6 + 12),
+            headerStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
 
-            contentStack.topAnchor.constraint(equalTo: containerView.topAnchor, constant: DSV2.spacing8),
-            contentStack.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
-            contentStack.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
-            contentStack.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -DSV2.spacing8),
-            contentStack.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
+            headerSeparator.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: 12),
+            headerSeparator.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            headerSeparator.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            headerSeparator.heightAnchor.constraint(equalToConstant: 1),
 
-            generalCard.widthAnchor.constraint(equalTo: contentStack.widthAnchor),
-            aiClawCard.widthAnchor.constraint(equalTo: contentStack.widthAnchor),
-            tweetClawCard.widthAnchor.constraint(equalTo: contentStack.widthAnchor),
-            restAPICard.widthAnchor.constraint(equalTo: contentStack.widthAnchor)
+            scrollView.topAnchor.constraint(equalTo: headerSeparator.bottomAnchor, constant: 30),
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
+            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
+            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6),
+
+            cardStack.topAnchor.constraint(equalTo: containerView.topAnchor),
+            cardStack.leadingAnchor.constraint(equalTo: containerView.leadingAnchor),
+            cardStack.trailingAnchor.constraint(equalTo: containerView.trailingAnchor),
+            cardStack.bottomAnchor.constraint(equalTo: containerView.bottomAnchor, constant: -DSV2.spacing8),
+            cardStack.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
+
+            generalCard.widthAnchor.constraint(equalTo: cardStack.widthAnchor),
+            aiClawCard.widthAnchor.constraint(equalTo: cardStack.widthAnchor),
+            tweetClawCard.widthAnchor.constraint(equalTo: cardStack.widthAnchor),
+            restAPICard.widthAnchor.constraint(equalTo: cardStack.widthAnchor),
+            logsCard.widthAnchor.constraint(equalTo: cardStack.widthAnchor)
         ])
+    }
+
+    private func makeLogsCard() -> NSView {
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        let actionsRow = NSStackView(views: [clearLogsButton, revealLogFileButton])
+        actionsRow.orientation = .horizontal
+        actionsRow.spacing = DSV2.spacing4
+        actionsRow.alignment = .centerY
+        actionsRow.translatesAutoresizingMaskIntoConstraints = false
+
+        let hintLabel = NSTextField(labelWithString: LanguageManager.shared.localized("logs.settings_hint"))
+        hintLabel.font = DSV2.fontLabelSm
+        hintLabel.textColor = DSV2.onSurfaceVariant
+        hintLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        addChild(bridgeLogsViewController)
+        let logsView = bridgeLogsViewController.view
+        logsView.translatesAutoresizingMaskIntoConstraints = false
+
+        container.addSubview(actionsRow)
+        container.addSubview(hintLabel)
+        container.addSubview(logsView)
+
+        NSLayoutConstraint.activate([
+            actionsRow.topAnchor.constraint(equalTo: container.topAnchor),
+            actionsRow.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            actionsRow.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor),
+
+            hintLabel.topAnchor.constraint(equalTo: actionsRow.bottomAnchor, constant: DSV2.spacing2),
+            hintLabel.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            hintLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+
+            logsView.topAnchor.constraint(equalTo: hintLabel.bottomAnchor, constant: DSV2.spacing4),
+            logsView.leadingAnchor.constraint(equalTo: container.leadingAnchor),
+            logsView.trailingAnchor.constraint(equalTo: container.trailingAnchor),
+            logsView.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+            logsView.heightAnchor.constraint(equalToConstant: 420)
+        ])
+
+        let card = makeCollapsibleCard(
+            title: LanguageManager.shared.localized("logs.title"),
+            icon: "list.bullet.rectangle.portrait",
+            iconColor: DSV2.tertiary,
+            contentView: container
+        )
+
+        if let titleLabel = findTitleLabel(in: card) {
+            logsCardTitle = titleLabel
+        }
+
+        return card
+    }
+
+    private func makeLogsActionButton(icon: String, title: String, action: Selector) -> NSButton {
+        let button = NSButton(title: title, target: self, action: action)
+        button.translatesAutoresizingMaskIntoConstraints = false
+        button.heightAnchor.constraint(equalToConstant: 38).isActive = true
+        button.widthAnchor.constraint(greaterThanOrEqualToConstant: 140).isActive = true
+        applyLogsActionButtonStyle(button, icon: icon, title: title)
+        return button
+    }
+
+    @objc private func clearLogsFromSettings() {
+        let text = BridgeLogger.shared.currentLogText()
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            return
+        }
+
+        BridgeLogger.shared.clearLogs { [weak self] in
+            AppDelegate.shared?.clearBridgeLogs()
+            CustomAlert.showSuccess(
+                title: LanguageManager.shared.localized("logs.clear"),
+                message: LanguageManager.shared.localized("logs.cleared"),
+                parentWindow: self?.view.window
+            )
+        }
+    }
+
+    @objc private func revealLogFile() {
+        NSWorkspace.shared.activateFileViewerSelecting([BridgeLogger.shared.fileURL])
     }
 
     private func makeServiceCard(serviceName: String, title: String, icon: String, defaultPort: Int) -> NSView {
@@ -550,7 +741,7 @@ final class SettingsViewController: NSViewController {
     }
 
     private func findTitleLabel(in view: NSView) -> NSTextField? {
-        if let textField = view as? NSTextField, textField.font?.pointSize == 12 {
+        if let textField = view as? NSTextField, textField.font == DSV2.fontLabelSm {
             return textField
         }
         for subview in view.subviews {
@@ -815,13 +1006,43 @@ final class SettingsViewController: NSViewController {
         ThemeManager.shared.setTheme(newTheme)
     }
 
+    private func makeBottomAboutRow() -> NSView {
+        let container = NSView()
+        container.translatesAutoresizingMaskIntoConstraints = false
+
+        let versionString = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0.0"
+        let buildString = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
+        let formatStr = LanguageManager.shared.localized("settings.version_format")
+        let formattedVersion = String(format: formatStr, versionString, buildString)
+
+        bottomVersionLabel = NSTextField(labelWithString: formattedVersion)
+        bottomVersionLabel.font = DSV2.fontBodyMd
+        bottomVersionLabel.textColor = DSV2.onSurfaceVariant.withAlphaComponent(0.4)
+        bottomVersionLabel.isBordered = false
+        bottomVersionLabel.isEditable = false
+        bottomVersionLabel.drawsBackground = false
+        bottomVersionLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        container.addSubview(bottomVersionLabel)
+
+        NSLayoutConstraint.activate([
+            container.heightAnchor.constraint(equalToConstant: 24),
+            bottomVersionLabel.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
+            bottomVersionLabel.centerYAnchor.constraint(equalTo: container.centerYAnchor)
+        ])
+
+        return container
+    }
+
     private func makeSettingsCard(title: String, icon: String, iconColor: NSColor, views: [NSView]) -> NSView {
         let container = NSView()
         container.wantsLayer = true
         container.translatesAutoresizingMaskIntoConstraints = false
 
-        container.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
-        container.layer?.cornerRadius = 12
+        container.layer?.backgroundColor = DSV2.surfaceContainerHigh.withAlphaComponent(0.8).cgColor
+        container.layer?.cornerRadius = DSV2.radiusContainer
+        container.layer?.borderColor = DSV2.cardBorder.withAlphaComponent(0.15).cgColor
+        container.layer?.borderWidth = 1
 
         let iconView = NSImageView()
         if #available(macOS 11.0, *) {
@@ -832,8 +1053,8 @@ final class SettingsViewController: NSViewController {
         iconView.translatesAutoresizingMaskIntoConstraints = false
 
         let titleLabel = NSTextField(labelWithString: title.uppercased())
-        titleLabel.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        titleLabel.textColor = DSV2.onSurfaceVariant
+        titleLabel.font = DSV2.fontLabelSm
+        titleLabel.textColor = DSV2.onSurfaceTertiary
         titleLabel.isBordered = false
         titleLabel.isEditable = false
         titleLabel.drawsBackground = false
@@ -846,14 +1067,14 @@ final class SettingsViewController: NSViewController {
 
         let headerStack = NSStackView(views: [iconView, titleLabel])
         headerStack.orientation = .horizontal
-        headerStack.spacing = 8
+        headerStack.spacing = DSV2.spacing2
         headerStack.alignment = .centerY
         headerStack.translatesAutoresizingMaskIntoConstraints = false
 
         let contentStack = NSStackView(views: views)
         contentStack.orientation = .vertical
         contentStack.alignment = .leading
-        contentStack.spacing = 20
+        contentStack.spacing = DSV2.spacing6
         contentStack.translatesAutoresizingMaskIntoConstraints = false
 
         container.addSubview(headerStack)
@@ -863,13 +1084,13 @@ final class SettingsViewController: NSViewController {
             iconView.widthAnchor.constraint(equalToConstant: 20),
             iconView.heightAnchor.constraint(equalToConstant: 20),
 
-            headerStack.topAnchor.constraint(equalTo: container.topAnchor, constant: 24),
-            headerStack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 32),
+            headerStack.topAnchor.constraint(equalTo: container.topAnchor, constant: 12),
+            headerStack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
 
-            contentStack.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: 24),
-            contentStack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 32),
-            contentStack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -32),
-            contentStack.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -32)
+            contentStack.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: DSV2.spacing4),
+            contentStack.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 12),
+            contentStack.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -12),
+            contentStack.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -12)
         ])
 
         return container
@@ -896,9 +1117,9 @@ final class SettingsViewController: NSViewController {
         iconView.contentTintColor = iconColor
         iconView.translatesAutoresizingMaskIntoConstraints = false
 
-        let titleLabel = NSTextField(labelWithString: title)
-        titleLabel.font = NSFont.systemFont(ofSize: 12, weight: .semibold)
-        titleLabel.textColor = DSV2.onSurfaceVariant
+        let titleLabel = NSTextField(labelWithString: title.uppercased())
+        titleLabel.font = DSV2.fontLabelSm
+        titleLabel.textColor = DSV2.onSurfaceTertiary
         titleLabel.isBordered = false
         titleLabel.isEditable = false
         titleLabel.drawsBackground = false
@@ -914,8 +1135,9 @@ final class SettingsViewController: NSViewController {
             iconView.widthAnchor.constraint(equalToConstant: 20),
             iconView.heightAnchor.constraint(equalToConstant: 20),
 
-            titleLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: 8),
+            titleLabel.leadingAnchor.constraint(equalTo: iconView.trailingAnchor, constant: DSV2.spacing2),
             titleLabel.centerYAnchor.constraint(equalTo: headerContainer.centerYAnchor),
+            titleLabel.trailingAnchor.constraint(lessThanOrEqualTo: chevronView.leadingAnchor, constant: -DSV2.spacing2),
 
             chevronView.trailingAnchor.constraint(equalTo: headerContainer.trailingAnchor),
             chevronView.centerYAnchor.constraint(equalTo: headerContainer.centerYAnchor),
@@ -933,7 +1155,7 @@ final class SettingsViewController: NSViewController {
         let stackView = NSStackView(views: [headerContainer, contentView])
         stackView.orientation = .vertical
         stackView.alignment = .leading
-        stackView.spacing = 24
+        stackView.spacing = DSV2.spacing6
         stackView.translatesAutoresizingMaskIntoConstraints = false
         stackView.setHuggingPriority(.required, for: .vertical)
         stackView.setContentCompressionResistancePriority(.required, for: .vertical)
@@ -942,8 +1164,10 @@ final class SettingsViewController: NSViewController {
         let container = CollapsibleCardContainer(headerView: headerContainer, contentView: contentView, chevronView: chevronView)
         container.wantsLayer = true
         container.translatesAutoresizingMaskIntoConstraints = false
-        container.layer?.backgroundColor = DSV2.surfaceContainerLow.cgColor
-        container.layer?.cornerRadius = 12
+        container.layer?.backgroundColor = DSV2.surfaceContainerHigh.withAlphaComponent(0.8).cgColor
+        container.layer?.cornerRadius = DSV2.radiusContainer
+        container.layer?.borderColor = DSV2.cardBorder.withAlphaComponent(0.15).cgColor
+        container.layer?.borderWidth = 1
 
         container.addSubview(stackView)
 
@@ -958,15 +1182,18 @@ final class SettingsViewController: NSViewController {
         container.addSubview(clickArea)
 
         NSLayoutConstraint.activate([
-            stackView.topAnchor.constraint(equalTo: container.topAnchor, constant: 24),
-            stackView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: 32),
-            stackView.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -32),
-            stackView.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -24),
+            stackView.topAnchor.constraint(equalTo: container.topAnchor, constant: DSV2.spacing4),
+            stackView.leadingAnchor.constraint(equalTo: container.leadingAnchor, constant: DSV2.spacing6),
+            stackView.trailingAnchor.constraint(equalTo: container.trailingAnchor, constant: -DSV2.spacing6),
+            stackView.bottomAnchor.constraint(equalTo: container.bottomAnchor, constant: -DSV2.spacing4),
+
+            headerContainer.widthAnchor.constraint(equalTo: stackView.widthAnchor),
+            contentView.widthAnchor.constraint(equalTo: stackView.widthAnchor),
 
             clickArea.topAnchor.constraint(equalTo: headerContainer.topAnchor, constant: -8),
             clickArea.leadingAnchor.constraint(equalTo: container.leadingAnchor),
             clickArea.trailingAnchor.constraint(equalTo: container.trailingAnchor),
-            clickArea.heightAnchor.constraint(equalToConstant: 40)
+            clickArea.heightAnchor.constraint(equalToConstant: 44)
         ])
 
         return container
@@ -1034,15 +1261,17 @@ class ServiceConfigView: NSView {
 
         // 局域网 IP 配置行
         if !lanIPs.isEmpty {
-            let separator = NSBox()
-            separator.boxType = .separator
+            let separator = NSView()
+            separator.wantsLayer = true
+            separator.layer?.backgroundColor = DSV2.divider.cgColor
             separator.translatesAutoresizingMaskIntoConstraints = false
             contentStack.addArrangedSubview(separator)
-            separator.widthAnchor.constraint(equalToConstant: 600).isActive = true
+            separator.widthAnchor.constraint(equalTo: contentStack.widthAnchor).isActive = true
+            separator.heightAnchor.constraint(equalToConstant: 1).isActive = true
 
-            let lanLabel = NSTextField(labelWithString: LanguageManager.shared.localized("settings.lan_ip_addresses"))
-            lanLabel.font = NSFont.systemFont(ofSize: 11, weight: .semibold)
-            lanLabel.textColor = DSV2.onSurfaceVariant
+            let lanLabel = NSTextField(labelWithString: LanguageManager.shared.localized("settings.lan_ip_addresses").uppercased())
+            lanLabel.font = DSV2.fontLabelSm
+            lanLabel.textColor = DSV2.onSurfaceTertiary
             lanLabel.isBordered = false
             lanLabel.isEditable = false
             lanLabel.drawsBackground = false
@@ -1084,7 +1313,7 @@ class ServiceConfigView: NSView {
         // 物理包裹容器
         let fieldContainer = NSView()
         fieldContainer.wantsLayer = true
-        fieldContainer.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
+        fieldContainer.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
         fieldContainer.layer?.cornerRadius = 8
         fieldContainer.layer?.borderWidth = 1
         fieldContainer.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.3).cgColor // 增加边框可见度
@@ -1100,6 +1329,8 @@ class ServiceConfigView: NSView {
         localhostPortField.isEditable = true
         localhostPortField.isSelectable = true
         localhostPortField.isEnabled = true
+        localhostPortField.backgroundColor = .clear
+        localhostPortField.drawsBackground = false
         localhostPortField.translatesAutoresizingMaskIntoConstraints = false
         localhostPortField.stringValue = "\(getLocalhostPort())"
         localhostPortField.target = self
@@ -1153,7 +1384,7 @@ class ServiceConfigView: NSView {
         // 创建一个包裹容器做背景和边框
         let fieldContainer = NSView()
         fieldContainer.wantsLayer = true
-        fieldContainer.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
+        fieldContainer.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
         fieldContainer.layer?.cornerRadius = 8
         fieldContainer.layer?.borderWidth = 1
         fieldContainer.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.3).cgColor // 增加可见度
@@ -1169,6 +1400,8 @@ class ServiceConfigView: NSView {
         portField.isEditable = true
         portField.isSelectable = true
         portField.isEnabled = checkbox.state == .on
+        portField.backgroundColor = .clear
+        portField.drawsBackground = false
         portField.translatesAutoresizingMaskIntoConstraints = false
         portField.stringValue = "\(getLANIPPort(ip))"
         portField.target = self
@@ -1223,7 +1456,7 @@ class ServiceConfigView: NSView {
         // so we'll apply the intended styling logic to updateButtonAppearance.
         
         button.heightAnchor.constraint(equalToConstant: 44).isActive = true
-        button.widthAnchor.constraint(greaterThanOrEqualToConstant: 200).isActive = true
+        button.widthAnchor.constraint(equalToConstant: 200).isActive = true
 
         return button
     }

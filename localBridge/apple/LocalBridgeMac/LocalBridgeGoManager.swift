@@ -1,7 +1,10 @@
 import Foundation
+import Darwin
 import LocalBridge
 
 final class LocalBridgeGoManager {
+    static let instancesDidChangeNotification = Notification.Name("LocalBridgeInstancesDidChange")
+
     struct InstanceSnapshot: Decodable {
         let clientName: String
         let instanceId: String
@@ -15,9 +18,15 @@ final class LocalBridgeGoManager {
     }
 
     private static let defaultExecuteTaskTimeoutMs = 210_000
+    private static let maxRebasedGoLines = 1000
     private let session = URLSession(configuration: .default)
     private var logPollTimer: Timer?
-    private var lastLogCount: Int = 0
+    private var lastGoLogSnapshot: [String] = []
+    private var pendingPostClearGoSnapshot: [String]?
+    private var lastInstancesSignature: String?
+    private let pollQueue = DispatchQueue(label: "com.localbridgemac.go-poll", qos: .utility)
+    private let stateQueue = DispatchQueue(label: "com.localbridgemac.go-state", qos: .utility)
+    private var isPollingLogs = false
 
     func start() {
         // 加载配置并保存到 Go 的配置文件
@@ -28,6 +37,16 @@ final class LocalBridgeGoManager {
         let code = LocalBridgeStart(0, 0)
         if code != 0 {
             BridgeLogger.shared.log("[LocalBridgeMac] LocalBridgeStart failed with code \(code)")
+        }
+
+        pollQueue.async { [weak self] in
+            guard let self = self else { return }
+            let snapshots = self.getConnectedInstances()
+            let logLines = self.currentGoLogLines()
+            self.stateQueue.sync {
+                self.lastInstancesSignature = self.makeInstancesSignature(from: snapshots)
+                self.lastGoLogSnapshot = logLines
+            }
         }
 
         startLogPolling()
@@ -66,6 +85,7 @@ final class LocalBridgeGoManager {
 
     func getConnectedInstances() -> [InstanceSnapshot] {
         guard let rawPointer = LocalBridgeGetInstancesJSON() else {
+            BridgeLogger.shared.log("[LocalBridgeMac] LocalBridgeGetInstancesJSON returned nil pointer")
             return []
         }
 
@@ -73,7 +93,13 @@ final class LocalBridgeGoManager {
             LocalBridgeFreeString(rawPointer)
         }
 
-        let data = Data(bytes: rawPointer, count: Int(strlen(rawPointer)))
+        let rawLength = Int(strlen(rawPointer))
+        guard rawLength > 0 else {
+            BridgeLogger.shared.log("[LocalBridgeMac] LocalBridgeGetInstancesJSON returned empty payload")
+            return []
+        }
+
+        let data = Data(bytes: rawPointer, count: rawLength)
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .custom { decoder in
             try Self.decodeGoDate(from: decoder)
@@ -82,7 +108,8 @@ final class LocalBridgeGoManager {
         do {
             return try decoder.decode([InstanceSnapshot].self, from: data)
         } catch {
-            BridgeLogger.shared.log("[LocalBridgeMac] Failed to decode instances JSON: \(error.localizedDescription)")
+            let rawText = String(data: data, encoding: .utf8) ?? "<non-utf8>"
+            BridgeLogger.shared.log("[LocalBridgeMac] Failed to decode instances JSON: \(error.localizedDescription), raw=\(rawText)")
             return []
         }
     }
@@ -90,31 +117,163 @@ final class LocalBridgeGoManager {
     // MARK: - Go Log Polling
 
     func startLogPolling() {
-        logPollTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            self?.pollGoLogs()
+        stopLogPolling()
+        logPollTimer = Timer.scheduledTimer(withTimeInterval: 2.0, repeats: true) { [weak self] _ in
+            self?.pollGoLogsAsync()
         }
     }
 
     func stopLogPolling() {
         logPollTimer?.invalidate()
         logPollTimer = nil
+        stateQueue.sync {
+            isPollingLogs = false
+        }
     }
 
-    private func pollGoLogs() {
-        guard let ptr = LocalBridgeGetLogsJSON() else { return }
+    func clearDisplayedLogs() {
+        pollQueue.async { [weak self] in
+            guard let self = self else { return }
+            self.clearGoLogBufferIfAvailable()
+            self.stateQueue.sync {
+                self.lastGoLogSnapshot = []
+                self.pendingPostClearGoSnapshot = nil
+            }
+        }
+    }
+
+    private func currentGoLogLines() -> [String] {
+        guard let ptr = LocalBridgeGetLogsJSON() else { return [] }
         defer { LocalBridgeFreeString(ptr) }
 
         let data = Data(bytes: ptr, count: Int(strlen(ptr)))
-        guard let lines = try? JSONDecoder().decode([String].self, from: data) else { return }
+        return (try? JSONDecoder().decode([String].self, from: data)) ?? []
+    }
 
-        // 增量处理：只把新增的行写入 BridgeLogger
-        guard lines.count > lastLogCount else { return }
-        let newLines = Array(lines.dropFirst(lastLogCount))
-        lastLogCount = lines.count
-
-        for line in newLines {
-            BridgeLogger.shared.log("[Go] \(line)")
+    private func pollGoLogsAsync() {
+        let shouldPoll = stateQueue.sync { () -> Bool in
+            if isPollingLogs {
+                return false
+            }
+            isPollingLogs = true
+            return true
         }
+
+        guard shouldPoll else { return }
+
+        pollQueue.async { [weak self] in
+            guard let self = self else { return }
+            self.pollGoLogs()
+            self.stateQueue.sync {
+                self.isPollingLogs = false
+            }
+        }
+    }
+
+    private func pollGoLogs() {
+        let lines = currentGoLogLines()
+        let state = stateQueue.sync {
+            (previousSnapshot: lastGoLogSnapshot, pendingPostClearSnapshot: pendingPostClearGoSnapshot)
+        }
+        let previousSnapshot = state.previousSnapshot
+        let pendingPostClearSnapshot = state.pendingPostClearSnapshot
+
+        let newLines: [String]
+        let nextPendingPostClearSnapshot: [String]?
+
+        if lines.isEmpty {
+            newLines = []
+            nextPendingPostClearSnapshot = pendingPostClearSnapshot
+        } else if let pendingSnapshot = pendingPostClearSnapshot {
+            if lines.count >= pendingSnapshot.count,
+               Array(lines.prefix(pendingSnapshot.count)) == pendingSnapshot {
+                newLines = Array(lines.dropFirst(pendingSnapshot.count))
+                nextPendingPostClearSnapshot = nil
+            } else {
+                newLines = []
+                nextPendingPostClearSnapshot = lines
+            }
+        } else if previousSnapshot.isEmpty {
+            newLines = []
+            nextPendingPostClearSnapshot = lines
+        } else if lines.count >= previousSnapshot.count,
+                  Array(lines.prefix(previousSnapshot.count)) == previousSnapshot {
+            newLines = Array(lines.dropFirst(previousSnapshot.count))
+            nextPendingPostClearSnapshot = nil
+        } else if lines.count < previousSnapshot.count {
+            let rebasedLines = Array(lines.suffix(Self.maxRebasedGoLines))
+            if !rebasedLines.isEmpty {
+                BridgeLogger.shared.log("[Go] log snapshot reset detected, rebasing to recent tail")
+            }
+            newLines = rebasedLines
+            nextPendingPostClearSnapshot = nil
+        } else {
+            let sharedPrefixCount = zip(previousSnapshot, lines).prefix { $0 == $1 }.count
+            if sharedPrefixCount == previousSnapshot.count {
+                newLines = Array(lines.dropFirst(sharedPrefixCount))
+            } else {
+                let rebasedLines = Array(lines.suffix(Self.maxRebasedGoLines))
+                if !rebasedLines.isEmpty {
+                    BridgeLogger.shared.log("[Go] log snapshot discontinuity detected, rebasing to recent tail")
+                }
+                newLines = rebasedLines
+            }
+            nextPendingPostClearSnapshot = nil
+        }
+
+        stateQueue.sync {
+            self.lastGoLogSnapshot = lines
+            self.pendingPostClearGoSnapshot = nextPendingPostClearSnapshot
+        }
+
+        if !newLines.isEmpty {
+            BridgeLogger.shared.append(newLines.map { "[Go] \($0)" })
+        }
+
+        notifyIfInstancesChanged()
+    }
+
+    private func notifyIfInstancesChanged() {
+        let snapshots = getConnectedInstances()
+        let signature = makeInstancesSignature(from: snapshots)
+
+        let didChange = stateQueue.sync { () -> Bool in
+            guard signature != lastInstancesSignature else { return false }
+            lastInstancesSignature = signature
+            return true
+        }
+
+        guard didChange else { return }
+
+        DispatchQueue.main.async {
+            NotificationCenter.default.post(
+                name: Self.instancesDidChangeNotification,
+                object: self,
+                userInfo: ["instances": snapshots]
+            )
+        }
+    }
+
+    private func clearGoLogBufferIfAvailable() {
+        let symbolName = "LocalBridgeClearLogs"
+        guard let handle = dlopen(nil, RTLD_NOW),
+              let symbol = dlsym(handle, symbolName) else {
+            return
+        }
+        typealias ClearLogsFunction = @convention(c) () -> Void
+        let clearLogs = unsafeBitCast(symbol, to: ClearLogsFunction.self)
+        clearLogs()
+    }
+
+    private func makeInstancesSignature(from snapshots: [InstanceSnapshot]) -> String {
+        snapshots
+            .map { snapshot in
+                let name = snapshot.instanceName ?? ""
+                let screenName = snapshot.xScreenName ?? ""
+                return "\(snapshot.clientName)|\(snapshot.instanceId)|\(name)|\(screenName)|\(snapshot.connectedAt.timeIntervalSince1970)|\(snapshot.isTemporary)"
+            }
+            .sorted()
+            .joined(separator: "\n")
     }
 
     func sendQueryXTabsStatus(instanceId: String? = nil) {
@@ -229,20 +388,7 @@ final class LocalBridgeGoManager {
         )
     }
 
-    func sendQueryTweet(tweetId: String, tabId: Int? = nil, instanceId: String? = nil) {
-        invokePlugin(
-            clientName: "tweetClaw",
-            messageType: "request.query_tweet",
-            instanceId: instanceId,
-            payload: QueryTweetPayload(tweetId: tweetId, tabId: tabId),
-            timeoutMs: 8_000,
-            notificationName: "ExecActionReceived",
-            format: .prettyJSON
-        )
-    }
-
     func sendQueryTweetReplies(tweetId: String, cursor: String? = nil, tabId: Int? = nil, instanceId: String? = nil) {
-        print("[LocalBridgeMac] GoManager sendQueryTweetReplies tweetId=\(tweetId) cursor=\(cursor ?? "<nil>") tabId=\(tabId.map(String.init) ?? "<nil>") instanceId=\(instanceId ?? "<nil>")")
         invokePlugin(
             clientName: "tweetClaw",
             messageType: "request.query_tweet_replies",
@@ -426,11 +572,6 @@ private extension LocalBridgeGoManager {
     }
 
     struct QueryTweetDetailPayload: Encodable {
-        let tweetId: String
-        let tabId: Int?
-    }
-
-    struct QueryTweetPayload: Encodable {
         let tweetId: String
         let tabId: Int?
     }

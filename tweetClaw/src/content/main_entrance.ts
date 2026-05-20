@@ -210,6 +210,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     disallowed_reply_options: null
                 };
                 break;
+            case 'quote_tweet':
+                // 引用转发：本质上是 CreateTweet + attachment_url
+                op = 'CreateTweet';
+                vars = {
+                    tweet_text: message.text || '',
+                    attachment_url: message.attachmentUrl || '',
+                    media: {
+                        media_entities: (message.media_ids || []).map((id: string) => ({ media_id: id, tagged_users: [] })),
+                        possibly_sensitive: false
+                    },
+                    semantic_annotation_ids: [],
+                    broadcast: true,
+                    disallowed_reply_options: null
+                };
+                break;
             case 'unlike':
                 op = 'UnfavoriteTweet';
                 vars = { tweet_id: message.tweetId };
@@ -419,26 +434,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
-    if (message.type === 'FETCH_TWEET') {
-        (async () => {
-            try {
-                const data = await performQuery('TweetDetail', {
-                    focalTweetId: message.tweetId,
-                    with_rux_injections: false,
-                    includePromotedContent: true,
-                    withCommunity: true,
-                    withQuickPromoteEligibilityTweetFields: true,
-                    withBirdwatchNotes: true,
-                    withVoice: true
-                });
-                sendResponse({ success: true, data });
-            } catch (e: any) {
-                sendResponse({ success: false, error: e.message });
-            }
-        })();
-        return true;
-    }
-
     if (message.type === 'FETCH_TWEET_REPLIES') {
         (async () => {
             try {
@@ -511,6 +506,28 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     variables.cursor = message.cursor;
                 }
                 const data = await performQuery('SearchTimeline', variables);
+                sendResponse({ success: true, data });
+            } catch (e: any) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    if (message.type === 'FETCH_USER_TWEETS') {
+        (async () => {
+            try {
+                const variables: any = {
+                    userId: message.userId,
+                    count: message.count || 20,
+                    includePromotedContent: true,
+                    withQuickPromoteEligibilityTweetFields: true,
+                    withVoice: true
+                };
+                if (message.cursor) {
+                    variables.cursor = message.cursor;
+                }
+                const data = await performQuery('UserTweets', variables);
                 sendResponse({ success: true, data });
             } catch (e: any) {
                 sendResponse({ success: false, error: e.message });

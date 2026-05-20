@@ -4,17 +4,19 @@ final class BridgeLogsViewController: NSViewController {
 
     private var textView: NSTextView!
     private var scrollView: NSScrollView!
-    private let clearButton = NSButton(title: "", target: nil, action: #selector(clearClicked))
     private let copyButton = NSButton(title: "", target: nil, action: #selector(copyClicked))
     private let autoScrollCheckbox = NSButton(checkboxWithTitle: "", target: nil, action: #selector(toggleAutoScroll))
     private let logCountLabel = NSTextField(labelWithString: "0 \(LanguageManager.shared.localized("logs.entries"))")
     private var autoScroll = true
 
     // UI 组件引用用于主题更新
-    private var headerBar: NSView!
+    private let headerImageView = NSImageView()
     private var titleLabel: NSTextField!
+    private let subtitleLabel = NSTextField(labelWithString: "SYSTEM ENGINE & BRIDGE TRAFFIC LOGS")
+    private let displayHintLabel = NSTextField(labelWithString: LanguageManager.shared.localized("logs.display_hint"))
     private var autoScrollLabel: NSTextField!
-    private var divider: NSView!
+    private let headerSeparator = NSView()
+    private var reloadScheduled = false
 
     override func loadView() {
         view = NSView()
@@ -50,40 +52,38 @@ final class BridgeLogsViewController: NSViewController {
 
     @objc private func handleLanguageChange() {
         titleLabel.stringValue = LanguageManager.shared.localized("logs.title")
+        displayHintLabel.stringValue = LanguageManager.shared.localized("logs.display_hint")
         autoScrollLabel.stringValue = LanguageManager.shared.localized("logs.auto_scroll")
-        clearButton.toolTip = LanguageManager.shared.localized("logs.clear")
         copyButton.toolTip = LanguageManager.shared.localized("common.copy")
         reloadLogs()
     }
 
     @objc private func handleThemeChange() {
         view.layer?.backgroundColor = DSV2.surface.cgColor
+        
+        // 更新 Header
+        headerImageView.contentTintColor = DSV2.primary
+        titleLabel?.textColor = DSV2.onSurface
+        subtitleLabel.textColor = DSV2.onSurfaceTertiary
+        headerSeparator.layer?.backgroundColor = DSV2.divider.withAlphaComponent(0.8).cgColor
+        
+        // 更新终端背景
         textView?.textColor = DSV2.tertiary
         textView?.backgroundColor = DSV2.surfaceContainerLowest
         scrollView?.layer?.backgroundColor = DSV2.surfaceContainerLowest.cgColor
-        scrollView?.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.2).cgColor
-
-        // 更新 header bar
-        headerBar?.layer?.backgroundColor = DSV2.surfaceContainerLow.withAlphaComponent(0.9).cgColor
-        headerBar?.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
+        scrollView?.layer?.borderColor = DSV2.cardBorder.withAlphaComponent(0.3).cgColor
 
         // 更新标签
-        titleLabel?.textColor = DSV2.onSurface
         autoScrollLabel?.textColor = DSV2.onSurfaceTertiary
         logCountLabel.textColor = DSV2.onSurfaceVariant
         logCountLabel.layer?.backgroundColor = DSV2.surfaceContainerHigh.cgColor
         logCountLabel.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.2).cgColor
 
-        // 更新分隔线
-        divider?.layer?.backgroundColor = DSV2.outlineVariant.withAlphaComponent(0.2).cgColor
-
         // 更新按钮
         updateButtonTheme(copyButton, isDestructive: false)
-        updateButtonTheme(clearButton, isDestructive: true)
 
         // 重新加载日志以更新颜色
         reloadLogs()
-
         view.needsDisplay = true
     }
 
@@ -111,19 +111,24 @@ final class BridgeLogsViewController: NSViewController {
         view.wantsLayer = true
         view.layer?.backgroundColor = DSV2.surface.cgColor
 
-        // Header bar with glass effect
-        headerBar = NSView()
-        headerBar.wantsLayer = true
-        headerBar.layer?.backgroundColor = DSV2.surfaceContainerLow.withAlphaComponent(0.9).cgColor
-        headerBar.layer?.borderWidth = 1
-        headerBar.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.15).cgColor
-        headerBar.translatesAutoresizingMaskIntoConstraints = false
+        // Header Icon
+        if #available(macOS 11.0, *) {
+            headerImageView.image = NSImage(systemSymbolName: "list.bullet.rectangle.portrait", accessibilityDescription: nil)
+            headerImageView.symbolConfiguration = NSImage.SymbolConfiguration(pointSize: 20, weight: .semibold)
+            headerImageView.contentTintColor = DSV2.primary
+        }
+        headerImageView.translatesAutoresizingMaskIntoConstraints = false
 
         // Title
         titleLabel = NSTextField(labelWithString: LanguageManager.shared.localized("logs.title"))
-        titleLabel.font = DSV2.fontTitleSm
+        titleLabel.font = DSV2.fontTitleLg
         titleLabel.textColor = DSV2.onSurface
         titleLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        // Subtitle
+        subtitleLabel.font = DSV2.fontLabelSm
+        subtitleLabel.textColor = DSV2.onSurfaceTertiary
+        subtitleLabel.translatesAutoresizingMaskIntoConstraints = false
 
         // Log count badge
         logCountLabel.font = DSV2.fontLabelSm
@@ -135,6 +140,10 @@ final class BridgeLogsViewController: NSViewController {
         logCountLabel.layer?.borderColor = DSV2.outlineVariant.withAlphaComponent(0.2).cgColor
         logCountLabel.alignment = .center
         logCountLabel.translatesAutoresizingMaskIntoConstraints = false
+
+        displayHintLabel.font = DSV2.fontLabelSm
+        displayHintLabel.textColor = DSV2.onSurfaceVariant
+        displayHintLabel.translatesAutoresizingMaskIntoConstraints = false
 
         // Auto-scroll toggle
         autoScrollLabel = NSTextField(labelWithString: LanguageManager.shared.localized("logs.auto_scroll"))
@@ -148,62 +157,66 @@ final class BridgeLogsViewController: NSViewController {
 
         // Action buttons
         setupActionButton(copyButton, icon: "doc.on.doc", tooltip: LanguageManager.shared.localized("common.copy"))
-        setupActionButton(clearButton, icon: "trash", tooltip: LanguageManager.shared.localized("logs.clear"), isDestructive: true)
 
-        // Layout
-        let titleRow = NSStackView(views: [titleLabel, logCountLabel])
-        titleRow.orientation = .horizontal
-        titleRow.spacing = DSV2.spacing2
-        titleRow.alignment = .centerY
+        // Header layout
+        let headerLeft = NSStackView(views: [headerImageView, titleLabel, logCountLabel])
+        headerLeft.orientation = .horizontal
+        headerLeft.spacing = DSV2.spacing2
+        headerLeft.alignment = .centerY
 
         let autoScrollRow = NSStackView(views: [autoScrollLabel, autoScrollCheckbox])
         autoScrollRow.orientation = .horizontal
         autoScrollRow.spacing = DSV2.spacing2
         autoScrollRow.alignment = .centerY
 
-        divider = NSView()
-        divider.wantsLayer = true
-        divider.layer?.backgroundColor = DSV2.outlineVariant.withAlphaComponent(0.2).cgColor
-        divider.translatesAutoresizingMaskIntoConstraints = false
-        divider.widthAnchor.constraint(equalToConstant: 1).isActive = true
-
-        let buttonRow = NSStackView(views: [copyButton, clearButton])
+        let buttonRow = NSStackView(views: [autoScrollRow, copyButton])
         buttonRow.orientation = .horizontal
-        buttonRow.spacing = DSV2.spacing2
+        buttonRow.spacing = DSV2.spacing4
+        buttonRow.alignment = .centerY
 
-        let toolbar = NSStackView(views: [titleRow, NSView(), autoScrollRow, divider, buttonRow])
-        toolbar.orientation = .horizontal
-        toolbar.alignment = .centerY
-        toolbar.spacing = DSV2.spacing4
-        toolbar.translatesAutoresizingMaskIntoConstraints = false
+        let topRow = NSStackView(views: [headerLeft, NSView(), buttonRow])
+        topRow.orientation = .horizontal
+        topRow.alignment = .centerY
+        topRow.translatesAutoresizingMaskIntoConstraints = false
 
-        headerBar.addSubview(toolbar)
+        let headerStack = NSStackView(views: [topRow, subtitleLabel, displayHintLabel])
+        headerStack.orientation = .vertical
+        headerStack.spacing = 4
+        headerStack.alignment = .leading
+        headerStack.translatesAutoresizingMaskIntoConstraints = false
+
+        headerSeparator.wantsLayer = true
+        headerSeparator.layer?.backgroundColor = DSV2.divider.withAlphaComponent(0.8).cgColor
+        headerSeparator.translatesAutoresizingMaskIntoConstraints = false
 
         // Terminal view
         let terminal = DSV2.makeTerminalTextView()
         scrollView = terminal.scrollView
         textView = terminal.textView
 
-        view.addSubview(headerBar)
+        view.addSubview(headerStack)
+        view.addSubview(headerSeparator)
         view.addSubview(scrollView)
 
         NSLayoutConstraint.activate([
             logCountLabel.widthAnchor.constraint(greaterThanOrEqualToConstant: 80),
             logCountLabel.heightAnchor.constraint(equalToConstant: 20),
 
-            headerBar.topAnchor.constraint(equalTo: view.topAnchor),
-            headerBar.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            headerBar.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            headerBar.heightAnchor.constraint(equalToConstant: 56),
+            headerStack.topAnchor.constraint(equalTo: view.topAnchor, constant: DSV2.spacing6),
+            headerStack.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6 + 12),
+            headerStack.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
 
-            toolbar.centerYAnchor.constraint(equalTo: headerBar.centerYAnchor),
-            toolbar.leadingAnchor.constraint(equalTo: headerBar.leadingAnchor, constant: DSV2.spacing6),
-            toolbar.trailingAnchor.constraint(equalTo: headerBar.trailingAnchor, constant: -DSV2.spacing6),
+            topRow.widthAnchor.constraint(equalTo: headerStack.widthAnchor),
 
-            scrollView.topAnchor.constraint(equalTo: headerBar.bottomAnchor),
-            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
-            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
-            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor)
+            headerSeparator.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: 12),
+            headerSeparator.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            headerSeparator.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            headerSeparator.heightAnchor.constraint(equalToConstant: 1),
+
+            scrollView.topAnchor.constraint(equalTo: headerSeparator.bottomAnchor, constant: 30),
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor, constant: DSV2.spacing6),
+            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor, constant: -DSV2.spacing6),
+            scrollView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -DSV2.spacing6)
         ])
     }
 
@@ -235,16 +248,23 @@ final class BridgeLogsViewController: NSViewController {
     // MARK: - Data
 
     private func reloadLogs() {
-        let lines = BridgeLogger.shared.snapshot()
+        let lines = BridgeLogger.shared.displaySnapshot()
 
         // Format logs with colors and styling
         let attributedString = NSMutableAttributedString()
+
+        // Define global paragraph style for line spacing
+        let paragraphStyle = NSMutableParagraphStyle()
+        paragraphStyle.lineSpacing = 3
 
         for line in lines {
             let formattedLine = formatLogLine(line)
             attributedString.append(formattedLine)
             attributedString.append(NSAttributedString(string: "\n"))
         }
+
+        // Apply line spacing to the entire document
+        attributedString.addAttribute(.paragraphStyle, value: paragraphStyle, range: NSRange(location: 0, length: attributedString.length))
 
         textView.textStorage?.setAttributedString(attributedString)
         logCountLabel.stringValue = "\(lines.count) \(LanguageManager.shared.localized("logs.entries"))"
@@ -290,31 +310,45 @@ final class BridgeLogsViewController: NSViewController {
                 attributed.append(tagAttr)
             }
 
-            // Message
+            // Message with nested highlighting
             if let messageRange = Range(match.range(at: 3), in: line) {
                 let message = String(line[messageRange])
-                let messageColor = line.contains("error") || line.contains("Error") ? DSV2.error : DSV2.onSurface
-                let messageAttr = NSAttributedString(
-                    string: message,
-                    attributes: [
-                        .foregroundColor: messageColor,
-                        .font: DSV2.fontMonoSm
-                    ]
-                )
-                attributed.append(messageAttr)
+                let highlightedMessage = highlightMessage(message)
+                attributed.append(highlightedMessage)
             }
         } else {
-            // Fallback: plain text
-            attributed.append(NSAttributedString(
-                string: line,
-                attributes: [
-                    .foregroundColor: DSV2.onSurface,
-                    .font: DSV2.fontMonoSm
-                ]
-            ))
+            // Fallback for non-standard lines
+            attributed.append(highlightMessage(line))
         }
 
         return attributed
+    }
+
+    private func highlightMessage(_ message: String) -> NSAttributedString {
+        let attrMessage = NSMutableAttributedString(string: message, attributes: [
+            .font: DSV2.fontMonoSm,
+            .foregroundColor: DSV2.onSurface
+        ])
+
+        // Rich syntax patterns
+        let patterns: [(String, NSColor)] = [
+            ("http[s]?://\\S+", DSV2.secondary),           // URLs
+            ("/[\\w\\-\\.]+(/[\\w\\-\\.]+)+", DSV2.onSurfaceVariant), // Paths
+            ("\\b\\d{3}\\b", DSV2.primary),                // HTTP Status codes or numbers
+            ("(\"[^\"]+\":|'[^']+'\\:)", DSV2.tertiary),   // JSON Keys
+            ("\\b(error|failed|failure|err)\\b", DSV2.error) // Error keywords
+        ]
+
+        for (pattern, color) in patterns {
+            if let regex = try? NSRegularExpression(pattern: pattern, options: .caseInsensitive) {
+                let matches = regex.matches(in: message, range: NSRange(message.startIndex..., in: message))
+                for match in matches {
+                    attrMessage.addAttribute(.foregroundColor, value: color, range: match.range)
+                }
+            }
+        }
+        
+        return attrMessage
     }
 
     private func colorForTag(_ tag: String) -> NSColor {
@@ -339,20 +373,32 @@ final class BridgeLogsViewController: NSViewController {
     // MARK: - Notifications
 
     @objc private func onLogUpdate() {
-        reloadLogs()
+        scheduleReloadLogs()
+    }
+
+    private func scheduleReloadLogs() {
+        guard !reloadScheduled else { return }
+        reloadScheduled = true
+
+        DispatchQueue.main.async { [weak self] in
+            guard let self = self else { return }
+            self.reloadScheduled = false
+            self.reloadLogs()
+        }
     }
 
     // MARK: - Actions
 
-    @objc private func clearClicked() {
-        BridgeLogger.shared.clear()
-    }
-
     @objc private func copyClicked() {
-        let lines = BridgeLogger.shared.snapshot()
-        let text = lines.joined(separator: "\n")
+        let text = BridgeLogger.shared.currentLogText()
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
+            showToast(LanguageManager.shared.localized("logs.nothing_to_copy"), style: .warning)
+            return
+        }
+
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
+        showToast(LanguageManager.shared.localized("common.copied"), style: .success)
     }
 
     @objc private func toggleAutoScroll() {

@@ -1,31 +1,28 @@
 import sys
 import os
 import unittest
-import threading
-import time
-import json
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from clawbot.services.media import MediaService
 from utils.task_client import TaskClient
 from utils.chunked_uploader import ChunkedUploader
 from utils.progress_display import ProgressDisplay
-from utils.api_client import MediaUploadTask
 
 class TestIntegration(unittest.TestCase):
     """
     E2E 联调测试启动脚本。
     用于在 localBridge 运行时验证整个上传生命周期。
     """
-    
+
     def setUp(self):
         self.dummy_file = os.path.join(os.path.dirname(__file__), "dummy_integration.mp4")
         # 实际使用时会读取 ~/.aihub/config.json
         self.task_client = TaskClient()
         self.uploader = ChunkedUploader(self.task_client)
         self.progress = ProgressDisplay(verbose=True)
-        self.task = MediaUploadTask(self.task_client, self.uploader, self.progress)
+        self.task = MediaService(task_client=self.task_client, actions=None, uploader=self.uploader, progress=self.progress)
 
     def tearDown(self):
         if os.path.exists(self.dummy_file):
@@ -36,7 +33,7 @@ class TestIntegration(unittest.TestCase):
         print("\n--- Testing Small File Upload Logic ---")
         with open(self.dummy_file, "wb") as f:
             f.write(os.urandom(1024 * 1024 * 2)) # 2MB
-            
+
         print(f"File created: {self.dummy_file}")
         # 这里仅进行方法调用的连通性验证
         self.assertIsNotNone(self.task_client.base_url)
@@ -47,8 +44,8 @@ class TestIntegration(unittest.TestCase):
         # 创建一个 12MB 的文件，应该分为 3 个 5MB 的块
         size = 1024 * 1024 * 12
         with open(self.dummy_file, "wb") as f:
-            f.write(os.urandom(size)) 
-            
+            f.write(os.urandom(size))
+
         # 验证分片计算是否正确
         # 我们 mock 掉实际上传方法
         with patch.object(self.task_client, 'upload_input_part', return_value=None):
@@ -61,12 +58,12 @@ class TestIntegration(unittest.TestCase):
         print("\n--- Testing E2E Cancellation Flow ---")
         with open(self.dummy_file, "wb") as f:
             f.write(b"data")
-            
+
         with patch.object(self.task_client, 'create_task', return_value="task_123"):
             with patch.object(self.uploader, 'upload_file', side_effect=KeyboardInterrupt):
                 with patch.object(self.task_client, 'cancel_task') as mock_cancel:
                     with self.assertRaises(KeyboardInterrupt):
-                        self.task.upload_video(self.dummy_file)
+                        self.task.upload(self.dummy_file, instance_id="instance_xxx")
                     # 验证是否下发了取消指令
                     mock_cancel.assert_called_with("task_123")
 

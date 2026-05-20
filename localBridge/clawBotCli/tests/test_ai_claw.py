@@ -9,7 +9,7 @@ import json
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.api_client import APIClient
+from clawbot import ClawBotClient
 
 def test_ai_status():
     """Test GET /api/v1/ai/status"""
@@ -17,8 +17,8 @@ def test_ai_status():
     print("Testing: GET /api/v1/ai/status")
     print("="*60)
 
-    client = APIClient()
-    response = client.get_ai_status()
+    client = ClawBotClient()
+    response = client.ai.status.get_status()
 
     print(json.dumps(response, indent=2, ensure_ascii=False))
 
@@ -35,15 +35,15 @@ def test_send_message():
     print("Testing: POST /api/v1/ai/message")
     print("="*60)
 
-    client = APIClient()
-    response = client.send_ai_message(
+    client = ClawBotClient()
+    result = client.ai.chat.send_message(
         platform='chatgpt',
         prompt='Hello, please respond with just "Hi"'
     )
 
-    print(json.dumps(response, indent=2, ensure_ascii=False))
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False))
 
-    if response.get('success') and 'content' in response:
+    if result.success and result.content:
         print("✅ Message sent and received response")
         return True
     else:
@@ -56,12 +56,12 @@ def test_new_conversation():
     print("Testing: POST /api/v1/ai/new_conversation")
     print("="*60)
 
-    client = APIClient()
-    response = client.new_ai_conversation(platform='chatgpt')
+    client = ClawBotClient()
+    result = client.ai.chat.new_conversation(platform='chatgpt')
 
-    print(json.dumps(response, indent=2, ensure_ascii=False))
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False))
 
-    if response.get('success'):
+    if result.success:
         print("✅ New conversation created")
         return True
     else:
@@ -74,12 +74,12 @@ def test_navigate():
     print("Testing: POST /api/v1/ai/navigate")
     print("="*60)
 
-    client = APIClient()
-    response = client.navigate_ai_platform(platform='chatgpt')
+    client = ClawBotClient()
+    result = client.ai.navigation.navigate(platform='chatgpt')
 
-    print(json.dumps(response, indent=2, ensure_ascii=False))
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False))
 
-    if response.get('success'):
+    if result.success:
         print("✅ Navigation successful")
         return True
     else:

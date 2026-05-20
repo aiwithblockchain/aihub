@@ -4,92 +4,102 @@ Test Bookmark and Follow APIs (Bookmark, Unbookmark, Follow, Unfollow)
 测试场景 7: 收藏和关注测试
 """
 import sys
+import os
 import json
-from utils.api_client import APIClient
+import argparse
+from typing import Any, Optional, Tuple
+
+# Add parent directory to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from clawbot import ClawBotClient
 
 
-def extract_tweet_and_user_from_timeline():
+def confirm_or_exit(message: str, assume_yes: bool) -> None:
+    print(message)
+    if assume_yes:
+        return
+    confirm = input("Continue? (yes/no): ").strip().lower()
+    if confirm != "yes":
+        print("⏭️  Skipped")
+        raise SystemExit(0)
+
+
+def resolve_instance_id(client: ClawBotClient, preferred_instance_id: Optional[str] = None) -> Optional[str]:
+    if preferred_instance_id:
+        return preferred_instance_id
+
+    instances_payload: Any = client.x.status.get_instances()
+    if isinstance(instances_payload, dict):
+        instances = instances_payload.get("instances") or []
+    elif isinstance(instances_payload, list):
+        instances = instances_payload
+    else:
+        instances = []
+
+    if not instances:
+        return None
+
+    first_instance = instances[0]
+    instance_id = first_instance.get("instanceId") or first_instance.get("id")
+    return str(instance_id) if instance_id else None
+
+
+def extract_tweet_and_user_from_timeline(instance_id: Optional[str]) -> Tuple[Optional[str], Optional[str]]:
     """Extract a tweet ID and user ID from timeline for testing"""
     print("\n📋 Extracting tweet ID and user ID from timeline...")
-    client = APIClient()
-    response = client.get_timeline()
+    client = ClawBotClient()
 
-    tweet_id = None
-    user_id = None
+    tweet = client.x.timeline.get_first_timeline_tweet(instance_id=instance_id)
+    if not tweet:
+        print(f"⚠️  No tweets found in timeline")
+        return None, None
 
-    try:
-        if 'data' in response and 'home' in response['data']:
-            instructions = response['data']['home']['home_timeline_urt']['instructions']
-            for instruction in instructions:
-                if instruction.get('type') == 'TimelineAddEntries':
-                    entries = instruction.get('entries', [])
-                    for entry in entries:
-                        if 'tweet-' in entry.get('entryId', ''):
-                            content = entry.get('content', {})
-                            tweet_results = content.get('itemContent', {}).get('tweet_results', {})
-                            result = tweet_results.get('result', {})
+    tweet_id = tweet.id
+    user_id = tweet.author_id
 
-                            if not tweet_id:
-                                tweet_id = result.get('rest_id')
-
-                            # Extract user ID from tweet author
-                            if not user_id:
-                                core = result.get('core', {})
-                                user_results = core.get('user_results', {})
-                                user_result = user_results.get('result', {})
-                                user_id = user_result.get('rest_id')
-
-                            if tweet_id and user_id:
-                                print(f"✅ Found tweet ID: {tweet_id}")
-                                print(f"✅ Found user ID: {user_id}")
-                                return tweet_id, user_id
-    except Exception as e:
-        print(f"⚠️  Failed to extract IDs: {e}")
+    if tweet_id and user_id:
+        print(f"✅ Found tweet ID: {tweet_id}")
+        print(f"✅ Found user ID: {user_id}")
 
     return tweet_id, user_id
 
 
-def test_bookmark_unbookmark():
+def test_bookmark_unbookmark(instance_id: Optional[str], assume_yes: bool) -> bool:
     """Test POST /api/v1/x/bookmarks and /api/v1/x/unbookmarks"""
     print("\n" + "="*60)
     print("Testing: Bookmark and Unbookmark Tweet")
     print("="*60)
 
-    tweet_id, _ = extract_tweet_and_user_from_timeline()
+    tweet_id, _ = extract_tweet_and_user_from_timeline(instance_id=instance_id)
     if not tweet_id:
         print("⏭️  Skipped - No tweet ID available")
         return True
 
     print(f"Using tweet ID: {tweet_id}")
-    print("⚠️  This will bookmark and then unbookmark a real tweet!")
-    confirm = input("Continue? (yes/no): ").strip().lower()
-    if confirm != "yes":
-        print("⏭️  Skipped")
-        return True
+    print(f"Using instance_id: {instance_id}")
+    confirm_or_exit("⚠️  This will bookmark and then unbookmark a real tweet!", assume_yes)
 
-    client = APIClient()
+    client = ClawBotClient()
 
-    # Test bookmark
     print("\n📍 Testing bookmark...")
-    response = client.bookmark_tweet(tweet_id)
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    result = client.x.actions.bookmark(tweet_id, instance_id=instance_id)
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'create_bookmark' in str(response):
+    if result.success:
         print("✅ Bookmark successful")
     else:
         print("❌ Bookmark failed")
         return False
 
-    # Wait a moment
     import time
     time.sleep(2)
 
-    # Test unbookmark
     print("\n📍 Testing unbookmark...")
-    response = client.unbookmark_tweet(tweet_id)
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    result = client.x.actions.unbookmark(tweet_id, instance_id=instance_id)
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'delete_bookmark' in str(response):
+    if result.success:
         print("✅ Unbookmark successful")
         return True
     else:
@@ -97,47 +107,41 @@ def test_bookmark_unbookmark():
         return False
 
 
-def test_follow_unfollow():
+def test_follow_unfollow(instance_id: Optional[str], assume_yes: bool) -> bool:
     """Test POST /api/v1/x/follows and /api/v1/x/unfollows"""
     print("\n" + "="*60)
     print("Testing: Follow and Unfollow User")
     print("="*60)
 
-    _, user_id = extract_tweet_and_user_from_timeline()
+    _, user_id = extract_tweet_and_user_from_timeline(instance_id=instance_id)
     if not user_id:
         print("⏭️  Skipped - No user ID available")
         return True
 
     print(f"Using user ID: {user_id}")
-    print("⚠️  This will follow and then unfollow a real user!")
-    confirm = input("Continue? (yes/no): ").strip().lower()
-    if confirm != "yes":
-        print("⏭️  Skipped")
-        return True
+    print(f"Using instance_id: {instance_id}")
+    confirm_or_exit("⚠️  This will follow and then unfollow a real user!", assume_yes)
 
-    client = APIClient()
+    client = ClawBotClient()
 
-    # Test follow
     print("\n📍 Testing follow...")
-    response = client.follow_user(user_id)
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    result = client.x.actions.follow(user_id, instance_id=instance_id)
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'following' in str(response):
+    if result.success:
         print("✅ Follow successful")
     else:
         print("❌ Follow failed")
         return False
 
-    # Wait a moment
     import time
     time.sleep(2)
 
-    # Test unfollow
     print("\n📍 Testing unfollow...")
-    response = client.unfollow_user(user_id)
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    result = client.x.actions.unfollow(user_id, instance_id=instance_id)
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'following' in str(response):
+    if result.success:
         print("✅ Unfollow successful")
         return True
     else:
@@ -146,14 +150,23 @@ def test_follow_unfollow():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Test bookmark/unbookmark and follow/unfollow on X')
+    parser.add_argument('--instance-id', type=str, help='Explicit instanceId for multi-instance routing')
+    parser.add_argument('--yes', action='store_true', help='Skip interactive confirmation')
+    args = parser.parse_args()
+
     print("\n🧪 Testing Bookmark and Follow APIs (Scenario 7)")
     print("="*60)
     print("⚠️  WARNING: These tests perform real actions on your X account!")
     print("="*60)
 
+    bootstrap_client = ClawBotClient()
+    instance_id = resolve_instance_id(bootstrap_client, preferred_instance_id=args.instance_id)
+    print(f"Resolved instance_id: {instance_id}")
+
     results = []
-    results.append(("Bookmark/Unbookmark", test_bookmark_unbookmark()))
-    results.append(("Follow/Unfollow", test_follow_unfollow()))
+    results.append(("Bookmark/Unbookmark", test_bookmark_unbookmark(instance_id=instance_id, assume_yes=args.yes)))
+    results.append(("Follow/Unfollow", test_follow_unfollow(instance_id=instance_id, assume_yes=args.yes)))
 
     print("\n" + "="*60)
     print("Test Summary:")

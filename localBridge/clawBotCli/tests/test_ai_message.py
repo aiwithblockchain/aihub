@@ -11,7 +11,7 @@ import json
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.api_client import APIClient
+from clawbot import ClawBotClient
 
 def main():
     # Parse arguments
@@ -24,17 +24,17 @@ def main():
     print(f"Message: {message}")
     print("="*60)
 
-    client = APIClient()
-    response = client.send_ai_message(
+    client = ClawBotClient()
+    result = client.ai.chat.send_message(
         platform=platform,
         prompt=message
     )
 
     print("\n📋 Response:")
-    print(json.dumps(response, indent=2, ensure_ascii=False))
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False))
 
-    if response.get('success') and response.get('content'):
-        content = response['content']
+    if result.success and result.content:
+        content = result.content
         print(f"\n✅ Success: Received response ({len(content)} chars)")
         print(f"\n💡 AI Reply:")
         print("-" * 60)
@@ -42,7 +42,7 @@ def main():
         print("-" * 60)
         return 0
     else:
-        error = response.get('error', 'Unknown error')
+        error = result.raw.get('error', 'Unknown error')
         print(f"\n❌ Failed: {error}")
         return 1
 

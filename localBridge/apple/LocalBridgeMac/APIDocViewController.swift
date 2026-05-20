@@ -99,7 +99,7 @@ final class APIDocViewController: NSViewController {
 
     private func setupUI() {
         view.wantsLayer = true
-        view.layer?.backgroundColor = DS.colorContentBg.cgColor
+        view.layer?.backgroundColor = DSV2.surface.cgColor
 
         // 配置分割视图
         splitView.isVertical = true

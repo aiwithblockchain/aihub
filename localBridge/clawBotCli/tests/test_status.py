@@ -1,11 +1,20 @@
 #!/usr/bin/env python3
 """
-Test Status Query APIs
+Legacy test script for status queries.
+
+Migration note:
+- Kept for backward compatibility during refactor
+- New example: `examples/status_and_metadata_example.py`
+- New integration smoke tests: `tests/integration/test_status_metadata_flows.py`
+- New code should prefer `from clawbot import ClawBotClient`
 """
 import sys
+import os
 import json
-from utils.api_client import APIClient
-from utils.response_parser import validate_response, print_response_summary
+
+# Add parent directory to path for imports
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from clawbot import ClawBotClient
 
 
 def test_x_status():
@@ -14,14 +23,17 @@ def test_x_status():
     print("Testing: GET /api/v1/x/status")
     print("="*60)
 
-    client = APIClient()
-    response = client.get_x_status()
+    client = ClawBotClient()
+    status = client.x.status.get_status()
 
-    print(json.dumps(response, indent=2, ensure_ascii=False))
+    print(json.dumps(status.raw, indent=2, ensure_ascii=False))
 
     # Validate
-    if 'hasXTabs' in response and 'isLoggedIn' in response:
+    if status.has_x_tabs is not None and status.is_logged_in is not None:
         print("✅ Status API working correctly")
+        print(f"   hasXTabs: {status.has_x_tabs}")
+        print(f"   isLoggedIn: {status.is_logged_in}")
+        print(f"   tabs: {len(status.tabs)}")
         return True
     else:
         print("❌ Unexpected response format")
@@ -34,8 +46,8 @@ def test_instances():
     print("Testing: GET /api/v1/x/instances")
     print("="*60)
 
-    client = APIClient()
-    response = client.get_instances()
+    client = ClawBotClient()
+    response = client.x.status.get_instances()
 
     print(json.dumps(response, indent=2, ensure_ascii=False))
 
@@ -53,18 +65,19 @@ def test_basic_info():
     print("Testing: GET /api/v1/x/basic_info")
     print("="*60)
 
-    client = APIClient()
-    response = client.get_basic_info()
+    client = ClawBotClient()
+    user = client.x.status.get_basic_info()
 
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:500] + "...")
+    print(json.dumps(user.raw, indent=2, ensure_ascii=False)[:500] + "...")
 
-    is_valid, message = validate_response(response)
-    if is_valid:
-        print(f"✅ {message}")
-        print_response_summary(response)
+    if user.id and user.screen_name:
+        print(f"✅ Basic info retrieved successfully")
+        print(f"   User ID: {user.id}")
+        print(f"   Screen name: @{user.screen_name}")
+        print(f"   Name: {user.name}")
         return True
     else:
-        print(f"❌ {message}")
+        print(f"❌ Failed to parse user info")
         return False
 
 

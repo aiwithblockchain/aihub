@@ -1,5 +1,13 @@
 import AppKit
 
+private class BorderlessSplitView: NSSplitView {
+    override var dividerThickness: CGFloat { return 0 }
+    override var dividerColor: NSColor { return .clear }
+    override func drawDivider(in rect: NSRect) {
+        // Do nothing to prevent any drawing
+    }
+}
+
 final class ConversationsSplitViewController: NSSplitViewController {
     private let sidebarViewController = SidebarViewController()
     private let detailViewController = DetailViewController()
@@ -7,21 +15,36 @@ final class ConversationsSplitViewController: NSSplitViewController {
     
     private var detailItem: NSSplitViewItem?
 
+    override func loadView() {
+        let customSplitView = BorderlessSplitView()
+        customSplitView.isVertical = true
+        self.splitView = customSplitView
+        self.view = customSplitView
+    }
+
     override func viewDidLoad() {
         super.viewDidLoad()
 
-        sidebarViewController.delegate = self
+        view.wantsLayer = true
+        view.layer?.backgroundColor = DSV2.pageBackground.cgColor
+        view.layer?.borderWidth = 0
+        self.splitView.wantsLayer = true
+        self.splitView.layer?.borderWidth = 0
 
-        let sidebarItem = NSSplitViewItem(sidebarWithViewController: sidebarViewController)
-        sidebarItem.minimumThickness = DS.sidebarWidth
-        sidebarItem.maximumThickness = DS.sidebarWidth
+        sidebarViewController.delegate = self
+        
+        // Use standard NSSplitViewItem instead of sidebarWithViewController to avoid automatic system borders
+        let sidebarItem = NSSplitViewItem(viewController: sidebarViewController)
+        sidebarItem.minimumThickness = 72
+        sidebarItem.maximumThickness = 72
+        sidebarItem.canCollapse = false
 
         let detailItem = NSSplitViewItem(viewController: detailViewController)
         self.detailItem = detailItem
 
         addSplitViewItem(sidebarItem)
         addSplitViewItem(detailItem)
-
+        
         // 注册主题变化通知
         NotificationCenter.default.addObserver(
             self,
@@ -32,6 +55,7 @@ final class ConversationsSplitViewController: NSSplitViewController {
     }
 
     @objc private func handleThemeChange() {
+        view.layer?.backgroundColor = DSV2.pageBackground.cgColor
         view.needsDisplay = true
     }
 

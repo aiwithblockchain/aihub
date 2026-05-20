@@ -33,6 +33,7 @@ interface ExecActionPayload {
     tabId?: number;
     text?: string;
     media_ids?: string[];
+    attachmentUrl?: string;
 }
 
 interface QueryTimelinePayload {
@@ -62,7 +63,19 @@ interface QuerySearchTimelinePayload {
     tabId?: number;
 }
 
+interface QueryUserTweetsPayload {
+    userId: string;
+    cursor?: string;
+    count?: number;
+    tabId?: number;
+}
+
 const backgroundSessionStore = new BackgroundSessionStore();
+
+const XHS_HOMEFEED_URL = 'https://www.xiaohongshu.com/explore?channel_id=homefeed_recommend';
+const XHS_HOMEFEED_WARMUP_TTL_MS = 30_000;
+const XHS_HOMEFEED_WARMUP_TIMEOUT_MS = 30_000;
+let xhsHomefeedWarmupPromise: Promise<number> | null = null;
 
 function getUploadSessionChunk(sessionId: string, chunkIndex: number) {
     return backgroundSessionStore.getChunk(sessionId, chunkIndex);
@@ -75,22 +88,103 @@ function releaseUploadSession(sessionId: string) {
 
 // Initialize LocalBridge Socket
 const localBridge = new LocalBridgeSocket();
+void localBridge.recordLifecycleEvent('sw_boot', 'background service worker evaluated');
 localBridge.queryXTabsHandler = queryXTabsStatus;
 localBridge.queryXBasicInfoHandler = queryXBasicInfo;
+localBridge.queryXhsAccountInfoHandler = queryXhsAccountInfo;
+localBridge.queryXhsHomefeedHandler = queryXhsHomefeed;
+localBridge.queryXhsFeedHandler = queryXhsFeed;
 localBridge.openTabHandler = openXTab;
 localBridge.closeTabHandler = closeXTab;
 localBridge.navigateTabHandler = navigateXTab;
 localBridge.execActionHandler = execAction;
 localBridge.queryHomeTimelineHandler = queryHomeTimeline;
-localBridge.queryTweetHandler = queryTweet;
 localBridge.queryTweetRepliesHandler = queryTweetReplies;
 localBridge.queryTweetDetailHandler = queryTweetDetail;
 localBridge.queryUserProfileHandler = queryUserProfile;
 localBridge.querySearchTimelineHandler = querySearchTimeline;
+localBridge.queryUserTweetsHandler = queryUserTweets;
 
 // Initialize Background Task Coordinator
 let taskCoordinator: BackgroundTaskCoordinator | null = null;
 let taskCoordinatorReady = false;
+
+async function getWindowCount(): Promise<number> {
+    if (!chrome.windows?.getAll) {
+        return -1;
+    }
+
+    try {
+        const windows = await chrome.windows.getAll({ populate: false });
+        return windows.length;
+    } catch (e) {
+        console.warn('[TweetClaw-BG] failed to read windows for activity log', e);
+        return -1;
+    }
+}
+
+async function logProfileActivityState(event: 'active' | 'inactive', reason: string, extra?: Record<string, unknown>) {
+    const windowCount = await getWindowCount();
+    const payload = {
+        windowCount,
+        ...extra
+    };
+
+    void localBridge.recordActivityState(event, reason, payload);
+    console.log(`[TweetClaw-BG] profile ${event}: reason=${reason} windowCount=${windowCount}, ${localBridge.getDebugIdentityLabel()} state=${JSON.stringify(localBridge.getConnectionDebugState())} extra=${JSON.stringify(extra || {})}`);
+}
+
+async function reconcileBridgeActivity(reason: string, extra?: Record<string, unknown>) {
+    const windowCount = await getWindowCount();
+    const payload = {
+        reason,
+        windowCount,
+        ...(extra || {})
+    };
+
+    if (windowCount === 0) {
+        await localBridge.setDesiredActive(false, reason, payload);
+        void localBridge.recordActivityState('inactive', reason, payload);
+        console.log(`[TweetClaw-BG] reconcile bridge inactive: reason=${reason} windowCount=0, ${localBridge.getDebugIdentityLabel()} state=${JSON.stringify(localBridge.getConnectionDebugState())} extra=${JSON.stringify(extra || {})}`);
+        localBridge.ensureDisconnected(reason);
+        taskCoordinator?.handleDisconnect();
+        backgroundSessionStore.clear();
+        return;
+    }
+
+    await localBridge.setDesiredActive(true, reason, payload);
+    void localBridge.recordActivityState('active', reason, payload);
+    console.log(`[TweetClaw-BG] reconcile bridge active: reason=${reason} windowCount=${windowCount}, ${localBridge.getDebugIdentityLabel()} state=${JSON.stringify(localBridge.getConnectionDebugState())} extra=${JSON.stringify(extra || {})}`);
+    await localBridge.ensureConnected(reason);
+}
+
+let reconcileInFlight: Promise<void> | null = null;
+let pendingReconcileRequest: { reason: string; extra?: Record<string, unknown> } | null = null;
+
+function requestBridgeReconcile(reason: string, extra?: Record<string, unknown>) {
+    pendingReconcileRequest = { reason, extra };
+
+    if (reconcileInFlight) {
+        console.log(`[TweetClaw-BG] reconcile request coalesced: reason=${reason}, ${localBridge.getDebugIdentityLabel()} extra=${JSON.stringify(extra || {})}`);
+        return reconcileInFlight;
+    }
+
+    reconcileInFlight = (async () => {
+        while (pendingReconcileRequest) {
+            const request = pendingReconcileRequest;
+            pendingReconcileRequest = null;
+            await reconcileBridgeActivity(request.reason, request.extra);
+        }
+    })().finally(() => {
+        reconcileInFlight = null;
+    });
+
+    return reconcileInFlight;
+}
+
+requestBridgeReconcile('service worker boot', {
+    trigger: 'service worker boot'
+}).catch((e) => console.warn('[TweetClaw-BG] failed to reconcile bridge on service worker boot', e));
 
 chrome.storage.local.get(['wsHost', 'wsPort', 'restHost', 'restPort']).then(async res => {
     const wsHost = res.wsHost || '127.0.0.1';
@@ -98,7 +192,8 @@ chrome.storage.local.get(['wsHost', 'wsPort', 'restHost', 'restPort']).then(asyn
     const restHost = res.restHost || wsHost;
     const restPort = res.restPort || 10088;
     const instanceId = await getOrCreateInstanceId();
-    
+    console.log(`[TweetClaw-BG] background bootstrap resolved instanceId=${instanceId} ws=${wsHost}:${wsPort} rest=${restHost}:${restPort}`);
+
     taskCoordinator = new BackgroundTaskCoordinator(localBridge, {
         localBridgeBaseUrl: `http://${restHost}:${restPort}`,
         clientName: 'tweetClaw',
@@ -138,22 +233,92 @@ chrome.storage.local.get(['wsHost', 'wsPort', 'restHost', 'restPort']).then(asyn
 
 // hook reconnect to flush background task coordinator cancelling stale runs
 const originalHandleReconnect = localBridge.handleReconnectAlarm.bind(localBridge);
-localBridge.handleReconnectAlarm = function() {
+localBridge.handleReconnectAlarm = function(windowCount?: number) {
     if (taskCoordinator) taskCoordinator.handleDisconnect();
-    originalHandleReconnect();
+    return originalHandleReconnect(windowCount);
 };
 
 // ── Listen for reconnect alarms ──────────────────────────────────
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'tweetclaw-reconnect') {
-        console.log('[TweetClaw-BG] Reconnect alarm triggered');
-        localBridge.handleReconnectAlarm();
+        void localBridge.recordLifecycleEvent('bg_alarm_reconnect', 'background onAlarm listener', {
+            alarmName: alarm.name
+        });
+        void (async () => {
+            const windowCount = await getWindowCount();
+            if (windowCount === 0) {
+                await localBridge.setDesiredActive(false, 'alarm reconnect fired', {
+                    alarmName: alarm.name,
+                    trigger: 'chrome.alarms.onAlarm',
+                    windowCount
+                });
+                void localBridge.recordActivityState('inactive', 'alarm reconnect fired', {
+                    alarmName: alarm.name,
+                    trigger: 'chrome.alarms.onAlarm',
+                    windowCount
+                });
+                console.log(`[TweetClaw-BG] reconnect alarm skipped by reconcile: windowCount=0, ${localBridge.getDebugIdentityLabel()} state=${JSON.stringify(localBridge.getConnectionDebugState())}`);
+                localBridge.handleReconnectAlarm(windowCount);
+                taskCoordinator?.handleDisconnect();
+                backgroundSessionStore.clear();
+                return;
+            }
+
+            console.log(`[TweetClaw-BG] reconnect alarm delegates to active reconcile, windowCount=${windowCount}, ${localBridge.getDebugIdentityLabel()}`);
+            await requestBridgeReconcile('alarm reconnect fired', {
+                alarmName: alarm.name,
+                trigger: 'chrome.alarms.onAlarm',
+                windowCount
+            });
+        })().catch((e) => console.warn('[TweetClaw-BG] failed to reconcile bridge on alarm', e));
     }
 });
 
+chrome.runtime.onStartup?.addListener(() => {
+    void localBridge.recordLifecycleEvent('runtime_startup', 'chrome.runtime.onStartup');
+    console.log(`[TweetClaw-BG] runtime startup, ${localBridge.getDebugIdentityLabel()}`);
+    void requestBridgeReconcile('runtime startup', {
+        trigger: 'chrome.runtime.onStartup'
+    }).catch((e) => console.warn('[TweetClaw-BG] failed to reconcile bridge on startup', e));
+});
+
+chrome.runtime.onInstalled.addListener(() => {
+    initDefaultQueryKeys();
+    void localBridge.recordLifecycleEvent('runtime_installed', 'chrome.runtime.onInstalled');
+    console.log(`[TweetClaw-BG] Extension installed/updated, ${localBridge.getDebugIdentityLabel()}`);
+    void requestBridgeReconcile('runtime installed', {
+        trigger: 'chrome.runtime.onInstalled'
+    }).catch((e) => console.warn('[TweetClaw-BG] failed to reconcile bridge on install', e));
+});
+
 chrome.runtime.onSuspend.addListener(() => {
+    void localBridge.recordLifecycleEvent('runtime_suspend', 'chrome.runtime.onSuspend');
+    console.log(`[TweetClaw-BG] runtime suspend, ${localBridge.getDebugIdentityLabel()}`);
+    localBridge.ensureDisconnected('runtime suspend');
     taskCoordinator?.handleDisconnect();
     backgroundSessionStore.clear();
+});
+
+chrome.windows?.onCreated?.addListener((window) => {
+    void localBridge.recordLifecycleEvent('window_created', 'chrome.windows.onCreated', {
+        windowId: window.id ?? null,
+        windowType: window.type ?? null
+    });
+    void requestBridgeReconcile('window created', {
+        windowId: window.id ?? null,
+        windowType: window.type ?? null,
+        trigger: 'chrome.windows.onCreated'
+    }).catch((e) => console.warn('[TweetClaw-BG] failed to reconcile bridge on window created', e));
+});
+
+chrome.windows?.onRemoved?.addListener((windowId) => {
+    void localBridge.recordLifecycleEvent('window_removed', 'chrome.windows.onRemoved', {
+        windowId
+    });
+    void requestBridgeReconcile('window removed', {
+        windowId,
+        trigger: 'chrome.windows.onRemoved'
+    }).catch((e) => console.warn('[TweetClaw-BG] failed to reconcile bridge on window removed', e));
 });
 
 // ── 初始化默认 QueryID 映射 ───────────────────────────────────────
@@ -172,11 +337,6 @@ async function initDefaultQueryKeys() {
         console.log("[TweetClaw-BG] Default QueryIDs initialized");
     }
 }
-
-chrome.runtime.onInstalled.addListener(() => {
-    initDefaultQueryKeys();
-    console.log("[TweetClaw-BG] Extension installed/updated");
-});
 
 // ── 获取认证 UID ──────────────────────────────────────────────────
 async function getAuthenticUid(): Promise<string | null> {
@@ -315,6 +475,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
+    // 小红书 Ping
+    if (message.type === 'XHS_PING') {
+        sendResponse({
+            ok: true,
+            platform: 'xiaohongshu',
+            version: chrome.runtime.getManifest().version
+        });
+        return true;
+    }
+
     return false;
 });
 
@@ -387,6 +557,263 @@ export async function queryXBasicInfo() {
 
     // 直接返回推特原始响应，不做任何解析
     return result.raw;
+}
+
+/**
+ * 查询小红书首页推荐流
+ */
+async function findOrCreateXhsTab(): Promise<chrome.tabs.Tab> {
+    const xhsTabs = await chrome.tabs.query({
+        url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*', '*://*.xiaohongshu.com/*']
+    });
+
+    const homefeedTab = xhsTabs.find(tab => tab.url?.startsWith(XHS_HOMEFEED_URL));
+    if (homefeedTab?.id) {
+        return homefeedTab;
+    }
+
+    const anyTab = xhsTabs.find(tab => Boolean(tab.id));
+    if (anyTab?.id) {
+        return anyTab;
+    }
+
+    return new Promise((resolve, reject) => {
+        chrome.tabs.create({ url: XHS_HOMEFEED_URL, active: true }, (tab) => {
+            if (chrome.runtime.lastError || !tab?.id) {
+                reject(new Error(chrome.runtime.lastError?.message || 'Failed to create Xiaohongshu tab'));
+                return;
+            }
+            resolve(tab);
+        });
+    });
+}
+
+async function waitForTabComplete(tabId: number, timeoutMs: number): Promise<void> {
+    const existing = await chrome.tabs.get(tabId).catch(() => null);
+    if (existing?.status === 'complete') {
+        return;
+    }
+
+    await new Promise<void>((resolve, reject) => {
+        const timeout = setTimeout(() => {
+            chrome.tabs.onUpdated.removeListener(listener);
+            reject(new Error(`Timed out waiting for tab ${tabId} to finish loading`));
+        }, timeoutMs);
+
+        const listener = (updatedTabId: number, changeInfo: any) => {
+            if (updatedTabId === tabId && changeInfo.status === 'complete') {
+                clearTimeout(timeout);
+                chrome.tabs.onUpdated.removeListener(listener);
+                resolve();
+            }
+        };
+
+        chrome.tabs.onUpdated.addListener(listener);
+    });
+}
+
+async function navigateXhsTabToHomefeed(tabId: number): Promise<void> {
+    const tab = await chrome.tabs.get(tabId);
+    if (tab.url === XHS_HOMEFEED_URL) {
+        return;
+    }
+
+    await new Promise<void>((resolve, reject) => {
+        chrome.tabs.update(tabId, { url: XHS_HOMEFEED_URL, active: true }, (updatedTab) => {
+            if (chrome.runtime.lastError || !updatedTab?.id) {
+                reject(new Error(chrome.runtime.lastError?.message || 'Failed to navigate Xiaohongshu tab'));
+                return;
+            }
+            resolve();
+        });
+    });
+
+    await waitForTabComplete(tabId, XHS_HOMEFEED_WARMUP_TIMEOUT_MS);
+}
+
+async function isXhsHomefeedContextFresh(): Promise<boolean> {
+    const stored = await chrome.storage.local.get([
+        'xhs_xs_sign',
+        'xhs_xt',
+        'xhs_xs_common',
+        'xhs_x_rap_param',
+        'xhs_homefeed_template',
+    ]);
+
+    const template = stored['xhs_homefeed_template'] as any;
+    if (!stored['xhs_xs_sign'] || !stored['xhs_xt'] || !stored['xhs_xs_common'] || !stored['xhs_x_rap_param']) {
+        return false;
+    }
+
+    const capturedAt = Number(template?.captured_at || 0);
+    if (!capturedAt) {
+        return false;
+    }
+
+    return (Date.now() - capturedAt) <= XHS_HOMEFEED_WARMUP_TTL_MS;
+}
+
+async function waitForXhsHomefeedCapture(afterTimestamp: number, timeoutMs: number): Promise<void> {
+    const startedAt = Date.now();
+
+    while ((Date.now() - startedAt) < timeoutMs) {
+        const stored = await chrome.storage.local.get([
+            'xhs_xs_sign',
+            'xhs_xt',
+            'xhs_xs_common',
+            'xhs_x_rap_param',
+            'xhs_homefeed_template',
+        ]);
+
+        const template = stored['xhs_homefeed_template'] as any;
+        const capturedAt = Number(template?.captured_at || 0);
+        const capturedEndpoint = String(template?.captured_endpoint || '');
+        const capturedMethod = String(template?.captured_method || '').toUpperCase();
+
+        if (
+            stored['xhs_xs_sign'] &&
+            stored['xhs_xt'] &&
+            stored['xhs_xs_common'] &&
+            stored['xhs_x_rap_param'] &&
+            capturedAt > afterTimestamp &&
+            capturedEndpoint === '/api/sns/web/v1/homefeed' &&
+            capturedMethod === 'POST'
+        ) {
+            return;
+        }
+
+        await new Promise(resolve => setTimeout(resolve, 500));
+    }
+
+    throw new Error('Timed out waiting for Xiaohongshu homefeed warm-up capture');
+}
+
+async function ensureXhsHomefeedWarmContext(): Promise<number> {
+    const tab = await findOrCreateXhsTab();
+    if (!tab.id) {
+        throw new Error('No Xiaohongshu tab found');
+    }
+
+    await navigateXhsTabToHomefeed(tab.id);
+    await waitForTabComplete(tab.id, XHS_HOMEFEED_WARMUP_TIMEOUT_MS);
+
+    if (await isXhsHomefeedContextFresh()) {
+        return tab.id;
+    }
+
+    if (!xhsHomefeedWarmupPromise) {
+        xhsHomefeedWarmupPromise = (async () => {
+            const warmTab = await findOrCreateXhsTab();
+            if (!warmTab.id) {
+                throw new Error('No Xiaohongshu tab found');
+            }
+
+            await navigateXhsTabToHomefeed(warmTab.id);
+            await waitForTabComplete(warmTab.id, XHS_HOMEFEED_WARMUP_TIMEOUT_MS);
+
+            const refreshStartedAt = Date.now();
+            await chrome.tabs.reload(warmTab.id);
+            await waitForTabComplete(warmTab.id, XHS_HOMEFEED_WARMUP_TIMEOUT_MS);
+
+            // Trigger scroll via content script to load homefeed
+            await chrome.tabs.sendMessage(warmTab.id, { type: 'XHS_SCROLL_PAGE', pixels: 800 }).catch(() => {});
+            await new Promise(resolve => setTimeout(resolve, 2000));
+
+            await waitForXhsHomefeedCapture(refreshStartedAt, XHS_HOMEFEED_WARMUP_TIMEOUT_MS);
+            return warmTab.id;
+        })().finally(() => {
+            xhsHomefeedWarmupPromise = null;
+        });
+    }
+
+    return xhsHomefeedWarmupPromise;
+}
+
+export async function queryXhsHomefeed(payload: { cursor_score?: string } = {}) {
+    console.log('[TweetClaw-BG] queryXhsHomefeed called');
+
+    // Always check for fresh context first, no auto warm-up
+    const hasFreshContext = await isXhsHomefeedContextFresh();
+
+    if (!hasFreshContext) {
+        throw new Error('No fresh Xiaohongshu homefeed context found. Please manually refresh https://www.xiaohongshu.com/explore?channel_id=homefeed_recommend first.');
+    }
+
+    const xhsTabs = await chrome.tabs.query({
+        url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*', '*://*.xiaohongshu.com/*']
+    });
+    const targetTab = xhsTabs.find(t => t.active) || xhsTabs[0];
+    if (!targetTab?.id) {
+        throw new Error('No Xiaohongshu tab found');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(targetTab.id, {
+        type: 'XHS_FETCH_HOMEFEED',
+        cursor_score: payload?.cursor_score || '',
+    }).catch((e: any) => {
+        throw new Error(`Failed to communicate with content script: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to fetch Xiaohongshu homefeed');
+    }
+
+    return result.data;
+}
+
+/**
+ * 查询小红书当前登录账号信息
+ */
+export async function queryXhsAccountInfo() {
+    console.log('[TweetClaw-BG] queryXhsAccountInfo called');
+
+    const xhsTabs = await chrome.tabs.query({
+        url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*', '*://*.xiaohongshu.com/*']
+    });
+    const targetTab = xhsTabs.find(t => t.active) || xhsTabs[0];
+    if (!targetTab?.id) {
+        throw new Error('No Xiaohongshu tab found');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(targetTab.id, {
+        type: 'XHS_FETCH_CURRENT_USER',
+    }).catch((e: any) => {
+        throw new Error(`Failed to communicate with content script: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to fetch current user info from Xiaohongshu API');
+    }
+
+    return result.data;
+}
+
+/**
+ * 查询小红书笔记详情（通过 feed 接口）
+ */
+export async function queryXhsFeed(payload: { note_id?: string } = {}) {
+    console.log('[TweetClaw-BG] queryXhsFeed called');
+
+    const xhsTabs = await chrome.tabs.query({
+        url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*', '*://*.xiaohongshu.com/*']
+    });
+    const targetTab = xhsTabs.find(t => t.active) || xhsTabs[0];
+    if (!targetTab?.id) {
+        throw new Error('No Xiaohongshu tab found');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(targetTab.id, {
+        type: 'XHS_FETCH_FEED',
+        note_id: payload?.note_id || '',
+    }).catch((e: any) => {
+        throw new Error(`Failed to communicate with content script: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to fetch Xiaohongshu feed');
+    }
+
+    return result.data;
 }
 
 /**
@@ -487,8 +914,8 @@ export async function navigateXTab(payload: NavigateTabRequestPayload): Promise<
  * 执行推特操作（like, retweet, follow 等）- 返回推特原始响应
  */
 export async function execAction(payload: ExecActionPayload): Promise<TwitterResponse> {
-    const { action, tweetId, userId, tabId, text, media_ids } = payload;
-    console.log(`[TweetClaw-BG] execAction: ${action}`, { tweetId, userId, tabId, media_ids });
+    const { action, tweetId, userId, tabId, text, media_ids, attachmentUrl } = payload;
+    console.log(`[TweetClaw-BG] execAction: ${action}`, { tweetId, userId, tabId, media_ids, attachmentUrl });
 
     let targetTabId = tabId;
     if (!targetTabId) {
@@ -508,7 +935,8 @@ export async function execAction(payload: ExecActionPayload): Promise<TwitterRes
         tweetId,
         userId,
         text,
-        media_ids
+        media_ids,
+        attachmentUrl
     }).catch((e: any) => {
         throw new Error(`Failed to execute action: ${e?.message}`);
     });
@@ -536,37 +964,6 @@ export async function queryHomeTimeline(payload: QueryTimelinePayload): Promise<
         type: 'FETCH_HOME_TIMELINE'
     }).catch((e: any) => {
         throw new Error(`Failed to fetch timeline: ${e?.message}`);
-    });
-
-    // 直接返回推特原始 GraphQL 响应
-    return result;
-}
-
-/**
- * 查询推文详情 - 返回推特原始 GraphQL 响应
- */
-export async function queryTweet(payload: QueryTweetPayload): Promise<TwitterResponse> {
-    const { tweetId, tabId } = payload;
-    if (!tweetId) {
-        throw new Error('tweetId is required');
-    }
-
-    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    let targetTabId: number | undefined = tabId;
-    if (!targetTabId) {
-        const activeTab = xTabs.find(t => t.active) || xTabs[0];
-        targetTabId = activeTab?.id;
-    }
-    if (!targetTabId) {
-        throw new Error('No x.com tab found');
-    }
-
-    // 委托 Content Script 调用推特 API 并返回原始响应
-    const result = await chrome.tabs.sendMessage(targetTabId, {
-        type: 'FETCH_TWEET',
-        tweetId
-    }).catch((e: any) => {
-        throw new Error(`Failed to fetch tweet: ${e?.message}`);
     });
 
     // 直接返回推特原始 GraphQL 响应
@@ -604,7 +1001,7 @@ export async function queryTweetReplies(payload: QueryTweetRepliesPayload): Prom
 }
 
 /**
- * 查询推文详情（旧版兼容接口）- 返回推特原始 GraphQL 响应
+ * 查询推文详情 - 返回推特原始 GraphQL 响应
  */
 export async function queryTweetDetail(payload: QueryTweetPayload): Promise<TwitterResponse> {
     const { tweetId, tabId } = payload;
@@ -690,8 +1087,44 @@ export async function querySearchTimeline(payload: QuerySearchTimelinePayload): 
 }
 
 /**
+ * 查询用户推文 - 返回推特原始 GraphQL 响应
+ */
+export async function queryUserTweets(payload: QueryUserTweetsPayload): Promise<TwitterResponse> {
+    const { userId, cursor, count, tabId } = payload;
+
+    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
+    let targetTabId: number | undefined = tabId;
+    if (!targetTabId) {
+        const activeTab = xTabs.find(t => t.active) || xTabs[0];
+        targetTabId = activeTab?.id;
+    }
+    if (!targetTabId) {
+        throw new Error('No x.com tab found');
+    }
+
+    // 委托 Content Script 调用推特 API 并返回原始响应
+    const result = await chrome.tabs.sendMessage(targetTabId, {
+        type: 'FETCH_USER_TWEETS',
+        userId,
+        cursor,
+        count: count || 20
+    });
+
+    // 直接返回推特原始 GraphQL 响应
+    return result;
+}
+
+/**
  * 上传媒体文件 - 返回 media_id
  */
 
 // 启动时初始化
 initDefaultQueryKeys();
+
+// ══════════════════════════════════════════════════════════════════
+// Xiaohongshu (小红书) Data Handlers
+// ══════════════════════════════════════════════════════════════════
+
+/**
+ * 处理小红书捕获的数据
+ */

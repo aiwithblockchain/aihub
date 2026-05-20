@@ -163,6 +163,10 @@ struct Localizations {
             "en": "Auto",
             "zh": "自动"
         ],
+        "settings.version_format": [
+            "en": "Version %@(%@)",
+            "zh": "版本号v.%@(%@)"
+        ],
         "settings.rest_api": [
             "en": "REST API",
             "zh": "REST API"
@@ -245,6 +249,18 @@ struct Localizations {
             "en": "Clear",
             "zh": "清空"
         ],
+        "logs.cleared": [
+            "en": "Logs cleared",
+            "zh": "清空成功"
+        ],
+        "logs.already_empty": [
+            "en": "Logs are already empty",
+            "zh": "日志已为空"
+        ],
+        "logs.nothing_to_copy": [
+            "en": "Nothing to copy",
+            "zh": "暂无可复制内容"
+        ],
         "logs.empty": [
             "en": "No logs yet",
             "zh": "暂无日志"
@@ -256,6 +272,14 @@ struct Localizations {
         "logs.entries": [
             "en": "ENTRIES",
             "zh": "条记录"
+        ],
+        "logs.display_hint": [
+            "en": "Showing latest 1000 lines",
+            "zh": "仅显示最近 1000 条日志"
+        ],
+        "logs.settings_hint": [
+            "en": "Logs are stored on disk, the viewer shows the latest 1000 lines, and older archives are rotated and pruned automatically by retention and total archive size.",
+            "zh": "日志会长期保存在文件中，界面仅显示最近 1000 条，旧日志会自动轮转归档，并按保留期和归档目录总大小自动清理。"
         ],
 
         // MARK: - Instances Panel
@@ -306,6 +330,10 @@ struct Localizations {
         "instances.latency": [
             "en": "LATENCY",
             "zh": "延迟"
+        ],
+        "instances.status": [
+            "en": "STATUS",
+            "zh": "状态"
         ],
         "instances.connected_since": [
             "en": "CONNECTED SINCE",
@@ -456,6 +484,10 @@ struct Localizations {
         "common.copy": [
             "en": "Copy",
             "zh": "复制"
+        ],
+        "common.copied": [
+            "en": "Copied successfully",
+            "zh": "复制成功"
         ],
         "common.legacy": [
             "en": "(Legacy)",

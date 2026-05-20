@@ -11,7 +11,7 @@ import json
 # Add parent directory to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from utils.api_client import APIClient
+from clawbot import ClawBotClient
 
 def main():
     # Parse arguments
@@ -22,19 +22,19 @@ def main():
     print(f"Platform: {platform}")
     print("="*60)
 
-    client = APIClient()
-    response = client.new_ai_conversation(platform=platform)
+    client = ClawBotClient()
+    result = client.ai.chat.new_conversation(platform=platform)
 
     print("\n📋 Response:")
-    print(json.dumps(response, indent=2, ensure_ascii=False))
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False))
 
-    if response.get('success'):
+    if result.success:
         print(f"\n✅ Success: New conversation created")
-        if 'taskId' in response:
-            print(f"Task ID: {response['taskId']}")
+        if 'taskId' in result.raw:
+            print(f"Task ID: {result.raw['taskId']}")
         return 0
     else:
-        error = response.get('error', 'Unknown error')
+        error = result.message or 'Unknown error'
         print(f"\n❌ Failed: {error}")
         return 1
 

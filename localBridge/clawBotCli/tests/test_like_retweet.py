@@ -4,84 +4,98 @@ Test Like and Retweet APIs (Like, Unlike, Retweet, Unretweet)
 测试场景 6: 点赞和转发测试
 """
 import sys
+import os
 import json
-from utils.api_client import APIClient
+import time
+import argparse
+from typing import Any, Optional
+
+# Add parent directory to path
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+from clawbot import ClawBotClient
 
 
-def extract_tweet_id_from_timeline():
+def confirm_or_exit(message: str, assume_yes: bool) -> None:
+    print(message)
+    if assume_yes:
+        return
+    confirm = input("Continue? (yes/no): ").strip().lower()
+    if confirm != "yes":
+        print("⏭️  Skipped")
+        raise SystemExit(0)
+
+
+def resolve_instance_id(client: ClawBotClient, preferred_instance_id: Optional[str] = None) -> Optional[str]:
+    if preferred_instance_id:
+        return preferred_instance_id
+
+    instances_payload: Any = client.x.status.get_instances()
+    if isinstance(instances_payload, dict):
+        instances = instances_payload.get("instances") or []
+    elif isinstance(instances_payload, list):
+        instances = instances_payload
+    else:
+        instances = []
+
+    if not instances:
+        return None
+
+    first_instance = instances[0]
+    instance_id = first_instance.get("instanceId") or first_instance.get("id")
+    return str(instance_id) if instance_id else None
+
+
+def extract_tweet_id_from_timeline(instance_id: Optional[str]) -> Optional[str]:
     """Extract a tweet ID from timeline for testing"""
     print("\n📋 Extracting tweet ID from timeline...")
-    client = APIClient()
-    response = client.get_timeline()
+    client = ClawBotClient()
+    tweet = client.x.timeline.get_first_timeline_tweet(instance_id=instance_id)
 
-    try:
-        if 'data' in response:
-            data = response['data']
-            if 'data' in data and 'home' in data['data']:
-                instructions = data['data']['home']['home_timeline_urt']['instructions']
-            elif 'home' in data:
-                instructions = data['home']['home_timeline_urt']['instructions']
-            else:
-                return None
-            for instruction in instructions:
-                if instruction.get('type') == 'TimelineAddEntries':
-                    entries = instruction.get('entries', [])
-                    for entry in entries:
-                        if 'tweet-' in entry.get('entryId', ''):
-                            content = entry.get('content', {})
-                            tweet_results = content.get('itemContent', {}).get('tweet_results', {})
-                            result = tweet_results.get('result', {})
-                            tweet_id = result.get('rest_id')
-                            if tweet_id:
-                                print(f"✅ Found tweet ID: {tweet_id}")
-                                return tweet_id
-    except Exception as e:
-        print(f"⚠️  Failed to extract tweet ID: {e}")
+    if tweet and tweet.id:
+        print(f"✅ Found tweet ID: {tweet.id}")
+        return tweet.id
 
+    print(f"⚠️  No tweets found in timeline")
     return None
 
 
-def test_like_unlike():
+def test_like_unlike(instance_id: Optional[str], assume_yes: bool) -> bool:
     """Test POST /api/v1/x/likes and /api/v1/x/unlikes"""
     print("\n" + "="*60)
     print("Testing: Like and Unlike Tweet")
     print("="*60)
 
-    tweet_id = extract_tweet_id_from_timeline()
+    tweet_id = extract_tweet_id_from_timeline(instance_id=instance_id)
     if not tweet_id:
         print("⏭️  Skipped - No tweet ID available")
         return True
 
     print(f"Using tweet ID: {tweet_id}")
-    print("⚠️  This will like and then unlike a real tweet!")
-    confirm = input("Continue? (yes/no): ").strip().lower()
-    if confirm != "yes":
-        print("⏭️  Skipped")
-        return True
+    print(f"Using instance_id: {instance_id}")
+    confirm_or_exit("⚠️  This will like and then unlike a real tweet!", assume_yes)
 
-    client = APIClient()
+    client = ClawBotClient()
 
     # Test like
     print("\n📍 Testing like...")
-    response = client.like_tweet(tweet_id)
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    result = client.x.actions.like(tweet_id, instance_id=instance_id)
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'favorite_tweet' in str(response):
+    if result.success:
         print("✅ Like successful")
     else:
         print("❌ Like failed")
         return False
 
-    # Wait a moment
-    import time
     time.sleep(2)
 
     # Test unlike
     print("\n📍 Testing unlike...")
-    response = client.unlike_tweet(tweet_id)
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    result = client.x.actions.unlike(tweet_id, instance_id=instance_id)
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'unfavorite_tweet' in str(response):
+    if result.success:
         print("✅ Unlike successful")
         return True
     else:
@@ -89,47 +103,42 @@ def test_like_unlike():
         return False
 
 
-def test_retweet_unretweet():
+def test_retweet_unretweet(instance_id: Optional[str], assume_yes: bool) -> bool:
     """Test POST /api/v1/x/retweets and /api/v1/x/unretweets"""
     print("\n" + "="*60)
     print("Testing: Retweet and Unretweet")
     print("="*60)
 
-    tweet_id = extract_tweet_id_from_timeline()
+    tweet_id = extract_tweet_id_from_timeline(instance_id=instance_id)
     if not tweet_id:
         print("⏭️  Skipped - No tweet ID available")
         return True
 
     print(f"Using tweet ID: {tweet_id}")
-    print("⚠️  This will retweet and then unretweet a real tweet!")
-    confirm = input("Continue? (yes/no): ").strip().lower()
-    if confirm != "yes":
-        print("⏭️  Skipped")
-        return True
+    print(f"Using instance_id: {instance_id}")
+    confirm_or_exit("⚠️  This will retweet and then unretweet a real tweet!", assume_yes)
 
-    client = APIClient()
+    client = ClawBotClient()
 
     # Test retweet
     print("\n📍 Testing retweet...")
-    response = client.retweet(tweet_id)
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    result = client.x.actions.retweet(tweet_id, instance_id=instance_id)
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'create_retweet' in str(response):
+    if result.success:
         print("✅ Retweet successful")
     else:
         print("❌ Retweet failed")
         return False
 
-    # Wait a moment
-    import time
     time.sleep(2)
 
     # Test unretweet
     print("\n📍 Testing unretweet...")
-    response = client.unretweet(tweet_id)
-    print(json.dumps(response, indent=2, ensure_ascii=False)[:300] + "...")
+    result = client.x.actions.unretweet(tweet_id, instance_id=instance_id)
+    print(json.dumps(result.raw, indent=2, ensure_ascii=False)[:300] + "...")
 
-    if 'data' in response or 'unretweet' in str(response):
+    if result.success:
         print("✅ Unretweet successful")
         return True
     else:
@@ -138,14 +147,23 @@ def test_retweet_unretweet():
 
 
 if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description='Test like/unlike and retweet/unretweet on X')
+    parser.add_argument('--instance-id', type=str, help='Explicit instanceId for multi-instance routing')
+    parser.add_argument('--yes', action='store_true', help='Skip interactive confirmation')
+    args = parser.parse_args()
+
     print("\n🧪 Testing Like and Retweet APIs (Scenario 6)")
     print("="*60)
     print("⚠️  WARNING: These tests perform real actions on your X account!")
     print("="*60)
 
+    bootstrap_client = ClawBotClient()
+    instance_id = resolve_instance_id(bootstrap_client, preferred_instance_id=args.instance_id)
+    print(f"Resolved instance_id: {instance_id}")
+
     results = []
-    results.append(("Like/Unlike", test_like_unlike()))
-    results.append(("Retweet/Unretweet", test_retweet_unretweet()))
+    results.append(("Like/Unlike", test_like_unlike(instance_id=instance_id, assume_yes=args.yes)))
+    results.append(("Retweet/Unretweet", test_retweet_unretweet(instance_id=instance_id, assume_yes=args.yes)))
 
     print("\n" + "="*60)
     print("Test Summary:")

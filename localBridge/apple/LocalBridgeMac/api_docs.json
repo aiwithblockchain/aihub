@@ -71,11 +71,11 @@
     "summary": "Get the raw Twitter GraphQL response for a single tweet, for AI to parse tweet details.",
     "summary_zh": "获取单条推文的推特原始 GraphQL 响应，供 AI 解析推文详情。",
     "method": "GET",
-    "path": "/api/v1/x/tweets/{tweetId}",
-    "description": "Returns the complete raw response from Twitter's TweetDetail GraphQL API. The response structure contains data.threaded_conversation_with_injections_v2.instructions, which includes tweet data. The main tweet is located at entries[].content.itemContent.tweet_results.result, containing rest_id, legacy.full_text (tweet text), legacy.favorite_count (like count), legacy.retweet_count (retweet count), core.user_results.result (author information) and other fields. AI needs to traverse the instructions array to locate the target tweet. Completely passes through the raw Twitter GraphQL response. Optional parameter tabId is used to specify the browser tab context.",
-    "description_zh": "返回推特 TweetDetail GraphQL API 的完整原始响应。响应结构包含 data.threaded_conversation_with_injections_v2.instructions，其中包含推文数据。主推文位于 entries[].content.itemContent.tweet_results.result，包含 rest_id、legacy.full_text（推文文本）、legacy.favorite_count（点赞数）、legacy.retweet_count（转发数）、core.user_results.result（作者信息）等字段。AI 需要遍历 instructions 数组来定位目标推文。完全透传推特 GraphQL 原始响应。可选参数 tabId 用于指定浏览器标签页上下文。",
-    "curl": "curl -X GET \"http://127.0.0.1:10088/api/v1/x/tweets/1234567890?tabId=123\"",
-    "response": "{\"data\":{\"threaded_conversation_with_injections_v2\":{\"instructions\":[{\"type\":\"TimelineAddEntries\",\"entries\":[{\"entryId\":\"tweet-1234567890\",\"content\":{\"entryType\":\"TimelineTimelineItem\",\"itemContent\":{\"itemType\":\"TimelineTweet\",\"tweet_results\":{\"result\":{\"__typename\":\"Tweet\",\"rest_id\":\"1234567890\",\"core\":{\"user_results\":{\"result\":{\"rest_id\":\"123\",\"legacy\":{\"screen_name\":\"username\"}}}},\"legacy\":{\"created_at\":\"Mon Jan 01 00:00:00 +0000 2024\",\"full_text\":\"Hello World\",\"favorite_count\":10,\"retweet_count\":5}}}}}}]}]}}}"
+    "path": "/api/v1/x/tweets",
+    "description": "Returns the complete raw response from Twitter's TweetDetail GraphQL API. Callers must provide the tweetId query parameter. The response structure contains data.threaded_conversation_with_injections_v2.instructions, which includes the focal tweet, replies, and module-style nested items. The target tweet may appear inside entries[].content.itemContent.tweet_results.result, or inside nested entry items under entries[].content.items[].item.itemContent.tweet_results.result. Some tweet payloads are wrapped as TweetWithVisibilityResults, where the actual tweet object is in result.tweet. AI needs to traverse the instructions array and match rest_id to locate the focal tweet. Completely passes through the raw Twitter GraphQL response. Optional parameters tabId and instanceId can be used for multi-tab and multi-account routing.",
+    "description_zh": "返回推特 TweetDetail GraphQL API 的完整原始响应。调用方必须提供 tweetId 查询参数。响应结构包含 data.threaded_conversation_with_injections_v2.instructions，其中可能同时包含 focal tweet、回复以及模块化嵌套条目。目标推文可能位于 entries[].content.itemContent.tweet_results.result，也可能位于 entries[].content.items[].item.itemContent.tweet_results.result 等嵌套位置。部分推文结果会被包装成 TweetWithVisibilityResults，此时真实推文对象位于 result.tweet。AI 需要遍历 instructions 数组并按 rest_id 匹配定位目标推文。完全透传推特 GraphQL 原始响应。可选参数 tabId 和 instanceId 可用于多标签页和多账号路由。",
+    "curl": "curl -X GET \"http://127.0.0.1:10088/api/v1/x/tweets?tweetId=1234567890&tabId=123&instanceId=a1b2c3d4-e5f6-7890-abcd-ef1234567890\"",
+    "response": "{\"data\":{\"threaded_conversation_with_injections_v2\":{\"instructions\":[{\"type\":\"TimelineAddEntries\",\"entries\":[{\"entryId\":\"tweet-1234567890\",\"content\":{\"entryType\":\"TimelineTimelineItem\",\"itemContent\":{\"itemType\":\"TimelineTweet\",\"tweet_results\":{\"result\":{\"__typename\":\"TweetWithVisibilityResults\",\"tweet\":{\"__typename\":\"Tweet\",\"rest_id\":\"1234567890\",\"core\":{\"user_results\":{\"result\":{\"rest_id\":\"123\",\"legacy\":{\"screen_name\":\"username\"}}}},\"legacy\":{\"created_at\":\"Mon Jan 01 00:00:00 +0000 2024\",\"full_text\":\"Hello World\",\"favorite_count\":10,\"retweet_count\":5}}}}}}},{\"entryId\":\"conversationthread-1234567891\",\"content\":{\"items\":[{\"item\":{\"itemContent\":{\"tweet_results\":{\"result\":{\"__typename\":\"Tweet\",\"rest_id\":\"1234567891\",\"legacy\":{\"full_text\":\"reply text\"}}}}}}]}}]}]}}}"
   },
   {
     "id": "get_tweet_replies",
@@ -85,10 +85,10 @@
     "summary_zh": "获取推文回复的推特原始 GraphQL 响应，支持 cursor 分页。",
     "method": "GET",
     "path": "/api/v1/x/tweets/{tweetId}/replies",
-    "description": "Returns the complete raw response from Twitter's TweetDetail GraphQL API, including reply data. The response structure contains data.threaded_conversation_with_injections_v2.instructions, which includes the reply tweet list. Supports pagination via the cursor parameter, with cursor values extracted from the instructions in the previous response. AI needs to traverse the instructions and entries arrays to extract reply data. Completely passes through the raw Twitter GraphQL response.",
-    "description_zh": "返回推特 TweetDetail GraphQL API 的完整原始响应，包含回复数据。响应结构包含 data.threaded_conversation_with_injections_v2.instructions，其中包含回复推文列表。支持 cursor 参数进行分页，cursor 值从上次响应的 instructions 中提取。AI 需要遍历 instructions 和 entries 数组来提取回复数据。完全透传推特 GraphQL 原始响应。",
-    "curl": "curl -X GET \"http://127.0.0.1:10088/api/v1/x/tweets/1234567890/replies?cursor=DAABCgABFxxx==&tabId=123\"",
-    "response": "{\"data\":{\"threaded_conversation_with_injections_v2\":{\"instructions\":[{\"type\":\"TimelineAddEntries\",\"entries\":[{\"entryId\":\"conversationthread-1234567891\",\"content\":{\"entryType\":\"TimelineTimelineItem\",\"itemContent\":{\"itemType\":\"TimelineTweet\",\"tweet_results\":{\"result\":{\"__typename\":\"Tweet\",\"rest_id\":\"1234567891\",\"legacy\":{\"full_text\":\"reply text\"}}}}}}]},{\"type\":\"TimelineAddToModule\",\"moduleItems\":[]}]}}}"
+    "description": "Returns the complete raw response from Twitter's TweetDetail GraphQL API, including reply data. The response structure contains data.threaded_conversation_with_injections_v2.instructions, which may include direct timeline entries as well as nested module items. Reply tweets can appear in entries[].content.itemContent.tweet_results.result or in nested items such as entries[].content.items[].item.itemContent.tweet_results.result. Supports pagination via the cursor parameter, with cursor values extracted from the previous response. AI needs to traverse the instructions, entries, and nested items to extract replies, and should filter by rest_id as needed. Completely passes through the raw Twitter GraphQL response. Optional parameters tabId and instanceId can be used for multi-tab and multi-account routing.",
+    "description_zh": "返回推特 TweetDetail GraphQL API 的完整原始响应，包含回复数据。响应结构包含 data.threaded_conversation_with_injections_v2.instructions，其中既可能包含直接的 timeline entries，也可能包含模块化嵌套条目。回复推文可能位于 entries[].content.itemContent.tweet_results.result，也可能位于 entries[].content.items[].item.itemContent.tweet_results.result 等嵌套位置。支持 cursor 参数进行分页，cursor 值从上一次响应中提取。AI 需要遍历 instructions、entries 以及嵌套 items 来提取回复，并按需基于 rest_id 进行过滤。完全透传推特 GraphQL 原始响应。可选参数 tabId 和 instanceId 可用于多标签页和多账号路由。",
+    "curl": "curl -X GET \"http://127.0.0.1:10088/api/v1/x/tweets/1234567890/replies?cursor=DAABCgABFxxx==&tabId=123&instanceId=a1b2c3d4-e5f6-7890-abcd-ef1234567890\"",
+    "response": "{\"data\":{\"threaded_conversation_with_injections_v2\":{\"instructions\":[{\"type\":\"TimelineAddEntries\",\"entries\":[{\"entryId\":\"conversationthread-1234567891\",\"content\":{\"entryType\":\"TimelineTimelineItem\",\"itemContent\":{\"itemType\":\"TimelineTweet\",\"tweet_results\":{\"result\":{\"__typename\":\"Tweet\",\"rest_id\":\"1234567891\",\"legacy\":{\"full_text\":\"reply text\"}}}}}},{\"entryId\":\"conversationthread-1234567892\",\"content\":{\"items\":[{\"item\":{\"itemContent\":{\"tweet_results\":{\"result\":{\"__typename\":\"Tweet\",\"rest_id\":\"1234567892\",\"legacy\":{\"full_text\":\"nested reply text\"}}}}}}]}}]},{\"type\":\"TimelineAddToModule\",\"moduleItems\":[]}]}}}"
   },
   {
     "id": "query_user_profile",
@@ -117,17 +117,31 @@
     "response": "{\"data\":{\"search_by_raw_query\":{\"search_timeline\":{\"timeline\":{\"instructions\":[...],\"metadata\":{\"cursor\":\"DAACCgACHEGUyk_AJxAKAAMcQZTKT7_Y8AgABAAAAAIL...\"}}}}}}"
   },
   {
+    "id": "query_user_tweets",
+    "name": "Get User Tweets",
+    "name_zh": "获取用户推文",
+    "summary": "Get the raw Twitter GraphQL response for a specific user's tweets timeline with pagination support.",
+    "summary_zh": "获取指定用户推文时间线的推特原始 GraphQL 响应，支持分页。",
+    "method": "GET",
+    "path": "/api/v1/x/user_tweets",
+    "description": "Returns the complete raw response from Twitter's UserTweets GraphQL API. Query a user's tweets via the userId parameter (numeric user ID, e.g., '44196397'). The response structure follows Twitter's standard format, containing tweet entries with full metadata. Supports pagination via cursor parameter and count parameter to control result size (default 20). AI needs to traverse the response structure to extract tweet data. Completely passes through the raw Twitter GraphQL response. Optional tabId and instanceId parameters for multi-tab/multi-account scenarios.",
+    "description_zh": "返回推特 UserTweets GraphQL API 的完整原始响应。通过 userId 参数查询用户的推文（数字用户 ID，如 '44196397'）。响应结构为推特标准格式，包含完整元数据的推文条目。支持通过 cursor 参数进行分页，count 参数控制结果数量（默认 20）。AI 需要遍历响应结构来提取推文数据。完全透传推特 GraphQL 原始响应。可选 tabId 和 instanceId 参数用于多标签页/多账号场景。",
+    "curl": "curl \"http://127.0.0.1:10088/api/v1/x/user_tweets?userId=44196397&count=20&cursor=DAABCgABFxxx==\"",
+    "response": "{\"data\":{\"user\":{\"result\":{\"__typename\":\"User\",\"timeline_v2\":{\"timeline\":{\"instructions\":[{\"type\":\"TimelineAddEntries\",\"entries\":[{\"entryId\":\"tweet-1234567890\",\"content\":{\"entryType\":\"TimelineTimelineItem\",\"itemContent\":{\"itemType\":\"TimelineTweet\",\"tweet_results\":{\"result\":{\"__typename\":\"Tweet\",\"rest_id\":\"1234567890\",\"legacy\":{\"full_text\":\"Tweet content here\",\"favorite_count\":10}}}}}}]}]}}}}"
+  },
+  {
     "id": "create_tweet",
     "name": "Create Tweet",
     "name_zh": "发布推文",
-    "summary": "Publish a new tweet, returns raw Twitter GraphQL response.",
-    "summary_zh": "发布新推文，返回推特原始 GraphQL 响应。",
+    "summary": "Publish a new tweet or quote tweet, returns raw Twitter GraphQL response.",
+    "summary_zh": "发布新推文或引用转发推文，返回推特原始 GraphQL 响应。",
     "method": "POST",
     "path": "/api/v1/x/tweets",
-    "description": "Calls Twitter's CreateTweet GraphQL mutation to publish a new tweet. The request body needs to provide the text field (tweet content). Returns the raw Twitter GraphQL response, including data.create_tweet.tweet_results.result, which contains the rest_id and complete data of the newly created tweet. AI needs to parse rest_id from the response to get the new tweet's ID. Completely passes through the raw Twitter GraphQL response.",
-    "description_zh": "调用推特 CreateTweet GraphQL mutation 发布新推文。请求体需提供 text 字段（推文内容）。返回推特 GraphQL 原始响应，包含 data.create_tweet.tweet_results.result，其中包含新创建推文的 rest_id 和完整数据。AI 需要从响应中解析 rest_id 来获取新推文的 ID。完全透传推特 GraphQL 原始响应。",
+    "description": "Calls Twitter's CreateTweet GraphQL mutation to publish a new tweet. The request body needs to provide the text field (tweet content). Optional fields include media_ids (list of uploaded media IDs) and attachmentUrl (URL of the tweet to quote). When attachmentUrl is provided, the tweet becomes a quote tweet. Returns the raw Twitter GraphQL response, including data.create_tweet.tweet_results.result, which contains the rest_id and complete data of the newly created tweet. AI needs to parse rest_id from the response to get the new tweet's ID. Completely passes through the raw Twitter GraphQL response.",
+    "description_zh": "调用推特 CreateTweet GraphQL mutation 发布新推文。请求体需提供 text 字段（推文内容）。可选字段包括 media_ids（已上传媒体的 ID 列表）和 attachmentUrl（被引用推文的 URL）。提供 attachmentUrl 时，该推文会成为引用转发（quote tweet）。返回推特 GraphQL 原始响应，包含 data.create_tweet.tweet_results.result，其中包含新创建推文的 rest_id 和完整数据。AI 需要从响应中解析 rest_id 来获取新推文的 ID。完全透传推特 GraphQL 原始响应。",
     "request_body": "{\n  \"text\": \"Hello World from my Bot!\"\n}",
     "curl": "curl -X POST http://127.0.0.1:10088/api/v1/x/tweets \\\n     -H \"Content-Type: application/json\" \\\n     -d '{\"text\": \"Hello World\"}'",
+    "curl_quote": "curl -X POST http://127.0.0.1:10088/api/v1/x/tweets \\\n     -H \"Content-Type: application/json\" \\\n     -d '{\"text\": \"Interesting point!\", \"attachmentUrl\": \"https://x.com/elonmusk/status/1234567890\"}'",
     "response": "{\"data\":{\"create_tweet\":{\"tweet_results\":{\"result\":{\"__typename\":\"Tweet\",\"rest_id\":\"1234567890123456789\",\"core\":{\"user_results\":{\"result\":{\"rest_id\":\"123\",\"legacy\":{\"screen_name\":\"username\"}}}},\"legacy\":{\"created_at\":\"Mon Jan 01 00:00:00 +0000 2024\",\"full_text\":\"Hello World\",\"favorite_count\":0,\"retweet_count\":0}}}}}}"
   },
   {

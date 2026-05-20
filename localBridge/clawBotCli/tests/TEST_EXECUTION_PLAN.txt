@@ -1,0 +1,504 @@
+ClawBot CLI Manual Test Plan
+============================
+
+Purpose
+-------
+This plan is for slow, manual, one-test-at-a-time execution. After each executed test, stop and wait for the user's next command.
+
+Working rules
+-------------
+1. Execute only one test item at a time.
+2. After each test:
+   - record result
+   - patch code or test if needed
+   - mark the item status
+   - stop and wait for the next command
+3. Prefer read flows first, then write flows.
+4. Write tests must use clearly labeled test content so the resulting X actions are easy to identify.
+5. Media tests may use files under `test_media/`.
+6. For multi-instance environments, prefer explicit `instanceId` when the script supports it.
+
+Status legend
+-------------
+- [ ] not started
+- [~] in progress
+- [x] done
+- [!] blocked / needs script update
+
+Phase 0, Baseline unit and parser safety
+----------------------------------------
+These are local safety checks before live account actions.
+
+- [x] `tests/unit/test_x_parsers.py`
+  Goal: verify focal tweet extraction, nested reply extraction, visibility wrapper handling, author fallback.
+  Result: PASS
+  Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/unit/test_x_parsers.py`
+- [x] `tests/unit/test_x_parser_edge_cases.py`
+  Goal: verify parser edge cases for latest TweetDetail shapes.
+  Result: PASS
+  Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/unit/test_x_parser_edge_cases.py`
+- [x] `tests/unit/test_services.py`
+  Goal: verify `instance_id` propagation and service-layer tweet/reply behavior.
+  Result: PASS
+  Command used: `PYTHONPATH=localBridge/clawBotCli python3 localBridge/clawBotCli/tests/unit/test_services.py`
+- [x] `tests/unit/test_media_service.py`
+  Goal: verify media service success path.
+  Result: PASS
+  Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/unit/test_media_service.py`
+- [x] `tests/unit/test_media_service_failures.py`
+  Goal: verify media failure handling.
+  Result: PASS
+  Command used: `PYTHONPATH=localBridge/clawBotCli python3 localBridge/clawBotCli/tests/unit/test_media_service_failures.py`
+- [x] `tests/unit/test_client_smoke.py`
+  Goal: verify basic client wiring.
+  Result: PASS
+  Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/unit/test_client_smoke.py`
+- [x] `tests/unit/test_workflows.py`
+  Goal: verify workflow-level unit behavior.
+  Result: PASS
+  Command used: `PYTHONPATH=localBridge/clawBotCli python3 localBridge/clawBotCli/tests/unit/test_workflows.py`
+- [x] `tests/unit/test_task_client_failures.py`
+  Goal: verify task client failure handling.
+  Result: PASS
+  Command used: `PYTHONPATH=localBridge/clawBotCli python3 localBridge/clawBotCli/tests/unit/test_task_client_failures.py`
+- [x] `tests/unit/test_legacy_media_upload_task.py`
+  Goal: verify legacy task-based media upload behavior.
+  Result: PASS
+  Command used: `PYTHONPATH=localBridge/clawBotCli python3 localBridge/clawBotCli/tests/unit/test_legacy_media_upload_task.py`
+
+Phase 1, Read-only live API tests
+---------------------------------
+Run these before any write action.
+
+1. [x] `tests/test_status.py`
+   Goal: confirm service is reachable and current X session is healthy.
+   Result: PASS
+   Command used: `PYTHONPATH=localBridge/clawBotCli python3 localBridge/clawBotCli/tests/test_status.py`
+   Notes:
+   - `GET /api/v1/x/status` PASS
+   - `GET /api/v1/x/instances` PASS
+   - `GET /api/v1/x/basic_info` PASS
+   - Initial block was environmental: no active `x.com` tab
+   - Current basic_info payload uses `user.result.core.name` and `user.result.core.screen_name`, so `parse_basic_user()` was updated to fall back from `legacy` to `core`
+2. [x] `tests/test_metadata.py`
+   Goal: verify environment / metadata endpoints.
+   Result: PASS
+   Command used: `PYTHONPATH=localBridge/clawBotCli python3 localBridge/clawBotCli/tests/test_metadata.py`
+   Notes:
+   - `GET /api/v1/x/docs` PASS
+   - `GET /api/v1/x/status` PASS
+   - `GET /api/v1/x/instances` PASS
+   - Docs returned 24 API definitions
+   - Expected APIs found: `query_x_status`, `query_x_basic_info`, `create_tweet`
+3. [x] `tests/test_basic_read.py`
+   Goal: confirm basic timeline-style reads still work.
+   Result: PASS
+   Command used: `PYTHONPATH=localBridge/clawBotCli python3 localBridge/clawBotCli/tests/test_basic_read.py`
+   Notes:
+   - `GET /api/v1/x/basic_info` PASS
+   - `GET /api/v1/x/timeline` PASS
+   - Timeline returned 83 tweets in this run
+4. [x] `tests/test_read_apis.py`
+   Goal: verify timeline, single tweet, user profile, search.
+   Result: PASS
+   Command used: `PYTHONPATH=localBridge/clawBotCli python3 localBridge/clawBotCli/tests/test_read_apis.py`
+   Inputs used:
+   - `instanceId`: auto-selected first connected instance
+   - `tweet_id`: auto-reused first timeline tweet ID from the same run
+   - `screen_name`: defaulted to `elonmusk` when stdin is unavailable
+   - `query`: defaulted to `AI` when stdin is unavailable
+   Notes:
+   - `GET /api/v1/x/timeline` PASS
+   - `GET /api/v1/x/tweets?tweetId=...` PASS
+   - `GET /api/v1/x/users` PASS
+   - `GET /api/v1/x/search` PASS
+   - Script was patched to tolerate non-interactive execution and reuse the first timeline tweet as the default single-tweet target
+5. [x] `tests/test_tweet_details.py`
+   Goal: verify canonical single-tweet path and replies path against real data.
+   Result: PASS
+   Command used: `PYTHONPATH=localBridge/clawBotCli python3 localBridge/clawBotCli/tests/test_tweet_details.py`
+   Inputs used:
+   - `instanceId`: auto-selected first connected instance
+   - `tweet_id`: auto-extracted first timeline tweet ID from the same run
+   Notes:
+   - `GET /api/v1/x/tweets?tweetId=...` PASS
+   - `GET /api/v1/x/tweets/{tweetId}/replies` PASS
+   - Focal tweet matched the requested `tweet_id`
+   - Replies extraction excluded the focal tweet itself
+6. [x] `tests/test_user_search.py`
+   Goal: verify user search behavior.
+   Result: PASS
+   Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_user_search.py`
+   Notes:
+   - `GET /api/v1/x/users` PASS
+   - `GET /api/v1/x/search` PASS
+   - Pagination API call succeeded
+7. [x] `tests/test_user_tweets.py`
+   Goal: verify fetching tweets for a user.
+   Result: PASS
+   Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_user_tweets.py`
+   Inputs used:
+   - `instanceId`: auto-selected first connected instance
+   - `screen_name`: defaulted to `elonmusk`
+   Notes:
+   - Initial run failed in multi-instance mode on `GET /api/v1/x/users`
+   - Patched `clawbot/transport/x_api.py` and `clawbot/services/x_read.py` to propagate `instance_id`
+   - Patched script to auto-resolve first instance and accept `--instance-id`
+   - Rerun PASS, fetched tweets for resolved user ID
+8. [x] `tests/test_tab_control.py`
+   Goal: verify tab listing / selection support if needed by later tests.
+   Result: PASS
+   Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_tab_control.py`
+   Notes:
+   - `POST /tweetclaw/open-tab` PASS
+   - Waits 5 seconds after open and 5 seconds after navigate for visual verification
+   - Confirms current X tab count after open and verifies the opened `tabId` is present
+   - `POST /tweetclaw/navigate-tab` PASS
+   - Post-navigate tab listing showed the opened tab URL changed to `https://x.com/notifications`
+   - `POST /tweetclaw/close-tab` PASS
+   - Final tab listing confirmed the opened `tabId` was removed after close
+9. [x] `tests/integration/test_read_flows.py`
+   Goal: run integrated read flow coverage after the simpler read scripts pass.
+   Result: PASS
+   Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/integration/test_read_flows.py`
+   Inputs used:
+   - `instanceId`: auto-selected first connected instance for the user and timeline calls
+   Notes:
+   - Initial script used stale `client.x.users.get(...)` API and failed immediately
+   - Patched script to use `client.x.users.get_user(...)`
+   - Initial rerun exposed missing multi-instance support on timeline reads
+   - Patched `clawbot/transport/x_api.py` and `clawbot/services/x_read.py` so timeline reads also accept and propagate `instance_id`
+   - Final rerun PASS
+10. [x] `tests/integration/test_tweet_search_flows.py`
+    Goal: integrated tweet/search read flow validation.
+    Result: PASS
+    Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/integration/test_tweet_search_flows.py`
+    Inputs used:
+    - `instanceId`: auto-selected first connected instance for timeline, tweet detail, and search calls
+    Notes:
+    - Initial script used timeline reads without `instance_id` and failed in multi-instance mode
+    - Patched script to auto-resolve first instance
+    - Patched stale `client.x.tweets.get(...)` call to `client.x.tweets.get_tweet(...)`
+    - Rerun exposed missing multi-instance support on search reads
+    - Patched `clawbot/transport/x_api.py` and `clawbot/services/x_read.py` so search reads also accept and propagate `instance_id`
+    - Final rerun PASS
+11. [x] `tests/integration/test_status_metadata_flows.py`
+    Goal: integrated status + metadata validation.
+    Result: PASS
+    Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/integration/test_status_metadata_flows.py`
+    Inputs used:
+    - `instanceId`: auto-selected first connected instance for the status call
+    Notes:
+    - Initial run failed on `GET /api/v1/x/status` with multi-instance `ambiguous_target`
+    - Patched `clawbot/transport/x_api.py` so `get_status_raw()` and `get_basic_info_raw()` accept `instance_id`
+    - Patched `clawbot/services/x_status.py` so status/basic-info helpers propagate `instance_id`
+    - Patched script to auto-resolve first instance before calling `get_status()`
+    - Rerun PASS
+
+Phase 2, Low-risk AI / workflow reads
+-------------------------------------
+These are still mostly non-destructive, but may depend on AI/browser state.
+
+- [x] `tests/test_ai_status.py`
+  Goal: confirm AI status endpoint shape and current browser AI session state.
+  Result: PASS
+  Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_ai_status.py`
+  Notes:
+  - `GET /api/v1/ai/status` PASS
+  - Current run reported no AI tabs open: `hasAITabs=false`, `tabs=[]`
+  - Platform summary showed `chatgpt`, `gemini`, and `grok` all not logged in for this environment
+- [x] `tests/test_ai_navigate.py`
+  Goal: verify AI navigate behavior against an already open AI platform tab.
+  Result: PASS
+  Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_ai_navigate.py chatgpt`
+  Inputs used:
+  - `platform`: `chatgpt`
+  Notes:
+  - Initial run failed because no open `chatgpt` tab was available in the browser environment
+  - Patched script to query `GET /api/v1/ai/status` first and treat missing target tabs as an explicit BLOCKED precondition instead of a generic FAIL
+  - After the user opened ChatGPT, rerun PASS with `tabsNavigated=1`
+- [x] `tests/test_ai_message.py`
+  Goal: verify AI message send/receive behavior against an open AI platform tab.
+  Result: PASS
+  Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_ai_message.py`
+  Inputs used:
+  - `platform`: defaulted to `chatgpt`
+  - `message`: defaulted to `Hi`
+  Notes:
+  - `POST /api/v1/ai/message` PASS
+  - Response returned `success=true`, `taskId`, `conversationId`, and assistant content
+  - Current run received: `Hey—what’s up? How can I help?`
+  - End-to-end response completed in `3844ms`
+- [x] `tests/test_ai_new_conversation.py`
+  Goal: verify creating a fresh AI conversation against an open AI platform tab.
+  Result: PASS
+  Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_ai_new_conversation.py`
+  Inputs used:
+  - `platform`: defaulted to `chatgpt`
+  Notes:
+  - `POST /api/v1/ai/new_conversation` PASS
+  - Response returned `success=true` and task id `task_api_newconv_6d1b91e8`
+  - Current run completed in `2367ms`
+- [x] `tests/test_ai_claw.py`
+  Goal: confirm combined AI status/message/new-conversation/navigate flows against the current browser AI environment.
+  Result: PASS
+  Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_ai_claw.py`
+  Notes:
+  - `GET /api/v1/ai/status` PASS, found 1 ChatGPT tab and logged-in state was true
+  - `POST /api/v1/ai/message` PASS, returned `success=true`, content `Hi`, conversation id `69ef2f0d-0e94-83ea-bfb7-443e46da2cb2`, duration `3429ms`
+  - `POST /api/v1/ai/new_conversation` PASS, task id `task_api_newconv_d091b6e7`, duration `601ms`
+  - `POST /api/v1/ai/navigate` PASS, `tabsNavigated=1`
+  - Summary reported 4/4 subtests passed
+- [x] `tests/test_ai_workflow.py`
+  Goal: confirm end-to-end AI workflow sequencing across status, navigate, new conversation, and multi-message flow.
+  Result: PASS
+  Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_ai_workflow.py`
+  Notes:
+  - Step 1 status check PASS, found 1 AI tab
+  - Step 2 navigate PASS
+  - Step 3 new conversation PASS
+  - Step 4 first message PASS, received response `42`
+  - Step 5 follow-up message PASS, received response `42`
+  - Final summary reported complete workflow PASSED
+- [x] `tests/integration/test_ai_workflow.py`
+  Goal: confirm integration-level AI workflow behavior through the current clawbot client surface.
+  Result: PASS
+  Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/integration/test_ai_workflow.py`
+  Notes:
+  - Script completed successfully and reported `AI workflow integration smoke test passed`
+- [x] `tests/test_workflow.py`
+  Goal: confirm combined X read/search/profile/tab workflows through the current clawbot client.
+  Result: PASS
+  Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_workflow.py`
+  Inputs used:
+  - default mode skipped live like/unlike actions in non-interactive execution
+  - `instanceId`: auto-selected first connected instance for status, timeline, search, profile, and tab-control calls
+  Notes:
+  - Initial run failed on `GET /api/v1/x/status` with multi-instance `ambiguous_target`
+  - Patched script to auto-resolve first instance and propagate `instance_id` through status, timeline, search, profile, and tab-control calls
+  - Patched script to skip like/unlike in non-interactive mode unless explicitly invoked with `--run-live-actions`
+  - Patched `clawbot/transport/x_api.py` and `clawbot/services/x_tabs.py` so tab open/navigate/close now accept `instance_id`
+  - LocalBridge shortcut tab routing initially only honored `instanceId` via query/header, so direct JSON-only requests still reproduced `ambiguous_target`
+  - Added REST decode / bridge debug logs in `go-lib/pkg/restapi/handler.go` and verified `readJSON(...)` decoded `instanceId` correctly for `open-tab`
+  - Located the real server-side bug in `instanceIDFromRequest(...)`: it did not extract `instanceId` from typed shortcut messages like `types.Message[types.OpenTabRequest]`, `types.Message[types.CloseTabRequest]`, and `types.Message[types.NavigateTabRequest]`
+  - Patched LocalBridge Go payload structs and `restapi/handler.go` so tab-control body `instanceId` is extracted from typed shortcut messages too
+  - Direct JSON-only validation now PASS for all three routes:
+    - `POST /tweetclaw/open-tab` returned `200` with `{"success":true,"tabId":305061168,"url":"https://x.com/home"}`
+    - `POST /tweetclaw/navigate-tab` returned `{"success":true,"tabId":305061168,...}`
+    - `POST /tweetclaw/close-tab` returned `{"success":true,"reason":"success"}`
+  - Bridge logs confirmed `bodyOrFallbackInstanceId="0d508524-f738-4dd6-929a-0d37d4d5b202"` for open, navigate, and close after the fix
+  - Final rerun PASS, all 3 workflows passed including tab open, navigate, and close
+- [x] `tests/integration/test_workflow_flows.py`
+
+Goal: confirm AI assistant flows still align with the current LocalBridge and client wiring.
+Result: PASS
+Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/integration/test_workflow_flows.py`
+Inputs used:
+- `instanceId`: auto-selected first connected instance for status and search calls
+Notes:
+- Initial run failed on `GET /api/v1/x/status` with multi-instance `ambiguous_target`
+- Patched script to auto-resolve first connected instance via `GET /api/v1/x/instances`
+- Patched status call to pass `instance_id`
+- Patched search call to pass `instance_id`
+- Rerun PASS, workflow integration smoke tests completed successfully
+- Follow-up clawbot client enhancement added optional `instance_id` plumbing for write/action helpers in `clawbot/services/x_actions.py` and `clawbot/transport/x_api.py`
+- Follow-up workflow enhancement added optional `instance_id` threading in `clawbot/workflows/common.py`
+- Added `examples/multi_instance_example.py` to show explicit instance selection and routing while preserving old single-target usage
+- Verification notes for the new example:
+  - `python3 -m py_compile ...` PASS for updated client/workflow/example files
+  - `examples/multi_instance_example.py` resolved an instance, read status/search successfully, opened a tab, navigated it, and reached close
+  - Close response returned `{'success': False, 'reason': 'not_found'}` even though the route resolved the correct instance, so write-path `instance_id` plumbing is good but close semantics still look flaky in the live environment
+
+Phase 3, Write live API tests, safest to riskiest
+-------------------------------------------------
+Only start these after read paths are stable.
+
+Recommended test tweet text templates
+-------------------------------------
+Use explicit labels so cleanup is easy.
+
+A. Plain post
+`[ClawBot test] Read/write regression check for LocalBridge + clawBotCli. Safe to ignore.`
+
+B. Reply post
+`[ClawBot test reply] Verifying canonical tweet detail / replies flow.`
+
+C. Media post
+`[ClawBot media test] Verifying media upload path from clawBotCli tests.`
+
+Write order
+-----------
+1. [x] `tests/test_write_apis.py`
+   Goal: basic create tweet, like, retweet.
+   Result: PASS
+   Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_write_apis.py --action create --yes`
+   Inputs used:
+   - `action`: `create`
+   - `instanceId`: auto-resolved to `0d508524-f738-4dd6-929a-0d37d4d5b202`
+   - `tweet text`: `[ClawBot test] Read/write regression check for LocalBridge + clawBotCli. Safe to ignore. (2026-04-27 19:48:51)`
+   Notes:
+   - Started with create only, as planned. Did not run like or retweet in this turn.
+   - Initial create attempt failed with `POST /api/v1/x/tweets failed: ambiguous_target ... specify instanceId (status=503)` even though the Python client now sent body `instanceId`
+   - This exposed another server/client compatibility wrinkle: write routes still needed the same query/header fallback that tab routes benefited from
+   - Patched `clawbot/transport/x_api.py` write methods to send `instanceId` redundantly in body, query params, and `X-Instance-ID` header for compatibility
+   - Patched `tests/test_write_apis.py` to auto-resolve `instance_id`, accept `--instance-id`, and pass it into create/like/retweet actions
+   - Rerun PASS, created tweet ID `2048731104702583278`
+   Notes:
+   - Next safe step is still separate: run only one follow-up write action on a later turn
+2. [x] `tests/test_publish.py`
+   Goal: verify publish path in the main client.
+   Result: PASS
+   Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_publish.py --yes`
+   Inputs used:
+   - plain publish mode, no reply target, no media files
+   - `instanceId`: auto-resolved to `0d508524-f738-4dd6-929a-0d37d4d5b202`
+   - `tweet text`: `[ClawBot test] Read/write regression check for LocalBridge + clawBotCli. Safe to ignore. (2026-04-27 19:53:58)`
+   Notes:
+   - Patched script to auto-resolve `instance_id`, accept `--instance-id`, and pass explicit instance routing into publish and reply actions
+   - Reused the new multi-instance-safe write transport behavior from `clawbot/transport/x_api.py`
+   - Plain publish rerun PASS, created tweet ID `2048732394014888257`
+   - Media and reply branches of this script were not exercised in this turn
+3. [x] `tests/test_media_upload.py`
+   Goal: verify media upload path using `test_media/` assets.
+   Result: PASS
+   Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_media_upload.py --image app_1.png --yes`
+   Inputs used:
+   - `image`: `app_1.png`
+   - `instanceId`: auto-resolved to `0d508524-f738-4dd6-929a-0d37d4d5b202`
+   - `tabId`: not set
+   Notes:
+   - Patched script to auto-resolve `instance_id` when not supplied explicitly, matching the rest of the multi-instance-safe test suite
+   - Verified upload-only path without publishing a tweet
+   - Upload task completed successfully with media ID `2048733282334892032`
+   - Live progress output showed a direct upload phase and completed cleanly
+4. [x] `tests/test_actions.py`
+   Goal: verify core action endpoints.
+   Result: PASS
+   Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_actions.py --yes`
+   Inputs used:
+   - `tweet_id`: not supplied, script used timeline auto-discovery
+   - `instanceId`: auto-resolved to `0d508524-f738-4dd6-929a-0d37d4d5b202`
+   - discovered target tweet ID: `2048739013503111380`
+   - discovered target user ID: `1716359572896858112`
+   Notes:
+   - Initial earlier run failed with multi-instance `ambiguous_target` because the script still used read/action calls without explicit `instance_id`
+   - Patched `tests/test_actions.py` to auto-resolve `instance_id`, accept `--instance-id`, accept `--yes`, and pass explicit instance routing into tweet lookup, timeline lookup, and like/retweet/bookmark/follow actions
+   - A later retry was temporarily blocked by environment connectivity and timed out on timeline fetch while the VPN was down
+   - After network recovery, rerun PASS
+   - Live actions all succeeded: like, retweet, bookmark, follow
+   - Script saved cleanup/reference data to `localBridge/clawBotCli/test_actions.json`
+5. [x] `tests/test_like_retweet.py`
+   Goal: verify like and retweet endpoints explicitly.
+   Result: PASS
+   Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_like_retweet.py --yes`
+   Inputs used:
+   - `instanceId`: auto-resolved to `0d508524-f738-4dd6-929a-0d37d4d5b202`
+   - like/unlike target tweet ID: `2040018467667988588`
+   - retweet/unretweet target tweet ID: `2047367411175711116`
+   Notes:
+   - Patched script to auto-resolve `instance_id`, accept `--instance-id`, accept `--yes`, and pass explicit instance routing into timeline lookup and like/unlike/retweet/unretweet actions
+   - Rerun PASS for both pairs: like/unlike and retweet/unretweet
+   - Unlike response returned `unfavorite_tweet: Done`
+   - Unretweet response returned the original source tweet ID, matching the intended target
+6. [x] `tests/test_bookmark_follow.py`
+   Goal: verify bookmark/follow actions.
+   Result: PASS
+   Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_bookmark_follow.py --yes`
+   Inputs used:
+   - `instanceId`: auto-resolved to `d951f0a1-d042-4e36-a868-9e6ababbfbd0`
+   - bookmark/unbookmark target tweet ID: `2048757340682297678`
+   - follow/unfollow target user ID: `1318419526132862976`
+   Notes:
+   - Patched script to auto-resolve `instance_id`, accept `--instance-id`, accept `--yes`, and pass explicit instance routing into timeline lookup and bookmark/unbookmark/follow/unfollow actions
+   - Rerun PASS for both pairs: bookmark/unbookmark and follow/unfollow
+   - Unbookmark response returned `tweet_bookmark_delete: Done`
+   - Follow and unfollow responses both returned the expected target profile payload for `@NousResearch`
+7. [x] `tests/test_reverse_actions.py`
+   Goal: verify unlike/unretweet/unbookmark/unfollow cleanup paths.
+   Result: PASS
+   Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_reverse_actions.py --yes`
+   Inputs used:
+   - `instanceId`: auto-resolved to `0d508524-f738-4dd6-929a-0d37d4d5b202`
+   - loaded action data from `localBridge/clawBotCli/test_actions.json`
+   - unlike target tweet ID: `2048739013503111380`
+   - unretweet target tweet ID: `2048739013503111380`
+   - unbookmark target tweet ID: `2048739013503111380`
+   - unfollow target user ID: `1716359572896858112`
+   Notes:
+   - Patched script to auto-resolve `instance_id`, accept `--instance-id`, accept `--yes`, and pass explicit instance routing into unlike/unretweet/unbookmark/unfollow actions
+   - Rerun PASS for all 4 reverse actions
+   - Unlike returned `unfavorite_tweet: Done`
+   - Unretweet returned the original source tweet ID, confirming correct target reversal
+   - Unbookmark returned `tweet_bookmark_delete: Done`
+   - Unfollow returned the expected target profile payload for `@PixVerse_`
+8. [x] `tests/test_delete.py`
+   Goal: verify tweet deletion for test-created content.
+   Result: PASS
+   Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/test_delete.py --tweet-id 2048732394014888257 --force`
+   Inputs used:
+   - `tweet_id`: `2048732394014888257`
+   - `instanceId`: auto-resolved to `0d508524-f738-4dd6-929a-0d37d4d5b202`
+   Notes:
+   - User explicitly supplied the target tweet URL/ID for deletion
+   - Patched script to auto-resolve `instance_id`, accept `--instance-id`, and pass explicit instance routing into `delete_tweet(...)`
+   - Rerun PASS, delete response returned `delete_tweet` success payload
+   - Target tweet `2048732394014888257` should now be removed from X
+
+Phase 4, Full integration sweep
+-------------------------------
+Run only after the itemized tests above are stable.
+
+- [x] `tests/integration_test.py`
+  Goal: end-to-end media upload lifecycle smoke coverage for task client, chunked uploader, and cancellation flow.
+  Result: PASS
+  Command used: `PYTHONPATH=/Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli python3 /Users/hyperorchid/aiwithblockchain/aihub/localBridge/clawBotCli/tests/integration_test.py`
+  Inputs used:
+  - generated temporary file `tests/dummy_integration.mp4`
+  - mocked `upload_input_part`, `create_task`, and cancellation path where appropriate
+  Notes:
+  - No script patch was needed in this turn
+  - Suite ran 3 tests and passed in `0.111s`
+  - Verified small-file connectivity assumptions, 12MB large-file chunking into 3 parts, and cancellation flow issuing `cancel_task("task_123")`
+- [ ] `tests/integration/test_workflow_flows.py` if not already completed in Phase 2
+
+Patch expectations before execution
+-----------------------------------
+Some scripts are older than the latest API design. Before or after each test, check whether the script needs a surgical update.
+
+High-priority likely updates
+----------------------------
+1. `tests/test_read_apis.py`
+   - likely needs explicit `instanceId` support for multi-instance setups
+   - may need better verification that `get_tweet()` returns the focal tweet for the requested ID
+2. `tests/test_tweet_details.py`
+   - should verify the latest canonical logic more explicitly
+   - should prefer checking focal tweet match, nested reply extraction, and latest raw-vs-structured semantics
+3. `tests/test_write_apis.py`
+   - currently interactive and broad
+   - may need splitting or flags so we can run one action at a time safely
+4. any live write script
+   - may need a common way to inject `instanceId`
+   - may need clearer logging of created tweet IDs for later cleanup
+
+Per-test execution record template
+----------------------------------
+Copy this block under the relevant test when we execute it.
+
+- Test file:
+- Purpose:
+- Command used:
+- Inputs used:
+- Result: PASS / FAIL / BLOCKED
+- Needed code changes:
+- Needed test-script changes:
+- Follow-up test:
+
+Suggested first test
+--------------------
+Start with:
+- `tests/unit/test_services.py`
+
+Why:
+- It directly covers the latest service-layer API design.
+- It is cheap, deterministic, and does not touch the live X account.
+- If this is red, live testing is premature.

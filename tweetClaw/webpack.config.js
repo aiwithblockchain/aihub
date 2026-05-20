@@ -1,4 +1,6 @@
 const path = require('path');
+const webpack = require('webpack');
+const { version } = require('./package.json');
 
 module.exports = (env, argv) => {
     const mode = argv.mode || 'development';
@@ -12,6 +14,8 @@ module.exports = (env, argv) => {
             injection: path.resolve(__dirname, 'src/capture/injection.ts'),
             debug: path.resolve(__dirname, 'src/debug/debug.ts'),
             popup: path.resolve(__dirname, 'src/popup/popup.ts'),
+            'xhs-injection': path.resolve(__dirname, 'src/platforms/xiaohongshu/xhs-injection.ts'),
+            'content-xhs': path.resolve(__dirname, 'src/content/xhs-main-entrance.ts'),
         },
         output: {
             path: path.resolve(__dirname, 'dist'),
@@ -36,5 +40,10 @@ module.exports = (env, argv) => {
                 process: false,
             }
         },
+        plugins: [
+            new webpack.DefinePlugin({
+                __EXTENSION_VERSION__: JSON.stringify(version),
+            }),
+        ],
     };
 };

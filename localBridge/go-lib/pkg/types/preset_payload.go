@@ -8,37 +8,36 @@ package types
 // ---- Tab 操作请求 ----
 
 type OpenTabRequest struct {
-	Path string `json:"path"`
+	Path       string `json:"path"`
+	InstanceID string `json:"instanceId,omitempty"`
 }
 
 type CloseTabRequest struct {
-	TabID int `json:"tabId"`
+	TabID      int    `json:"tabId"`
+	InstanceID string `json:"instanceId,omitempty"`
 }
 
 type NavigateTabRequest struct {
-	TabID *int   `json:"tabId"`
-	Path  string `json:"path"`
+	TabID      *int   `json:"tabId"`
+	Path       string `json:"path"`
+	InstanceID string `json:"instanceId,omitempty"`
 }
 
 // ---- Exec Action 请求 ----
 
 type ExecActionRequest struct {
-	Action   string   `json:"action"`   // like / unlike / retweet / follow 等
-	TweetID  *string  `json:"tweetId"`
-	UserID   *string  `json:"userId"`
-	TabID    *int     `json:"tabId"`
-	Text     *string  `json:"text"`
-	MediaIDs []string `json:"media_ids,omitempty"` // 媒体 ID 列表，用于发推文时附加图片/视频
+	Action        string   `json:"action"`   // like / unlike / retweet / follow 等
+	TweetID       *string  `json:"tweetId"`
+	UserID        *string  `json:"userId"`
+	TabID         *int     `json:"tabId"`
+	Text          *string  `json:"text"`
+	MediaIDs      []string `json:"media_ids,omitempty"` // 媒体 ID 列表，用于发推文时附加图片/视频
+	AttachmentURL *string  `json:"attachmentUrl,omitempty"` // quote tweet 的 attachment_url
 }
 
 // ---- Timeline 查询请求 ----
 
 type QueryTweetDetailRequest struct {
-	TweetID string `json:"tweetId"`
-	TabID   *int   `json:"tabId"`
-}
-
-type QueryTweetRequest struct {
 	TweetID string `json:"tweetId"`
 	TabID   *int   `json:"tabId"`
 }
@@ -59,6 +58,13 @@ type QuerySearchTimelineRequest struct {
 	Query  string `json:"query,omitempty"`  // 搜索关键词
 	Cursor string `json:"cursor,omitempty"` // 翻页游标
 	Count  int    `json:"count,omitempty"`  // 结果数量
+}
+
+type QueryUserTweetsRequest struct {
+	UserID string `json:"userId"`           // 用户 ID (如 "44196397")
+	TabID  *int   `json:"tabId,omitempty"`
+	Cursor string `json:"cursor,omitempty"` // 翻页游标
+	Count  int    `json:"count,omitempty"`  // 结果数量，默认 20
 }
 
 // ===========================================================

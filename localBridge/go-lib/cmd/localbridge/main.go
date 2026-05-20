@@ -7,16 +7,20 @@ import "C"
 import (
 	"encoding/json"
 	"log"
+	"net/http"
+	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"unsafe"
 
 	"github.com/hyperorchid/localbridge/pkg/bridge"
+	"github.com/hyperorchid/localbridge/pkg/restapi"
 )
 
 // ─── 内存日志环形缓冲 ─────────────────────────────────────────────────────────
 
-const maxLogLines = 500
+const maxLogLines = 2000
 
 var logBuf struct {
 	mu    sync.Mutex
@@ -44,11 +48,36 @@ func init() {
 }
 
 
+// apiDocsCandidates 返回 localbridge 专属的 api_docs.json 候选路径（按优先级排列）
+func apiDocsCandidates() []string {
+	execPath, err := os.Executable()
+	var bundlePath string
+	if err == nil && strings.Contains(execPath, ".app/Contents/MacOS/") {
+		bundlePath = strings.Replace(
+			execPath,
+			"/Contents/MacOS/"+filepath.Base(execPath),
+			"/Contents/Resources/api_docs.json",
+			1,
+		)
+	}
+	return []string{
+		bundlePath,
+		"api_docs.json",
+		"LocalBridgeMac/api_docs.json",
+		os.ExpandEnv("$HOME/aiwithblockchain/aihub/localBridge/apple/LocalBridgeMac/api_docs.json"),
+	}
+}
+
+// registerLocalBridgeRoutes 注册 localbridge 专属路由
+func registerLocalBridgeRoutes(mux *http.ServeMux) {
+	mux.HandleFunc("/api/v1/x/docs", restapi.NewAPIDocsHandler(apiDocsCandidates()))
+}
+
 // LocalBridgeStart 启动桥接服务（tweetClawPort/aiClawPort 传 0 则读配置文件默认值）
 //
 //export LocalBridgeStart
 func LocalBridgeStart(tweetClawPort C.int, aiClawPort C.int) C.int {
-	if err := bridge.StartDefault(); err != nil {
+	if err := bridge.StartDefaultWithRESTRegistrar(registerLocalBridgeRoutes); err != nil {
 		return -1
 	}
 	return 0
@@ -69,6 +98,7 @@ func LocalBridgeGetInstancesJSON() *C.char {
 	instances := bridge.GetDefaultInstances()
 	data, err := json.Marshal(instances)
 	if err != nil {
+		log.Printf("[Bridge] LocalBridgeGetInstancesJSON marshal failed: %v", err)
 		return C.CString("[]")
 	}
 	return C.CString(string(data))
@@ -81,7 +111,7 @@ func LocalBridgeFreeString(s *C.char) {
 	C.free(unsafe.Pointer(s))
 }
 
-// LocalBridgeGetLogsJSON 返回当前全量日志的 JSON 数组字符串（最多 500 条）
+// LocalBridgeGetLogsJSON 返回当前全量日志的 JSON 数组字符串（最多 2000 条）
 // 调用方使用完毕后 **必须** 调用 LocalBridgeFreeString 释放内存
 //
 //export LocalBridgeGetLogsJSON

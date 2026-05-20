@@ -1,5 +1,6 @@
 import { SessionStatus, RouteKind, AccountSummary } from '../types/session';
 import { parseRouteKind } from '../utils/route-parser';
+import { detectPlatform } from '../utils/platform-detector';
 
 /**
  * SessionManager handles the Session Bridge layer (Layer 1).
@@ -28,7 +29,9 @@ export class SessionManager {
 
         const tab = await chrome.tabs.get(tabId).catch(() => null);
         const url = tab?.url || '';
+        const platform = detectPlatform(url);
         const routeKind = parseRouteKind(url);
+        console.log('[TweetClaw-Platform]', { url, platform, routeKind });
 
         // Fetch captured data from background state
         const state: any = await new Promise((resolve) => {

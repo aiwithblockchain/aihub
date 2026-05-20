@@ -13,7 +13,7 @@ export interface AccountSummary {
 
 export type Platform = 'x-web';
 export type ProfileMode = 'chrome';
-export type RouteKind = 'home' | 'thread' | 'search' | 'notification' | 'profile' | 'unknown' | 'none';
+export type RouteKind = 'home' | 'thread' | 'search' | 'notification' | 'profile' | 'xhs_explore' | 'xhs_note' | 'xhs_user' | 'unknown' | 'none';
 
 /**
  * Session status payload.

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"os"
 	"strconv"
@@ -43,6 +44,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/x/timeline", h.timeline)
 	mux.HandleFunc("/api/v1/x/search", h.searchTimeline)
 	mux.HandleFunc("/api/v1/x/users", h.userProfile)
+	mux.HandleFunc("/api/v1/x/user_tweets", h.userTweets)
 	mux.HandleFunc("/api/v1/x/tweets", h.tweetsDispatch)
 	mux.HandleFunc("/api/v1/x/tweets/", h.tweetResourceDispatch)
 	mux.HandleFunc("/api/v1/x/likes", func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "like") })
@@ -64,8 +66,6 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/ai/new_conversation", h.newConversation)
 	mux.HandleFunc("/api/v1/ai/navigate", h.navigateToPlatform)
 
-	// ★ 系统端点
-	mux.HandleFunc("/api/v1/x/docs", h.apiDocs)
 }
 
 func NewHandler(ws *websocket.Server) *Handler {
@@ -182,14 +182,19 @@ func (h *Handler) pluginInvoke(w http.ResponseWriter, r *http.Request) {
 // 超时后自动返回 504，与 Swift 各端点的 DispatchQueue.asyncAfter 逻辑一致
 func (h *Handler) bridge(
 	w http.ResponseWriter,
+	r *http.Request,
 	clientName string,
 	msgID string,
 	msg interface{},
 	timeoutMs int,
 	onResp func([]byte),
 ) {
-	sess, err := h.ws.ResolveConn(clientName, "")
+	bodyInstanceId := instanceIDFromRequest(r, msg)
+	instanceId := bodyInstanceId
+
+	sess, err := h.ws.ResolveConn(clientName, instanceId)
 	if err != nil {
+		log.Printf("[REST] bridge resolve failed client=%s msgID=%s path=%s instanceId=%q err=%v", clientName, msgID, r.URL.Path, instanceId, err)
 		jsonErr(w, 503, err.Error())
 		return
 	}
@@ -214,34 +219,104 @@ func (h *Handler) bridge(
 	}
 }
 
+func instanceIDFromRequest(r *http.Request, msg interface{}) string {
+	instanceId := r.URL.Query().Get("instanceId")
+	if instanceId != "" {
+		return instanceId
+	}
+
+	instanceId = r.Header.Get("X-Instance-ID")
+	if instanceId != "" {
+		return instanceId
+	}
+
+	switch payload := msg.(type) {
+	case types.RawMessage:
+		return instanceIDFromRawPayload(payload.Payload)
+	case *types.RawMessage:
+		if payload == nil {
+			return ""
+		}
+		return instanceIDFromRawPayload(payload.Payload)
+	case types.Message[types.OpenTabRequest]:
+		return payload.Payload.InstanceID
+	case *types.Message[types.OpenTabRequest]:
+		if payload == nil {
+			return ""
+		}
+		return payload.Payload.InstanceID
+	case types.Message[types.CloseTabRequest]:
+		return payload.Payload.InstanceID
+	case *types.Message[types.CloseTabRequest]:
+		if payload == nil {
+			return ""
+		}
+		return payload.Payload.InstanceID
+	case types.Message[types.NavigateTabRequest]:
+		return payload.Payload.InstanceID
+	case *types.Message[types.NavigateTabRequest]:
+		if payload == nil {
+			return ""
+		}
+		return payload.Payload.InstanceID
+	default:
+		return ""
+	}
+}
+
+func instanceIDFromRawPayload(payload json.RawMessage) string {
+	var body struct {
+		InstanceID string `json:"instanceId"`
+	}
+	if err := json.Unmarshal(payload, &body); err != nil {
+		log.Printf("[REST] instanceIDFromRawPayload unmarshal failed: %v", err)
+		return ""
+	}
+	return body.InstanceID
+}
+
 // --- tweetClaw 端点 ---
 
 func (h *Handler) xStatus(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_x_status")
-	h.bridge(w, "tweetClaw", id, buildMsg(id, "request.query_x_tabs_status", "tweetClaw", types.EmptyPayload{}), 5000,
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_x_tabs_status", "tweetClaw", types.EmptyPayload{}), 5000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) xBasicInfo(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_x_basic")
-	h.bridge(w, "tweetClaw", id, buildMsg(id, "request.query_x_basic_info", "tweetClaw", types.EmptyPayload{}), 5000,
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_x_basic_info", "tweetClaw", types.EmptyPayload{}), 5000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) timeline(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_timeline")
-	h.bridge(w, "tweetClaw", id, buildMsg(id, "request.query_home_timeline", "tweetClaw",
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_home_timeline", "tweetClaw",
 		types.QuerySearchTimelineRequest{TabID: parseTabID(r)}), 8000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) tweetsDispatch(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
-		h.execAction(w, r, "post_tweet")
+		var req types.ExecActionRequest
+		if err := readJSON(r, &req); err != nil {
+			jsonErr(w, 400, err.Error())
+			return
+		}
+
+		action := "post_tweet"
+		if req.AttachmentURL != nil && *req.AttachmentURL != "" {
+			action = "quote_tweet"
+		}
+		req.Action = action
+
+		id := newID("http_exec")
+		h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.exec_action", "tweetClaw", req), 8000,
+			func(data []byte) { writeRawPayload(w, data) })
 	} else {
 		id := newID("http_tweet_detail")
 		tweetID := r.URL.Query().Get("tweetId")
-		h.bridge(w, "tweetClaw", id, buildMsg(id, "request.query_tweet_detail", "tweetClaw",
+		h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_tweet_detail", "tweetClaw",
 			types.QueryTweetDetailRequest{TweetID: tweetID, TabID: parseTabID(r)}), 8000,
 			func(data []byte) { writeRawPayload(w, data) })
 	}
@@ -264,12 +339,12 @@ func (h *Handler) tweetResourceDispatch(w http.ResponseWriter, r *http.Request) 
 	switch {
 	case len(parts) == 1:
 		id := newID("http_tweet")
-		h.bridge(w, "tweetClaw", id, buildMsg(id, "request.query_tweet", "tweetClaw",
-			types.QueryTweetRequest{TweetID: tweetID, TabID: parseTabID(r)}), 8000,
+		h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_tweet_detail", "tweetClaw",
+			types.QueryTweetDetailRequest{TweetID: tweetID, TabID: parseTabID(r)}), 8000,
 			func(data []byte) { writeRawPayload(w, data) })
 	case len(parts) == 2 && parts[1] == "replies":
 		id := newID("http_tweet_replies")
-		h.bridge(w, "tweetClaw", id, buildMsg(id, "request.query_tweet_replies", "tweetClaw",
+		h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_tweet_replies", "tweetClaw",
 			types.QueryTweetRepliesRequest{TweetID: tweetID, TabID: parseTabID(r), Cursor: r.URL.Query().Get("cursor")}), 8000,
 			func(data []byte) { writeRawPayload(w, data) })
 	default:
@@ -279,7 +354,7 @@ func (h *Handler) tweetResourceDispatch(w http.ResponseWriter, r *http.Request) 
 
 func (h *Handler) userProfile(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_user_profile")
-	h.bridge(w, "tweetClaw", id, buildMsg(id, "request.query_user_profile", "tweetClaw",
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_user_profile", "tweetClaw",
 		types.QueryUserProfileRequest{ScreenName: r.URL.Query().Get("screenName"), TabID: parseTabID(r)}), 8000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
@@ -295,10 +370,35 @@ func (h *Handler) searchTimeline(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	h.bridge(w, "tweetClaw", id, buildMsg(id, "request.query_search_timeline", "tweetClaw",
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_search_timeline", "tweetClaw",
 		types.QuerySearchTimelineRequest{
 			TabID:  parseTabID(r),
 			Query:  query,
+			Cursor: cursor,
+			Count:  count,
+		}), 8000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) userTweets(w http.ResponseWriter, r *http.Request) {
+	id := newID("http_user_tweets")
+	userID := r.URL.Query().Get("userId")
+	if userID == "" {
+		jsonErr(w, 400, "userId is required")
+		return
+	}
+	cursor := r.URL.Query().Get("cursor")
+	count := 20
+	if c := r.URL.Query().Get("count"); c != "" {
+		if n, err := strconv.Atoi(c); err == nil && n > 0 {
+			count = n
+		}
+	}
+
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_user_tweets", "tweetClaw",
+		types.QueryUserTweetsRequest{
+			UserID: userID,
+			TabID:  parseTabID(r),
 			Cursor: cursor,
 			Count:  count,
 		}), 8000,
@@ -312,7 +412,7 @@ func (h *Handler) execAction(w http.ResponseWriter, r *http.Request, action stri
 	}
 	req.Action = action
 	id := newID("http_exec")
-	h.bridge(w, "tweetClaw", id, buildMsg(id, "request.exec_action", "tweetClaw", req), 15000,
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.exec_action", "tweetClaw", req), 15000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -323,7 +423,7 @@ func (h *Handler) openTab(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_open_tab")
-	h.bridge(w, "tweetClaw", id, buildMsg(id, "request.open_tab", "tweetClaw", req), 5000,
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.open_tab", "tweetClaw", req), 5000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -334,7 +434,7 @@ func (h *Handler) closeTab(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_close_tab")
-	h.bridge(w, "tweetClaw", id, buildMsg(id, "request.close_tab", "tweetClaw", req), 5000,
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.close_tab", "tweetClaw", req), 5000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -345,7 +445,7 @@ func (h *Handler) navigateTab(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_nav_tab")
-	h.bridge(w, "tweetClaw", id, buildMsg(id, "request.navigate_tab", "tweetClaw", req), 5000,
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.navigate_tab", "tweetClaw", req), 5000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -361,40 +461,45 @@ func (h *Handler) instances(w http.ResponseWriter, _ *http.Request) {
 	json.NewEncoder(w).Encode(xInstances)
 }
 
-func (h *Handler) apiDocs(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		jsonErr(w, 405, "method_not_allowed")
-		return
-	}
-
-	candidatePaths := []string{
-		"api_docs.json",
-		"LocalBridgeMac/api_docs.json",
-		os.ExpandEnv("$HOME/aiwithblockchain/aihub/localBridge/apple/LocalBridgeMac/api_docs.json"),
-	}
-
-	var data []byte
-	var err error
-	for _, path := range candidatePaths {
-		data, err = os.ReadFile(path)
-		if err == nil {
-			break
+// NewAPIDocsHandler 返回一个 /api/v1/x/docs 的 http.HandlerFunc。
+// candidates 由各二进制的 main.go 传入，按优先级从高到低依次尝试。
+func NewAPIDocsHandler(candidates []string) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			jsonErr(w, 405, "method_not_allowed")
+			return
 		}
-	}
-	if err != nil {
-		jsonErr(w, 404, "api_docs.json not found")
-		return
-	}
 
-	w.Header().Set("Content-Type", "application/json")
-	w.Write(data)
+		var data []byte
+		var lastErr error
+		for _, path := range candidates {
+			if path == "" {
+				continue
+			}
+			var err error
+			data, err = os.ReadFile(path)
+			if err == nil {
+				log.Printf("[REST] api_docs loaded from: %s", path)
+				break
+			}
+			lastErr = err
+		}
+		if data == nil {
+			log.Printf("[REST] api_docs not found, last error: %v", lastErr)
+			jsonErr(w, 404, "api_docs not found")
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(data)
+	}
 }
 
 // --- aiClaw 端点 ---
 
 func (h *Handler) aiStatus(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_ai_status")
-	h.bridge(w, "aiClaw", id, buildMsg(id, "request.query_ai_tabs_status", "aiClaw", types.EmptyPayload{}), 5000,
+	h.bridge(w, r, "aiClaw", id, buildMsg(id, "request.query_ai_tabs_status", "aiClaw", types.EmptyPayload{}), 5000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -425,7 +530,7 @@ func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 		Payload: types.SendMessagePromptPayload{Prompt: &req.Prompt, ConversationID: req.ConvID, Model: req.Model},
 		Timeout: &timeoutMs,
 	}
-	h.bridge(w, "aiClaw", id, buildMsg(id, "request.execute_task", "aiClaw", payload), timeoutMs,
+	h.bridge(w, r, "aiClaw", id, buildMsg(id, "request.execute_task", "aiClaw", payload), timeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -454,7 +559,7 @@ func (h *Handler) newConversation(w http.ResponseWriter, r *http.Request) {
 		Payload: types.SendMessagePromptPayload{Model: req.Model},
 		Timeout: &timeoutMs,
 	}
-	h.bridge(w, "aiClaw", id, buildMsg(id, "request.execute_task", "aiClaw", payload), timeoutMs,
+	h.bridge(w, r, "aiClaw", id, buildMsg(id, "request.execute_task", "aiClaw", payload), timeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -476,7 +581,7 @@ func (h *Handler) navigateToPlatform(w http.ResponseWriter, r *http.Request) {
 	}
 	id := newID("http_navigate")
 	payload := types.NavigateToPlatformPayload{Platform: req.Platform}
-	h.bridge(w, "aiClaw", id, buildMsg(id, "request.navigate_to_platform", "aiClaw", payload), 5000,
+	h.bridge(w, r, "aiClaw", id, buildMsg(id, "request.navigate_to_platform", "aiClaw", payload), 5000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 

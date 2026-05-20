@@ -2,8 +2,9 @@ import AppKit
 
 final class AppDelegate: NSObject, NSApplicationDelegate {
     static private(set) var shared: AppDelegate?
-    
+
     private var statusItem: NSStatusItem?
+    private var logMaintenanceTimer: Timer?
     private lazy var mainWindowController = MainWindowController()
     private let goServer = LocalBridgeGoManager()
 
@@ -15,6 +16,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         NSApp.setActivationPolicy(.accessory)
 
         goServer.start()
+        BridgeLogger.shared.runMaintenance(reason: "app-launch")
+        startLogMaintenanceTimer()
 
         NotificationCenter.default.addObserver(self, selector: #selector(restartWebSocketServer), name: NSNotification.Name("RestartWebSocketServer"), object: nil)
 
@@ -25,7 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             name: LanguageManager.languageDidChangeNotification,
             object: nil
         )
-        
+
         let statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         self.statusItem = statusItem
 
@@ -49,6 +52,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         DispatchQueue.main.async { [weak self] in
             self?.openMainWindow()
         }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        logMaintenanceTimer?.invalidate()
+        logMaintenanceTimer = nil
     }
 
     @objc private func handleLanguageChange() {
@@ -105,6 +113,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    private func startLogMaintenanceTimer() {
+        logMaintenanceTimer?.invalidate()
+        let interval = BridgeLogger.shared.maintenanceIntervalForScheduling
+        BridgeLogger.shared.log("[Log] scheduled maintenance timer armed interval=\(Int(interval))s")
+        logMaintenanceTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: true) { _ in
+            BridgeLogger.shared.log("[Log] scheduled maintenance timer fired interval=\(Int(interval))s")
+            BridgeLogger.shared.runMaintenance(reason: "scheduled-timer")
+        }
+    }
+
     // MARK: - WebSocket forwarding
 
     func getConnectedInstances() -> [LocalBridgeGoManager.InstanceSnapshot] {
@@ -143,12 +161,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         goServer.sendQueryTweetDetail(tweetId: tweetId, tabId: tabId, instanceId: instanceId)
     }
 
-    func sendQueryTweet(tweetId: String, tabId: Int? = nil, instanceId: String? = nil) {
-        goServer.sendQueryTweet(tweetId: tweetId, tabId: tabId, instanceId: instanceId)
-    }
-
     func sendQueryTweetReplies(tweetId: String, cursor: String? = nil, tabId: Int? = nil, instanceId: String? = nil) {
-        print("[LocalBridgeMac] AppDelegate sendQueryTweetReplies tweetId=\(tweetId) cursor=\(cursor ?? "<nil>") tabId=\(tabId.map(String.init) ?? "<nil>") instanceId=\(instanceId ?? "<nil>")")
         goServer.sendQueryTweetReplies(tweetId: tweetId, cursor: cursor, tabId: tabId, instanceId: instanceId)
     }
 
@@ -182,6 +195,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func fetchInstances() {
         goServer.sendRESTRequest(method: "GET", path: "/api/v1/x/instances", notificationName: "GetInstancesReceived")
+    }
+
+    func clearBridgeLogs() {
+        goServer.clearDisplayedLogs()
     }
 
     @objc private func restartWebSocketServer() {

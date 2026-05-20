@@ -14,6 +14,8 @@ type ListenAddress struct {
 	Enabled bool
 }
 
+type RouteRegistrar func(mux *http.ServeMux)
+
 type Server struct {
 	httpServers []*http.Server
 }
@@ -42,6 +44,10 @@ func withCORS(next http.Handler) http.Handler {
 }
 
 func NewServer(addresses []ListenAddress, ws *websocket.Server) *Server {
+	return NewServerWithRegistrar(addresses, ws, nil)
+}
+
+func NewServerWithRegistrar(addresses []ListenAddress, ws *websocket.Server, registrar RouteRegistrar) *Server {
 	h := NewHandler(ws)
 	var servers []*http.Server
 
@@ -58,6 +64,9 @@ func NewServer(addresses []ListenAddress, ws *websocket.Server) *Server {
 
 		mux := http.NewServeMux()
 		h.Register(mux)
+		if registrar != nil {
+			registrar(mux)
+		}
 		servers = append(servers, &http.Server{Addr: listenAddr, Handler: withCORS(mux)})
 	}
 

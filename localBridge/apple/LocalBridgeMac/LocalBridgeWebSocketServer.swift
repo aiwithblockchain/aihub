@@ -321,7 +321,6 @@ class LocalBridgeWebSocketServer {
     }
     
     private func handleIncomingMessage(data: Data, from connection: NWConnection) {
-        print("[LocalBridgeMac] handling incoming message, size: \(data.count)")
         let decoder = JSONDecoder()
         do {
             // Use a lightweight peek to check message type without full payload decoding
@@ -398,7 +397,6 @@ class LocalBridgeWebSocketServer {
 
                 
             case .responseQueryXTabsStatus:
-                print("[LocalBridgeMac] received response.query_x_tabs_status")
                 self.handleQueryXTabsResponse(data: data)
                 if let callback = self.pendingHttpCallbacks[peekMsg.id] {
                     callback(data)
@@ -407,7 +405,6 @@ class LocalBridgeWebSocketServer {
                 self.pendingUiRequests.remove(peekMsg.id)
 
             case .responseQueryAITabsStatus:
-                print("[LocalBridgeMac] received response.query_ai_tabs_status")
                 self.handleQueryAITabsResponse(data: data)
                 if let callback = self.pendingHttpCallbacks[peekMsg.id] {
                     callback(data)
@@ -416,7 +413,6 @@ class LocalBridgeWebSocketServer {
                 self.pendingUiRequests.remove(peekMsg.id)
                 
             case .responseExecuteTaskResult:
-                print("[LocalBridgeMac] received response.execute_task_result")
                 self.handleExecuteTaskResponse(data: data)
                 if let callback = self.pendingHttpCallbacks[peekMsg.id] {
                     callback(data)
@@ -426,7 +422,6 @@ class LocalBridgeWebSocketServer {
                 self.pendingUiRequestTitles.removeValue(forKey: peekMsg.id)
 
             case .responseQueryXBasicInfo:
-                print("[LocalBridgeMac] received response.query_x_basic_info")
                 self.handleQueryXBasicInfoResponse(data: data)
                 if let callback = self.pendingHttpCallbacks[peekMsg.id] {
                     callback(data)
@@ -435,7 +430,6 @@ class LocalBridgeWebSocketServer {
                 self.pendingUiRequests.remove(peekMsg.id)
                 
             case .responseOpenTab:
-                print("[LocalBridgeMac] received response.open_tab")
                 self.handleOpenTabResponse(data: data)
                 if let callback = self.pendingHttpCallbacks[peekMsg.id] {
                     callback(data)
@@ -444,7 +438,6 @@ class LocalBridgeWebSocketServer {
                 self.pendingUiRequests.remove(peekMsg.id)
 
             case .responseCloseTab:
-                print("[LocalBridgeMac] received response.close_tab")
                 self.handleCloseTabResponse(data: data)
                 if let callback = self.pendingHttpCallbacks[peekMsg.id] {
                     callback(data)
@@ -453,7 +446,6 @@ class LocalBridgeWebSocketServer {
                 self.pendingUiRequests.remove(peekMsg.id)
                 
             case .responseNavigateTab:
-                print("[LocalBridgeMac] received response.navigate_tab")
                 self.handleNavigateTabResponse(data: data)
                 if let callback = self.pendingHttpCallbacks[peekMsg.id] {
                     callback(data)
@@ -462,7 +454,6 @@ class LocalBridgeWebSocketServer {
                 self.pendingUiRequests.remove(peekMsg.id)
                 
             case .responseExecAction:
-                print("[LocalBridgeMac] received response.exec_action")
                 if let callback = self.pendingHttpCallbacks[peekMsg.id] {
                     callback(data)
                     self.pendingHttpCallbacks.removeValue(forKey: peekMsg.id)
@@ -485,14 +476,12 @@ class LocalBridgeWebSocketServer {
                 }
 
             case .responseQueryHomeTimeline, .responseQueryTweetDetail, .responseQueryUserProfile, .responseQuerySearchTimeline:
-                print("[LocalBridgeMac] received generic query response: \(peekMsg.type)")
                 if let callback = self.pendingHttpCallbacks[peekMsg.id] {
                     callback(data)
                     self.pendingHttpCallbacks.removeValue(forKey: peekMsg.id)
                 }
                 
             case .responseError:
-                print("[LocalBridgeMac] received response.error")
                 if self.pendingUiRequests.contains(peekMsg.id) {
                     self.pendingUiRequests.remove(peekMsg.id)
                     let errorMsg = "Error: Received response.error from extension"
@@ -510,9 +499,9 @@ class LocalBridgeWebSocketServer {
                     callback(data)
                     self.pendingHttpCallbacks.removeValue(forKey: peekMsg.id)
                 }
-                
+
             default:
-                print("[LocalBridgeMac] unhandled message type: \(peekMsg.type)")
+                break
             }
         } catch {
             print("[LocalBridgeMac] failed to decode message: \(error)")
@@ -610,16 +599,7 @@ class LocalBridgeWebSocketServer {
         do {
             let resp = try decoder.decode(BaseMessage<QueryXTabsStatusResponsePayload>.self, from: data)
             let p = resp.payload
-            
-            print("[LocalBridgeMac] query_x_tabs_status success")
-            print("[LocalBridgeMac] hasXTabs=\(p.hasXTabs)")
-            print("[LocalBridgeMac] isLoggedIn=\(p.isLoggedIn)")
-            print("[LocalBridgeMac] activeXTabId=\(String(describing: p.activeXTabId))")
-            print("[LocalBridgeMac] activeXUrl=\(p.activeXUrl ?? "null")")
-            
-            let tabsInfo = p.tabs.map { "{tabId:\($0.tabId),url:\($0.url),active:\($0.active)}" }.joined(separator: ",")
-            print("[LocalBridgeMac] tabs=[\(tabsInfo)]")
-            
+
             // Format nice JSON string for UI text view
             let encoder = JSONEncoder()
             encoder.outputFormatting = .prettyPrinted
@@ -639,13 +619,7 @@ class LocalBridgeWebSocketServer {
         do {
             let resp = try decoder.decode(BaseMessage<QueryAITabsStatusResponsePayload>.self, from: data)
             let p = resp.payload
-            
-            print("[LocalBridgeMac] query_ai_tabs_status success")
-            print("[LocalBridgeMac] hasAITabs=\(p.hasAITabs)")
-            
-            let tabsInfo = p.tabs.map { "{tabId:\($0.tabId),platform:\($0.platform),url:\($0.url),active:\($0.active)}" }.joined(separator: ",")
-            print("[LocalBridgeMac] tabs=[\(tabsInfo)]")
-            
+
             // Format nice JSON string for UI text view
             let encoder = JSONEncoder()
             encoder.outputFormatting = .prettyPrinted
@@ -1196,6 +1170,9 @@ class LocalBridgeWebSocketServer {
     private func receiveHttpRequest(from connection: NWConnection) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 8192) { data, context, isComplete, error in
             if let data = data, let request = String(data: data, encoding: .utf8) {
+                print("[LocalBridgeMac] ===== HTTP Request Received =====")
+                print("[LocalBridgeMac] Request: \(request.prefix(200))")
+
                 let parsedRequest = self.parseHTTPRequestTarget(from: data)
                 // Support CORS preflight
                 if request.hasPrefix("OPTIONS ") {
@@ -1258,7 +1235,7 @@ class LocalBridgeWebSocketServer {
                         self.handleGenericQueryHttpRequest(
                             connection,
                             requestData: data,
-                            type: .requestQueryTweet,
+                            type: .requestQueryTweetDetail,
                             parsedRequest: parsedRequest,
                             pathTweetId: tweetResource.tweetId
                         )
@@ -1280,6 +1257,7 @@ class LocalBridgeWebSocketServer {
                 } else if request.contains("GET /api/v1/x/instances") {
                     self.handleInstancesHttpRequest(connection)
                 } else if request.contains("GET /api/v1/x/docs") {
+                    print("[LocalBridgeMac] ===== Matched /api/v1/x/docs route =====")
                     self.handleApiDocsHttpRequest(connection)
                 } else {
                     self.sendHttpResponse(connection, status: "404 Not Found", body: "{\"error\":\"not_found\"}")
@@ -1987,11 +1965,7 @@ class LocalBridgeWebSocketServer {
             self.sendHttpResponse(connection, status: "500 Internal Server Error", body: "{\"error\":\"decode_failed\"}")
         }
 
-        if type == .requestQueryTweet && tweetId == nil {
-            self.pendingHttpCallbacks.removeValue(forKey: reqId)
-            self.sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":{\"code\":\"INVALID_ARGUMENT\",\"message\":\"tweetId is required\",\"details\":null}}")
-            return
-        } else if type == .requestQueryTweetReplies && tweetId == nil {
+        if type == .requestQueryTweetReplies && tweetId == nil {
             self.pendingHttpCallbacks.removeValue(forKey: reqId)
             self.sendHttpResponse(connection, status: "400 Bad Request", body: "{\"error\":{\"code\":\"INVALID_ARGUMENT\",\"message\":\"tweetId is required\",\"details\":null}}")
             return
@@ -2005,9 +1979,7 @@ class LocalBridgeWebSocketServer {
             return
         }
 
-        if type == .requestQueryTweet, let tid = tweetId {
-            self.sendBaseMessage(wsClient, id: reqId, type: type, payload: QueryTweetRequestPayload(tweetId: tid, tabId: tabId))
-        } else if type == .requestQueryTweetReplies, let tid = tweetId {
+        if type == .requestQueryTweetReplies, let tid = tweetId {
             print("[LocalBridgeMac] REST query tweet replies tweetId=\(tid) cursor=\(cursor ?? "<nil>") tabId=\(tabId.map(String.init) ?? "<nil>")")
             self.sendBaseMessage(wsClient, id: reqId, type: type, payload: QueryTweetRepliesRequestPayload(tweetId: tid, tabId: tabId, cursor: cursor))
         } else if type == .requestQueryTweetDetail, let tid = tweetId {
@@ -2080,15 +2052,31 @@ class LocalBridgeWebSocketServer {
     private func handleApiDocsHttpRequest(_ connection: NWConnection) {
         var jsonString: String? = nil
 
-        for url in apiDocsCandidateURLs() {
-            if let data = try? Data(contentsOf: url) {
-                jsonString = String(data: data, encoding: .utf8)
-                print("[LocalBridgeMac] Loaded api_docs.json from \(url.path)")
-                break
+        print("[LocalBridgeMac] ===== handleApiDocsHttpRequest called =====")
+        print("[LocalBridgeMac] Bundle.main.resourcePath: \(Bundle.main.resourcePath ?? "nil")")
+        print("[LocalBridgeMac] Current directory: \(FileManager.default.currentDirectoryPath)")
+
+        let candidates = apiDocsCandidateURLs()
+        print("[LocalBridgeMac] Candidate URLs count: \(candidates.count)")
+
+        for (index, url) in candidates.enumerated() {
+            let exists = FileManager.default.fileExists(atPath: url.path)
+            print("[LocalBridgeMac] [\(index)] Trying: \(url.path)")
+            print("[LocalBridgeMac] [\(index)] File exists: \(exists)")
+
+            if exists {
+                if let data = try? Data(contentsOf: url) {
+                    jsonString = String(data: data, encoding: .utf8)
+                    print("[LocalBridgeMac] [\(index)] ✓ Successfully loaded \(data.count) bytes")
+                    break
+                } else {
+                    print("[LocalBridgeMac] [\(index)] ✗ File exists but failed to read")
+                }
             }
         }
 
         if let body = jsonString {
+            print("[LocalBridgeMac] Sending 200 OK response with \(body.count) bytes")
             sendHttpResponse(connection, status: "200 OK", body: body)
         } else {
             let msg = "[LocalBridgeMac] Error: api_docs.json not found in any candidate location"
@@ -2125,12 +2113,26 @@ class LocalBridgeWebSocketServer {
         let repoRoot = fileManager.homeDirectoryForCurrentUser
             .appendingPathComponent("aiwithblockchain/aihub/localBridge/apple", isDirectory: true)
 
-        return [
-            Bundle.main.url(forResource: "api_docs", withExtension: "json"),
+        var candidates: [URL] = []
+
+        // Try direct path to Bundle's Resources directory first
+        if let resourcePath = Bundle.main.resourcePath {
+            candidates.append(URL(fileURLWithPath: resourcePath).appendingPathComponent("api_docs.json"))
+        }
+
+        // Then try Bundle.main.url
+        if let bundleURL = Bundle.main.url(forResource: "api_docs", withExtension: "json") {
+            candidates.append(bundleURL)
+        }
+
+        // Finally try other locations
+        candidates.append(contentsOf: [
             currentDirectory.appendingPathComponent("api_docs.json"),
             currentDirectory.appendingPathComponent("LocalBridgeMac/api_docs.json"),
             repoRoot.appendingPathComponent("LocalBridgeMac/api_docs.json")
-        ].compactMap { $0 }
+        ])
+
+        return candidates
     }
 
     private func aiApiDocsCandidateURLs() -> [URL] {
@@ -2139,11 +2141,25 @@ class LocalBridgeWebSocketServer {
         let repoRoot = fileManager.homeDirectoryForCurrentUser
             .appendingPathComponent("aiwithblockchain/aihub/localBridge/apple", isDirectory: true)
 
-        return [
-            Bundle.main.url(forResource: "ai_claw_api_docs", withExtension: "json"),
+        var candidates: [URL] = []
+
+        // Try direct path to Bundle's Resources directory first
+        if let resourcePath = Bundle.main.resourcePath {
+            candidates.append(URL(fileURLWithPath: resourcePath).appendingPathComponent("ai_claw_api_docs.json"))
+        }
+
+        // Then try Bundle.main.url
+        if let bundleURL = Bundle.main.url(forResource: "ai_claw_api_docs", withExtension: "json") {
+            candidates.append(bundleURL)
+        }
+
+        // Finally try other locations
+        candidates.append(contentsOf: [
             currentDirectory.appendingPathComponent("ai_claw_api_docs.json"),
             currentDirectory.appendingPathComponent("LocalBridgeMac/ai_claw_api_docs.json"),
             repoRoot.appendingPathComponent("LocalBridgeMac/ai_claw_api_docs.json")
-        ].compactMap { $0 }
+        ])
+
+        return candidates
     }
 }

@@ -345,9 +345,9 @@ localBridge.navigateToPlatformHandler = navigateToPlatform;
 // ── WebSocket 重连 alarm 监听器 ──
 
 chrome.alarms.onAlarm.addListener((alarm) => {
-    if (alarm.name === 'ws-reconnect') {
+    if (alarm.name === 'aiclaw-ws-reconnect') {
         console.log('[aiClaw-BG] ⏰ Alarm triggered: reconnecting WebSocket');
-        localBridge.connect();
+        localBridge.handleReconnectAlarm();
     }
 });
 
