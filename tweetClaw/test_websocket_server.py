@@ -12,7 +12,7 @@ import websockets
 from datetime import datetime
 
 class MockLocalBridge:
-    def __init__(self, host='127.0.0.1', port=10086, log_file='2.log'):
+    def __init__(self, host='127.0.0.1', port=20086, log_file='2.log'):
         self.host = host
         self.port = port
         self.clients = set()

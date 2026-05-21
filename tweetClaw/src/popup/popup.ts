@@ -1,4 +1,5 @@
 import { initI18n, t } from '../utils/i18n';
+import { DEFAULT_WS_PORT, DEFAULT_REST_PORT } from '../config';
 
 document.addEventListener('DOMContentLoaded', () => {
     // Initialize i18n
@@ -11,6 +12,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const hostInput = document.getElementById('hostInput') as HTMLInputElement;
     const portInput = document.getElementById('portInput') as HTMLInputElement;
+    const restPortInput = document.getElementById('restPortInput') as HTMLInputElement;
     const reconnectBtn = document.getElementById('reconnectBtn') as HTMLButtonElement;
     const saveBtn = document.getElementById('saveBtn') as HTMLButtonElement;
     const statusDot = document.getElementById('statusDot') as HTMLElement;
@@ -33,9 +35,10 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 
     // ── Load saved config ────────────────────────────────────────
-    chrome.storage.local.get(['wsHost', 'wsPort', 'bridge.instanceName']).then(res => {
+    chrome.storage.local.get(['wsHost', 'wsPort', 'restPort', 'bridge.instanceName']).then(res => {
         hostInput.value = (res.wsHost as string) || '127.0.0.1';
-        portInput.value = String((res.wsPort as number) || 10086);
+        portInput.value = String((res.wsPort as number) || DEFAULT_WS_PORT);
+        restPortInput.value = String((res.restPort as number) || DEFAULT_REST_PORT);
         nameInput.value = (res['bridge.instanceName'] as string) || '';
     });
 
@@ -63,12 +66,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── Reconnect button ─────────────────────────────────────────
     reconnectBtn.addEventListener('click', () => {
-        chrome.storage.local.get(['wsHost', 'wsPort']).then(res => {
+        chrome.storage.local.get(['wsHost', 'wsPort', 'restPort']).then(res => {
             const host = (res.wsHost as string) || '127.0.0.1';
-            const port = (res.wsPort as number) || 10086;
+            const port = (res.wsPort as number) || DEFAULT_WS_PORT;
+            const restPort = (res.restPort as number) || DEFAULT_REST_PORT;
 
-            chrome.runtime.sendMessage({ type: 'UPDATE_WS_CONFIG', host, port }).then(() => {
-                // Show success feedback
+            chrome.runtime.sendMessage({ type: 'UPDATE_WS_CONFIG', host, port, restPort }).then(() => {
                 reconnectBtn.textContent = t('form.reconnect.success') || 'Reconnecting...';
                 reconnectBtn.style.background = '#22c55e';
                 setTimeout(() => {
@@ -84,6 +87,7 @@ document.addEventListener('DOMContentLoaded', () => {
     saveBtn.addEventListener('click', () => {
         const host = hostInput.value.trim();
         const port = parseInt(portInput.value.trim());
+        const restPort = parseInt(restPortInput.value.trim());
 
         if (!host) {
             alert(t('alert.invalid_ip'));
@@ -95,6 +99,11 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
+        if (!restPort || restPort < 1024 || restPort > 65535) {
+            alert(t('alert.invalid_port'));
+            return;
+        }
+
         // Validate IP format (basic check)
         const ipPattern = /^[\w\.\-]+$/;
         if (!ipPattern.test(host)) {
@@ -102,8 +111,8 @@ document.addEventListener('DOMContentLoaded', () => {
             return;
         }
 
-        chrome.storage.local.set({ wsHost: host, wsPort: port }).then(() => {
-            chrome.runtime.sendMessage({ type: 'UPDATE_WS_CONFIG', host, port }).then(() => {
+        chrome.storage.local.set({ wsHost: host, wsPort: port, restPort }).then(() => {
+            chrome.runtime.sendMessage({ type: 'UPDATE_WS_CONFIG', host, port, restPort }).then(() => {
                 // Show success feedback
                 saveBtn.textContent = t('form.save.success');
                 saveBtn.style.background = '#22c55e';

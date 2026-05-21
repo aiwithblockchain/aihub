@@ -1,4 +1,5 @@
 import { BaseMessage, ClientHelloPayload, MESSAGE_TYPES, PROTOCOL_NAME, PROTOCOL_VERSION, ServerHelloAckPayload } from './ws-protocol';
+import { DEFAULT_WS_PORT } from '../config';
 import { getOrCreateInstanceId, getOrCreateInstanceName } from './instance-id';
 
 interface LifecycleTrailEntry {
@@ -80,7 +81,7 @@ export class LocalBridgeSocket {
   public startTaskHandler: ((payload: any) => Promise<any>) | null = null;
   public cancelTaskHandler: ((payload: any) => Promise<any>) | null = null;
   
-  private WS_URL = 'ws://127.0.0.1:10086/ws'; // Default
+  private WS_URL = `ws://127.0.0.1:${DEFAULT_WS_PORT}/ws`; // Default
   
   constructor() {
     void this.bootstrapLifecycleTrail();
@@ -369,7 +370,7 @@ export class LocalBridgeSocket {
       if (typeof chrome !== 'undefined' && chrome.storage) {
         const res = await chrome.storage.local.get(['wsHost', 'wsPort']);
         const host = res.wsHost || '127.0.0.1';
-        const port = res.wsPort || 10086;
+        const port = res.wsPort || DEFAULT_WS_PORT;
         this.WS_URL = `ws://${host}:${port}/ws`;
       }
     } catch (e) {

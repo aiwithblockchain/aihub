@@ -5,6 +5,7 @@
  */
 
 import { MsgType, __DBK_query_id_map, __DBK_bearer_token, defaultQueryKeyMap } from '../capture/consts';
+import { DEFAULT_WS_PORT, DEFAULT_REST_PORT } from '../config';
 import { LocalBridgeSocket } from '../bridge/local-bridge-socket';
 import {
     OpenTabRequestPayload,
@@ -188,9 +189,9 @@ requestBridgeReconcile('service worker boot', {
 
 chrome.storage.local.get(['wsHost', 'wsPort', 'restHost', 'restPort']).then(async res => {
     const wsHost = res.wsHost || '127.0.0.1';
-    const wsPort = res.wsPort || 10086;
+    const wsPort = res.wsPort || DEFAULT_WS_PORT;
     const restHost = res.restHost || wsHost;
-    const restPort = res.restPort || 10088;
+    const restPort = res.restPort || DEFAULT_REST_PORT;
     const instanceId = await getOrCreateInstanceId();
     console.log(`[TweetClaw-BG] background bootstrap resolved instanceId=${instanceId} ws=${wsHost}:${wsPort} rest=${restHost}:${restPort}`);
 
@@ -396,10 +397,24 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     // 更新 WebSocket 配置
     if (message.type === 'UPDATE_WS_CONFIG') {
-        const { host, port } = message;
-        chrome.storage.local.set({ wsHost: host, wsPort: port }).then(() => {
+        const { host, port, restPort: newRestPort } = message;
+        const storageUpdate: Record<string, any> = { wsHost: host, wsPort: port };
+        if (newRestPort) storageUpdate.restPort = newRestPort;
+        chrome.storage.local.set(storageUpdate).then(() => {
             localBridge.reconnect(host, port);
             if (sendResponse) sendResponse({ success: true });
+        });
+        // 重建 taskCoordinator，REST host 与 WS host 相同
+        const restPort = (newRestPort as number) || DEFAULT_REST_PORT;
+        getOrCreateInstanceId().then(instanceId => {
+            taskCoordinator = new BackgroundTaskCoordinator(localBridge, {
+                localBridgeBaseUrl: `http://${host}:${restPort}`,
+                clientName: 'tweetClaw',
+                instanceId,
+                fetchTimeoutMs: 30000,
+                uploadTimeoutMs: 60000
+            }, backgroundSessionStore);
+            taskCoordinatorReady = true;
         });
         return true;
     }
@@ -408,7 +423,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'UPDATE_INSTANCE_NAME') {
         chrome.storage.local.get(['wsHost', 'wsPort']).then(res => {
             const host = (res.wsHost as string) || '127.0.0.1';
-            const port = (res.wsPort as number) || 10086;
+            const port = (res.wsPort as number) || DEFAULT_WS_PORT;
             localBridge.reconnect(host, port);
             if (sendResponse) sendResponse({ success: true });
         });
