@@ -64,3 +64,4 @@ aiClaw/aiClaw.zip
 .tweetpilot/tasks.db
 .tweetpilot.json
 localBridge/apple/dist/OpenHub.dmg
+localBridge/go-lib/src-tauri/src/services/local_bridge/windows/LocalBridgeCore.dll
