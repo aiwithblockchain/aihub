@@ -68,6 +68,9 @@ export class LocalBridgeSocket {
   public queryXhsAccountInfoHandler: (() => Promise<any>) | null = null;
   public queryXhsHomefeedHandler: ((payload: any) => Promise<any>) | null = null;
   public queryXhsFeedHandler: ((payload: any) => Promise<any>) | null = null;
+  public queryXhsSearchHandler: ((payload: any) => Promise<any>) | null = null;
+  public queryXhsUserNotesHandler: ((payload: any) => Promise<any>) | null = null;
+  // xhsPublishNoteHandler 待实现，见 docs/XHS_DEVELOPMENT_PLAN.md Step 7
   public openTabHandler: ((payload: any) => Promise<any>) | null = null;
   public closeTabHandler: ((payload: any) => Promise<any>) | null = null;
   public navigateTabHandler: ((payload: any) => Promise<any>) | null = null;
@@ -605,6 +608,13 @@ export class LocalBridgeSocket {
         case MESSAGE_TYPES.COMMAND_QUERY_XHS_FEED:
           this.handleQueryXhsFeed(msg);
           break;
+        case MESSAGE_TYPES.COMMAND_QUERY_XHS_SEARCH:
+          this.handleGenericQuery(msg, this.queryXhsSearchHandler, MESSAGE_TYPES.RESPONSE_QUERY_XHS_SEARCH);
+          break;
+        case MESSAGE_TYPES.COMMAND_QUERY_XHS_USER_NOTES:
+          this.handleGenericQuery(msg, this.queryXhsUserNotesHandler, MESSAGE_TYPES.RESPONSE_QUERY_XHS_USER_NOTES);
+          break;
+        // COMMAND_XHS_PUBLISH_NOTE 待实现，见 docs/XHS_DEVELOPMENT_PLAN.md Step 7
         case MESSAGE_TYPES.COMMAND_QUERY_X_BASIC_INFO:
           this.handleQueryXBasicInfo(msg);
           break;

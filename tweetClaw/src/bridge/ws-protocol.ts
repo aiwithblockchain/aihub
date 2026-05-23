@@ -17,6 +17,11 @@ export type MessageType =
   | 'response.query_xhs_homefeed'
   | 'command.query_xhs_feed'
   | 'response.query_xhs_feed'
+  | 'command.query_xhs_search'
+  | 'response.query_xhs_search'
+  | 'command.query_xhs_user_notes'
+  | 'response.query_xhs_user_notes'
+  // command.xhs_publish_note 待实现，见 docs/XHS_DEVELOPMENT_PLAN.md Step 7
   | 'command.query_x_basic_info'
   | 'request.open_tab'
   | 'response.open_tab'
@@ -61,6 +66,11 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_QUERY_XHS_HOMEFEED: 'response.query_xhs_homefeed',
   COMMAND_QUERY_XHS_FEED: 'command.query_xhs_feed',
   RESPONSE_QUERY_XHS_FEED: 'response.query_xhs_feed',
+  COMMAND_QUERY_XHS_SEARCH: 'command.query_xhs_search',
+  RESPONSE_QUERY_XHS_SEARCH: 'response.query_xhs_search',
+  COMMAND_QUERY_XHS_USER_NOTES: 'command.query_xhs_user_notes',
+  RESPONSE_QUERY_XHS_USER_NOTES: 'response.query_xhs_user_notes',
+  // COMMAND_XHS_PUBLISH_NOTE / RESPONSE_XHS_PUBLISH_NOTE 待实现，见 docs/XHS_DEVELOPMENT_PLAN.md Step 7
   COMMAND_QUERY_X_BASIC_INFO: 'command.query_x_basic_info',
   REQUEST_OPEN_TAB: 'request.open_tab',
   RESPONSE_OPEN_TAB: 'response.open_tab',
@@ -255,3 +265,38 @@ export const ERROR_CODES = {
   REQUEST_TIMEOUT: 'REQUEST_TIMEOUT',
   INTERNAL_ERROR: 'INTERNAL_ERROR',
 };
+
+// ── XHS 搜索 ──────────────────────────────────────────────────────────────────
+
+export interface XhsSearchRequestPayload {
+  keyword: string;
+  cursor?: string;
+  page_size?: number;   // 默认 20
+}
+
+// ── XHS 用户笔记 ───────────────────────────────────────────────────────────────
+
+export interface XhsUserNotesRequestPayload {
+  user_id: string;
+  cursor?: string;
+}
+
+// ── XHS 发布笔记 ───────────────────────────────────────────────────────────────
+
+export interface XhsImageInput {
+  data: string;          // Base64 编码（不含 data:image/... 前缀）
+  mime_type: string;     // 'image/jpeg' | 'image/png' | 'image/webp'
+}
+
+export interface XhsPublishNoteRequestPayload {
+  title: string;         // 最多 20 字
+  content: string;       // 正文，不含 #标签
+  tags: string[];        // 话题标签，不含 #
+  images: XhsImageInput[]; // 至少 1 张
+}
+
+export interface XhsPublishNoteResponsePayload {
+  success: boolean;
+  note_id?: string;
+  error?: string;
+}

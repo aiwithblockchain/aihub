@@ -73,10 +73,6 @@ interface QueryUserTweetsPayload {
 
 const backgroundSessionStore = new BackgroundSessionStore();
 
-const XHS_HOMEFEED_URL = 'https://www.xiaohongshu.com/explore?channel_id=homefeed_recommend';
-const XHS_HOMEFEED_WARMUP_TTL_MS = 30_000;
-const XHS_HOMEFEED_WARMUP_TIMEOUT_MS = 30_000;
-let xhsHomefeedWarmupPromise: Promise<number> | null = null;
 
 function getUploadSessionChunk(sessionId: string, chunkIndex: number) {
     return backgroundSessionStore.getChunk(sessionId, chunkIndex);
@@ -95,6 +91,9 @@ localBridge.queryXBasicInfoHandler = queryXBasicInfo;
 localBridge.queryXhsAccountInfoHandler = queryXhsAccountInfo;
 localBridge.queryXhsHomefeedHandler = queryXhsHomefeed;
 localBridge.queryXhsFeedHandler = queryXhsFeed;
+localBridge.queryXhsSearchHandler = queryXhsSearch;
+localBridge.queryXhsUserNotesHandler = queryXhsUserNotes;
+// localBridge.xhsPublishNoteHandler 待实现，见 docs/XHS_DEVELOPMENT_PLAN.md Step 7
 localBridge.openTabHandler = openXTab;
 localBridge.closeTabHandler = closeXTab;
 localBridge.navigateTabHandler = navigateXTab;
@@ -574,206 +573,35 @@ export async function queryXBasicInfo() {
     return result.raw;
 }
 
-/**
- * 查询小红书首页推荐流
- */
-async function findOrCreateXhsTab(): Promise<chrome.tabs.Tab> {
-    const xhsTabs = await chrome.tabs.query({
+// ── XHS 工具函数 ──────────────────────────────────────────────────────────────
+
+/** 找到已打开的任意小红书标签页 */
+async function findXhsTab(): Promise<chrome.tabs.Tab | null> {
+    const tabs = await chrome.tabs.query({
         url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*', '*://*.xiaohongshu.com/*']
     });
+    return tabs.find(t => t.active) || tabs[0] || null;
+}
 
-    const homefeedTab = xhsTabs.find(tab => tab.url?.startsWith(XHS_HOMEFEED_URL));
-    if (homefeedTab?.id) {
-        return homefeedTab;
-    }
-
-    const anyTab = xhsTabs.find(tab => Boolean(tab.id));
-    if (anyTab?.id) {
-        return anyTab;
-    }
-
-    return new Promise((resolve, reject) => {
-        chrome.tabs.create({ url: XHS_HOMEFEED_URL, active: true }, (tab) => {
-            if (chrome.runtime.lastError || !tab?.id) {
-                reject(new Error(chrome.runtime.lastError?.message || 'Failed to create Xiaohongshu tab'));
-                return;
-            }
-            resolve(tab);
-        });
+/** 向小红书 content script 发消息，返回 result.data 或抛错 */
+async function sendXhsMessage(tab: chrome.tabs.Tab, msg: Record<string, any>): Promise<any> {
+    if (!tab.id) throw new Error('No valid Xiaohongshu tab');
+    const result: any = await chrome.tabs.sendMessage(tab.id, msg).catch((e: any) => {
+        throw new Error(`Content script communication failed: ${e?.message}`);
     });
+    if (!result?.success) {
+        throw new Error(result?.error || `XHS command failed: ${msg.type}`);
+    }
+    return result.data;
 }
 
-async function waitForTabComplete(tabId: number, timeoutMs: number): Promise<void> {
-    const existing = await chrome.tabs.get(tabId).catch(() => null);
-    if (existing?.status === 'complete') {
-        return;
-    }
-
-    await new Promise<void>((resolve, reject) => {
-        const timeout = setTimeout(() => {
-            chrome.tabs.onUpdated.removeListener(listener);
-            reject(new Error(`Timed out waiting for tab ${tabId} to finish loading`));
-        }, timeoutMs);
-
-        const listener = (updatedTabId: number, changeInfo: any) => {
-            if (updatedTabId === tabId && changeInfo.status === 'complete') {
-                clearTimeout(timeout);
-                chrome.tabs.onUpdated.removeListener(listener);
-                resolve();
-            }
-        };
-
-        chrome.tabs.onUpdated.addListener(listener);
-    });
-}
-
-async function navigateXhsTabToHomefeed(tabId: number): Promise<void> {
-    const tab = await chrome.tabs.get(tabId);
-    if (tab.url === XHS_HOMEFEED_URL) {
-        return;
-    }
-
-    await new Promise<void>((resolve, reject) => {
-        chrome.tabs.update(tabId, { url: XHS_HOMEFEED_URL, active: true }, (updatedTab) => {
-            if (chrome.runtime.lastError || !updatedTab?.id) {
-                reject(new Error(chrome.runtime.lastError?.message || 'Failed to navigate Xiaohongshu tab'));
-                return;
-            }
-            resolve();
-        });
-    });
-
-    await waitForTabComplete(tabId, XHS_HOMEFEED_WARMUP_TIMEOUT_MS);
-}
-
-async function isXhsHomefeedContextFresh(): Promise<boolean> {
-    const stored = await chrome.storage.local.get([
-        'xhs_xs_sign',
-        'xhs_xt',
-        'xhs_xs_common',
-        'xhs_x_rap_param',
-        'xhs_homefeed_template',
-    ]);
-
-    const template = stored['xhs_homefeed_template'] as any;
-    if (!stored['xhs_xs_sign'] || !stored['xhs_xt'] || !stored['xhs_xs_common'] || !stored['xhs_x_rap_param']) {
-        return false;
-    }
-
-    const capturedAt = Number(template?.captured_at || 0);
-    if (!capturedAt) {
-        return false;
-    }
-
-    return (Date.now() - capturedAt) <= XHS_HOMEFEED_WARMUP_TTL_MS;
-}
-
-async function waitForXhsHomefeedCapture(afterTimestamp: number, timeoutMs: number): Promise<void> {
-    const startedAt = Date.now();
-
-    while ((Date.now() - startedAt) < timeoutMs) {
-        const stored = await chrome.storage.local.get([
-            'xhs_xs_sign',
-            'xhs_xt',
-            'xhs_xs_common',
-            'xhs_x_rap_param',
-            'xhs_homefeed_template',
-        ]);
-
-        const template = stored['xhs_homefeed_template'] as any;
-        const capturedAt = Number(template?.captured_at || 0);
-        const capturedEndpoint = String(template?.captured_endpoint || '');
-        const capturedMethod = String(template?.captured_method || '').toUpperCase();
-
-        if (
-            stored['xhs_xs_sign'] &&
-            stored['xhs_xt'] &&
-            stored['xhs_xs_common'] &&
-            stored['xhs_x_rap_param'] &&
-            capturedAt > afterTimestamp &&
-            capturedEndpoint === '/api/sns/web/v1/homefeed' &&
-            capturedMethod === 'POST'
-        ) {
-            return;
-        }
-
-        await new Promise(resolve => setTimeout(resolve, 500));
-    }
-
-    throw new Error('Timed out waiting for Xiaohongshu homefeed warm-up capture');
-}
-
-async function ensureXhsHomefeedWarmContext(): Promise<number> {
-    const tab = await findOrCreateXhsTab();
-    if (!tab.id) {
-        throw new Error('No Xiaohongshu tab found');
-    }
-
-    await navigateXhsTabToHomefeed(tab.id);
-    await waitForTabComplete(tab.id, XHS_HOMEFEED_WARMUP_TIMEOUT_MS);
-
-    if (await isXhsHomefeedContextFresh()) {
-        return tab.id;
-    }
-
-    if (!xhsHomefeedWarmupPromise) {
-        xhsHomefeedWarmupPromise = (async () => {
-            const warmTab = await findOrCreateXhsTab();
-            if (!warmTab.id) {
-                throw new Error('No Xiaohongshu tab found');
-            }
-
-            await navigateXhsTabToHomefeed(warmTab.id);
-            await waitForTabComplete(warmTab.id, XHS_HOMEFEED_WARMUP_TIMEOUT_MS);
-
-            const refreshStartedAt = Date.now();
-            await chrome.tabs.reload(warmTab.id);
-            await waitForTabComplete(warmTab.id, XHS_HOMEFEED_WARMUP_TIMEOUT_MS);
-
-            // Trigger scroll via content script to load homefeed
-            await chrome.tabs.sendMessage(warmTab.id, { type: 'XHS_SCROLL_PAGE', pixels: 800 }).catch(() => {});
-            await new Promise(resolve => setTimeout(resolve, 2000));
-
-            await waitForXhsHomefeedCapture(refreshStartedAt, XHS_HOMEFEED_WARMUP_TIMEOUT_MS);
-            return warmTab.id;
-        })().finally(() => {
-            xhsHomefeedWarmupPromise = null;
-        });
-    }
-
-    return xhsHomefeedWarmupPromise;
-}
+// ── XHS Handler 函数 ────────────────────────────────────────────────────────
 
 export async function queryXhsHomefeed(payload: { cursor_score?: string } = {}) {
     console.log('[TweetClaw-BG] queryXhsHomefeed called');
-
-    // Always check for fresh context first, no auto warm-up
-    const hasFreshContext = await isXhsHomefeedContextFresh();
-
-    if (!hasFreshContext) {
-        throw new Error('No fresh Xiaohongshu homefeed context found. Please manually refresh https://www.xiaohongshu.com/explore?channel_id=homefeed_recommend first.');
-    }
-
-    const xhsTabs = await chrome.tabs.query({
-        url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*', '*://*.xiaohongshu.com/*']
-    });
-    const targetTab = xhsTabs.find(t => t.active) || xhsTabs[0];
-    if (!targetTab?.id) {
-        throw new Error('No Xiaohongshu tab found');
-    }
-
-    const result: any = await chrome.tabs.sendMessage(targetTab.id, {
-        type: 'XHS_FETCH_HOMEFEED',
-        cursor_score: payload?.cursor_score || '',
-    }).catch((e: any) => {
-        throw new Error(`Failed to communicate with content script: ${e?.message}`);
-    });
-
-    if (!result?.success) {
-        throw new Error(result?.error || 'Failed to fetch Xiaohongshu homefeed');
-    }
-
-    return result.data;
+    const tab = await findXhsTab();
+    if (!tab) throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
+    return sendXhsMessage(tab, { type: 'XHS_FETCH_HOMEFEED', cursor_score: payload?.cursor_score || '' });
 }
 
 /**
@@ -1141,5 +969,67 @@ initDefaultQueryKeys();
 // ══════════════════════════════════════════════════════════════════
 
 /**
- * 处理小红书捕获的数据
+ * 搜索小红书笔记
  */
+export async function queryXhsSearch(payload: { keyword?: string; cursor?: string; page_size?: number } = {}) {
+    console.log('[TweetClaw-BG] queryXhsSearch called', payload);
+
+    const xhsTabs = await chrome.tabs.query({
+        url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*', '*://*.xiaohongshu.com/*']
+    });
+    const targetTab = xhsTabs.find(t => t.active) || xhsTabs[0];
+    if (!targetTab?.id) {
+        throw new Error('No Xiaohongshu tab found');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(targetTab.id, {
+        type: 'XHS_SEARCH_NOTES',
+        keyword: payload.keyword || '',
+        cursor: payload.cursor || '',
+        page_size: payload.page_size || 20,
+    }).catch((e: any) => {
+        throw new Error(`Failed to communicate with content script: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to search Xiaohongshu notes');
+    }
+
+    return result.data;
+}
+
+/**
+ * 获取指定用户发布的小红书笔记列表
+ */
+export async function queryXhsUserNotes(payload: { user_id?: string; cursor?: string } = {}) {
+    console.log('[TweetClaw-BG] queryXhsUserNotes called', payload);
+
+    if (!payload.user_id) {
+        throw new Error('user_id is required');
+    }
+
+    const xhsTabs = await chrome.tabs.query({
+        url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*', '*://*.xiaohongshu.com/*']
+    });
+    const targetTab = xhsTabs.find(t => t.active) || xhsTabs[0];
+    if (!targetTab?.id) {
+        throw new Error('No Xiaohongshu tab found');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(targetTab.id, {
+        type: 'XHS_FETCH_USER_NOTES',
+        user_id: payload.user_id,
+        cursor: payload.cursor || '',
+    }).catch((e: any) => {
+        throw new Error(`Failed to communicate with content script: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to fetch user notes from Xiaohongshu');
+    }
+
+    return result.data;
+}
+
+// publishXhsNote 待实现：需抓包验证 creator 接口后重新添加
+// 见开发计划 docs/XHS_DEVELOPMENT_PLAN.md Step 6 & 7

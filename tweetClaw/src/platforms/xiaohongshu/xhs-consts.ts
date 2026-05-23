@@ -2,8 +2,10 @@ export const XHS_API_ENDPOINTS = {
   FEED: '/api/sns/web/v1/feed',
   HOMEFEED: '/api/sns/web/v1/homefeed',
   NOTE_DETAIL: '/api/sns/web/v1/note/',
+  USER_ME: '/api/sns/web/v2/user/me',
   USER_INFO: '/api/sns/web/v1/user/otherinfo',
   USER_POSTED: '/api/sns/web/v1/user_posted',
+  SEARCH_NOTES: '/api/sns/web/v1/search/notes',
   COMMENT_PAGE: '/api/sns/web/v2/comment/page',
   LIKE: '/api/sns/web/v1/note/like',
   COLLECT: '/api/sns/web/v1/note/collect',
@@ -11,27 +13,21 @@ export const XHS_API_ENDPOINTS = {
   COMMENT_POST: '/api/sns/web/v2/comment/post',
 } as const;
 
+// XHS_CREATOR_ENDPOINTS 暂缓定义，待抓包验证后添加
+
 export const XHS_MSG_TYPE = {
-  SIGNAL_CAPTURED: 'XHS_SIGNAL_CAPTURED',
   EXECUTE_ACTION: 'XHS_EXECUTE_ACTION',
   FETCH_NOTE: 'XHS_FETCH_NOTE',
   FETCH_CURRENT_USER: 'XHS_FETCH_CURRENT_USER',
   FETCH_HOMEFEED: 'XHS_FETCH_HOMEFEED',
   FETCH_FEED: 'XHS_FETCH_FEED',
+  SEARCH_NOTES: 'XHS_SEARCH_NOTES',
+  FETCH_USER_NOTES: 'XHS_FETCH_USER_NOTES',
+  FETCH_COMMENTS: 'XHS_FETCH_COMMENTS',
 } as const;
 
 export const XHS_STORAGE_KEYS = {
   USER_ID: 'xhs_user_id',
-  COOKIES: 'xhs_cookies',
-  XS_SIGN: 'xhs_xs_sign',
-  XT: 'xhs_xt',
-  XS_COMMON: 'xhs_xs_common',
-  RAP_PARAM: 'xhs_x_rap_param',
-  B3_TRACEID: 'xhs_x_b3_traceid',
-  XRAY_TRACEID: 'xhs_x_xray_traceid',
-  XY_DIRECTION: 'xhs_xy_direction',
-  HOMEFEED_TEMPLATE: 'xhs_homefeed_template',
-  FEED_TEMPLATE: 'xhs_feed_template',
 } as const;
 
 export const XHS_HEADERS = {
