@@ -523,6 +523,93 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
+    // 签名链路测试：转发给 XHS Content Script，让它走完整签名流程
+    if (message.type === 'XHS_SIGN_TEST') {
+        (async () => {
+            try {
+                const tab = await findXhsTab();
+                if (!tab?.id) throw new Error('No Xiaohongshu tab found');
+                const result = await chrome.tabs.sendMessage(tab.id, {
+                    type: 'XHS_SIGN_TEST',
+                    url: message.url || '/api/sns/web/v1/homefeed',
+                    data: message.data || '',
+                });
+                sendResponse(result);
+            } catch (e: any) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    // ── XHS API 直接调用（供 DevTools 测试和内部调用使用）────────────────────────
+    if (message.type === 'XHS_FETCH_HOMEFEED') {
+        (async () => {
+            try {
+                const data = await queryXhsHomefeed({ cursor_score: message.cursor_score || '' });
+                sendResponse({ success: true, data });
+            } catch (e: any) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    if (message.type === 'XHS_FETCH_CURRENT_USER') {
+        (async () => {
+            try {
+                const data = await queryXhsAccountInfo();
+                sendResponse({ success: true, data });
+            } catch (e: any) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    if (message.type === 'XHS_FETCH_FEED') {
+        (async () => {
+            try {
+                const data = await queryXhsFeed({ note_id: message.note_id || '' });
+                sendResponse({ success: true, data });
+            } catch (e: any) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    if (message.type === 'XHS_SEARCH_NOTES') {
+        (async () => {
+            try {
+                const data = await queryXhsSearch({
+                    keyword: message.keyword || '',
+                    cursor: message.cursor || '',
+                    page_size: message.page_size || 20,
+                });
+                sendResponse({ success: true, data });
+            } catch (e: any) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    if (message.type === 'XHS_FETCH_USER_NOTES') {
+        (async () => {
+            try {
+                const data = await queryXhsUserNotes({
+                    user_id: message.user_id || '',
+                    cursor: message.cursor || '',
+                });
+                sendResponse({ success: true, data });
+            } catch (e: any) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
     return false;
 });
 

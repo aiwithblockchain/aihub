@@ -27,6 +27,7 @@ interface SignResponse {
   result?: {
     'x-s': string;
     'x-t': string;
+    'x-s-common'?: string;
   };
   error?: string;
 }
@@ -36,9 +37,48 @@ function getCookieValue(name: string): string {
   return match ? decodeURIComponent(match[1]) : '';
 }
 
-// ── 等待 _webmsxyw 可用 ──────────────────────────────────────────────────────
+/**
+ * 尝试从页面中提取 x-s-common
+ * 策略：拦截 XHR 请求，捕获实际使用的 x-s-common 值
+ */
+let cachedXsCommon: string | null = null;
+
+function extractXsCommon(): string | null {
+  if (cachedXsCommon) {
+    return cachedXsCommon;
+  }
+
+  // 尝试从 localStorage 获取
+  try {
+    const stored = localStorage.getItem('x-s-common') || sessionStorage.getItem('x-s-common');
+    if (stored && stored.length > 1000) {
+      cachedXsCommon = stored;
+      console.log(`${TAG} Found x-s-common in storage: ${stored.slice(0, 50)}...`);
+      return stored;
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  // 拦截 XHR 来捕获 x-s-common
+  const originalSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
+  XMLHttpRequest.prototype.setRequestHeader = function(header: string, value: string) {
+    if (header.toLowerCase() === 'x-s-common' && value.length > 1000) {
+      cachedXsCommon = value;
+      console.log(`${TAG} Captured x-s-common from XHR: ${value.slice(0, 50)}...`);
+    }
+    return originalSetRequestHeader.apply(this, arguments as any);
+  };
+
+  return null;
+}
+
+// ── 等待 _webmsxyw 可用 + 安装 XHR 拦截器 ────────────────────────────────────
 
 let signReady = false;
+
+// 立即安装 XHR 拦截器以捕获 x-s-common
+extractXsCommon();
 
 function waitForSignFn(): Promise<void> {
   return new Promise((resolve) => {
@@ -108,19 +148,30 @@ async function handleSignRequest(event: MessageEvent) {
     }
 
     // 调用签名函数：_webmsxyw(url, data, a1)
-    // 返回值格式: { "X-s": "...", "X-t": "..." }
+    // 返回值格式: { "X-s": "...", "X-t": "...", "X-s-common": "..." }
     const signResult = signFn(url, data, a1);
 
     console.log(`${TAG} Sign success: msgId=${msgId}, keys=${Object.keys(signResult || {}).join(',')}`);
+
+    const result: any = {
+      'x-s': signResult['X-s'] || signResult['x-s'] || '',
+      'x-t': String(signResult['X-t'] || signResult['x-t'] || ''),
+    };
+
+    // x-s-common 不由 _webmsxyw 生成，需要从页面中提取
+    const xsCommon = extractXsCommon();
+    if (xsCommon) {
+      result['x-s-common'] = xsCommon;
+      console.log(`${TAG} Added x-s-common: ${xsCommon.slice(0, 50)}...`);
+    } else {
+      console.warn(`${TAG} x-s-common not available yet (will be captured from first XHR request)`);
+    }
 
     postResponse({
       type: 'XHS_SIGN_RESPONSE',
       msgId,
       success: true,
-      result: {
-        'x-s': signResult['X-s'] || signResult['x-s'] || '',
-        'x-t': String(signResult['X-t'] || signResult['x-t'] || ''),
-      },
+      result,
     });
   } catch (e: any) {
     console.error(`${TAG} Sign error: msgId=${msgId}`, e);
@@ -149,8 +200,17 @@ signFnReady.then(() => {
 
   if (typeof signFn === 'function' && a1) {
     try {
-      const result = signFn('/api/sns/web/v1/homefeed', '', a1);
-      console.log(`${TAG} Self-test sign result:`, JSON.stringify(result));
+      const result = signFn('/api/sns/web/v2/user/me', '', a1);
+      console.log(`${TAG} Self-test _webmsxyw result keys:`, Object.keys(result).join(','));
+      console.log(`${TAG} Self-test x-s:`, result['X-s']?.slice(0, 30) + '...');
+      console.log(`${TAG} Self-test x-t:`, result['X-t']);
+
+      const xsCommon = extractXsCommon();
+      if (xsCommon) {
+        console.log(`${TAG} Self-test x-s-common (extracted):`, xsCommon.slice(0, 50) + '...');
+      } else {
+        console.log(`${TAG} Self-test: x-s-common not yet captured (will be available after first XHR request)`);
+      }
     } catch (e: any) {
       console.error(`${TAG} Self-test sign error:`, e.message);
     }

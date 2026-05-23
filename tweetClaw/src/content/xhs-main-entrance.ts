@@ -40,7 +40,7 @@ injectSignScript();
 // ── 签名桥接：Content Script ↔ Page Context ──────────────────────────────────
 
 interface PendingSign {
-  resolve: (result: { 'x-s': string; 'x-t': string }) => void;
+  resolve: (result: { 'x-s': string; 'x-t': string; 'x-s-common'?: string }) => void;
   reject: (error: Error) => void;
   timer: ReturnType<typeof setTimeout>;
 }
@@ -71,7 +71,7 @@ window.addEventListener('message', (event) => {
 /**
  * 请求页面签名
  */
-function requestSign(url: string, data: string): Promise<{ 'x-s': string; 'x-t': string }> {
+function requestSign(url: string, data: string): Promise<{ 'x-s': string; 'x-t': string; 'x-s-common'?: string }> {
   return new Promise((resolve, reject) => {
     const msgId = `sign-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -100,18 +100,27 @@ const EDITH = 'https://edith.xiaohongshu.com';
 async function signedFetch(apiPath: string, method: 'GET' | 'POST', body?: string): Promise<any> {
   const bodyStr = body || '';
 
-  // 1. 请求签名
+  // 1. 请求签名（包含 x-s, x-t, x-s-common）
   const signHeaders = await requestSign(apiPath, bodyStr);
-  console.log(`${TAG} Got sign headers for ${apiPath}: x-s=${signHeaders['x-s']?.slice(0, 20)}...`);
+  console.log(`${TAG} Got sign headers for ${apiPath}: x-s=${signHeaders['x-s']?.slice(0, 20)}..., x-s-common=${signHeaders['x-s-common'] ? 'present' : 'MISSING'}`);
 
   // 2. 组装完整请求头
   const headers: Record<string, string> = {
     'accept': 'application/json, text/plain, */*',
-    'content-type': 'application/json;charset=UTF-8',
     'referer': 'https://www.xiaohongshu.com/',
     'x-s': signHeaders['x-s'],
     'x-t': signHeaders['x-t'],
   };
+
+  // x-s-common 是必需的
+  if (signHeaders['x-s-common']) {
+    headers['x-s-common'] = signHeaders['x-s-common'];
+  }
+
+  // 只有 POST 请求才需要 content-type
+  if (method === 'POST') {
+    headers['content-type'] = 'application/json;charset=UTF-8';
+  }
 
   // 3. 发起请求
   const url = `${EDITH}${apiPath}`;
@@ -139,6 +148,10 @@ async function signedFetch(apiPath: string, method: 'GET' | 'POST', body?: strin
 
 async function fetchCurrentUser(): Promise<any> {
   return signedFetch('/api/sns/web/v2/user/me', 'GET');
+}
+
+async function fetchZones(): Promise<any> {
+  return signedFetch('/api/sns/web/v1/zones', 'GET');
 }
 
 async function fetchHomefeed(cursorScore: string = ''): Promise<any> {

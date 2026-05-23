@@ -130,6 +130,48 @@
     "response": "{\"data\":{\"user\":{\"result\":{\"__typename\":\"User\",\"timeline_v2\":{\"timeline\":{\"instructions\":[{\"type\":\"TimelineAddEntries\",\"entries\":[{\"entryId\":\"tweet-1234567890\",\"content\":{\"entryType\":\"TimelineTimelineItem\",\"itemContent\":{\"itemType\":\"TimelineTweet\",\"tweet_results\":{\"result\":{\"__typename\":\"Tweet\",\"rest_id\":\"1234567890\",\"legacy\":{\"full_text\":\"Tweet content here\",\"favorite_count\":10}}}}}}]}]}}}}"
   },
   {
+    "id": "query_followers",
+    "name": "Get User Followers",
+    "name_zh": "获取用户粉丝列表",
+    "summary": "Get one page of followers for a specified user, with cursor pagination support.",
+    "summary_zh": "获取指定用户的粉丝列表（关注该用户的人），支持 cursor 分页，每次返回一页。",
+    "method": "GET",
+    "path": "/api/v1/x/followers",
+    "description": "Returns the complete raw response from Twitter's Followers GraphQL API. Query a user's followers via the userId parameter (numeric user ID, e.g., '44196397'). The response structure follows Twitter's standard timeline format: data.user.result.timeline.timeline.instructions contains a TimelineAddEntries instruction, whose entries array holds user items (entryType: TimelineTimelineItem, itemContent.__typename: TimelineUser) and cursor items (entryType: TimelineTimelineCursor, cursorType: Top/Bottom). To paginate, extract the Bottom cursor value from the current page's response and pass it as the cursor parameter in the next request. Each user item's user object is located at content.itemContent.user_results.result, containing __typename, core.screen_name, core.name, avatar.image_url, is_blue_verified and other fields. Completely passes through the raw Twitter GraphQL response. Optional tabId and instanceId parameters for multi-tab/multi-account scenarios.",
+    "description_zh": "返回推特 Followers GraphQL API 的完整原始响应。通过 userId 参数（数字用户 ID，如 '44196397'）查询该用户的粉丝列表。响应结构遵循推特标准 Timeline 格式：data.user.result.timeline.timeline.instructions 中包含 TimelineAddEntries 指令，其 entries 数组同时包含用户条目（entryType: TimelineTimelineItem，itemContent.__typename: TimelineUser）和游标条目（entryType: TimelineTimelineCursor，cursorType: Top/Bottom）。翻页时，从当前页响应中提取 Bottom 游标的 value 字段，作为下一次请求的 cursor 参数传入。每个用户条目的用户对象位于 content.itemContent.user_results.result，包含 __typename、core.screen_name、core.name、avatar.image_url、is_blue_verified 等字段。完全透传推特 GraphQL 原始响应。可选 tabId 和 instanceId 参数用于多标签页/多账号场景。",
+    "curl": "curl \"http://127.0.0.1:10088/api/v1/x/followers?userId=44196397&count=20\"",
+    "curl_pagination": "curl \"http://127.0.0.1:10088/api/v1/x/followers?userId=44196397&count=20&cursor=0%7C2058097849215746046\"",
+    "response": "{\"success\":true,\"data\":{\"data\":{\"user\":{\"result\":{\"__typename\":\"User\",\"timeline\":{\"timeline\":{\"instructions\":[{\"type\":\"TimelineClearCache\"},{\"type\":\"TimelineAddEntries\",\"entries\":[{\"entryId\":\"user-1234567890\",\"content\":{\"entryType\":\"TimelineTimelineItem\",\"__typename\":\"TimelineTimelineItem\",\"itemContent\":{\"__typename\":\"TimelineUser\",\"itemType\":\"TimelineUser\",\"userDisplayType\":\"User\",\"user_results\":{\"result\":{\"__typename\":\"User\",\"core\":{\"created_at\":\"Thu Sep 11 02:37:15 +0000 2025\",\"name\":\"Alice\",\"screen_name\":\"alice_example\"},\"avatar\":{\"image_url\":\"https://pbs.twimg.com/profile_images/xxx/photo_normal.jpg\"},\"is_blue_verified\":false}}}}},{\"entryId\":\"cursor-bottom-2058097849215746048\",\"content\":{\"entryType\":\"TimelineTimelineCursor\",\"__typename\":\"TimelineTimelineCursor\",\"cursorType\":\"Bottom\",\"value\":\"0|2058097849215746046\"}}]}]}}}}}}"
+  },
+  {
+    "id": "query_following",
+    "name": "Get User Following",
+    "name_zh": "获取用户关注列表",
+    "summary": "Get one page of users that a specified user is following, with cursor pagination support.",
+    "summary_zh": "获取指定用户正在关注的用户列表，支持 cursor 分页，每次返回一页。",
+    "method": "GET",
+    "path": "/api/v1/x/following",
+    "description": "Returns the complete raw response from Twitter's Following GraphQL API. Query a user's following list via the userId parameter (numeric user ID, e.g., '44196397'). The response structure is identical to the followers endpoint: data.user.result.timeline.timeline.instructions contains a TimelineAddEntries instruction with user entries and cursor entries. To paginate, extract the Bottom cursor value from the current page and pass it as the cursor parameter. Each user entry's user object is at content.itemContent.user_results.result, containing core.screen_name, core.name, is_blue_verified, avatar.image_url and other fields. Completely passes through the raw Twitter GraphQL response. Optional tabId and instanceId parameters for multi-tab/multi-account scenarios.",
+    "description_zh": "返回推特 Following GraphQL API 的完整原始响应。通过 userId 参数（数字用户 ID，如 '44196397'）查询该用户正在关注的用户列表。响应结构与 followers 接口完全一致：data.user.result.timeline.timeline.instructions 中包含 TimelineAddEntries 指令，同时含有用户条目和游标条目。翻页时，从当前页提取 Bottom 游标的 value 字段，作为下一次请求的 cursor 参数。每个用户条目的用户对象位于 content.itemContent.user_results.result，包含 core.screen_name、core.name、is_blue_verified、avatar.image_url 等字段。完全透传推特 GraphQL 原始响应。可选 tabId 和 instanceId 参数用于多标签页/多账号场景。",
+    "curl": "curl \"http://127.0.0.1:10088/api/v1/x/following?userId=44196397&count=20\"",
+    "curl_pagination": "curl \"http://127.0.0.1:10088/api/v1/x/following?userId=44196397&count=20&cursor=0%7C2058097849215746046\"",
+    "response": "{\"success\":true,\"data\":{\"data\":{\"user\":{\"result\":{\"__typename\":\"User\",\"timeline\":{\"timeline\":{\"instructions\":[{\"type\":\"TimelineClearCache\"},{\"type\":\"TimelineAddEntries\",\"entries\":[{\"entryId\":\"user-9876543210\",\"content\":{\"entryType\":\"TimelineTimelineItem\",\"__typename\":\"TimelineTimelineItem\",\"itemContent\":{\"__typename\":\"TimelineUser\",\"itemType\":\"TimelineUser\",\"userDisplayType\":\"User\",\"user_results\":{\"result\":{\"__typename\":\"User\",\"core\":{\"created_at\":\"Mon Jan 06 10:57:38 +0000 2025\",\"name\":\"Know Your Computer\",\"screen_name\":\"ComputerrBooks\"},\"avatar\":{\"image_url\":\"https://pbs.twimg.com/profile_images/xxx/photo_normal.jpg\"},\"is_blue_verified\":false}}}}},{\"entryId\":\"cursor-bottom-2058097849215746048\",\"content\":{\"entryType\":\"TimelineTimelineCursor\",\"__typename\":\"TimelineTimelineCursor\",\"cursorType\":\"Bottom\",\"value\":\"0|2058097849215746046\"}}]}]}}}}}}"
+  },
+  {
+    "id": "query_blue_verified_followers",
+    "name": "Get Blue Verified Followers",
+    "name_zh": "获取蓝 V 认证粉丝列表",
+    "summary": "Get one page of X Premium (Blue Verified) users among a specified user's followers, with cursor pagination support.",
+    "summary_zh": "获取指定用户粉丝中已通过 X Premium 蓝 V 认证的用户列表，支持 cursor 分页，每次返回一页。",
+    "method": "GET",
+    "path": "/api/v1/x/blue_verified_followers",
+    "description": "Returns the complete raw response from Twitter's BlueVerifiedFollowers GraphQL API. Query a user's blue-verified followers via the userId parameter (numeric user ID, e.g., '44196397'). The response structure is identical to the followers endpoint: data.user.result.timeline.timeline.instructions contains a TimelineAddEntries instruction with user entries and cursor entries. If the target user has no blue-verified followers, the entries array will contain only cursor entries with no user items. To paginate, extract the Bottom cursor value and pass it as the cursor parameter in the next request. Each user entry's user object is at content.itemContent.user_results.result; is_blue_verified will be true for all returned users. Completely passes through the raw Twitter GraphQL response. Optional tabId and instanceId parameters for multi-tab/multi-account scenarios.",
+    "description_zh": "返回推特 BlueVerifiedFollowers GraphQL API 的完整原始响应。通过 userId 参数（数字用户 ID，如 '44196397'）查询该用户粉丝中已通过蓝 V 认证（X Premium）的用户列表。响应结构与 followers 接口完全一致：data.user.result.timeline.timeline.instructions 中包含 TimelineAddEntries 指令，含用户条目和游标条目。若目标用户没有蓝 V 粉丝，entries 数组中将只有游标条目而无用户条目。翻页时，提取 Bottom 游标的 value 字段作为下一次请求的 cursor 参数。每个用户条目的用户对象位于 content.itemContent.user_results.result，返回结果中所有用户的 is_blue_verified 均为 true。完全透传推特 GraphQL 原始响应。可选 tabId 和 instanceId 参数用于多标签页/多账号场景。",
+    "curl": "curl \"http://127.0.0.1:10088/api/v1/x/blue_verified_followers?userId=44196397&count=20\"",
+    "curl_pagination": "curl \"http://127.0.0.1:10088/api/v1/x/blue_verified_followers?userId=44196397&count=20&cursor=0%7C2058097849215746046\"",
+    "response": "{\"success\":true,\"data\":{\"data\":{\"user\":{\"result\":{\"__typename\":\"User\",\"timeline\":{\"timeline\":{\"instructions\":[{\"type\":\"TimelineClearCache\"},{\"type\":\"TimelineTerminateTimeline\",\"direction\":\"Top\"},{\"type\":\"TimelineTerminateTimeline\",\"direction\":\"Bottom\"},{\"type\":\"TimelineAddEntries\",\"entries\":[{\"entryId\":\"cursor-bottom-2058097849215746048\",\"content\":{\"entryType\":\"TimelineTimelineCursor\",\"__typename\":\"TimelineTimelineCursor\",\"cursorType\":\"Bottom\",\"value\":\"0|2058097849215746046\"}},{\"entryId\":\"cursor-top-2058097849215746049\",\"content\":{\"entryType\":\"TimelineTimelineCursor\",\"__typename\":\"TimelineTimelineCursor\",\"cursorType\":\"Top\",\"value\":\"-1|2058097849215746049\"}}]}]}}}}}}"
+  },
+  {
     "id": "create_tweet",
     "name": "Create Tweet",
     "name_zh": "发布推文",
