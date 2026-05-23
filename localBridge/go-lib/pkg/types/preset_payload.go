@@ -67,6 +67,27 @@ type QueryUserTweetsRequest struct {
 	Count  int    `json:"count,omitempty"`  // 结果数量，默认 20
 }
 
+type QueryFollowersRequest struct {
+	UserID string `json:"userId"`           // 目标用户 ID（数字字符串，如 "44196397"）
+	TabID  *int   `json:"tabId,omitempty"`
+	Cursor string `json:"cursor,omitempty"` // 翻页游标
+	Count  int    `json:"count,omitempty"`  // 单页数量，默认 20
+}
+
+type QueryFollowingRequest struct {
+	UserID string `json:"userId"`
+	TabID  *int   `json:"tabId,omitempty"`
+	Cursor string `json:"cursor,omitempty"`
+	Count  int    `json:"count,omitempty"`
+}
+
+type QueryBlueVerifiedFollowersRequest struct {
+	UserID string `json:"userId"`
+	TabID  *int   `json:"tabId,omitempty"`
+	Cursor string `json:"cursor,omitempty"`
+	Count  int    `json:"count,omitempty"`
+}
+
 // ===========================================================
 // aiClaw 插件的 Payload 类型
 // ===========================================================

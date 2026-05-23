@@ -71,6 +71,27 @@ interface QueryUserTweetsPayload {
     tabId?: number;
 }
 
+interface QueryFollowersPayload {
+    userId: string;
+    cursor?: string;
+    count?: number;
+    tabId?: number;
+}
+
+interface QueryFollowingPayload {
+    userId: string;
+    cursor?: string;
+    count?: number;
+    tabId?: number;
+}
+
+interface QueryBlueVerifiedFollowersPayload {
+    userId: string;
+    cursor?: string;
+    count?: number;
+    tabId?: number;
+}
+
 const backgroundSessionStore = new BackgroundSessionStore();
 
 
@@ -104,6 +125,9 @@ localBridge.queryTweetDetailHandler = queryTweetDetail;
 localBridge.queryUserProfileHandler = queryUserProfile;
 localBridge.querySearchTimelineHandler = querySearchTimeline;
 localBridge.queryUserTweetsHandler = queryUserTweets;
+localBridge.queryFollowersHandler = queryFollowers;
+localBridge.queryFollowingHandler = queryFollowing;
+localBridge.queryBlueVerifiedFollowersHandler = queryBlueVerifiedFollowers;
 
 // Initialize Background Task Coordinator
 let taskCoordinator: BackgroundTaskCoordinator | null = null;
@@ -954,6 +978,81 @@ export async function queryUserTweets(payload: QueryUserTweetsPayload): Promise<
     });
 
     // 直接返回推特原始 GraphQL 响应
+    return result;
+}
+
+/**
+ * 查询粉丝列表（关注我的） - 返回推特原始 GraphQL 响应
+ */
+export async function queryFollowers(payload: QueryFollowersPayload): Promise<TwitterResponse> {
+    const { userId, cursor, count, tabId } = payload;
+    if (!userId) throw new Error('userId is required');
+
+    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
+    let targetTabId: number | undefined = tabId;
+    if (!targetTabId) {
+        const activeTab = xTabs.find(t => t.active) || xTabs[0];
+        targetTabId = activeTab?.id;
+    }
+    if (!targetTabId) throw new Error('No x.com tab found');
+
+    const result = await chrome.tabs.sendMessage(targetTabId, {
+        type: 'FETCH_FOLLOWERS_PAGE',
+        userId,
+        cursor,
+        count: count || 20
+    });
+
+    return result;
+}
+
+/**
+ * 查询我关注的用户列表 - 返回推特原始 GraphQL 响应
+ */
+export async function queryFollowing(payload: QueryFollowingPayload): Promise<TwitterResponse> {
+    const { userId, cursor, count, tabId } = payload;
+    if (!userId) throw new Error('userId is required');
+
+    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
+    let targetTabId: number | undefined = tabId;
+    if (!targetTabId) {
+        const activeTab = xTabs.find(t => t.active) || xTabs[0];
+        targetTabId = activeTab?.id;
+    }
+    if (!targetTabId) throw new Error('No x.com tab found');
+
+    const result = await chrome.tabs.sendMessage(targetTabId, {
+        type: 'FETCH_FOLLOWING_PAGE',
+        userId,
+        cursor,
+        count: count || 20
+    });
+
+    return result;
+}
+
+/**
+ * 查询关注我的蓝 V 用户列表 - 返回推特原始 GraphQL 响应
+ */
+export async function queryBlueVerifiedFollowers(payload: QueryBlueVerifiedFollowersPayload): Promise<TwitterResponse> {
+    const { userId, cursor, count, tabId } = payload;
+    if (!userId) throw new Error('userId is required');
+
+    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
+    let targetTabId: number | undefined = tabId;
+    if (!targetTabId) {
+        const activeTab = xTabs.find(t => t.active) || xTabs[0];
+        targetTabId = activeTab?.id;
+    }
+    if (!targetTabId) throw new Error('No x.com tab found');
+
+    const result = await chrome.tabs.sendMessage(targetTabId, {
+        type: 'FETCH_BLUE_VERIFIED_FOLLOWERS_PAGE',
+        userId,
+        cursor,
+        count: count || 20
+    });
+
     return result;
 }
 

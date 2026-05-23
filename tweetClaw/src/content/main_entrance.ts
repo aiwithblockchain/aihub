@@ -584,6 +584,63 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
+    if (message.type === 'FETCH_FOLLOWERS_PAGE') {
+        (async () => {
+            try {
+                const variables: any = {
+                    userId: message.userId,
+                    count: message.count || 20,
+                    includePromotedContent: false,
+                    withGrokTranslatedBio: false,
+                };
+                if (message.cursor) variables.cursor = message.cursor;
+                const data = await performQuery('Followers', variables);
+                sendResponse({ success: true, data });
+            } catch (e: any) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    if (message.type === 'FETCH_FOLLOWING_PAGE') {
+        (async () => {
+            try {
+                const variables: any = {
+                    userId: message.userId,
+                    count: message.count || 20,
+                    includePromotedContent: false,
+                    withGrokTranslatedBio: false,
+                };
+                if (message.cursor) variables.cursor = message.cursor;
+                const data = await performQuery('Following', variables);
+                sendResponse({ success: true, data });
+            } catch (e: any) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    if (message.type === 'FETCH_BLUE_VERIFIED_FOLLOWERS_PAGE') {
+        (async () => {
+            try {
+                const variables: any = {
+                    userId: message.userId,
+                    count: message.count || 20,
+                    includePromotedContent: false,
+                    withGrokTranslatedBio: false,
+                };
+                if (message.cursor) variables.cursor = message.cursor;
+                const data = await performQuery('BlueVerifiedFollowers', variables);
+                sendResponse({ success: true, data });
+            } catch (e: any) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
     return false;
 });
 

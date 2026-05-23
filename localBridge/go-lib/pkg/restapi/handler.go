@@ -55,6 +55,9 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/x/unbookmarks", func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "unbookmark") })
 	mux.HandleFunc("/api/v1/x/follows", func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "follow") })
 	mux.HandleFunc("/api/v1/x/unfollows", func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "unfollow") })
+	mux.HandleFunc("/api/v1/x/followers", h.followers)
+	mux.HandleFunc("/api/v1/x/following", h.following)
+	mux.HandleFunc("/api/v1/x/blue_verified_followers", h.blueVerifiedFollowers)
 	mux.HandleFunc("/api/v1/x/replies", func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "reply_tweet") })
 	mux.HandleFunc("/api/v1/x/mytweets", func(w http.ResponseWriter, r *http.Request) { h.execAction(w, r, "delete_tweet") })
 	mux.HandleFunc("/tweetclaw/open-tab", h.openTab)
@@ -397,6 +400,78 @@ func (h *Handler) userTweets(w http.ResponseWriter, r *http.Request) {
 
 	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_user_tweets", "tweetClaw",
 		types.QueryUserTweetsRequest{
+			UserID: userID,
+			TabID:  parseTabID(r),
+			Cursor: cursor,
+			Count:  count,
+		}), 8000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) followers(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("userId")
+	if userID == "" {
+		jsonErr(w, 400, "userId is required")
+		return
+	}
+	cursor := r.URL.Query().Get("cursor")
+	count := 20
+	if c := r.URL.Query().Get("count"); c != "" {
+		if n, err := strconv.Atoi(c); err == nil && n > 0 {
+			count = n
+		}
+	}
+	id := newID("http_followers")
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_followers", "tweetClaw",
+		types.QueryFollowersRequest{
+			UserID: userID,
+			TabID:  parseTabID(r),
+			Cursor: cursor,
+			Count:  count,
+		}), 8000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) following(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("userId")
+	if userID == "" {
+		jsonErr(w, 400, "userId is required")
+		return
+	}
+	cursor := r.URL.Query().Get("cursor")
+	count := 20
+	if c := r.URL.Query().Get("count"); c != "" {
+		if n, err := strconv.Atoi(c); err == nil && n > 0 {
+			count = n
+		}
+	}
+	id := newID("http_following")
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_following", "tweetClaw",
+		types.QueryFollowingRequest{
+			UserID: userID,
+			TabID:  parseTabID(r),
+			Cursor: cursor,
+			Count:  count,
+		}), 8000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) blueVerifiedFollowers(w http.ResponseWriter, r *http.Request) {
+	userID := r.URL.Query().Get("userId")
+	if userID == "" {
+		jsonErr(w, 400, "userId is required")
+		return
+	}
+	cursor := r.URL.Query().Get("cursor")
+	count := 20
+	if c := r.URL.Query().Get("count"); c != "" {
+		if n, err := strconv.Atoi(c); err == nil && n > 0 {
+			count = n
+		}
+	}
+	id := newID("http_blue_verified_followers")
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_blue_verified_followers", "tweetClaw",
+		types.QueryBlueVerifiedFollowersRequest{
 			UserID: userID,
 			TabID:  parseTabID(r),
 			Cursor: cursor,

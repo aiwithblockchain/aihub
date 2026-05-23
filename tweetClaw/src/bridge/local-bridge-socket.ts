@@ -81,6 +81,9 @@ export class LocalBridgeSocket {
   public queryUserProfileHandler: ((payload: any) => Promise<any>) | null = null;
   public querySearchTimelineHandler: ((payload: any) => Promise<any>) | null = null;
   public queryUserTweetsHandler: ((payload: any) => Promise<any>) | null = null;
+  public queryFollowersHandler: ((payload: any) => Promise<any>) | null = null;
+  public queryFollowingHandler: ((payload: any) => Promise<any>) | null = null;
+  public queryBlueVerifiedFollowersHandler: ((payload: any) => Promise<any>) | null = null;
   public startTaskHandler: ((payload: any) => Promise<any>) | null = null;
   public cancelTaskHandler: ((payload: any) => Promise<any>) | null = null;
   
@@ -647,6 +650,15 @@ export class LocalBridgeSocket {
           break;
         case MESSAGE_TYPES.REQUEST_QUERY_USER_TWEETS:
           this.handleGenericQuery(msg, this.queryUserTweetsHandler, MESSAGE_TYPES.RESPONSE_QUERY_USER_TWEETS);
+          break;
+        case MESSAGE_TYPES.REQUEST_QUERY_FOLLOWERS:
+          this.handleGenericQuery(msg, this.queryFollowersHandler, MESSAGE_TYPES.RESPONSE_QUERY_FOLLOWERS);
+          break;
+        case MESSAGE_TYPES.REQUEST_QUERY_FOLLOWING:
+          this.handleGenericQuery(msg, this.queryFollowingHandler, MESSAGE_TYPES.RESPONSE_QUERY_FOLLOWING);
+          break;
+        case MESSAGE_TYPES.REQUEST_QUERY_BLUE_VERIFIED_FOLLOWERS:
+          this.handleGenericQuery(msg, this.queryBlueVerifiedFollowersHandler, MESSAGE_TYPES.RESPONSE_QUERY_BLUE_VERIFIED_FOLLOWERS);
           break;
         case MESSAGE_TYPES.REQUEST_START_TASK:
           if (this.startTaskHandler) this.startTaskHandler(msg.payload);

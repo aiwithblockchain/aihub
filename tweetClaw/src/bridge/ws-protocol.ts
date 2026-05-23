@@ -43,6 +43,12 @@ export type MessageType =
   | 'response.query_search_timeline'
   | 'request.query_user_tweets'
   | 'response.query_user_tweets'
+  | 'request.query_followers'
+  | 'response.query_followers'
+  | 'request.query_following'
+  | 'response.query_following'
+  | 'request.query_blue_verified_followers'
+  | 'response.query_blue_verified_followers'
   | 'request.start_task'
   | 'request.cancel_task'
   | 'event.task_progress'
@@ -92,6 +98,12 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_QUERY_SEARCH_TIMELINE: 'response.query_search_timeline',
   REQUEST_QUERY_USER_TWEETS: 'request.query_user_tweets',
   RESPONSE_QUERY_USER_TWEETS: 'response.query_user_tweets',
+  REQUEST_QUERY_FOLLOWERS: 'request.query_followers',
+  RESPONSE_QUERY_FOLLOWERS: 'response.query_followers',
+  REQUEST_QUERY_FOLLOWING: 'request.query_following',
+  RESPONSE_QUERY_FOLLOWING: 'response.query_following',
+  REQUEST_QUERY_BLUE_VERIFIED_FOLLOWERS: 'request.query_blue_verified_followers',
+  RESPONSE_QUERY_BLUE_VERIFIED_FOLLOWERS: 'response.query_blue_verified_followers',
   REQUEST_START_TASK: 'request.start_task',
   REQUEST_CANCEL_TASK: 'request.cancel_task',
   EVENT_TASK_PROGRESS: 'event.task_progress',
@@ -239,6 +251,27 @@ export interface QueryUserTweetsRequestPayload {
   tabId?: number;
   cursor?: string;  // 翻页游标
   count?: number;   // 结果数量（默认 20）
+}
+
+export interface QueryFollowersRequestPayload {
+  userId: string;   // 目标用户 ID（数字字符串，如 "44196397"）
+  tabId?: number;
+  cursor?: string;  // 翻页游标
+  count?: number;   // 单页数量（默认 20）
+}
+
+export interface QueryFollowingRequestPayload {
+  userId: string;
+  tabId?: number;
+  cursor?: string;
+  count?: number;
+}
+
+export interface QueryBlueVerifiedFollowersRequestPayload {
+  userId: string;
+  tabId?: number;
+  cursor?: string;
+  count?: number;
 }
 // HomeTimeline 不需要额外参数，使用 any 或 EmptyPayload (如果定义了)
 
