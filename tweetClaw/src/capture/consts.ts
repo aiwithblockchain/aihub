@@ -50,7 +50,7 @@ export const defaultQueryKeyMap: Record<string, string> = {
     'DeleteBookmark': 'Wlmlj2-xzyS1GN3a6cj-mQ',
     'Following': 'SaWqzw0TFAWMx1nXWjXoaQ',
     'Followers': 'i6PPdIMm1MO7CpAqjau7sw',
-    'BlueVerifiedFollowers': 'NpilnLAjnXV-kEHbBFzQlg',  // 初始值，首次触发后由收割机制自动更新
+    'BlueVerifiedFollowers': 'SiNwkvA4H83bdh9Fwf8PsA',  // 初始值，首次触发后由收割机制自动更新
     'FavoriteTweet': 'lI07N6Otwv1PhnEgXILM7A',
     'UnfavoriteTweet': 'ZYKSe-w7KEslx3JhSIk5LA',
     'CreateRetweet': 'mbRO74GrOvSfRcJnlMapnQ',
