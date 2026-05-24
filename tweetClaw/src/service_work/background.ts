@@ -114,7 +114,7 @@ localBridge.queryXhsHomefeedHandler = queryXhsHomefeed;
 localBridge.queryXhsFeedHandler = queryXhsFeed;
 localBridge.queryXhsSearchHandler = queryXhsSearch;
 localBridge.queryXhsUserNotesHandler = queryXhsUserNotes;
-// localBridge.xhsPublishNoteHandler 待实现，见 docs/XHS_DEVELOPMENT_PLAN.md Step 7
+localBridge.xhsPublishImageNoteHandler = publishXhsImageNote;
 localBridge.openTabHandler = openXTab;
 localBridge.closeTabHandler = closeXTab;
 localBridge.navigateTabHandler = navigateXTab;
@@ -603,6 +603,68 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     cursor: message.cursor || '',
                 });
                 sendResponse({ success: true, data });
+            } catch (e: any) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    if (message.type === 'XHS_PUBLISH_IMAGE_NOTE') {
+        (async () => {
+            try {
+                const data = await publishXhsImageNote({
+                    title: message.title || '',
+                    desc: message.desc || '',
+                    images: message.images || [],
+                    privacy_type: message.privacy_type ?? 0,
+                    topics: message.topics || [],
+                });
+                sendResponse({ success: true, data });
+            } catch (e: any) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    // x-rap-param 跨 tab 转发：creator tab 请求 → background → www tab 计算 → 返回
+    if (message.type === 'XHS_GET_RAP_PARAM') {
+        (async () => {
+            try {
+                const wwwTabs = await chrome.tabs.query({ url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*'] });
+                if (!wwwTabs.length || !wwwTabs[0].id) {
+                    sendResponse({ success: false, error: 'No www.xiaohongshu.com tab found' });
+                    return;
+                }
+                const resp: any = await chrome.tabs.sendMessage(wwwTabs[0].id, {
+                    type: 'XHS_CALC_RAP_PARAM',
+                    apiPath: message.apiPath,
+                    body: message.body,
+                });
+                sendResponse(resp);
+            } catch (e: any) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    // x-s/x-t/x-s-common 跨 tab 转发：creator tab 请求 → background → www tab 计算 → 返回
+    if (message.type === 'XHS_GET_SIGN') {
+        (async () => {
+            try {
+                const wwwTabs = await chrome.tabs.query({ url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*'] });
+                if (!wwwTabs.length || !wwwTabs[0].id) {
+                    sendResponse({ success: false, error: 'No www.xiaohongshu.com tab found' });
+                    return;
+                }
+                const resp: any = await chrome.tabs.sendMessage(wwwTabs[0].id, {
+                    type: 'XHS_CALC_SIGN',
+                    apiPath: message.apiPath,
+                    body: message.body,
+                });
+                sendResponse(resp);
             } catch (e: any) {
                 sendResponse({ success: false, error: e.message });
             }
@@ -1217,5 +1279,102 @@ export async function queryXhsUserNotes(payload: { user_id?: string; cursor?: st
     return result.data;
 }
 
-// publishXhsNote 待实现：需抓包验证 creator 接口后重新添加
-// 见开发计划 docs/XHS_DEVELOPMENT_PLAN.md Step 6 & 7
+/** 找到或打开 creator.xiaohongshu.com 标签页，等待签名链路就绪后返回 tabId */
+async function getOrOpenCreatorTab(): Promise<number> {
+    const CREATOR_URL = 'https://creator.xiaohongshu.com/publish/publish?source=official&from=menu&target=image';
+
+    // 1. 优先找已有的 creator 标签页
+    const creatorTabs = await chrome.tabs.query({ url: '*://creator.xiaohongshu.com/*' });
+    let tab = creatorTabs[0] || null;
+
+    if (!tab) {
+        console.log('[TweetClaw-BG] No creator tab found, opening one...');
+        tab = await chrome.tabs.create({ url: CREATOR_URL, active: false });
+    }
+
+    const tabId = tab.id!;
+
+    // 2. 轮询等待签名链路就绪（_webmsxyw 可用）
+    //    分两阶段：先等 content script PING 通，再等 XHS_SIGN_TEST 成功
+    //    creator 页面加载较慢，给 30s
+    const MAX_WAIT_MS = 30000;
+    const POLL_MS = 800;
+    const deadline = Date.now() + MAX_WAIT_MS;
+
+    let pingOk = false;
+    while (Date.now() < deadline) {
+        await new Promise(r => setTimeout(r, POLL_MS));
+
+        // 阶段一：content script 响应 PING
+        if (!pingOk) {
+            try {
+                const pong: any = await chrome.tabs.sendMessage(tabId, { type: 'XHS_PING' });
+                if (pong?.ok) {
+                    pingOk = true;
+                    console.log(`[TweetClaw-BG] creator tab content script ready: tabId=${tabId}`);
+                }
+            } catch {
+                continue; // content script 还没注入
+            }
+        }
+
+        // 阶段二：签名函数 _webmsxyw 就绪（通过 SIGN_TEST 验证）
+        if (pingOk) {
+            try {
+                const signResult: any = await chrome.tabs.sendMessage(tabId, {
+                    type: 'XHS_SIGN_TEST',
+                    url: '/api/sns/web/v2/user/me',
+                    data: '',
+                });
+                if (signResult?.success && signResult?.data?.['x-s'] && signResult?.data?.['x-s-common']) {
+                    console.log(`[TweetClaw-BG] creator tab sign+x-s-common ready: tabId=${tabId}`);
+                    return tabId;
+                }
+                const missing = !signResult?.success ? 'sign failed' : (!signResult?.data?.['x-s'] ? 'x-s missing' : 'x-s-common missing');
+                console.log(`[TweetClaw-BG] creator tab not ready (${missing}), retrying...`);
+            } catch {
+                // 继续等
+            }
+        }
+    }
+
+    throw new Error('creator.xiaohongshu.com tab sign function not ready within 30s');
+}
+
+export async function publishXhsImageNote(payload: {
+    title?: string;
+    desc?: string;
+    images?: Array<{ base64: string; mimeType?: string }>;
+    privacy_type?: number;
+    topics?: string[];
+} = {}) {
+    console.log('[TweetClaw-BG] publishXhsImageNote called', {
+        title: payload.title,
+        imageCount: payload.images?.length,
+    });
+
+    if (!payload.images || payload.images.length === 0) {
+        throw new Error('images array is required');
+    }
+
+    // 发布流程必须从 creator.xiaohongshu.com 发出（origin 正确）
+    // x-rap-param 通过 background 转发给 www.xiaohongshu.com tab 计算
+    const tabId = await getOrOpenCreatorTab();
+
+    const result: any = await chrome.tabs.sendMessage(tabId, {
+        type: 'XHS_PUBLISH_IMAGE_NOTE',
+        title: payload.title || '',
+        desc: payload.desc || '',
+        images: payload.images,
+        privacy_type: payload.privacy_type ?? 0,
+        topics: payload.topics || [],
+    }).catch((e: any) => {
+        throw new Error(`Failed to communicate with content script: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to publish image note to Xiaohongshu');
+    }
+
+    return result.data;
+}

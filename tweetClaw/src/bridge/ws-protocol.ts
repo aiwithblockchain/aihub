@@ -21,7 +21,8 @@ export type MessageType =
   | 'response.query_xhs_search'
   | 'command.query_xhs_user_notes'
   | 'response.query_xhs_user_notes'
-  // command.xhs_publish_note 待实现，见 docs/XHS_DEVELOPMENT_PLAN.md Step 7
+  | 'command.xhs_publish_image_note'
+  | 'response.xhs_publish_image_note'
   | 'command.query_x_basic_info'
   | 'request.open_tab'
   | 'response.open_tab'
@@ -76,7 +77,8 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_QUERY_XHS_SEARCH: 'response.query_xhs_search',
   COMMAND_QUERY_XHS_USER_NOTES: 'command.query_xhs_user_notes',
   RESPONSE_QUERY_XHS_USER_NOTES: 'response.query_xhs_user_notes',
-  // COMMAND_XHS_PUBLISH_NOTE / RESPONSE_XHS_PUBLISH_NOTE 待实现，见 docs/XHS_DEVELOPMENT_PLAN.md Step 7
+  COMMAND_XHS_PUBLISH_IMAGE_NOTE: 'command.xhs_publish_image_note',
+  RESPONSE_XHS_PUBLISH_IMAGE_NOTE: 'response.xhs_publish_image_note',
   COMMAND_QUERY_X_BASIC_INFO: 'command.query_x_basic_info',
   REQUEST_OPEN_TAB: 'request.open_tab',
   RESPONSE_OPEN_TAB: 'response.open_tab',
