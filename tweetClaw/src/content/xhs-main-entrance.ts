@@ -48,7 +48,6 @@ interface PendingCallback {
 
 const pendingSigns    = new Map<string, PendingCallback>();
 const pendingRap      = new Map<string, PendingCallback>();
-const pendingXhr      = new Map<string, PendingCallback>();
 const pendingHealth   = new Map<string, PendingCallback>();
 
 // 统一监听来自 inject script 的所有响应
@@ -80,18 +79,6 @@ window.addEventListener('message', (event) => {
     } else {
       console.error(`${TAG} RAP failed: ${msg.error}`);
       pending.reject(new Error(msg.error || 'RAP failed'));
-    }
-  }
-
-  if (msg.type === 'XHS_XHR_RESPONSE') {
-    const pending = pendingXhr.get(msg.msgId);
-    if (!pending) return;
-    pendingXhr.delete(msg.msgId);
-    clearTimeout(pending.timer);
-    if (msg.error) {
-      pending.reject(new Error(msg.error));
-    } else {
-      pending.resolve({ status: msg.status, responseText: msg.responseText });
     }
   }
 
@@ -172,32 +159,26 @@ function requestSignHealth(): Promise<{
   });
 }
 
-/**
- * 通过 inject script（页面 context）发 XHR，让 creator 反垃圾 SDK 自动注入 XYS_ 格式签名
- */
-function requestXhrProxy(
-  url: string,
-  method: string,
-  headers: Record<string, string>,
-  body: string,
-): Promise<{ status: number; responseText: string }> {
-  return new Promise((resolve, reject) => {
-    const msgId = `xhr-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-
-    const timer = setTimeout(() => {
-      pendingXhr.delete(msgId);
-      reject(new Error('XHR proxy timed out (30s)'));
-    }, 30000);
-
-    pendingXhr.set(msgId, { resolve, reject, timer });
-
-    window.postMessage({ type: 'XHS_XHR_REQUEST', msgId, url, method, headers, body }, '*');
-  });
-}
 
 // ── 带签名的 API 请求 ────────────────────────────────────────────────────────
 
 const EDITH = 'https://edith.xiaohongshu.com';
+
+/** 生成 x-b3-traceid：16 位随机十六进制（与 Spider_XHS generate_x_b3_traceid 一致） */
+function genB3TraceId(): string {
+  const chars = 'abcdef0123456789';
+  let id = '';
+  for (let i = 0; i < 16; i++) id += chars[Math.floor(16 * Math.random())];
+  return id;
+}
+
+/** 生成 x-xray-traceid：32 位随机十六进制 */
+function genXrayTraceId(): string {
+  const chars = 'abcdef0123456789';
+  let id = '';
+  for (let i = 0; i < 32; i++) id += chars[Math.floor(16 * Math.random())];
+  return id;
+}
 
 async function signedFetch(apiPath: string, method: 'GET' | 'POST', body?: string, extraHeaders?: Record<string, string>): Promise<any> {
   const bodyStr = body || '';
@@ -211,6 +192,8 @@ async function signedFetch(apiPath: string, method: 'GET' | 'POST', body?: strin
     'referer': 'https://www.xiaohongshu.com/',
     'x-s': signHeaders['x-s'],
     'x-t': signHeaders['x-t'],
+    'x-b3-traceid': genB3TraceId(),
+    'x-xray-traceid': genXrayTraceId(),
   };
 
   // x-s-common 是必需的
@@ -223,7 +206,7 @@ async function signedFetch(apiPath: string, method: 'GET' | 'POST', body?: strin
     headers['content-type'] = 'application/json;charset=UTF-8';
   }
 
-  // 合并额外请求头（如 x-rap-param）
+  // 合并额外请求头
   if (extraHeaders) {
     Object.assign(headers, extraHeaders);
   }
@@ -262,26 +245,45 @@ async function signedFetch(apiPath: string, method: 'GET' | 'POST', body?: strin
 async function signedXhrFetch(apiPath: string, method: 'GET' | 'POST', body?: string): Promise<any> {
   const bodyStr = body || '';
 
-  // 1. 请求签名
-  const signHeaders = await requestSign(apiPath, bodyStr);
+  // 1. 并行：签名 + 生成 x-rap-param（发布笔记同款流程，显式生成而非依赖 Sanji 自动注入）
+  const [signHeaders, xRapParam] = await Promise.all([
+    requestSign(apiPath, bodyStr),
+    requestRapParam(apiPath, bodyStr).catch((e: any) => {
+      console.warn(`${TAG} x-rap-param failed (non-fatal): ${e.message}`);
+      return '';
+    }),
+  ]);
 
-  // 2. 组装请求头
+  // 2. 组装请求头（对齐 Spider_XHS get_request_headers_template）
   const headers: Record<string, string> = {
     'accept': 'application/json, text/plain, */*',
     'content-type': method === 'POST' ? 'application/json;charset=UTF-8' : 'application/json',
+    'origin': 'https://www.xiaohongshu.com',
+    'referer': 'https://www.xiaohongshu.com/',
+    'x-mns': 'unload',
     'x-s': signHeaders['x-s'],
     'x-t': signHeaders['x-t'],
+    'x-b3-traceid': genB3TraceId(),
+    'x-xray-traceid': genXrayTraceId(),
   };
   if (signHeaders['x-s-common']) headers['x-s-common'] = signHeaders['x-s-common'];
+  if (xRapParam) headers['x-rap-param'] = xRapParam;
 
-  // 3. 通过 XHR proxy 发请求，Sanji SDK 会自动注入 x-rap-param
+  // 3. 用普通 fetch 发请求（x-rap-param 已显式附加，无需 XHR proxy）
   const url = `${EDITH}${apiPath}`;
-  const { status, responseText } = await requestXhrProxy(url, method, headers, bodyStr);
+  const fetchOptions: RequestInit = {
+    method,
+    headers,
+    credentials: 'include',
+  };
+  if (method === 'POST' && bodyStr) fetchOptions.body = bodyStr;
 
-  if (status !== 200) {
-    throw new Error(`API ${status}: ${responseText.slice(0, 200)}`);
+  const response = await fetch(url, fetchOptions);
+  if (!response.ok) {
+    const text = await response.text();
+    throw new Error(`API ${response.status}: ${text.slice(0, 200)}`);
   }
-  return JSON.parse(responseText);
+  return response.json();
 }
 
 // ── Creator 端带签名的 API 请求（origin 为 creator.xiaohongshu.com）───────────
@@ -635,9 +637,19 @@ async function fetchFeed(noteId: string, xsecToken: string = '', xsecSource: str
 }
 
 async function searchNotes(keyword: string, cursor: string = '', pageSize: number = 20): Promise<any> {
-  const timestamp = Date.now();
-  const random = Math.ceil(0x7ffffffe * Math.random());
-  const searchId = timestamp.toString(36) + random.toString(36);
+  // 与 Spider_XHS generate_search_id 完全一致：
+  // _int_to_base36((timestamp_ms << 64) + random_part)
+  // JS 用 BigInt 实现真正的 64 位左移
+  const timestampMs = BigInt(Date.now());
+  const randomPart = BigInt(Math.ceil(0x7ffffffe * Math.random()));
+  const searchIdInt = (timestampMs << 64n) + randomPart;
+  const chars = '0123456789abcdefghijklmnopqrstuvwxyz';
+  let searchId = '';
+  let n = searchIdInt;
+  while (n > 0n) {
+    searchId = chars[Number(n % 36n)] + searchId;
+    n = n / 36n;
+  }
 
   const body: any = {
     keyword,
@@ -647,13 +659,6 @@ async function searchNotes(keyword: string, cursor: string = '', pageSize: numbe
     sort: 'general',
     note_type: 0,
     ext_flags: [],
-    filters: [
-      { tags: ['general'], type: 'sort_type' },
-      { tags: ['不限'], type: 'filter_note_type' },
-      { tags: ['不限'], type: 'filter_note_time' },
-      { tags: ['不限'], type: 'filter_note_range' },
-      { tags: ['不限'], type: 'filter_pos_distance' }
-    ],
     geo: '',
     image_formats: ['jpg', 'webp', 'avif'],
   };

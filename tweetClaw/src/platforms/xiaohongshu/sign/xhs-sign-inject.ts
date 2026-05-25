@@ -255,12 +255,13 @@ async function handleSignRequest(event: MessageEvent) {
     let xs: string;
     let xt: number;
 
-    // 优先用 window.mnsv2 生成 XYS_ 格式签名（creator 页面）
+    // 优先用 window.mnsv2 生成 XYS_ 格式签名
+    // www 和 creator 页面现在都用 XYS_ 格式（经真实请求验证）
     if (typeof (window as any).mnsv2 === 'function') {
       xs = signWithMnsv2(url, data || '');
       xt = Date.now();
     } else {
-      // 回退到 _webmsxyw（www 页面）
+      // 回退到 _webmsxyw（旧版页面）
       if (!signReady) await signFnReady;
       const signFn = (window as any)._webmsxyw;
       if (typeof signFn !== 'function') throw new Error('Neither mnsv2 nor _webmsxyw found on window.');
@@ -602,18 +603,16 @@ async function handleRapRequest(event: MessageEvent) {
 
 function handleXhrRequest(event: MessageEvent) {
   const { msgId, url, method, headers, body } = event.data;
-  // 使用页面原生 XHR（已被 SDK hook）
+  // 使用页面原生 XHR（Sanji SDK 会自动注入 x-rap-param）
   const xhr = new (window as any).XMLHttpRequest();
   xhr.open(method || 'POST', url, true);
   xhr.withCredentials = true;
 
-  // 只设置非签名 headers，x-s/x-t/x-s-common 由 SDK 自动注入
+  // 设置所有 headers（包括 x-s/x-t/x-s-common）
+  // 注意：creator 页面的反垃圾 SDK 会覆盖 x-s，但 www 页面不会，所以必须显式传入
   if (headers && typeof headers === 'object') {
     for (const key of Object.keys(headers)) {
-      const lk = key.toLowerCase();
-      if (lk !== 'x-s' && lk !== 'x-t' && lk !== 'x-s-common') {
-        try { xhr.setRequestHeader(key, (headers as any)[key]); } catch (_) {}
-      }
+      try { xhr.setRequestHeader(key, (headers as any)[key]); } catch (_) {}
     }
   }
 
