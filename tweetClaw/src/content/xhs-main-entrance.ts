@@ -63,10 +63,9 @@ window.addEventListener('message', (event) => {
     pendingSigns.delete(msg.msgId);
     clearTimeout(pending.timer);
     if (msg.success && msg.result) {
-      console.log(`${TAG} Sign response received: msgId=${msg.msgId}`);
       pending.resolve(msg.result);
     } else {
-      console.error(`${TAG} Sign failed: msgId=${msg.msgId}, error=${msg.error}`);
+      console.error(`${TAG} Sign failed: ${msg.error}`);
       pending.reject(new Error(msg.error || 'Sign failed'));
     }
   }
@@ -77,10 +76,9 @@ window.addEventListener('message', (event) => {
     pendingRap.delete(msg.msgId);
     clearTimeout(pending.timer);
     if (msg.success) {
-      console.log(`${TAG} RAP response received: msgId=${msg.msgId}, rapParam=${msg.rapParam ? 'present' : 'empty'}`);
       pending.resolve(msg.rapParam || '');
     } else {
-      console.error(`${TAG} RAP failed: msgId=${msg.msgId}, error=${msg.error}`);
+      console.error(`${TAG} RAP failed: ${msg.error}`);
       pending.reject(new Error(msg.error || 'RAP failed'));
     }
   }
@@ -102,7 +100,7 @@ window.addEventListener('message', (event) => {
     if (!pending) return;
     pendingHealth.delete(msg.msgId);
     clearTimeout(pending.timer);
-    console.log(`${TAG} Health check response received: msgId=${msg.msgId}, ok=${msg.ok}, mnsv2_present=${msg.mnsv2_present}, sign_format_ok=${msg.sign_format_ok}, reason=${msg.reason || 'none'}`);
+    if (!msg.ok) console.warn(`${TAG} Health check failed: ${msg.reason || 'unknown'}`);
     pending.resolve({
       ok: msg.ok,
       mnsv2_present: msg.mnsv2_present,
@@ -521,6 +519,16 @@ async function publishImageNote(params: PublishImageNoteParams): Promise<any> {
   const signHeaders = await requestSign(postApi, bodyStr);
   console.log(`${TAG} Got sign headers: x-s=${signHeaders['x-s']?.slice(0, 15)}...`);
 
+  // 5.5 获取 x-rap-param（RAP SDK 行为签名，写操作必须携带）
+  let xRapParam = '';
+  try {
+    xRapParam = await requestRapParam(postApi, bodyStr);
+    console.log(`${TAG} Got x-rap-param (${xRapParam.length} chars): ${xRapParam.slice(0, 50)}...`);
+  } catch (rapErr: any) {
+    // RAP 目前非强制，失败时只打警告，不中止发布
+    console.warn(`${TAG} x-rap-param request failed (non-fatal): ${rapErr.message}`);
+  }
+
   // 6. 组装请求头
   const hexChars = 'abcdef0123456789';
   const xB3TraceId = Array.from({ length: 16 }, () => hexChars[Math.floor(Math.random() * 16)]).join('');
@@ -536,6 +544,8 @@ async function publishImageNote(params: PublishImageNoteParams): Promise<any> {
     'x-xray-traceid': xXrayTraceId,
   };
   if (signHeaders['x-s-common']) publishHeaders['x-s-common'] = signHeaders['x-s-common'];
+  if (xRapParam) publishHeaders['x-rap-param'] = xRapParam;
+  console.log(`${TAG} Publish headers assembled: x-rap-param=${xRapParam ? 'present' : 'MISSING (RAP not ready)'}`);
 
   // 7. 发布请求
   const publishUrl = `${EDITH}${postApi}`;

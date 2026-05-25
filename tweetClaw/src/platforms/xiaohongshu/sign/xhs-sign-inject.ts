@@ -247,7 +247,6 @@ async function handleSignRequest(event: MessageEvent) {
   if (event.source !== window) return;
 
   const { msgId, url, data } = msg;
-  console.log(`${TAG} Received sign request: msgId=${msgId}, url=${url}, dataLen=${data?.length || 0}`);
 
   try {
     const a1 = getCookieValue('a1');
@@ -260,7 +259,6 @@ async function handleSignRequest(event: MessageEvent) {
     if (typeof (window as any).mnsv2 === 'function') {
       xs = signWithMnsv2(url, data || '');
       xt = Date.now();
-      console.log(`${TAG} Sign via mnsv2 (XYS_): msgId=${msgId}, xs=${xs.slice(0, 15)}...`);
     } else {
       // 回退到 _webmsxyw（www 页面）
       if (!signReady) await signFnReady;
@@ -269,11 +267,9 @@ async function handleSignRequest(event: MessageEvent) {
       const signResult = signFn(url, data, a1);
       xs = signResult['X-s'] || signResult['x-s'] || '';
       xt = signResult['X-t'] || signResult['x-t'] || Date.now();
-      console.log(`${TAG} Sign via _webmsxyw: msgId=${msgId}, xs=${xs.slice(0, 15)}...`);
     }
 
     const xsCommon = calcXsCommon(a1, xs, xt);
-    console.log(`${TAG} calcXsCommon OK: ${xsCommon.slice(0, 50)}...`);
 
     window.postMessage({
       type: 'XHS_SIGN_RESPONSE',
@@ -297,242 +293,150 @@ async function handleSignRequest(event: MessageEvent) {
   }
 }
 
-// ── RAP iframe 沙盒：复用页面已有的 webpack chunk 4630 生成 x-rap-param ──────
+// ── RAP XHR Hook：拦截页面内 RAP SDK 发出的 x-rap-param，无需逆向 webpack 模块 ──
 //
-// 思路与 Twitter txid（x-client-transaction-id）完全一致：
-//   - 算法就在页面已加载的 webpack chunks 里（chunk 4630, module 9116）
-//   - 直接从 self.webpackChunkxhs_pc_web 取出工厂函数，字符串化后写入 iframe
-//   - iframe 里 self/window 是独立的，假 XMLHttpRequest 不污染主页面
-//   - 不需要引入任何外部 bundle 文件
+// 原理：
+//   - RAP SDK（Sanji）在 send() 里同步调用 setRequestHeader('x-rap-param', ...)
+//   - 我们 hook XMLHttpRequest.prototype.setRequestHeader，抓住这个值
+//   - 用 xhr.abort() 取消实际网络请求，只保留捕获的 x-rap-param
+//   - 不依赖任何 webpack module 编号，页面更新后自动兼容
 //
-// 注意：必须用 d.write() 将工厂函数源码写入 iframe 执行，
-//       不能用 factory.call(iframeWindow)，因为函数内部 self 仍指向主页面。
+// 两阶段 hook：
+//   Phase 1（立即执行）：hook 当前 XMLHttpRequest.prototype.setRequestHeader
+//   Phase 2（defineProperty）：RAP SDK 可能替换 window.XMLHttpRequest 构造器，
+//          用 Object.defineProperty 拦截赋值，对新构造器重新 hook
 
-let rapIframe: HTMLIFrameElement | null = null;
-let rapIframeReady: Promise<void> | null = null;
+let _currentXHR: typeof XMLHttpRequest = window.XMLHttpRequest;
+let rapSdkHooked = false;
+let rapReadyResolve: (() => void) | null = null;
+const rapReadyPromise = new Promise<void>(resolve => { rapReadyResolve = resolve; });
 
-function findRapFactory(): string | null {
-  const chunks = (self as any).webpackChunkxhs_pc_web;
-  if (!Array.isArray(chunks)) return null;
-  for (const chunk of chunks) {
-    const modules = chunk[1] as Record<string, Function>;
-    if (modules && typeof modules['9116'] === 'function') {
-      return modules['9116'].toString();
+function applySetHeaderHook(proto: any) {
+  if (!proto || proto.__tc_rap_hooked) return;
+  const orig = proto.setRequestHeader;
+  proto.setRequestHeader = function(name: string, value: string) {
+    if (String(name).toLowerCase() === 'x-rap-param') {
+      (window as any).__capturedRapParam = String(value);
     }
-  }
-  return null;
+    return orig?.apply(this, arguments as any);
+  };
+  proto.__tc_rap_hooked = true;
 }
 
-function initRapIframe(): Promise<void> {
-  if (rapIframeReady) return rapIframeReady;
+// Phase 1: hook 当前原生 XHR prototype
+applySetHeaderHook(XMLHttpRequest.prototype);
 
-  rapIframeReady = new Promise((resolve, reject) => {
-    // 轮询等待 webpackChunkxhs_pc_web 加载完并包含 module 9116
-    // （inject script 在 document_start 运行，此时 chunks 还没加载）
-    let elapsed = 0;
-    const MAX_WAIT = 15000;
-    const INTERVAL = 200;
-
-    const waitForChunks = () => {
-      const factorySource = findRapFactory();
-      if (factorySource) {
-        startIframe(factorySource, resolve, reject);
-        return;
+// Phase 2: 监听 RAP SDK 替换 window.XMLHttpRequest
+try {
+  Object.defineProperty(window, 'XMLHttpRequest', {
+    get() { return _currentXHR; },
+    set(newXHR: typeof XMLHttpRequest) {
+      _currentXHR = newXHR;
+      applySetHeaderHook(newXHR.prototype);
+      if (!rapSdkHooked) {
+        rapSdkHooked = true;
+        console.log(`${TAG} [RAP-Hook] RAP SDK replaced XMLHttpRequest, Phase 2 active`);
+        rapReadyResolve?.();
       }
-      elapsed += INTERVAL;
-      if (elapsed >= MAX_WAIT) {
-        reject(new Error('RAP module 9116 not found after 15s'));
-        return;
-      }
-      setTimeout(waitForChunks, INTERVAL);
-    };
-    waitForChunks();
+    },
+    configurable: true,
   });
-
-  return rapIframeReady;
+} catch (e: any) {
+  console.warn(`${TAG} [RAP-Hook] defineProperty failed:`, e.message);
+  rapSdkHooked = true;
+  rapReadyResolve?.();
 }
 
-function startIframe(factorySource: string, resolve: () => void, reject: (e: Error) => void) {
-    console.log(`${TAG} Found RAP factory (${factorySource.length} chars), setting up iframe...`);
-
-    rapIframe = document.createElement('iframe');
-    rapIframe.style.display = 'none';
-    document.documentElement.appendChild(rapIframe);
-
-    const d = rapIframe.contentDocument!;
-    d.open();
-    // 把工厂函数源码写进 iframe，在 iframe 自己的 self/window 上下文中执行
-    // 这样 RAP 算法里的 self.webpackChunkxhs_pc_web.push 就会绑到 iframe 的 window
-    d.write(`<!DOCTYPE html><html><head></head><body><script>
-(function setupRap() {
-  // 配置：RAP SDK 需要的全局变量
-  window.anti_hp_sign_config = {
-    signIncludesUrl: [
-      { pattern: "web_api/sns/v2/note", mode: "endsWith" },
-      { pattern: "web_api/sns/v5/creator/", mode: "includes" },
-      { pattern: "api/sns/web/v1/homefeed", mode: "endsWith" }
-    ],
-    responseTransformConfigs: []
-  };
-  window.__rap_app_id__ = "creator-platform";
-  window.__INITIAL_STATE__ = { global: {}, user: {}, search: {} };
-  window.__capturedRapParam = null;
-
-  // 假 XMLHttpRequest（供 Sanji 捕获后作为 "原始" XHR）
-  // Sanji 会用 var __XMLHttpRequest = XMLHttpRequest 保存我们的假实现，
-  // 再用自己的版本替换 window.XMLHttpRequest。
-  // Sanji 在 send() 里生成 x-rap-param，然后对内层（假）XHR 调用 setRequestHeader。
-  var FakeXHR = function() {
-    this._headers = {}; this.readyState = 0; this.status = 200;
-    this.responseText = '{"success":true,"data":{"items":[]}}';
-    this.response = this.responseText;
-    this.upload = { addEventListener:function(){}, removeEventListener:function(){} };
-  };
-  FakeXHR.prototype.open = function(m,u){ this._url=u; this.readyState=1; };
-  FakeXHR.prototype.setRequestHeader = function(n,v){
-    this._headers[String(n).toLowerCase()]=String(v);
-    if(String(n).toLowerCase()==='x-rap-param') window.__capturedRapParam=String(v);
-  };
-  FakeXHR.prototype.send = function(){
-    this.readyState=4;
-    if(typeof this.onreadystatechange==='function') this.onreadystatechange();
-    if(typeof this.onload==='function') this.onload();
-  };
-  FakeXHR.prototype.abort = function(){};
-  FakeXHR.prototype.addEventListener = function(t,h){ if(t==='load') this.onload=h; };
-  FakeXHR.prototype.removeEventListener = function(){};
-  FakeXHR.prototype.getResponseHeader = function(){ return null; };
-  FakeXHR.prototype.getAllResponseHeaders = function(){ return ''; };
-  FakeXHR.prototype.overrideMimeType = function(){};
-  window.XMLHttpRequest = FakeXHR;
-
-  // SyncPromise（RAP 内部需要同步执行）
-  function SP(exec){
-    this.value=undefined; this.error=undefined;
-    try{exec(function(v){this.value=v;}.bind(this),function(e){this.error=e;}.bind(this));}catch(e){this.error=e;}
+// 3s 内 RAP SDK 未替换构造器 → Phase 1 足够，直接 ready
+setTimeout(() => {
+  if (!rapSdkHooked) {
+    rapSdkHooked = true;
+    rapReadyResolve?.();
   }
-  SP.prototype.then=function(r,j){try{return this.error?(j?SP.resolve(j(this.error)):this):SP.resolve(r?r(this.value):this.value);}catch(e){return SP.reject(e);}};
-  SP.prototype.catch=function(j){return this.then(null,j);};
-  SP.prototype.finally=function(f){if(f)f();return this;};
-  SP.resolve=function(v){if(v&&typeof v.then==='function'&&!(v instanceof SP)){var o;v.then(function(r){o=r;});return new SP(function(r){r(o);});}return new SP(function(r){r(v);});};
-  SP.reject=function(e){return new SP(function(_,j){j(e);});};
-  SP.all=function(vs){return SP.resolve(vs.map(function(v){return v instanceof SP?v.value:v;}));};
-  window.Promise=SP; Promise=SP;
+}, 3000);
 
-  // 同步 timer（防止异步泄露到真实事件循环）
-  var timerQueue=[];
-  window.setTimeout=function(fn){timerQueue.push(fn);return timerQueue.length;};
-  window.clearTimeout=function(){};
-  window.setInterval=function(fn,ms){timerQueue.push(fn);return timerQueue.length;};
-  window.clearInterval=function(){};
-  setTimeout=window.setTimeout; clearTimeout=window.clearTimeout;
-  window.__flushRapTimers=function(){
-    for(var i=0;i<50&&timerQueue.length;i++){
-      var t=timerQueue.splice(0);
-      for(var j=0;j<t.length;j++){try{t[j]();}catch(e){}}
-    }
-  };
+/**
+ * 生成 x-rap-param：触发 Sanji SDK 异步生成行为签名并等待结果。
+ *
+ * 关键发现（实测）：
+ *   Sanji 用 setTimeout 异步调用 setRequestHeader('x-rap-param', ...)，
+ *   同步读 __capturedRapParam 永远拿到 null。
+ *   abort() 也无法取消 Sanji 内部已经分发的真实 XHR（会拿到 401，但无害）。
+ *
+ * 方案：
+ *   - 对 window.__capturedRapParam 安装一次性 setter（Object.defineProperty）
+ *   - applySetHeaderHook 写入该属性时，setter 立即 resolve
+ *   - 3s 超时兜底（超时返回 null，不阻塞发布流程）
+ */
+async function generateRapParam(apiPath: string, body: string): Promise<string | null> {
+  return new Promise<string | null>((resolve) => {
+    let settled = false;
+    let storedValue: string | null = null;
+    const TIMEOUT_MS = 3000;
 
-  // navigator.userAgentData.getHighEntropyValues 必须返回 SyncPromise
-  // 真实浏览器返回原生 Promise，SP 无法同步 resolve 它，会导致 Sanji 内部拿不到值
-  if(navigator.userAgentData && navigator.userAgentData.getHighEntropyValues){
-    navigator.userAgentData.getHighEntropyValues = function(keys){
-      var values={architecture:"x86",bitness:"64",brands:navigator.userAgentData.brands,fullVersionList:navigator.userAgentData.brands,mobile:false,model:"",platform:"Windows",platformVersion:"15.0.0",uaFullVersion:"131.0.0.0",wow64:false};
-      var requested=Array.isArray(keys)?keys:Object.keys(values);
-      var result={};
-      requested.forEach(function(key){result[key]=values[key];});
-      return SP.resolve(result);
-    };
-  }
-
-  // 其他 Sanji 可能访问的 API mock
-  window.blur=function(){};
-  window.postMessage=function(){};
-  console.debug=function(){};
-  window.requestAnimationFrame=function(cb){timerQueue.push(function(){cb(Date.now());});return timerQueue.length;};
-  window.cancelAnimationFrame=function(){};
-
-  // 执行 RAP 工厂函数（webpack module 9116 的 factory）
-  // factory 是零参数函数，内部 Sanji IIFE 自执行并 hook XMLHttpRequest
-  try {
-    var rapFactory = (${factorySource});
-    rapFactory();
-    window.__flushRapTimers();
-
-    // 工厂执行完毕，Sanji 已经 hook 了 XMLHttpRequest（可能完全替换了它）。
-    // 无论 Sanji 是替换整个构造器还是只扩展 prototype.send，
-    // 都在当前 window.XMLHttpRequest 的 prototype 上再补一道 setRequestHeader 拦截，
-    // 确保 x-rap-param 一定被捕获。
-    var origSetHeader = window.XMLHttpRequest.prototype.setRequestHeader;
-    window.XMLHttpRequest.prototype.setRequestHeader = function(n,v){
-      if(String(n).toLowerCase()==='x-rap-param') window.__capturedRapParam=String(v);
-      if(typeof origSetHeader==='function') origSetHeader.call(this,n,v);
-    };
-
-    window.__rapReady = true;
-    console.log('[RAP-iframe] Sanji initialized, XMLHttpRequest hooked');
-  } catch(e) {
-    console.error('[RAP-iframe] factory error:', e && e.message ? e.message : String(e));
-    window.__rapReady = false;
-  }
-})();
-<\/script></body></html>`);
-    d.close();
-
-    // 轮询直到 iframe 初始化完成
-    let attempts = 0;
-    const check = () => {
-      attempts++;
-      const iw = rapIframe!.contentWindow as any;
-      if (iw && iw.__rapReady === true) {
-        console.log(`${TAG} RAP iframe ready (attempts=${attempts})`);
-        resolve();
-      } else if (iw && iw.__rapReady === false) {
-        reject(new Error('RAP iframe init failed: __rapReady=false'));
-      } else if (attempts > 50) {
-        reject(new Error('RAP iframe timed out'));
-      } else {
-        setTimeout(check, 50);
+    const settle = (value: string | null) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeoutId);
+      // 还原为普通可写属性，供下次调用重新 define
+      try {
+        Object.defineProperty(window, '__capturedRapParam', {
+          value,
+          writable: true,
+          configurable: true,
+          enumerable: true,
+        });
+      } catch (_) {
+        try { (window as any).__capturedRapParam = value; } catch (_2) {}
       }
+      resolve(value);
     };
-    setTimeout(check, 100);
+
+    // 安装一次性 setter：applySetHeaderHook 写 __capturedRapParam 时立即触发
+    try {
+      Object.defineProperty(window, '__capturedRapParam', {
+        get() { return storedValue; },
+        set(v: string | null) {
+          storedValue = v || null;
+          if (v) settle(v);
+        },
+        configurable: true,
+        enumerable: true,
+      });
+    } catch (e: any) {
+      // defineProperty 失败（极少数情况）：退化为超时轮询
+      console.warn(`${TAG} [generateRapParam] defineProperty failed, relying on timeout:`, e.message);
+      try { (window as any).__capturedRapParam = null; } catch (_) {}
+    }
+
+    const timeoutId = setTimeout(() => {
+      if (!storedValue) console.warn(`${TAG} [generateRapParam] ${TIMEOUT_MS}ms timeout, x-rap-param not captured`);
+      settle(storedValue);
+    }, TIMEOUT_MS);
+
+    // 触发 Sanji：send() 之后 Sanji 会在 setTimeout 里生成 x-rap-param
+    // Sanji 内部会再发一次真实 XHR（无有效签名，拿到 401 — 完全无害）
+    try {
+      const url = /^https?:\/\//.test(apiPath)
+        ? apiPath
+        : 'https://edith.xiaohongshu.com' + apiPath;
+      const xhr = new _currentXHR();
+      xhr.open('POST', url, true);
+      try { xhr.setRequestHeader('content-type', 'application/json;charset=UTF-8'); } catch (_) {}
+      xhr.send(body);
+      // 不 abort：Sanji 的真实请求已在 setTimeout 队列里，abort 拦不住
+    } catch (e: any) {
+      console.error(`${TAG} [generateRapParam] XHR send error:`, e.message);
+      clearTimeout(timeoutId);
+      settle(null);
+    }
+  });
 }
-
-// ── 以上为 startIframe 函数体结束 ────────────────────────────────────────────
-
-function generateRapParam(apiPath: string, body: string): string | null {
-  if (!rapIframe?.contentWindow) {
-    console.warn(`${TAG} RAP iframe not available`);
-    return null;
-  }
-  try {
-    const w = rapIframe.contentWindow as any;
-    w.__capturedRapParam = null;
-    w.__rap_app_id__ = 'creator-platform';
-    const url = /^https?:\/\//.test(apiPath)
-      ? apiPath
-      : 'https://edith.xiaohongshu.com' + apiPath;
-    const xhr = new w.XMLHttpRequest();
-    xhr.open('POST', url);
-    xhr.setRequestHeader('content-type', 'application/json;charset=UTF-8');
-    xhr.send(body);
-    w.__flushRapTimers();
-    return w.__capturedRapParam || null;
-  } catch (e: any) {
-    console.error(`${TAG} generateRapParam error:`, e.message);
-    return null;
-  }
-}
-
-// 启动 RAP iframe 初始化（页面加载时立即开始，不阻塞签名流程）
-// 保存 Promise 供 handlePublishRequest 等待
-const rapIframeReadyPromise = initRapIframe();
-rapIframeReadyPromise.catch(e => console.warn(`${TAG} RAP iframe init failed:`, e.message));
 
 // ── RAP 参数请求处理 ─────────────────────────────────────────────────────────
 //
 // content script 请求生成 x-rap-param，inject script 计算后返回值。
-// content script 自己用 fetch 发请求（isolated world，不受主页面 RAP SDK 影响）。
+// 必须等 rapReadyPromise 完成后（RAP SDK 已 hook XHR）才能触发生成。
 
 interface RapRequest {
   type: 'XHS_RAP_REQUEST';
@@ -547,22 +451,58 @@ async function handleRapRequest(event: MessageEvent) {
   if (event.source !== window) return;
 
   const { msgId, apiPath, body } = msg;
-  console.log(`${TAG} Received RAP request: msgId=${msgId}, apiPath=${apiPath}`);
 
   try {
-    await rapIframeReadyPromise;
-    const rapParam = generateRapParam(apiPath, body);
-    if (rapParam) {
-      console.log(`${TAG} x-rap-param generated: ${rapParam.slice(0, 50)}...`);
-    } else {
-      console.warn(`${TAG} x-rap-param generation returned null`);
-    }
+    await rapReadyPromise;
+    const rapParam = await generateRapParam(apiPath, body);
+    if (!rapParam) console.warn(`${TAG} x-rap-param is null for ${apiPath}`);
     window.postMessage({ type: 'XHS_RAP_RESPONSE', msgId, success: true, rapParam: rapParam || '' }, '*');
   } catch (e: any) {
     console.error(`${TAG} RAP error:`, e);
     window.postMessage({ type: 'XHS_RAP_RESPONSE', msgId, success: false, error: e.message }, '*');
   }
 }
+
+// ── window.__xhsRap：Console 测试接口 ────────────────────────────────────────
+//
+// 在 creator.xiaohongshu.com 页面的 DevTools Console 里可以直接调用：
+//
+//   window.__xhsRap.status()     → 查看 RAP hook 状态
+//   window.__xhsRap.test()       → 用默认参数触发一次 RAP 生成，返回 x-rap-param
+//   window.__xhsRap.testNote()   → 用真实发帖 API 路径触发生成
+
+(window as any).__xhsRap = {
+  /** 查看当前 RAP hook 状态 */
+  status() {
+    return {
+      rapSdkHooked,
+      xhrConstructorName: _currentXHR?.name || 'unknown',
+      xhrProtoHooked: !!(_currentXHR?.prototype as any)?.__tc_rap_hooked,
+      lastCaptured: (window as any).__capturedRapParam
+        ? ((window as any).__capturedRapParam as string).slice(0, 80) + '...'
+        : null,
+    };
+  },
+
+  /** 触发一次 RAP 生成，返回 Promise<string|null> */
+  async test(apiPath = '/web_api/sns/v2/note', body = '{"test":1}') {
+    await rapReadyPromise;
+    const result = await generateRapParam(apiPath, body);
+    console.log('[__xhsRap.test] x-rap-param:', result ? result.slice(0, 100) + '...' : 'null');
+    return result;
+  },
+
+  /** 用真实发帖 API 触发生成（更接近实际发布场景） */
+  async testNote(title = 'test', desc = 'hello') {
+    const apiPath = '/web_api/sns/v2/note';
+    const body = JSON.stringify({
+      common: { type: 'normal', title, desc, note_id: '', source: '{"type":"web"}', ats: [], hash_tag: [], post_loc: {}, privacy_info: { op_type: 1, type: 0, user_ids: [] }, goods_info: {}, biz_relations: [], capa_trace_info: {} },
+      image_info: { images: [] },
+      video_info: null,
+    });
+    return (window as any).__xhsRap.test(apiPath, body);
+  },
+};
 
 // ── XHR 代理请求（让页面反垃圾 SDK 自动注入 XYS_ 格式签名）───────────────────
 //
@@ -625,9 +565,8 @@ window.addEventListener('message', (event) => {
 
 function handleHealthCheckRequest(event: MessageEvent) {
   const { msgId } = event.data;
-  console.log(`${TAG} Health check request received: msgId=${msgId}`);
   const result = checkMnsv2Status();
-  console.log(`${TAG} Health check result: ok=${result.ok}, mnsv2_present=${result.mnsv2_present}, sign_format_ok=${result.sign_format_ok}, reason=${result.reason || 'none'}, sample=${result.sample || 'n/a'}`);
+  if (!result.ok) console.warn(`${TAG} Health check: ok=false, reason=${result.reason || 'none'}`);
   window.postMessage({ type: 'XHS_HEALTH_CHECK_RESPONSE', msgId, ...result }, '*');
 }
 
@@ -667,31 +606,19 @@ function checkMnsv2Status(): {
   }
 }
 
-// ── Self-test：等 _webmsxyw 就绪后验证签名+xs_common ─────────────────────────
-
+// Self-test：仅在 _webmsxyw 路径下验证 x-s-common 是否正常
 signFnReady.then(() => {
   const signFn = (window as any)._webmsxyw;
   const a1 = getCookieValue('a1');
-  console.log(`${TAG} Self-test: _webmsxyw=${typeof signFn}, a1=${a1 ? a1.slice(0, 8) + '...' : 'NOT_FOUND'}`);
-
   if (typeof signFn === 'function' && a1) {
     try {
       const result = signFn('/api/sns/web/v2/user/me', '', a1);
       const xs = result['X-s'] || result['x-s'] || '';
       const xt = result['X-t'] || result['x-t'] || '';
-      console.log(`${TAG} Self-test x-s: ${xs.slice(0, 30)}...`);
-      console.log(`${TAG} Self-test x-t: ${xt}`);
-
       const xsCommon = calcXsCommon(a1, xs, xt);
-      if (xsCommon) {
-        console.log(`${TAG} Self-test x-s-common OK: ${xsCommon.slice(0, 50)}...`);
-      } else {
-        console.warn(`${TAG} Self-test x-s-common EMPTY (CryptoJS missing?)`);
-      }
+      if (!xsCommon) console.warn(`${TAG} Self-test: x-s-common is empty (CryptoJS missing?)`);
     } catch (e: any) {
       console.error(`${TAG} Self-test error:`, e.message);
     }
   }
 });
-
-console.log(`${TAG} Inject script loaded, waiting for _webmsxyw...`);

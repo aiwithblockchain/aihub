@@ -1399,15 +1399,36 @@ export async function checkXhsSignHealth(_payload?: any): Promise<{
     const tab = creatorTabs[0] || null;
 
     if (!tab?.id) {
-        console.warn('[TweetClaw-BG] checkXhsSignHealth: no creator tab found');
-        return {
-            ok: false,
-            mnsv2_present: false,
-            sign_format_ok: false,
-            reason: 'no_creator_tab',
-            tab_found: false,
-            checked_at: Date.now(),
-        };
+        console.warn('[TweetClaw-BG] checkXhsSignHealth: no creator tab found, auto-opening one...');
+        try {
+            // 自动打开 creator tab 并等待签名链路就绪（最多 30s）
+            const newTabId = await getOrOpenCreatorTab();
+            console.log(`[TweetClaw-BG] checkXhsSignHealth: auto-opened creator tab tabId=${newTabId}, re-checking health...`);
+
+            // 重新发健康检查消息
+            const retryResult: any = await chrome.tabs.sendMessage(newTabId, {
+                type: 'XHS_CHECK_SIGN_HEALTH',
+            }).catch((e: any) => ({
+                success: false,
+                error: `Content script communication failed after auto-open: ${e?.message}`,
+            }));
+
+            if (!retryResult?.success) {
+                return {
+                    ok: false, mnsv2_present: false, sign_format_ok: false,
+                    reason: retryResult?.error || 'content_script_error_after_auto_open',
+                    tab_found: true, checked_at: Date.now(),
+                };
+            }
+            return { ...retryResult.data, tab_found: true, checked_at: Date.now() };
+        } catch (openErr: any) {
+            console.error(`[TweetClaw-BG] checkXhsSignHealth: auto-open failed: ${openErr.message}`);
+            return {
+                ok: false, mnsv2_present: false, sign_format_ok: false,
+                reason: 'no_creator_tab',
+                tab_found: false, checked_at: Date.now(),
+            };
+        }
     }
 
     console.log(`[TweetClaw-BG] checkXhsSignHealth: found creator tab tabId=${tab.id}, url=${tab.url}`);
