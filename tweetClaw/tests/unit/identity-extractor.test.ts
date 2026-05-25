@@ -28,6 +28,7 @@ describe('Identity Extractor - Viewer Resolution', () => {
                 viewer: {
                     user_results: {
                         result: {
+                            __typename: 'User',
                             rest_id: '101',
                             legacy: { screen_name: 'gql_viewer', name: 'GraphQL User' }
                         }
@@ -104,6 +105,7 @@ describe('Identity Extractor - Viewer Resolution', () => {
                 viewer: {
                     user_results: {
                         result: {
+                            __typename: 'User',
                             rest_id: '101',
                             legacy: { screen_name: 'gql_viewer', name: 'GraphQL User' }
                         }

@@ -4,5 +4,6 @@ export default defineConfig({
     test: {
         environment: 'node', // We don't need full DOM for background scripts
         globals: true,
+        setupFiles: ['./tests/setup/chrome-mock.ts'],
     },
 });
