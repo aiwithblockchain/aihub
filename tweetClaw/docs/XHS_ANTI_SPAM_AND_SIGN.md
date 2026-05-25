@@ -801,6 +801,65 @@ x-t 时效             每次实时生成，无漂移风险        多图上传�
 
 ### ⚠️ 残留风险
 
-1. **RAP 行为数据为空**：x-rap-param 里没有真实鼠标/键盘轨迹，目前小红书校验阈值未卡死，一旦收紧会失败。降级方向：参考 Spider_XHS 提取完整 `xhs_rap.js` 补环境运行作为兜底。
+1. **RAP 行为数据为空**：x-rap-param 里没有真实鼠标/键盘轨迹，目前小红书校验阈值未卡死，一旦收紧会失败。见下方"方案 A"。
 2. **mnsv2 格式变更**：小红书更新签名 JS 时，`format_changed` 会导致请求被拒，需手动跟进。
 3. **多图上传 x-t 漂移**：上传耗时超过 5 分钟时，发布请求的 x-t 可能超出服务端 ±5min 窗口。
+
+---
+
+### 方案 A（待实现）：合成 DOM 事件填充 RAP 行为数据
+
+**背景：**
+
+Spider_XHS 在 Node.js 补环境里运行 Sanji，所有 DOM 事件监听器是 no-op，行为数据永远为空。tweetClaw 的 inject script 运行在真实页面 context 里，Sanji 的事件监听器（`mousemove`、`keydown`、`scroll` 等）已注册在真实的 `window`/`document` 上。这意味着 `dispatchEvent` 发出的合成事件会被 Sanji 的收集器当作真实事件处理——tweetClaw 在这一点上比 Spider_XHS 更有优势。
+
+**实现思路：**
+
+在 `generateRapParam()` 调用 `xhr.send(body)` 之前，向页面注入一段合成行为序列：
+
+```typescript
+// xhs-sign-inject.ts — generateRapParam() 内，xhr.send(body) 之前调用
+injectSyntheticBehavior();
+xhr.send(body);
+```
+
+`injectSyntheticBehavior()` 的内容：
+
+1. **鼠标轨迹**：用 Bézier 曲线生成从随机起点到随机终点的路径，模拟 Fitts's Law（靠近目标时减速）。算法来自 [ghost-cursor](https://github.com/Xetera/ghost-cursor)（1.5k stars），核心路径生成约 100 行纯数学，零外部依赖，可直接移植进 inject script。
+
+```typescript
+// 生成 Bézier 鼠标路径并 dispatch
+const points = bezierMousePath(
+  { x: Math.random() * 800 + 100, y: Math.random() * 400 + 100 },
+  { x: Math.random() * 800 + 100, y: Math.random() * 400 + 100 },
+);
+for (const pt of points) {
+  window.dispatchEvent(new MouseEvent('mousemove', {
+    clientX: pt.x, clientY: pt.y, bubbles: true, cancelable: true,
+  }));
+}
+```
+
+2. **滚动事件**：模拟用户浏览页面时的滚动行为。
+
+```typescript
+window.dispatchEvent(new WheelEvent('wheel', { deltaY: 80 + Math.random() * 120, bubbles: true }));
+```
+
+3. **键盘事件**：模拟轻微的键盘交互（如 Tab 切换焦点）。
+
+```typescript
+window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }));
+window.dispatchEvent(new KeyboardEvent('keyup',   { key: 'Tab', bubbles: true }));
+```
+
+**注意事项：**
+
+- 合成事件的 `isTrusted` 属性为 `false`（浏览器安全限制，无法伪造）。如果 Sanji 检查 `event.isTrusted`，这个方案会失效。需要实测验证。
+- 事件注入应在 `xhr.send()` 之前完成，给 Sanji 的收集器足够时间处理事件队列。
+- 路径随机性要足够，避免每次发布的轨迹完全相同被模式识别。
+
+**参考项目：**
+
+- [ghost-cursor](https://github.com/Xetera/ghost-cursor) — Bézier 鼠标路径生成，1.5k stars
+- [rrweb](https://github.com/rrweb-io/rrweb) — 录制真实用户行为后回放（方案 B，成本更高但质量更好）

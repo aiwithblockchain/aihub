@@ -355,6 +355,93 @@ setTimeout(() => {
   }
 }, 3000);
 
+// ── 合成行为事件注入（为 RAP SDK 提供鼠标/键盘/滚动行为数据）────────────────────
+//
+// Sanji 的事件监听器注册在真实页面的 window/document 上，dispatchEvent 发出的
+// 合成事件会被其收集器处理。在触发 xhr.send() 之前注入，让 Sanji 采集到行为数据。
+//
+// 注意：合成事件的 isTrusted = false，若 Sanji 未来检查此字段则需要改用其他方案。
+
+interface Point { x: number; y: number; }
+
+// Bézier 曲线插值（三次）
+function cubicBezier(p0: Point, p1: Point, p2: Point, p3: Point, t: number): Point {
+  const mt = 1 - t;
+  return {
+    x: mt * mt * mt * p0.x + 3 * mt * mt * t * p1.x + 3 * mt * t * t * p2.x + t * t * t * p3.x,
+    y: mt * mt * mt * p0.y + 3 * mt * mt * t * p1.y + 3 * mt * t * t * p2.y + t * t * t * p3.y,
+  };
+}
+
+// 生成从 start 到 end 的 Bézier 鼠标路径（模拟 ghost-cursor 算法）
+// 控制点偏向路径一侧，模拟人手自然弧线；靠近终点时点密度增加（Fitts's Law）
+function bezierMousePath(start: Point, end: Point, steps = 28): Point[] {
+  const dx = end.x - start.x;
+  const dy = end.y - start.y;
+  // 控制点：偏向路径左侧，加随机扰动
+  const side = Math.random() > 0.5 ? 1 : -1;
+  const cp1: Point = {
+    x: start.x + dx * 0.25 + side * (Math.random() * 80 + 40),
+    y: start.y + dy * 0.25 - side * (Math.random() * 80 + 40),
+  };
+  const cp2: Point = {
+    x: start.x + dx * 0.75 + side * (Math.random() * 60 + 20),
+    y: start.y + dy * 0.75 - side * (Math.random() * 60 + 20),
+  };
+  const points: Point[] = [];
+  for (let i = 0; i <= steps; i++) {
+    // 非线性 t：靠近终点时步长更小（模拟减速）
+    const t = Math.pow(i / steps, 0.8);
+    const pt = cubicBezier(start, cp1, cp2, end, t);
+    points.push({ x: Math.round(pt.x), y: Math.round(pt.y) });
+  }
+  return points;
+}
+
+function injectSyntheticBehavior(): void {
+  try {
+    const vw = window.innerWidth  || 1280;
+    const vh = window.innerHeight || 800;
+
+    // 1. 鼠标轨迹：两段 Bézier 路径，模拟用户移动到发布按钮区域
+    const start: Point = { x: Math.random() * vw * 0.4 + 100, y: Math.random() * vh * 0.4 + 100 };
+    const mid:   Point = { x: Math.random() * vw * 0.5 + vw * 0.2, y: Math.random() * vh * 0.3 + vh * 0.3 };
+    const end:   Point = { x: Math.random() * vw * 0.3 + vw * 0.5, y: Math.random() * vh * 0.2 + vh * 0.6 };
+
+    const path1 = bezierMousePath(start, mid);
+    const path2 = bezierMousePath(mid, end);
+    const fullPath = [...path1, ...path2];
+
+    let mouseMoveCount = 0;
+    for (const pt of fullPath) {
+      window.dispatchEvent(new MouseEvent('mousemove', {
+        clientX: pt.x, clientY: pt.y,
+        screenX: pt.x, screenY: pt.y + 80,
+        bubbles: true, cancelable: true,
+      }));
+      mouseMoveCount++;
+    }
+
+    // 2. 滚动事件：模拟用户浏览页面
+    const scrollSteps = 3 + Math.floor(Math.random() * 3);
+    for (let i = 0; i < scrollSteps; i++) {
+      window.dispatchEvent(new WheelEvent('wheel', {
+        deltaY: 60 + Math.random() * 100,
+        deltaMode: 0,
+        bubbles: true, cancelable: true,
+      }));
+    }
+
+    // 3. 轻微键盘交互（Tab 切换焦点，模拟表单填写后的行为）
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', code: 'Tab', bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent('keyup',   { key: 'Tab', code: 'Tab', bubbles: true }));
+
+    console.log(`${TAG} [SyntheticBehavior] injected: ${mouseMoveCount} mousemove, ${scrollSteps} wheel, 1 Tab`);
+  } catch (e: any) {
+    console.warn(`${TAG} [SyntheticBehavior] inject failed:`, e.message);
+  }
+}
+
 /**
  * 生成 x-rap-param：触发 Sanji SDK 异步生成行为签名并等待结果。
  *
@@ -413,6 +500,9 @@ async function generateRapParam(apiPath: string, body: string): Promise<string |
       if (!storedValue) console.warn(`${TAG} [generateRapParam] ${TIMEOUT_MS}ms timeout, x-rap-param not captured`);
       settle(storedValue);
     }, TIMEOUT_MS);
+
+    // 注入合成行为事件，让 Sanji 采集到鼠标/滚动/键盘数据
+    injectSyntheticBehavior();
 
     // 触发 Sanji：send() 之后 Sanji 会在 setTimeout 里生成 x-rap-param
     // Sanji 内部会再发一次真实 XHR（无有效签名，拿到 401 — 完全无害）
