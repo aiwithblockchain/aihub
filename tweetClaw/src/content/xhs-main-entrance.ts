@@ -199,7 +199,7 @@ function requestXhrProxy(
 
 const EDITH = 'https://edith.xiaohongshu.com';
 
-async function signedFetch(apiPath: string, method: 'GET' | 'POST', body?: string): Promise<any> {
+async function signedFetch(apiPath: string, method: 'GET' | 'POST', body?: string, extraHeaders?: Record<string, string>): Promise<any> {
   const bodyStr = body || '';
 
   // 1. 请求签名（包含 x-s, x-t, x-s-common）
@@ -223,6 +223,11 @@ async function signedFetch(apiPath: string, method: 'GET' | 'POST', body?: strin
     headers['content-type'] = 'application/json;charset=UTF-8';
   }
 
+  // 合并额外请求头（如 x-rap-param）
+  if (extraHeaders) {
+    Object.assign(headers, extraHeaders);
+  }
+
   // 3. 发起请求
   const url = `${EDITH}${apiPath}`;
   const fetchOptions: RequestInit = {
@@ -242,6 +247,41 @@ async function signedFetch(apiPath: string, method: 'GET' | 'POST', body?: strin
   }
 
   return response.json();
+}
+
+/**
+ * 带签名的 XHR 请求（用于需要 x-rap-param 的 API）
+ *
+ * 通过 inject script 的 XHR proxy 发请求，让页面的 Sanji SDK 自动注入 x-rap-param。
+ * Sanji 只 hook XMLHttpRequest，不 hook fetch，所以需要 x-rap-param 的 API 必须走 XHR。
+ *
+ * 适用场景：
+ * - /api/sns/web/v1/search/notes (搜索笔记)
+ * - /api/sns/web/v1/feed (获取笔记详情)
+ */
+async function signedXhrFetch(apiPath: string, method: 'GET' | 'POST', body?: string): Promise<any> {
+  const bodyStr = body || '';
+
+  // 1. 请求签名
+  const signHeaders = await requestSign(apiPath, bodyStr);
+
+  // 2. 组装请求头
+  const headers: Record<string, string> = {
+    'accept': 'application/json, text/plain, */*',
+    'content-type': method === 'POST' ? 'application/json;charset=UTF-8' : 'application/json',
+    'x-s': signHeaders['x-s'],
+    'x-t': signHeaders['x-t'],
+  };
+  if (signHeaders['x-s-common']) headers['x-s-common'] = signHeaders['x-s-common'];
+
+  // 3. 通过 XHR proxy 发请求，Sanji SDK 会自动注入 x-rap-param
+  const url = `${EDITH}${apiPath}`;
+  const { status, responseText } = await requestXhrProxy(url, method, headers, bodyStr);
+
+  if (status !== 200) {
+    throw new Error(`API ${status}: ${responseText.slice(0, 200)}`);
+  }
+  return JSON.parse(responseText);
 }
 
 // ── Creator 端带签名的 API 请求（origin 为 creator.xiaohongshu.com）───────────
@@ -582,46 +622,108 @@ async function fetchHomefeed(cursorScore: string = ''): Promise<any> {
   return signedFetch('/api/sns/web/v1/homefeed', 'POST', JSON.stringify(body));
 }
 
-async function fetchFeed(noteId: string): Promise<any> {
+async function fetchFeed(noteId: string, xsecToken: string = '', xsecSource: string = 'pc_search'): Promise<any> {
   const body = {
     source_note_id: noteId,
     image_formats: ['jpg', 'webp', 'avif'],
-    extra: { need_body_topic: 1 },
+    extra: { need_body_topic: '1' },
+    xsec_source: xsecSource,
+    xsec_token: xsecToken,
   };
-  return signedFetch('/api/sns/web/v1/feed', 'POST', JSON.stringify(body));
+  // feed API 需要 x-rap-param，走 XHR proxy 让 Sanji SDK 自动注入
+  return signedXhrFetch('/api/sns/web/v1/feed', 'POST', JSON.stringify(body));
 }
 
 async function searchNotes(keyword: string, cursor: string = '', pageSize: number = 20): Promise<any> {
+  const timestamp = Date.now();
+  const random = Math.ceil(0x7ffffffe * Math.random());
+  const searchId = timestamp.toString(36) + random.toString(36);
+
   const body: any = {
     keyword,
     page: 1,
     page_size: pageSize,
-    search_id: '',
+    search_id: searchId,
     sort: 'general',
     note_type: 0,
+    ext_flags: [],
+    filters: [
+      { tags: ['general'], type: 'sort_type' },
+      { tags: ['不限'], type: 'filter_note_type' },
+      { tags: ['不限'], type: 'filter_note_time' },
+      { tags: ['不限'], type: 'filter_note_range' },
+      { tags: ['不限'], type: 'filter_pos_distance' }
+    ],
+    geo: '',
+    image_formats: ['jpg', 'webp', 'avif'],
   };
   if (cursor) body.cursor = cursor;
-  return signedFetch('/api/sns/web/v1/search/notes', 'POST', JSON.stringify(body));
+
+  // search API 需要 x-rap-param，走 XHR proxy 让 Sanji SDK 自动注入
+  return signedXhrFetch('/api/sns/web/v1/search/notes', 'POST', JSON.stringify(body));
 }
 
-async function fetchUserNotes(userId: string, cursor: string = ''): Promise<any> {
+async function fetchSearchFilter(keyword: string, searchId: string): Promise<any> {
+  const params = new URLSearchParams({ keyword, search_id: searchId });
+  return signedFetch(`/api/sns/web/v1/search/filter?${params}`, 'GET');
+}
+
+async function fetchUserNotes(userId: string, cursor: string = '', xsecToken: string = '', xsecSource: string = 'pc_user'): Promise<any> {
   const params = new URLSearchParams({
     user_id: userId,
     cursor,
     num: '30',
     image_formats: 'jpg,webp,avif',
+    xsec_token: xsecToken,
+    xsec_source: xsecSource,
   });
   return signedFetch(`/api/sns/web/v1/user_posted?${params}`, 'GET');
 }
 
-async function fetchComments(noteId: string, cursor: string = ''): Promise<any> {
+async function fetchComments(noteId: string, cursor: string = '', xsecToken: string = ''): Promise<any> {
   const params = new URLSearchParams({
     note_id: noteId,
     cursor,
     top_comment_id: '',
     image_formats: 'jpg,webp,avif',
+    xsec_token: xsecToken,
   });
   return signedFetch(`/api/sns/web/v2/comment/page?${params}`, 'GET');
+}
+
+async function fetchUserInfo(userId: string): Promise<any> {
+  const params = new URLSearchParams({
+    target_user_id: userId,
+  });
+  return signedFetch(`/api/sns/web/v1/user/otherinfo?${params}`, 'GET');
+}
+
+async function searchTopics(keyword: string): Promise<any> {
+  const params = new URLSearchParams({
+    keyword,
+    suggest_topic_request: JSON.stringify({ title: keyword, desc: '' }),
+  });
+  return signedFetch(`/web_api/sns/v1/search/topic?${params}`, 'GET');
+}
+
+async function fetchNotifications(type: 'mentions' | 'likes', cursor: string = ''): Promise<any> {
+  const endpoint = type === 'mentions'
+    ? '/api/sns/web/v1/you/mentions'
+    : '/api/sns/web/v1/you/likes';
+  const params = new URLSearchParams({
+    cursor,
+    num: '20',
+  });
+  return signedFetch(`${endpoint}?${params}`, 'GET');
+}
+
+async function fetchPublishedNotes(cursor: string = ''): Promise<any> {
+  const params = new URLSearchParams({
+    cursor,
+    num: '30',
+    image_formats: 'jpg,webp,avif',
+  });
+  return signedCreatorFetch(`/api/galaxy/creator/note/user/posted?${params}`, 'GET');
 }
 
 // ── 消息处理 ──────────────────────────────────────────────────────────────────
@@ -686,7 +788,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === XHS_MSG_TYPE.FETCH_FEED) {
     (async () => {
       try {
-        const data = await fetchFeed(String(message.note_id || ''));
+        const data = await fetchFeed(
+          String(message.note_id || ''),
+          String(message.xsec_token || ''),
+          String(message.xsec_source || 'pc_search'),
+        );
         sendResponse({ success: true, data });
       } catch (e: any) {
         sendResponse({ success: false, error: e.message });
@@ -717,6 +823,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         const data = await fetchUserNotes(
           String(message.user_id || ''),
           String(message.cursor || ''),
+          String(message.xsec_token || ''),
+          String(message.xsec_source || 'pc_user'),
         );
         sendResponse({ success: true, data });
       } catch (e: any) {
@@ -732,6 +840,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         const data = await fetchComments(
           String(message.note_id || ''),
           String(message.cursor || ''),
+          String(message.xsec_token || ''),
         );
         sendResponse({ success: true, data });
       } catch (e: any) {
@@ -744,7 +853,11 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === XHS_MSG_TYPE.FETCH_NOTE) {
     (async () => {
       try {
-        const data = await fetchFeed(String(message.note_id || ''));
+        const data = await fetchFeed(
+          String(message.note_id || ''),
+          String(message.xsec_token || ''),
+          String(message.xsec_source || 'pc_search'),
+        );
         sendResponse({ success: true, data });
       } catch (e: any) {
         sendResponse({ success: false, error: e.message });
@@ -829,6 +942,90 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ success: true, data: result });
       } catch (e: any) {
         console.error(`${TAG} CHECK_SIGN_HEALTH error:`, e.message);
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  // ── 新增 API 端点 ─────────────────────────────────────────────────────────────
+
+  if (message.type === XHS_MSG_TYPE.FETCH_NOTE_COMMENTS) {
+    (async () => {
+      try {
+        const data = await fetchComments(
+          String(message.note_id || ''),
+          String(message.cursor || ''),
+          String(message.xsec_token || ''),
+        );
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === XHS_MSG_TYPE.FETCH_USER_INFO) {
+    (async () => {
+      try {
+        const data = await fetchUserInfo(String(message.user_id || ''));
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === XHS_MSG_TYPE.SEARCH_TOPICS) {
+    (async () => {
+      try {
+        const data = await searchTopics(String(message.keyword || ''));
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === XHS_MSG_TYPE.FETCH_NOTIFICATIONS) {
+    (async () => {
+      try {
+        const data = await fetchNotifications(
+          message.type === 'mentions' ? 'mentions' : 'likes',
+          String(message.cursor || ''),
+        );
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === XHS_MSG_TYPE.SEARCH_FILTER) {
+    (async () => {
+      try {
+        const data = await fetchSearchFilter(
+          String(message.keyword || ''),
+          String(message.search_id || ''),
+        );
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === XHS_MSG_TYPE.FETCH_PUBLISHED_NOTES) {
+    (async () => {
+      try {
+        const data = await fetchPublishedNotes(String(message.cursor || ''));
+        sendResponse({ success: true, data });
+      } catch (e: any) {
         sendResponse({ success: false, error: e.message });
       }
     })();

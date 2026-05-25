@@ -25,6 +25,18 @@ export type MessageType =
   | 'response.xhs_publish_image_note'
   | 'command.xhs_check_sign_health'
   | 'response.xhs_check_sign_health'
+  | 'command.xhs_get_note_comments'
+  | 'response.xhs_get_note_comments'
+  | 'command.xhs_get_user_info'
+  | 'response.xhs_get_user_info'
+  | 'command.xhs_search_topics'
+  | 'response.xhs_search_topics'
+  | 'command.xhs_get_notifications'
+  | 'response.xhs_get_notifications'
+  | 'command.xhs_get_published_notes'
+  | 'response.xhs_get_published_notes'
+  | 'command.xhs_search_filter'
+  | 'response.xhs_search_filter'
   | 'command.query_x_basic_info'
   | 'request.open_tab'
   | 'response.open_tab'
@@ -83,6 +95,18 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_XHS_PUBLISH_IMAGE_NOTE: 'response.xhs_publish_image_note',
   COMMAND_XHS_CHECK_SIGN_HEALTH: 'command.xhs_check_sign_health',
   RESPONSE_XHS_CHECK_SIGN_HEALTH: 'response.xhs_check_sign_health',
+  COMMAND_XHS_GET_NOTE_COMMENTS: 'command.xhs_get_note_comments',
+  RESPONSE_XHS_GET_NOTE_COMMENTS: 'response.xhs_get_note_comments',
+  COMMAND_XHS_GET_USER_INFO: 'command.xhs_get_user_info',
+  RESPONSE_XHS_GET_USER_INFO: 'response.xhs_get_user_info',
+  COMMAND_XHS_SEARCH_TOPICS: 'command.xhs_search_topics',
+  RESPONSE_XHS_SEARCH_TOPICS: 'response.xhs_search_topics',
+  COMMAND_XHS_GET_NOTIFICATIONS: 'command.xhs_get_notifications',
+  RESPONSE_XHS_GET_NOTIFICATIONS: 'response.xhs_get_notifications',
+  COMMAND_XHS_GET_PUBLISHED_NOTES: 'command.xhs_get_published_notes',
+  RESPONSE_XHS_GET_PUBLISHED_NOTES: 'response.xhs_get_published_notes',
+  COMMAND_XHS_SEARCH_FILTER: 'command.xhs_search_filter',
+  RESPONSE_XHS_SEARCH_FILTER: 'response.xhs_search_filter',
   COMMAND_QUERY_X_BASIC_INFO: 'command.query_x_basic_info',
   REQUEST_OPEN_TAB: 'request.open_tab',
   RESPONSE_OPEN_TAB: 'response.open_tab',

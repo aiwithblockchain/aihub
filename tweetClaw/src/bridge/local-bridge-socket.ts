@@ -72,6 +72,12 @@ export class LocalBridgeSocket {
   public queryXhsUserNotesHandler: ((payload: any) => Promise<any>) | null = null;
   public xhsPublishImageNoteHandler: ((payload: any) => Promise<any>) | null = null;
   public xhsCheckSignHealthHandler: ((payload?: any) => Promise<any>) | null = null;
+  public xhsGetNoteCommentsHandler: ((payload: any) => Promise<any>) | null = null;
+  public xhsGetUserInfoHandler: ((payload: any) => Promise<any>) | null = null;
+  public xhsSearchTopicsHandler: ((payload: any) => Promise<any>) | null = null;
+  public xhsGetNotificationsHandler: ((payload: any) => Promise<any>) | null = null;
+  public xhsGetPublishedNotesHandler: ((payload: any) => Promise<any>) | null = null;
+  public xhsSearchFilterHandler: ((payload: any) => Promise<any>) | null = null;
   public openTabHandler: ((payload: any) => Promise<any>) | null = null;
   public closeTabHandler: ((payload: any) => Promise<any>) | null = null;
   public navigateTabHandler: ((payload: any) => Promise<any>) | null = null;
@@ -623,6 +629,24 @@ export class LocalBridgeSocket {
           break;
         case MESSAGE_TYPES.COMMAND_XHS_CHECK_SIGN_HEALTH:
           this.handleGenericQuery(msg, this.xhsCheckSignHealthHandler, MESSAGE_TYPES.RESPONSE_XHS_CHECK_SIGN_HEALTH);
+          break;
+        case MESSAGE_TYPES.COMMAND_XHS_GET_NOTE_COMMENTS:
+          this.handleGenericQuery(msg, this.xhsGetNoteCommentsHandler, MESSAGE_TYPES.RESPONSE_XHS_GET_NOTE_COMMENTS);
+          break;
+        case MESSAGE_TYPES.COMMAND_XHS_GET_USER_INFO:
+          this.handleGenericQuery(msg, this.xhsGetUserInfoHandler, MESSAGE_TYPES.RESPONSE_XHS_GET_USER_INFO);
+          break;
+        case MESSAGE_TYPES.COMMAND_XHS_SEARCH_TOPICS:
+          this.handleGenericQuery(msg, this.xhsSearchTopicsHandler, MESSAGE_TYPES.RESPONSE_XHS_SEARCH_TOPICS);
+          break;
+        case MESSAGE_TYPES.COMMAND_XHS_GET_NOTIFICATIONS:
+          this.handleGenericQuery(msg, this.xhsGetNotificationsHandler, MESSAGE_TYPES.RESPONSE_XHS_GET_NOTIFICATIONS);
+          break;
+        case MESSAGE_TYPES.COMMAND_XHS_GET_PUBLISHED_NOTES:
+          this.handleGenericQuery(msg, this.xhsGetPublishedNotesHandler, MESSAGE_TYPES.RESPONSE_XHS_GET_PUBLISHED_NOTES);
+          break;
+        case MESSAGE_TYPES.COMMAND_XHS_SEARCH_FILTER:
+          this.handleGenericQuery(msg, this.xhsSearchFilterHandler, MESSAGE_TYPES.RESPONSE_XHS_SEARCH_FILTER);
           break;
         case MESSAGE_TYPES.COMMAND_QUERY_X_BASIC_INFO:
           this.handleQueryXBasicInfo(msg);

@@ -116,6 +116,12 @@ localBridge.queryXhsSearchHandler = queryXhsSearch;
 localBridge.queryXhsUserNotesHandler = queryXhsUserNotes;
 localBridge.xhsPublishImageNoteHandler = publishXhsImageNote;
 localBridge.xhsCheckSignHealthHandler = checkXhsSignHealth;
+localBridge.xhsGetNoteCommentsHandler = getXhsNoteComments;
+localBridge.xhsGetUserInfoHandler = getXhsUserInfo;
+localBridge.xhsSearchTopicsHandler = searchXhsTopics;
+localBridge.xhsGetNotificationsHandler = getXhsNotifications;
+localBridge.xhsGetPublishedNotesHandler = getXhsPublishedNotes;
+localBridge.xhsSearchFilterHandler = getXhsSearchFilter;
 localBridge.openTabHandler = openXTab;
 localBridge.closeTabHandler = closeXTab;
 localBridge.navigateTabHandler = navigateXTab;
@@ -1460,4 +1466,153 @@ export async function checkXhsSignHealth(_payload?: any): Promise<{
         tab_found: true,
         checked_at: Date.now(),
     };
+}
+
+export async function getXhsNoteComments(payload: { note_id: string; cursor?: string }): Promise<any> {
+    console.log('[TweetClaw-BG] getXhsNoteComments called', payload);
+    const tab = await findXhsTab();
+    if (!tab?.id) {
+        throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
+    }
+
+    console.log(`[TweetClaw-BG] Sending XHS_FETCH_NOTE_COMMENTS to tab ${tab.id}, note_id=${payload.note_id}`);
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'XHS_FETCH_NOTE_COMMENTS',
+        note_id: payload.note_id,
+        cursor: payload.cursor || '',
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with XHS content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        console.error('[TweetClaw-BG] XHS_FETCH_NOTE_COMMENTS failed:', result?.error);
+        throw new Error(result?.error || 'Failed to fetch note comments');
+    }
+
+    console.log('[TweetClaw-BG] getXhsNoteComments success, data keys:', Object.keys(result.data || {}));
+    return result.data;
+}
+
+export async function getXhsUserInfo(payload: { user_id: string }): Promise<any> {
+    console.log('[TweetClaw-BG] getXhsUserInfo called', payload);
+    const tab = await findXhsTab();
+    if (!tab?.id) {
+        throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
+    }
+
+    console.log(`[TweetClaw-BG] Sending XHS_FETCH_USER_INFO to tab ${tab.id}, user_id=${payload.user_id}`);
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'XHS_FETCH_USER_INFO',
+        user_id: payload.user_id,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with XHS content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        console.error('[TweetClaw-BG] XHS_FETCH_USER_INFO failed:', result?.error);
+        throw new Error(result?.error || 'Failed to fetch user info');
+    }
+
+    console.log('[TweetClaw-BG] getXhsUserInfo success, data keys:', Object.keys(result.data || {}));
+    return result.data;
+}
+
+export async function searchXhsTopics(payload: { keyword: string }): Promise<any> {
+    console.log('[TweetClaw-BG] searchXhsTopics called', payload);
+    const tab = await findXhsTab();
+    if (!tab?.id) {
+        throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
+    }
+
+    console.log(`[TweetClaw-BG] Sending XHS_SEARCH_TOPICS to tab ${tab.id}, keyword=${payload.keyword}`);
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'XHS_SEARCH_TOPICS',
+        keyword: payload.keyword,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with XHS content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        console.error('[TweetClaw-BG] XHS_SEARCH_TOPICS failed:', result?.error);
+        throw new Error(result?.error || 'Failed to search topics');
+    }
+
+    console.log('[TweetClaw-BG] searchXhsTopics success, data keys:', Object.keys(result.data || {}));
+    return result.data;
+}
+
+export async function getXhsNotifications(payload: { type: 'mentions' | 'likes'; cursor?: string }): Promise<any> {
+    console.log('[TweetClaw-BG] getXhsNotifications called', payload);
+    const tab = await findXhsTab();
+    if (!tab?.id) {
+        throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
+    }
+
+    console.log(`[TweetClaw-BG] Sending XHS_FETCH_NOTIFICATIONS to tab ${tab.id}, type=${payload.type}`);
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'XHS_FETCH_NOTIFICATIONS',
+        notification_type: payload.type,
+        cursor: payload.cursor || '',
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with XHS content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        console.error('[TweetClaw-BG] XHS_FETCH_NOTIFICATIONS failed:', result?.error);
+        throw new Error(result?.error || 'Failed to fetch notifications');
+    }
+
+    console.log('[TweetClaw-BG] getXhsNotifications success, data keys:', Object.keys(result.data || {}));
+    return result.data;
+}
+
+export async function getXhsPublishedNotes(payload: { cursor?: string }): Promise<any> {
+    console.log('[TweetClaw-BG] getXhsPublishedNotes called', payload);
+    const tab = await findXhsTab();
+    if (!tab?.id) {
+        throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
+    }
+
+    console.log(`[TweetClaw-BG] Sending XHS_FETCH_PUBLISHED_NOTES to tab ${tab.id}`);
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'XHS_FETCH_PUBLISHED_NOTES',
+        cursor: payload.cursor || '',
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with XHS content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to fetch published notes');
+    }
+
+    return result.data;
+}
+
+export async function getXhsSearchFilter(payload: { keyword: string; search_id?: string }): Promise<any> {
+    console.log('[TweetClaw-BG] getXhsSearchFilter called', payload);
+    const tab = await findXhsTab();
+    if (!tab?.id) {
+        throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
+    }
+
+    console.log(`[TweetClaw-BG] Sending XHS_SEARCH_FILTER to tab ${tab.id}`);
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'XHS_SEARCH_FILTER',
+        keyword: payload.keyword,
+        search_id: payload.search_id || '',
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with XHS content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to fetch search filter');
+    }
+
+    return result.data;
 }

@@ -11,9 +11,11 @@ from clawbot.services.x_actions import XActionsService
 from clawbot.services.x_read import XReadService
 from clawbot.services.x_status import XStatusService
 from clawbot.services.x_tabs import XTabsService
+from clawbot.services.xhs import XhsService
 from clawbot.transport.ai_api import AIApiTransport
 from clawbot.transport.task_api import TaskApiTransport
 from clawbot.transport.x_api import XApiTransport
+from clawbot.transport.xhs_api import XhsApiTransport
 from clawbot.upload.task_client import TaskApiClient
 from clawbot.workflows.common import CommonWorkflows
 
@@ -25,6 +27,7 @@ class ClawBotClient:
         self.x_transport = XApiTransport(base_url=base_url, timeout=timeout)
         self.ai_transport = AIApiTransport(base_url=base_url, timeout=timeout)
         self.task_transport = TaskApiTransport(base_url=base_url, timeout=timeout)
+        self.xhs_transport = XhsApiTransport(base_url=base_url, timeout=timeout)
 
         self.x_status = XStatusService(self.x_transport)
         self.x_read = XReadService(self.x_transport)
@@ -33,6 +36,7 @@ class ClawBotClient:
         self.ai_chat = AIChatService(self.ai_transport)
         self.task_client = TaskApiClient(self.task_transport)
         self.media = MediaService(self.task_client, self.x_actions)
+        self.xhs_service = XhsService(self.xhs_transport)
 
         self.x = SimpleNamespace(
             status=self.x_status,
@@ -48,6 +52,7 @@ class ClawBotClient:
             chat=self.ai_chat,
             navigation=self.ai_chat,
         )
+        self.xhs = self.xhs_service
         self.workflows = CommonWorkflows(
             status=self.x_status,
             read=self.x_read,

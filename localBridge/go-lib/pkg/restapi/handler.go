@@ -69,6 +69,20 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/ai/new_conversation", h.newConversation)
 	mux.HandleFunc("/api/v1/ai/navigate", h.navigateToPlatform)
 
+	// XHS (Xiaohongshu) 端点
+	mux.HandleFunc("/api/v1/xhs/account", h.xhsAccountInfo)
+	mux.HandleFunc("/api/v1/xhs/homefeed", h.xhsHomefeed)
+	mux.HandleFunc("/api/v1/xhs/feed", h.xhsFeed)
+	mux.HandleFunc("/api/v1/xhs/search", h.xhsSearch)
+	mux.HandleFunc("/api/v1/xhs/user_notes", h.xhsUserNotes)
+	mux.HandleFunc("/api/v1/xhs/publish", h.xhsPublish)
+	mux.HandleFunc("/api/v1/xhs/comments", h.xhsComments)
+	mux.HandleFunc("/api/v1/xhs/user_info", h.xhsUserInfo)
+	mux.HandleFunc("/api/v1/xhs/topics", h.xhsTopics)
+	mux.HandleFunc("/api/v1/xhs/notifications", h.xhsNotifications)
+	mux.HandleFunc("/api/v1/xhs/published_notes", h.xhsPublishedNotes)
+	mux.HandleFunc("/api/v1/xhs/search_filter", h.xhsSearchFilter)
+
 }
 
 func NewHandler(ws *websocket.Server) *Handler {
@@ -570,6 +584,229 @@ func NewAPIDocsHandler(candidates []string) http.HandlerFunc {
 	}
 }
 
+// --- XHS (Xiaohongshu) 端点 ---
+
+func (h *Handler) xhsAccountInfo(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	id := newID("http_xhs_account")
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "command.query_xhs_account_info", "tweetClaw", types.EmptyPayload{}), 8000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) xhsHomefeed(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	cursorScore := r.URL.Query().Get("cursor_score")
+	id := newID("http_xhs_homefeed")
+	payload := map[string]interface{}{"cursor_score": cursorScore}
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.query_xhs_homefeed", "tweetClaw", payload), 8000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) xhsFeed(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	noteID := r.URL.Query().Get("note_id")
+	if noteID == "" {
+		jsonErr(w, 400, "note_id is required")
+		return
+	}
+	id := newID("http_xhs_feed")
+	payload := map[string]interface{}{"note_id": noteID}
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.query_xhs_feed", "tweetClaw", payload), 8000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) xhsSearch(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	var req struct {
+		Keyword  string `json:"keyword"`
+		Cursor   string `json:"cursor"`
+		PageSize int    `json:"page_size"`
+	}
+	if err := readJSON(r, &req); err != nil {
+		jsonErr(w, 400, err.Error())
+		return
+	}
+	if req.Keyword == "" {
+		jsonErr(w, 400, "keyword is required")
+		return
+	}
+	if req.PageSize <= 0 {
+		req.PageSize = 20
+	}
+	id := newID("http_xhs_search")
+	payload := map[string]interface{}{
+		"keyword":   req.Keyword,
+		"cursor":    req.Cursor,
+		"page_size": req.PageSize,
+	}
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.query_xhs_search", "tweetClaw", payload), 8000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) xhsUserNotes(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	userID := r.URL.Query().Get("user_id")
+	if userID == "" {
+		jsonErr(w, 400, "user_id is required")
+		return
+	}
+	cursor := r.URL.Query().Get("cursor")
+	id := newID("http_xhs_user_notes")
+	payload := map[string]interface{}{
+		"user_id": userID,
+		"cursor":  cursor,
+	}
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.query_xhs_user_notes", "tweetClaw", payload), 8000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) xhsPublish(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	var req struct {
+		Title       string                   `json:"title"`
+		Desc        string                   `json:"desc"`
+		Images      []map[string]interface{} `json:"images"`
+		PrivacyType int                      `json:"privacy_type"`
+		Topics      []map[string]interface{} `json:"topics"`
+	}
+	if err := readJSON(r, &req); err != nil {
+		jsonErr(w, 400, err.Error())
+		return
+	}
+	id := newID("http_xhs_publish")
+	payload := map[string]interface{}{
+		"title":        req.Title,
+		"desc":         req.Desc,
+		"images":       req.Images,
+		"privacy_type": req.PrivacyType,
+		"topics":       req.Topics,
+	}
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_publish_image_note", "tweetClaw", payload), 30000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) xhsComments(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	noteID := r.URL.Query().Get("note_id")
+	if noteID == "" {
+		jsonErr(w, 400, "note_id is required")
+		return
+	}
+	cursor := r.URL.Query().Get("cursor")
+	id := newID("http_xhs_comments")
+	payload := map[string]interface{}{
+		"note_id": noteID,
+		"cursor":  cursor,
+	}
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_note_comments", "tweetClaw", payload), 8000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) xhsUserInfo(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	userID := r.URL.Query().Get("user_id")
+	if userID == "" {
+		jsonErr(w, 400, "user_id is required")
+		return
+	}
+	id := newID("http_xhs_user_info")
+	payload := map[string]interface{}{"user_id": userID}
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_user_info", "tweetClaw", payload), 8000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) xhsTopics(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	keyword := r.URL.Query().Get("keyword")
+	if keyword == "" {
+		jsonErr(w, 400, "keyword is required")
+		return
+	}
+	id := newID("http_xhs_topics")
+	payload := map[string]interface{}{"keyword": keyword}
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_search_topics", "tweetClaw", payload), 8000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) xhsNotifications(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	notifType := r.URL.Query().Get("type")
+	if notifType != "mentions" && notifType != "likes" {
+		jsonErr(w, 400, "type must be 'mentions' or 'likes'")
+		return
+	}
+	cursor := r.URL.Query().Get("cursor")
+	id := newID("http_xhs_notifications")
+	payload := map[string]interface{}{
+		"type":   notifType,
+		"cursor": cursor,
+	}
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_notifications", "tweetClaw", payload), 8000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) xhsPublishedNotes(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	cursor := r.URL.Query().Get("cursor")
+	id := newID("http_xhs_published_notes")
+	payload := map[string]interface{}{"cursor": cursor}
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_published_notes", "tweetClaw", payload), 8000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) xhsSearchFilter(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	keyword := r.URL.Query().Get("keyword")
+	if keyword == "" {
+		jsonErr(w, 400, "keyword is required")
+		return
+	}
+	searchID := r.URL.Query().Get("search_id")
+	id := newID("http_xhs_search_filter")
+	payload := map[string]interface{}{
+		"keyword":   keyword,
+		"search_id": searchID,
+	}
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_search_filter", "tweetClaw", payload), 8000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
 // --- aiClaw 端点 ---
 
 func (h *Handler) aiStatus(w http.ResponseWriter, r *http.Request) {
@@ -667,6 +904,18 @@ func buildMsg[T any](id string, msgType types.MessageType, target string, payloa
 		ID: id, Type: msgType,
 		Source: "LocalBridgeGo", Target: target,
 		Timestamp: time.Now().UnixMilli(), Payload: payload,
+	}
+}
+
+func buildRawMsg(id string, msgType types.MessageType, target string, payload interface{}) types.RawMessage {
+	payloadBytes, _ := json.Marshal(payload)
+	return types.RawMessage{
+		ID:        id,
+		Type:      msgType,
+		Source:    "LocalBridgeGo",
+		Target:    target,
+		Timestamp: time.Now().UnixMilli(),
+		Payload:   json.RawMessage(payloadBytes),
 	}
 }
 
