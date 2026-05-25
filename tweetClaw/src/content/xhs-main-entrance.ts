@@ -126,7 +126,6 @@ function requestSign(url: string, data: string): Promise<{ 'x-s': string; 'x-t':
     pendingSigns.set(msgId, { resolve, reject, timer });
 
     window.postMessage({ type: 'XHS_SIGN_REQUEST', msgId, url, data }, '*');
-    console.log(`${TAG} Sign request sent: msgId=${msgId}, url=${url}`);
   });
 }
 
@@ -146,7 +145,6 @@ function requestRapParam(apiPath: string, body: string): Promise<string> {
     pendingRap.set(msgId, { resolve, reject, timer });
 
     window.postMessage({ type: 'XHS_RAP_REQUEST', msgId, apiPath, body }, '*');
-    console.log(`${TAG} RAP request sent: msgId=${msgId}, apiPath=${apiPath}`);
   });
 }
 
@@ -171,7 +169,6 @@ function requestSignHealth(): Promise<{
 
     pendingHealth.set(msgId, { resolve, reject, timer });
     window.postMessage({ type: 'XHS_HEALTH_CHECK_REQUEST', msgId }, '*');
-    console.log(`${TAG} Health check request sent: msgId=${msgId}`);
   });
 }
 
@@ -195,7 +192,6 @@ function requestXhrProxy(
     pendingXhr.set(msgId, { resolve, reject, timer });
 
     window.postMessage({ type: 'XHS_XHR_REQUEST', msgId, url, method, headers, body }, '*');
-    console.log(`${TAG} XHR proxy request sent: msgId=${msgId}, url=${url}`);
   });
 }
 
@@ -208,7 +204,6 @@ async function signedFetch(apiPath: string, method: 'GET' | 'POST', body?: strin
 
   // 1. 请求签名（包含 x-s, x-t, x-s-common）
   const signHeaders = await requestSign(apiPath, bodyStr);
-  console.log(`${TAG} Got sign headers for ${apiPath}: x-s=${signHeaders['x-s']?.slice(0, 20)}..., x-s-common=${signHeaders['x-s-common'] ? 'present' : 'MISSING'}`);
 
   // 2. 组装完整请求头
   const headers: Record<string, string> = {
@@ -239,7 +234,6 @@ async function signedFetch(apiPath: string, method: 'GET' | 'POST', body?: strin
     fetchOptions.body = bodyStr;
   }
 
-  console.log(`${TAG} Fetching: ${method} ${url}`);
   const response = await fetch(url, fetchOptions);
 
   if (!response.ok) {
@@ -272,7 +266,6 @@ async function signedCreatorFetch(apiPath: string, method: 'GET' | 'POST', body?
   const fetchOptions: RequestInit = { method, headers, credentials: 'include' };
   if (method === 'POST' && bodyStr) fetchOptions.body = bodyStr;
 
-  console.log(`${TAG} CreatorFetch: ${method} ${EDITH}${apiPath}`);
   const response = await fetch(`${EDITH}${apiPath}`, fetchOptions);
   if (!response.ok) {
     const text = await response.text();
@@ -349,7 +342,6 @@ async function getUploadPermit(scene: 'image' | 'video'): Promise<UploadPermit> 
   };
   if (signHeaders['x-s-common']) headers['x-s-common'] = signHeaders['x-s-common'];
 
-  console.log(`${TAG} getUploadPermit: GET ${CREATOR}${apiPath}`);
   const response = await fetch(`${CREATOR}${apiPath}`, { method: 'GET', headers, credentials: 'include' });
   if (!response.ok) {
     const text = await response.text();
@@ -405,8 +397,6 @@ async function uploadImage(imageBase64: string, mimeType = 'image/jpeg'): Promis
   const uploadHost_full = uploadHost.startsWith('http') ? uploadHost : `https://${uploadHost}`;
   const uploadApiUrl = `${uploadHost_full}/spectrum/${fileId}`;
 
-  console.log(`${TAG} Uploading image to COS: ${uploadApiUrl}, size=${fileSize}, ${width}x${height}`);
-
   // 5. PUT 上传到 COS
   const putResponse = await fetch(uploadApiUrl, {
     method: 'PUT',
@@ -427,10 +417,9 @@ async function uploadImage(imageBase64: string, mimeType = 'image/jpeg'): Promis
     throw new Error(`COS upload ${putResponse.status}: ${text.slice(0, 200)}`);
   }
   if (putResponse.status === 409) {
-    console.log(`${TAG} COS 409 file already exists, treating as success: fileId=${fileId}`);
+    console.warn(`${TAG} COS 409 file already exists, treating as success: fileId=${fileId}`);
   }
 
-  console.log(`${TAG} Image uploaded OK: fileId=${fileId}`);
   return { fileId, width, height, fileSize, mimeType };
 }
 
@@ -455,7 +444,6 @@ async function publishImageNote(params: PublishImageNoteParams): Promise<any> {
   // 1. 逐张上传图片
   const fileInfos: ImageUploadResult[] = [];
   for (let i = 0; i < images.length; i++) {
-    console.log(`${TAG} Uploading image ${i + 1}/${images.length}...`);
     const result = await uploadImage(images[i].base64, images[i].mimeType || 'image/jpeg');
     fileInfos.push(result);
   }
@@ -517,15 +505,12 @@ async function publishImageNote(params: PublishImageNoteParams): Promise<any> {
 
   // 5. 获取签名（inject script 优先用 window.mnsv2 生成 XYS_ 格式）
   const signHeaders = await requestSign(postApi, bodyStr);
-  console.log(`${TAG} Got sign headers: x-s=${signHeaders['x-s']?.slice(0, 15)}...`);
 
   // 5.5 获取 x-rap-param（RAP SDK 行为签名，写操作必须携带）
   let xRapParam = '';
   try {
     xRapParam = await requestRapParam(postApi, bodyStr);
-    console.log(`${TAG} Got x-rap-param (${xRapParam.length} chars): ${xRapParam.slice(0, 50)}...`);
   } catch (rapErr: any) {
-    // RAP 目前非强制，失败时只打警告，不中止发布
     console.warn(`${TAG} x-rap-param request failed (non-fatal): ${rapErr.message}`);
   }
 
@@ -545,11 +530,9 @@ async function publishImageNote(params: PublishImageNoteParams): Promise<any> {
   };
   if (signHeaders['x-s-common']) publishHeaders['x-s-common'] = signHeaders['x-s-common'];
   if (xRapParam) publishHeaders['x-rap-param'] = xRapParam;
-  console.log(`${TAG} Publish headers assembled: x-rap-param=${xRapParam ? 'present' : 'MISSING (RAP not ready)'}`);
 
   // 7. 发布请求
   const publishUrl = `${EDITH}${postApi}`;
-  console.log(`${TAG} Publishing note: ${publishUrl}, body=${bodyStr.length} bytes`);
 
   const response = await fetch(publishUrl, {
     method: 'POST',
@@ -559,7 +542,6 @@ async function publishImageNote(params: PublishImageNoteParams): Promise<any> {
   });
 
   const respText = await response.text();
-  console.log(`${TAG} Publish response: status=${response.status}, body=${respText.slice(0, 200)}`);
 
   let result: any;
   try { result = JSON.parse(respText); } catch { throw new Error(`Parse error: ${respText.slice(0, 200)}`); }
@@ -568,7 +550,6 @@ async function publishImageNote(params: PublishImageNoteParams): Promise<any> {
     throw new Error(`Publish failed: HTTP ${response.status}, ${result.msg || respText.slice(0, 200)}`);
   }
 
-  console.log(`${TAG} Publish success!`, result);
   return result;
 }
 
@@ -844,9 +825,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === XHS_MSG_TYPE.CHECK_SIGN_HEALTH) {
     (async () => {
       try {
-        console.log(`${TAG} CHECK_SIGN_HEALTH received, forwarding to inject script...`);
         const result = await requestSignHealth();
-        console.log(`${TAG} CHECK_SIGN_HEALTH result: ok=${result.ok}, reason=${result.reason || 'none'}, sample=${result.sample || 'n/a'}`);
         sendResponse({ success: true, data: result });
       } catch (e: any) {
         console.error(`${TAG} CHECK_SIGN_HEALTH error:`, e.message);
