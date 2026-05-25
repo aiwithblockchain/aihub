@@ -330,3 +330,125 @@ Authorization: q-sign-algorithm=sha1&q-ak=null
 - `x-rap-param`：有值
 
 四个都有，服务端返回 200，`success: true`。
+
+---
+
+## 九、维护策略：以 Spider_XHS 为情报源
+
+### 9.1 背景：所有逆向工具面临同样的挑战
+
+Spider_XHS、ReaJason/xhs、NanmiCoder/MediaCrawler 等所有 XHS 逆向工具，核心都是：
+1. 下载 XHS 的 JS bundle
+2. 逆向找到签名函数和常量（FFF、mnsv2 或等价物）
+3. 在 Node.js 里重现这套逻辑
+
+XHS 每次更新 bundle，所有这些项目一起受影响。他们的维护模式是：有人发现挂了 → 开 issue → 有人去重新逆向 → PR → 合并。
+
+**我们 vs Spider_XHS 的处境对比：**
+
+| 维度 | Spider_XHS | 我们（Chrome 扩展）|
+|------|-----------|-------------------|
+| 签名函数从哪来 | 在 Node.js 里重现 mnsv2 逻辑 | 直接调用 `window.mnsv2`（XHS 自己的代码）|
+| 算法内部更新 | **必须重新逆向、重新实现** | **完全不受影响**，XHS 自己的函数处理 |
+| FFF 常量更新 | 必须重新找 | 必须重新找（同等处境）|
+| `mnsv2` 被改名/移除 | 不受影响（不依赖 window）| 需要重新找入口 |
+
+**结论：我们对算法内部变化有天然免疫，Spider_XHS 没有。我们真正需要外部情报的只有两点。**
+
+---
+
+### 9.2 我们的两个弱点及应对
+
+**弱点1：FFF 常量变化（概率中等）**
+
+Spider_XHS 的 Python 代码里必然包含最新的 FFF 常量（他们重现了完整的 x-s-common 算法）。
+
+XHS 更新 bundle → Spider_XHS 维护者逆向更新代码 → FFF 新值出现在他们的 commit diff 里。
+
+应对步骤：
+1. 在 GitHub 上 Watch Spider_XHS 仓库，启用 commit 通知
+2. 发现签名相关 commit → 打开 diff
+3. 找到 FFF 常量新值（搜索 `I38r` 开头的长字符串，或 `x8` 字段赋值处）
+4. 复制到我们的 `xhs-sign-inject.ts` 里的 `FFF` 常量
+
+**成本：5 分钟，不需要自己逆向 bundle。**
+
+**弱点2：`window.mnsv2` 消失（概率低）**
+
+Spider_XHS 不依赖 `window.mnsv2`，所以他们的更新不会直接告诉我们新的 `window.*` 属性叫什么。但他们的新代码揭示了算法的新输入/输出结构，有了这个方向，在 creator bundle 里搜索新的 `window` 赋值点会快很多。
+
+应对步骤：
+1. 看 Spider_XHS 新代码，理解新签名算法结构（输入参数、返回格式）
+2. 打开 creator.xiaohongshu.com，DevTools Console 执行：
+   ```javascript
+   let wpRequire;
+   window.webpackChunkugc.push([[Symbol()], {}, (r) => { wpRequire = r; }]);
+   for (const id of Object.keys(wpRequire.m)) {
+     const src = wpRequire.m[id].toString();
+     if (src.includes('"XYS_"') || src.includes("'XYS_'")) {
+       console.log('found:', id, src.slice(0, 300));
+     }
+   }
+   ```
+3. 找到新模块，验证签名结构是否与 Spider_XHS 新代码吻合
+4. 找到新的 `window.xxx` 赋值点 → 更新 `signWithMnsv2()` 函数
+
+**成本：从"可能几小时盲目搜索"压缩到"30 分钟有方向验证"。**
+
+---
+
+### 9.3 Spider_XHS 仓库地址及关注方式
+
+**主仓库：**
+```
+https://github.com/NanmiCoder/MediaCrawler
+```
+（MediaCrawler 是活跃维护的多平台爬虫，含 XHS 签名最新实现）
+
+**XHS 签名专项仓库（参考）：**
+```
+https://github.com/ReaJason/xhs
+```
+
+**关注策略：**
+- GitHub → Watch → Custom → 勾选 `Releases` + `Commits`（或直接 Watch All Activity）
+- 也可以订阅 RSS：`https://github.com/NanmiCoder/MediaCrawler/commits/main.atom`
+
+**在代码里找 FFF 常量的方法：**
+
+MediaCrawler 里搜索 `x-s-common` 或 `xs_common` 或直接搜那个长 Base64 字符串的前20个字符（当前：`I38rHdgsjopg`）：
+
+```bash
+# 在 MediaCrawler 仓库里搜索
+grep -r "I38rHdgsjopg" .
+grep -r "x_s_common" .
+grep -r "xs_common" .
+```
+
+---
+
+### 9.4 Spider_XHS 挂掉是我们的告警信号
+
+**这是一个被动告警的额外好处：**
+
+Spider_XHS / MediaCrawler 的 issue 区出现大量"签名失效"报告，是 XHS 更新了签名的可靠信号，往往比我们的扩展自己报错更早。
+
+建议在 GitHub 上 star + watch 这两个仓库，定期（每1-2周）浏览一次 issue 区。出现以下关键词就需要重点关注：
+
+- `sign failed`、`406`、`x-s`、`签名`、`invalid signature`
+
+**完整情报链路：**
+
+```
+XHS 更新 bundle
+    ↓
+Spider_XHS / MediaCrawler issue 区出现报告（早期告警）
+    ↓
+维护者逆向 → commit 更新代码
+    ↓
+我们读 diff → 提取 FFF 新值（5分钟）或理解新算法方向（30分钟）
+    ↓
+更新 xhs-sign-inject.ts → npm run build → 发布新版扩展
+```
+
+我们不需要自己维护完整的逆向流程，只需要**会读他们的代码**，把他们的社区工作转化为我们的更新输入。

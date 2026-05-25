@@ -71,6 +71,7 @@ export class LocalBridgeSocket {
   public queryXhsSearchHandler: ((payload: any) => Promise<any>) | null = null;
   public queryXhsUserNotesHandler: ((payload: any) => Promise<any>) | null = null;
   public xhsPublishImageNoteHandler: ((payload: any) => Promise<any>) | null = null;
+  public xhsCheckSignHealthHandler: ((payload?: any) => Promise<any>) | null = null;
   public openTabHandler: ((payload: any) => Promise<any>) | null = null;
   public closeTabHandler: ((payload: any) => Promise<any>) | null = null;
   public navigateTabHandler: ((payload: any) => Promise<any>) | null = null;
@@ -619,6 +620,9 @@ export class LocalBridgeSocket {
           break;
         case MESSAGE_TYPES.COMMAND_XHS_PUBLISH_IMAGE_NOTE:
           this.handleGenericQuery(msg, this.xhsPublishImageNoteHandler, MESSAGE_TYPES.RESPONSE_XHS_PUBLISH_IMAGE_NOTE);
+          break;
+        case MESSAGE_TYPES.COMMAND_XHS_CHECK_SIGN_HEALTH:
+          this.handleGenericQuery(msg, this.xhsCheckSignHealthHandler, MESSAGE_TYPES.RESPONSE_XHS_CHECK_SIGN_HEALTH);
           break;
         case MESSAGE_TYPES.COMMAND_QUERY_X_BASIC_INFO:
           this.handleQueryXBasicInfo(msg);

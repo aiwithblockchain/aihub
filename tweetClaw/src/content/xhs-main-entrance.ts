@@ -49,6 +49,7 @@ interface PendingCallback {
 const pendingSigns    = new Map<string, PendingCallback>();
 const pendingRap      = new Map<string, PendingCallback>();
 const pendingXhr      = new Map<string, PendingCallback>();
+const pendingHealth   = new Map<string, PendingCallback>();
 
 // 统一监听来自 inject script 的所有响应
 window.addEventListener('message', (event) => {
@@ -95,6 +96,21 @@ window.addEventListener('message', (event) => {
       pending.resolve({ status: msg.status, responseText: msg.responseText });
     }
   }
+
+  if (msg.type === 'XHS_HEALTH_CHECK_RESPONSE') {
+    const pending = pendingHealth.get(msg.msgId);
+    if (!pending) return;
+    pendingHealth.delete(msg.msgId);
+    clearTimeout(pending.timer);
+    console.log(`${TAG} Health check response received: msgId=${msg.msgId}, ok=${msg.ok}, mnsv2_present=${msg.mnsv2_present}, sign_format_ok=${msg.sign_format_ok}, reason=${msg.reason || 'none'}`);
+    pending.resolve({
+      ok: msg.ok,
+      mnsv2_present: msg.mnsv2_present,
+      sign_format_ok: msg.sign_format_ok,
+      reason: msg.reason,
+      sample: msg.sample,
+    });
+  }
 });
 
 /**
@@ -133,6 +149,31 @@ function requestRapParam(apiPath: string, body: string): Promise<string> {
 
     window.postMessage({ type: 'XHS_RAP_REQUEST', msgId, apiPath, body }, '*');
     console.log(`${TAG} RAP request sent: msgId=${msgId}, apiPath=${apiPath}`);
+  });
+}
+
+/**
+ * 向 inject script 请求 mnsv2 健康检查，返回结构化结果
+ */
+function requestSignHealth(): Promise<{
+  ok: boolean;
+  mnsv2_present: boolean;
+  sign_format_ok: boolean;
+  reason?: string;
+  sample?: string;
+}> {
+  return new Promise((resolve, reject) => {
+    const msgId = `health-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+
+    const timer = setTimeout(() => {
+      pendingHealth.delete(msgId);
+      // 超时意味着 inject script 没有响应，本身就是异常状态
+      resolve({ ok: false, mnsv2_present: false, sign_format_ok: false, reason: 'inject_timeout' });
+    }, 8000);
+
+    pendingHealth.set(msgId, { resolve, reject, timer });
+    window.postMessage({ type: 'XHS_HEALTH_CHECK_REQUEST', msgId }, '*');
+    console.log(`${TAG} Health check request sent: msgId=${msgId}`);
   });
 }
 
@@ -782,6 +823,23 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         });
         sendResponse({ success: true, data: result });
       } catch (e: any) {
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  // ── mnsv2 签名健康检查 ───────────────────────────────────────────────────────
+
+  if (message.type === XHS_MSG_TYPE.CHECK_SIGN_HEALTH) {
+    (async () => {
+      try {
+        console.log(`${TAG} CHECK_SIGN_HEALTH received, forwarding to inject script...`);
+        const result = await requestSignHealth();
+        console.log(`${TAG} CHECK_SIGN_HEALTH result: ok=${result.ok}, reason=${result.reason || 'none'}, sample=${result.sample || 'n/a'}`);
+        sendResponse({ success: true, data: result });
+      } catch (e: any) {
+        console.error(`${TAG} CHECK_SIGN_HEALTH error:`, e.message);
         sendResponse({ success: false, error: e.message });
       }
     })();

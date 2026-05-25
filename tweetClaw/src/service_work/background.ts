@@ -115,6 +115,7 @@ localBridge.queryXhsFeedHandler = queryXhsFeed;
 localBridge.queryXhsSearchHandler = queryXhsSearch;
 localBridge.queryXhsUserNotesHandler = queryXhsUserNotes;
 localBridge.xhsPublishImageNoteHandler = publishXhsImageNote;
+localBridge.xhsCheckSignHealthHandler = checkXhsSignHealth;
 localBridge.openTabHandler = openXTab;
 localBridge.closeTabHandler = closeXTab;
 localBridge.navigateTabHandler = navigateXTab;
@@ -1377,4 +1378,65 @@ export async function publishXhsImageNote(payload: {
     }
 
     return result.data;
+}
+
+/**
+ * 检查 creator.xiaohongshu.com 上 window.mnsv2 签名函数的健康状态
+ * 供 tweetpilot 通过 REST API 主动查询（command.xhs_check_sign_health）
+ */
+export async function checkXhsSignHealth(_payload?: any): Promise<{
+    ok: boolean;
+    mnsv2_present: boolean;
+    sign_format_ok: boolean;
+    reason?: string;
+    sample?: string;
+    tab_found: boolean;
+    checked_at: number;
+}> {
+    console.log('[TweetClaw-BG] checkXhsSignHealth called');
+
+    const creatorTabs = await chrome.tabs.query({ url: '*://creator.xiaohongshu.com/*' });
+    const tab = creatorTabs[0] || null;
+
+    if (!tab?.id) {
+        console.warn('[TweetClaw-BG] checkXhsSignHealth: no creator tab found');
+        return {
+            ok: false,
+            mnsv2_present: false,
+            sign_format_ok: false,
+            reason: 'no_creator_tab',
+            tab_found: false,
+            checked_at: Date.now(),
+        };
+    }
+
+    console.log(`[TweetClaw-BG] checkXhsSignHealth: found creator tab tabId=${tab.id}, url=${tab.url}`);
+
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'XHS_CHECK_SIGN_HEALTH',
+    }).catch((e: any) => ({
+        success: false,
+        error: `Content script communication failed: ${e?.message}`,
+    }));
+
+    if (!result?.success) {
+        console.error(`[TweetClaw-BG] checkXhsSignHealth: content script error: ${result?.error}`);
+        return {
+            ok: false,
+            mnsv2_present: false,
+            sign_format_ok: false,
+            reason: result?.error || 'content_script_error',
+            tab_found: true,
+            checked_at: Date.now(),
+        };
+    }
+
+    const data = result.data;
+    console.log(`[TweetClaw-BG] checkXhsSignHealth: ok=${data?.ok}, mnsv2_present=${data?.mnsv2_present}, sign_format_ok=${data?.sign_format_ok}, reason=${data?.reason || 'none'}, sample=${data?.sample || 'n/a'}`);
+
+    return {
+        ...data,
+        tab_found: true,
+        checked_at: Date.now(),
+    };
 }

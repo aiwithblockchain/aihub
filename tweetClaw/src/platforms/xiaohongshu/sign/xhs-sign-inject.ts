@@ -618,7 +618,54 @@ window.addEventListener('message', (event) => {
   if (type === 'XHS_SIGN_REQUEST') handleSignRequest(event);
   else if (type === 'XHS_RAP_REQUEST') handleRapRequest(event);
   else if (type === 'XHS_XHR_REQUEST') handleXhrRequest(event);
+  else if (type === 'XHS_HEALTH_CHECK_REQUEST') handleHealthCheckRequest(event);
 });
+
+// ── mnsv2 健康检查：供 tweetpilot 通过 REST API 主动查询 ─────────────────────
+
+function handleHealthCheckRequest(event: MessageEvent) {
+  const { msgId } = event.data;
+  console.log(`${TAG} Health check request received: msgId=${msgId}`);
+  const result = checkMnsv2Status();
+  console.log(`${TAG} Health check result: ok=${result.ok}, mnsv2_present=${result.mnsv2_present}, sign_format_ok=${result.sign_format_ok}, reason=${result.reason || 'none'}, sample=${result.sample || 'n/a'}`);
+  window.postMessage({ type: 'XHS_HEALTH_CHECK_RESPONSE', msgId, ...result }, '*');
+}
+
+/**
+ * 检查 window.mnsv2 是否存在并生成正确格式的 XYS_ 签名
+ * 返回结构化结果，供 content script 回传给 background
+ */
+function checkMnsv2Status(): {
+  ok: boolean;
+  mnsv2_present: boolean;
+  sign_format_ok: boolean;
+  reason?: string;
+  sample?: string;
+} {
+  const mnsv2 = (window as any).mnsv2;
+
+  if (typeof mnsv2 !== 'function') {
+    return { ok: false, mnsv2_present: false, sign_format_ok: false, reason: 'mnsv2_missing' };
+  }
+
+  try {
+    const testUrl = '/api/health';
+    const fullStr = testUrl;
+    const c = xhsMd5(fullStr);
+    const d = xhsMd5(testUrl);
+    const s = mnsv2(fullStr, c, d);
+    const signObj = { x0: '4.3.2', x1: 'ugc', x2: 'Windows', x3: s, x4: '' };
+    const xs = 'XYS_' + xhsB64Encode(Array.from(new TextEncoder().encode(JSON.stringify(signObj))));
+
+    if (!xs.startsWith('XYS_')) {
+      return { ok: false, mnsv2_present: true, sign_format_ok: false, reason: 'format_changed', sample: xs.slice(0, 20) };
+    }
+
+    return { ok: true, mnsv2_present: true, sign_format_ok: true, sample: xs.slice(0, 15) };
+  } catch (e: any) {
+    return { ok: false, mnsv2_present: true, sign_format_ok: false, reason: 'mnsv2_error', sample: e.message };
+  }
+}
 
 // ── Self-test：等 _webmsxyw 就绪后验证签名+xs_common ─────────────────────────
 
