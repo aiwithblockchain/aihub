@@ -317,6 +317,7 @@ function applySetHeaderHook(proto: any) {
   const orig = proto.setRequestHeader;
   proto.setRequestHeader = function(name: string, value: string) {
     if (String(name).toLowerCase() === 'x-rap-param') {
+      console.log(`${TAG} [setHeaderHook] CAPTURED x-rap-param! len=${value?.length} first60=${String(value).slice(0, 60)}`);
       (window as any).__capturedRapParam = String(value);
     }
     return orig?.apply(this, arguments as any);
@@ -358,10 +359,13 @@ setTimeout(() => {
 
 // ── 合成行为事件注入（为 RAP SDK 提供鼠标/键盘/滚动行为数据）────────────────────
 //
-// Sanji 的事件监听器注册在真实页面的 window/document 上，dispatchEvent 发出的
-// 合成事件会被其收集器处理。在触发 xhr.send() 之前注入，让 Sanji 采集到行为数据。
+// 关键洞察：Sanji 用 setTimeout 异步消化事件。在同一帧里批量同步分发大量事件，
+// Sanji 会识别为异常模式（byte[4]=0x04 低质量）。
 //
-// 注意：合成事件的 isTrusted = false，若 Sanji 未来检查此字段则需要改用其他方案。
+// 正确方案：在页面加载后就启动后台 "行为预热定时器"，每隔 800~1500ms 分散注入
+// 少量事件，让 Sanji 在真正的 setTimeout 回调中逐步消化，形成类似真实用户的
+// 时间分布。当 handleSignedFetch 需要 x-rap-param 时，Sanji 缓冲区已经充实，
+// byte[4] 自然变为 0x05（高质量）。
 
 interface Point { x: number; y: number; }
 
@@ -374,12 +378,10 @@ function cubicBezier(p0: Point, p1: Point, p2: Point, p3: Point, t: number): Poi
   };
 }
 
-// 生成从 start 到 end 的 Bézier 鼠标路径（模拟 ghost-cursor 算法）
-// 控制点偏向路径一侧，模拟人手自然弧线；靠近终点时点密度增加（Fitts's Law）
+// 生成从 start 到 end 的 Bézier 鼠标路径
 function bezierMousePath(start: Point, end: Point, steps = 28): Point[] {
   const dx = end.x - start.x;
   const dy = end.y - start.y;
-  // 控制点：偏向路径左侧，加随机扰动
   const side = Math.random() > 0.5 ? 1 : -1;
   const cp1: Point = {
     x: start.x + dx * 0.25 + side * (Math.random() * 80 + 40),
@@ -391,7 +393,6 @@ function bezierMousePath(start: Point, end: Point, steps = 28): Point[] {
   };
   const points: Point[] = [];
   for (let i = 0; i <= steps; i++) {
-    // 非线性 t：靠近终点时步长更小（模拟减速）
     const t = Math.pow(i / steps, 0.8);
     const pt = cubicBezier(start, cp1, cp2, end, t);
     points.push({ x: Math.round(pt.x), y: Math.round(pt.y) });
@@ -399,12 +400,94 @@ function bezierMousePath(start: Point, end: Point, steps = 28): Point[] {
   return points;
 }
 
+// 单次注入少量事件（3~6 个 mousemove + 偶发 wheel），用于后台定时预热
+function injectSmallBatch(): void {
+  try {
+    const vw = window.innerWidth  || 1280;
+    const vh = window.innerHeight || 800;
+    const sx = Math.random() * vw * 0.6 + vw * 0.1;
+    const sy = Math.random() * vh * 0.6 + vh * 0.1;
+    const ex = sx + (Math.random() - 0.5) * 200;
+    const ey = sy + (Math.random() - 0.5) * 150;
+    const steps = 3 + Math.floor(Math.random() * 4);
+    const path = bezierMousePath({ x: sx, y: sy }, { x: ex, y: ey }, steps);
+    for (const pt of path) {
+      window.dispatchEvent(new MouseEvent('mousemove', {
+        clientX: pt.x, clientY: pt.y,
+        screenX: pt.x, screenY: pt.y + 80,
+        bubbles: true, cancelable: true,
+      }));
+    }
+    // 随机偶发滚动（约 30% 概率）
+    if (Math.random() < 0.3) {
+      window.dispatchEvent(new WheelEvent('wheel', {
+        deltaY: 40 + Math.random() * 80,
+        deltaMode: 0,
+        bubbles: true, cancelable: true,
+      }));
+    }
+  } catch (_) {}
+}
+
+// 后台行为预热：inject script 加载后立刻启动，模拟用户持续浏览
+// 间隔 800~1500ms，与真实用户行为节奏一致，让 Sanji 逐帧消化
+let _behaviorWarmupStarted = false;
+let _behaviorWarmupCount = 0;
+const WARMUP_BATCH_TARGET = 30; // 至少积累 30 次小批次后认为缓冲区已充实
+
+function startBehaviorWarmup(): void {
+  if (_behaviorWarmupStarted) return;
+  _behaviorWarmupStarted = true;
+
+  const scheduleNext = () => {
+    const delay = 800 + Math.random() * 700; // 800~1500ms
+    setTimeout(() => {
+      injectSmallBatch();
+      _behaviorWarmupCount++;
+      // 前 60 批持续预热，之后降频到每 3~5s 一次维持
+      if (_behaviorWarmupCount < 60) {
+        scheduleNext();
+      } else {
+        const slowDelay = 3000 + Math.random() * 2000;
+        setTimeout(function keepWarm() {
+          injectSmallBatch();
+          setTimeout(keepWarm, 3000 + Math.random() * 2000);
+        }, slowDelay);
+      }
+    }, delay);
+  };
+
+  scheduleNext();
+  console.log(`${TAG} [BehaviorWarmup] started`);
+}
+
+// 等待 Sanji 就绪后再启动预热（确保 Sanji 的事件监听器已注册）
+rapReadyPromise.then(() => {
+  startBehaviorWarmup();
+});
+
+// 返回一个 Promise，在缓冲区积累足够后 resolve（最多等 MAX_WAIT_MS）
+function waitForWarmBuffer(minBatches = WARMUP_BATCH_TARGET, maxWaitMs = 15000): Promise<void> {
+  if (_behaviorWarmupCount >= minBatches) return Promise.resolve();
+  return new Promise<void>((resolve) => {
+    const start = Date.now();
+    const check = () => {
+      if (_behaviorWarmupCount >= minBatches || Date.now() - start >= maxWaitMs) {
+        resolve();
+      } else {
+        setTimeout(check, 200);
+      }
+    };
+    check();
+  });
+}
+
+// 原 injectSyntheticBehavior：现在只做紧前注入（补充最后几个事件），不作为主要预热方式
 function injectSyntheticBehavior(): void {
   try {
     const vw = window.innerWidth  || 1280;
     const vh = window.innerHeight || 800;
 
-    // 1. 鼠标轨迹：两段 Bézier 路径，模拟用户移动到发布按钮区域
     const start: Point = { x: Math.random() * vw * 0.4 + 100, y: Math.random() * vh * 0.4 + 100 };
     const mid:   Point = { x: Math.random() * vw * 0.5 + vw * 0.2, y: Math.random() * vh * 0.3 + vh * 0.3 };
     const end:   Point = { x: Math.random() * vw * 0.3 + vw * 0.5, y: Math.random() * vh * 0.2 + vh * 0.6 };
@@ -423,7 +506,6 @@ function injectSyntheticBehavior(): void {
       mouseMoveCount++;
     }
 
-    // 2. 滚动事件：模拟用户浏览页面
     const scrollSteps = 3 + Math.floor(Math.random() * 3);
     for (let i = 0; i < scrollSteps; i++) {
       window.dispatchEvent(new WheelEvent('wheel', {
@@ -433,7 +515,6 @@ function injectSyntheticBehavior(): void {
       }));
     }
 
-    // 3. 轻微键盘交互（Tab 切换焦点，模拟表单填写后的行为）
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', code: 'Tab', bubbles: true }));
     window.dispatchEvent(new KeyboardEvent('keyup',   { key: 'Tab', code: 'Tab', bubbles: true }));
 
@@ -457,15 +538,21 @@ function injectSyntheticBehavior(): void {
  *   - 3s 超时兜底（超时返回 null，不阻塞发布流程）
  */
 async function generateRapParam(apiPath: string, body: string): Promise<string | null> {
+  console.log(`${TAG} [generateRapParam] START apiPath=${apiPath} bodyLen=${body?.length}`);
+  console.log(`${TAG} [generateRapParam] body=${body?.slice(0, 150)}`);
+  console.log(`${TAG} [generateRapParam] _currentXHR === window.XMLHttpRequest? ${_currentXHR === (window as any).XMLHttpRequest}`);
+  console.log(`${TAG} [generateRapParam] _currentXHR.prototype.__tc_rap_hooked=${!!(_currentXHR?.prototype as any)?.__tc_rap_hooked}`);
+
   return new Promise<string | null>((resolve) => {
     let settled = false;
     let storedValue: string | null = null;
     const TIMEOUT_MS = 3000;
 
-    const settle = (value: string | null) => {
+    const settle = (value: string | null, source: string) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeoutId);
+      console.log(`${TAG} [generateRapParam] SETTLED via=${source} valueLen=${value?.length || 0} first60=${value?.slice(0, 60) || 'NULL'}`);
       // 还原为普通可写属性，供下次调用重新 define
       try {
         Object.defineProperty(window, '__capturedRapParam', {
@@ -485,12 +572,14 @@ async function generateRapParam(apiPath: string, body: string): Promise<string |
       Object.defineProperty(window, '__capturedRapParam', {
         get() { return storedValue; },
         set(v: string | null) {
+          console.log(`${TAG} [generateRapParam] SETTER fired! valueLen=${v?.length || 0} first60=${v?.slice(0, 60) || 'NULL'}`);
           storedValue = v || null;
-          if (v) settle(v);
+          if (v) settle(v, 'setter');
         },
         configurable: true,
         enumerable: true,
       });
+      console.log(`${TAG} [generateRapParam] defineProperty setter installed OK`);
     } catch (e: any) {
       // defineProperty 失败（极少数情况）：退化为超时轮询
       console.warn(`${TAG} [generateRapParam] defineProperty failed, relying on timeout:`, e.message);
@@ -498,12 +587,19 @@ async function generateRapParam(apiPath: string, body: string): Promise<string |
     }
 
     const timeoutId = setTimeout(() => {
-      if (!storedValue) console.warn(`${TAG} [generateRapParam] ${TIMEOUT_MS}ms timeout, x-rap-param not captured`);
-      settle(storedValue);
+      console.warn(`${TAG} [generateRapParam] TIMEOUT ${TIMEOUT_MS}ms, storedValue=${storedValue ? 'len=' + storedValue.length : 'NULL'}`);
+      settle(storedValue, 'timeout');
     }, TIMEOUT_MS);
 
     // 注入合成行为事件，让 Sanji 采集到鼠标/滚动/键盘数据
     injectSyntheticBehavior();
+
+    // 设置 __rap_app_id__（与 Spider_XHS generate_x_rap_param 对齐）
+    // creator 类 API 用 'creator-platform'，其余用 'xhs-pc-web'
+    const isCreatorApi = apiPath.indexOf('/web_api/sns/v2/note') >= 0
+      || apiPath.indexOf('/web_api/sns/v5/creator/') >= 0;
+    (window as any).__rap_app_id__ = isCreatorApi ? 'creator-platform' : 'xhs-pc-web';
+    console.log(`${TAG} [generateRapParam] set __rap_app_id__=${(window as any).__rap_app_id__}`);
 
     // 触发 Sanji：send() 之后 Sanji 会在 setTimeout 里生成 x-rap-param
     // Sanji 内部会再发一次真实 XHR（无有效签名，拿到 401 — 完全无害）
@@ -511,15 +607,17 @@ async function generateRapParam(apiPath: string, body: string): Promise<string |
       const url = /^https?:\/\//.test(apiPath)
         ? apiPath
         : 'https://edith.xiaohongshu.com' + apiPath;
+      console.log(`${TAG} [generateRapParam] triggering XHR to url=${url}`);
       const xhr = new _currentXHR();
       xhr.open('POST', url, true);
       try { xhr.setRequestHeader('content-type', 'application/json;charset=UTF-8'); } catch (_) {}
       xhr.send(body);
+      console.log(`${TAG} [generateRapParam] XHR.send() done, waiting for Sanji callback...`);
       // 不 abort：Sanji 的真实请求已在 setTimeout 队列里，abort 拦不住
     } catch (e: any) {
       console.error(`${TAG} [generateRapParam] XHR send error:`, e.message);
       clearTimeout(timeoutId);
-      settle(null);
+      settle(null, 'error');
     }
   });
 }
@@ -543,9 +641,14 @@ async function handleRapRequest(event: MessageEvent) {
 
   const { msgId, apiPath, body } = msg;
 
+  console.log(`${TAG} [handleRapRequest] apiPath=${apiPath} bodyLen=${body?.length} body=${body?.slice(0, 150)}`);
+  console.log(`${TAG} [handleRapRequest] rapSdkHooked=${rapSdkHooked} _currentXHR.name=${_currentXHR?.name}`);
+
   try {
     await rapReadyPromise;
+    console.log(`${TAG} [handleRapRequest] rapReadyPromise resolved, calling generateRapParam...`);
     const rapParam = await generateRapParam(apiPath, body);
+    console.log(`${TAG} [handleRapRequest] result: len=${rapParam?.length || 0} first60=${rapParam?.slice(0, 60) || 'NULL'}`);
     if (!rapParam) console.warn(`${TAG} x-rap-param is null for ${apiPath}`);
     window.postMessage({ type: 'XHS_RAP_RESPONSE', msgId, success: true, rapParam: rapParam || '' }, '*');
   } catch (e: any) {
@@ -599,44 +702,138 @@ async function handleRapRequest(event: MessageEvent) {
 //
 // creator.xiaohongshu.com 的反垃圾 SDK（643f48...js）hook 了原生 XMLHttpRequest，
 // 会自动给所有从页面 context 发出的 XHR 注入正确的 x-s（XYS_ 格式）。
-// content script 通过 postMessage 委托 inject script 发 XHR，SDK 自动签名。
+// content script 通过 postMessage 委托 inject script 在 page context 发 fetch。
+// 用 fetch 而非 XHR：XHR 会被 Sanji hook 干扰（覆盖 x-rap-param、触发副作用请求）。
+// page context 的 fetch 天然带正确的 Origin（https://www.xiaohongshu.com），且不被 Sanji 拦截。
 
-function handleXhrRequest(event: MessageEvent) {
+async function handleXhrRequest(event: MessageEvent) {
   const { msgId, url, method, headers, body } = event.data;
-  // 使用页面原生 XHR（Sanji SDK 会自动注入 x-rap-param）
-  const xhr = new (window as any).XMLHttpRequest();
-  xhr.open(method || 'POST', url, true);
-  xhr.withCredentials = true;
-
-  // 设置所有 headers（包括 x-s/x-t/x-s-common）
-  // 注意：creator 页面的反垃圾 SDK 会覆盖 x-s，但 www 页面不会，所以必须显式传入
-  if (headers && typeof headers === 'object') {
-    for (const key of Object.keys(headers)) {
-      try { xhr.setRequestHeader(key, (headers as any)[key]); } catch (_) {}
+  try {
+    const fetchHeaders: Record<string, string> = {};
+    if (headers && typeof headers === 'object') {
+      for (const key of Object.keys(headers)) {
+        fetchHeaders[key] = (headers as any)[key];
+      }
     }
-  }
+    const fetchOpts: RequestInit = {
+      method: method || 'POST',
+      headers: fetchHeaders,
+      credentials: 'include',
+    };
+    if (body) fetchOpts.body = body;
 
-  xhr.onreadystatechange = function () {
-    if (xhr.readyState !== 4) return;
+    const response = await fetch(url, fetchOpts);
+    const responseText = await response.text();
     window.postMessage({
       type: 'XHS_XHR_RESPONSE',
       msgId,
-      status: xhr.status,
-      responseText: xhr.responseText,
+      status: response.status,
+      responseText,
     }, '*');
-  };
-
-  xhr.onerror = function () {
+  } catch (e: any) {
     window.postMessage({
       type: 'XHS_XHR_RESPONSE',
       msgId,
       status: 0,
       responseText: '',
-      error: 'XHR network error',
+      error: e.message || 'fetch error',
     }, '*');
-  };
+  }
+}
 
-  xhr.send(body || null);
+// ── 一体化签名+RAP+Fetch（复刻 console 测试 9 的完整流程）─────────────────────
+// content script 发 XHS_SIGNED_FETCH，inject script 在 page context 里一气呵成完成：
+// 1. 签名（mnsv2）
+// 2. 触发 Sanji 生成 x-rap-param（xhr.send + 600ms 等待）
+// 3. fetch 发请求
+// 和 console 测试 9 完全一致，不跨 context 通信。
+
+async function handleSignedFetch(event: MessageEvent) {
+  const { msgId, apiPath, method, body } = event.data;
+  try {
+    const bodyStr = body || '';
+    const fullUrl = 'https://edith.xiaohongshu.com' + apiPath;
+
+    console.log(`${TAG} [handleSignedFetch] START apiPath=${apiPath} bodyLen=${bodyStr.length}`);
+
+    // 1. 签名
+    const a1 = getCookieValue('a1');
+    if (!a1) throw new Error('a1 cookie not found');
+    console.log(`${TAG} [handleSignedFetch] a1=${a1.slice(0, 8)}...`);
+
+    let xs: string;
+    let xt: number;
+    if (typeof (window as any).mnsv2 === 'function') {
+      xs = signWithMnsv2(apiPath, bodyStr);
+      xt = Date.now();
+    } else {
+      if (!signReady) await signFnReady;
+      const signFn = (window as any)._webmsxyw;
+      if (typeof signFn !== 'function') throw new Error('No sign function');
+      const signResult = signFn(apiPath, bodyStr, a1);
+      xs = signResult['X-s'] || signResult['x-s'] || '';
+      xt = signResult['X-t'] || signResult['x-t'] || Date.now();
+    }
+    const xsCommon = calcXsCommon(a1, xs, xt);
+    console.log(`${TAG} [handleSignedFetch] signed: xs=${xs.slice(0, 12)}... xt=${xt}`);
+
+    // 2. 生成 x-rap-param
+    // 先等预热缓冲区积累足够的行为数据（≥30批次 ≈ 页面加载后约35s，或最多等15s）
+    // 如果扩展刚加载，这里会阻塞等待；如果已经预热好，立即通过。
+    const warmupBefore = _behaviorWarmupCount;
+    console.log(`${TAG} [handleSignedFetch] waiting for behavior warmup... count=${warmupBefore}`);
+    await waitForWarmBuffer(30, 15000);
+    console.log(`${TAG} [handleSignedFetch] warmup done, count=${_behaviorWarmupCount} (was ${warmupBefore})`);
+
+    const isCreatorApi = apiPath.indexOf('/web_api/sns/v2/note') >= 0
+      || apiPath.indexOf('/web_api/sns/v5/creator/') >= 0;
+    (window as any).__rap_app_id__ = isCreatorApi ? 'creator-platform' : 'xhs-pc-web';
+    console.log(`${TAG} [handleSignedFetch] __rap_app_id__=${(window as any).__rap_app_id__}`);
+
+    const rapParam = await generateRapParam(apiPath, bodyStr) || '';
+    console.log(`${TAG} [handleSignedFetch] rapParam len=${rapParam.length} first40=${rapParam.slice(0, 40)}`);
+
+    // 3. fetch（page context，Origin 正确）
+    const hexChars = 'abcdef0123456789';
+    const genHex = (n: number) => Array.from({length: n}, () => hexChars[Math.floor(Math.random() * 16)]).join('');
+
+    const fetchHeaders: Record<string, string> = {
+      'accept': 'application/json, text/plain, */*',
+      'content-type': 'application/json;charset=UTF-8',
+      'x-b3-traceid': genHex(16),
+      'x-s': xs,
+      'x-t': String(xt),
+      'x-s-common': xsCommon,
+      'x-xray-traceid': genHex(32),
+    };
+    if (rapParam) fetchHeaders['x-rap-param'] = rapParam;
+
+    console.log(`${TAG} [handleSignedFetch] fetching ${fullUrl}...`);
+    const response = await fetch(fullUrl, {
+      method: method || 'POST',
+      headers: fetchHeaders,
+      credentials: 'include',
+      body: bodyStr || undefined,
+    });
+    const responseText = await response.text();
+    console.log(`${TAG} [handleSignedFetch] response status=${response.status} textLen=${responseText.length} first100=${responseText.slice(0, 100)}`);
+
+    window.postMessage({
+      type: 'XHS_SIGNED_FETCH_RESPONSE',
+      msgId,
+      status: response.status,
+      responseText,
+    }, '*');
+  } catch (e: any) {
+    console.error(`${TAG} [handleSignedFetch] ERROR:`, e.message);
+    window.postMessage({
+      type: 'XHS_SIGNED_FETCH_RESPONSE',
+      msgId,
+      status: 0,
+      responseText: '',
+      error: e.message || 'signed fetch error',
+    }, '*');
+  }
 }
 
 // ── 注册所有消息监听 ─────────────────────────────────────────────────────────
@@ -647,6 +844,16 @@ window.addEventListener('message', (event) => {
   if (type === 'XHS_SIGN_REQUEST') handleSignRequest(event);
   else if (type === 'XHS_RAP_REQUEST') handleRapRequest(event);
   else if (type === 'XHS_XHR_REQUEST') handleXhrRequest(event);
+  else if (type === 'XHS_SIGNED_FETCH') handleSignedFetch(event);
+  else if (type === 'XHS_READ_RAP') {
+    // content script 请求读取 page context 上的 __capturedRapParam
+    const { msgId } = event.data;
+    window.postMessage({
+      type: 'XHS_READ_RAP_RESPONSE',
+      msgId,
+      value: (window as any).__capturedRapParam || '',
+    }, '*');
+  }
   else if (type === 'XHS_HEALTH_CHECK_REQUEST') handleHealthCheckRequest(event);
 });
 

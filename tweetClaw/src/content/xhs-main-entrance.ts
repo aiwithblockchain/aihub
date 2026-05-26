@@ -48,6 +48,7 @@ interface PendingCallback {
 
 const pendingSigns    = new Map<string, PendingCallback>();
 const pendingRap      = new Map<string, PendingCallback>();
+const pendingXhr      = new Map<string, PendingCallback>();
 const pendingHealth   = new Map<string, PendingCallback>();
 
 // 统一监听来自 inject script 的所有响应
@@ -74,11 +75,36 @@ window.addEventListener('message', (event) => {
     if (!pending) return;
     pendingRap.delete(msg.msgId);
     clearTimeout(pending.timer);
+    console.log(`${TAG} [RAP_RESPONSE] msgId=${msg.msgId} success=${msg.success} rapParamLen=${msg.rapParam?.length || 0} first60=${msg.rapParam?.slice(0, 60) || 'EMPTY'}`);
     if (msg.success) {
       pending.resolve(msg.rapParam || '');
     } else {
       console.error(`${TAG} RAP failed: ${msg.error}`);
       pending.reject(new Error(msg.error || 'RAP failed'));
+    }
+  }
+
+  if (msg.type === 'XHS_XHR_RESPONSE') {
+    const pending = pendingXhr.get(msg.msgId);
+    if (!pending) return;
+    pendingXhr.delete(msg.msgId);
+    clearTimeout(pending.timer);
+    if (msg.error || (msg.status && msg.status >= 400)) {
+      pending.reject(new Error(msg.error || `XHR ${msg.status}`));
+    } else {
+      pending.resolve(msg.responseText || '');
+    }
+  }
+
+  if (msg.type === 'XHS_SIGNED_FETCH_RESPONSE') {
+    const pending = pendingXhr.get(msg.msgId);
+    if (!pending) return;
+    pendingXhr.delete(msg.msgId);
+    clearTimeout(pending.timer);
+    if (msg.error || (msg.status && msg.status >= 400)) {
+      pending.reject(new Error(msg.error || `SignedFetch ${msg.status}`));
+    } else {
+      pending.resolve(msg.responseText || '');
     }
   }
 
@@ -124,8 +150,11 @@ function requestRapParam(apiPath: string, body: string): Promise<string> {
   return new Promise((resolve, reject) => {
     const msgId = `rap-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
+    console.log(`${TAG} [requestRapParam] sending RAP request msgId=${msgId} apiPath=${apiPath} bodyLen=${body?.length}`);
+
     const timer = setTimeout(() => {
       pendingRap.delete(msgId);
+      console.error(`${TAG} [requestRapParam] TIMEOUT 15s msgId=${msgId}`);
       reject(new Error('RAP request timed out (15s)'));
     }, 15000);
 
@@ -233,10 +262,10 @@ async function signedFetch(apiPath: string, method: 'GET' | 'POST', body?: strin
 }
 
 /**
- * 带签名的 XHR 请求（用于需要 x-rap-param 的 API）
+ * 带签名的请求（用于需要 x-rap-param 的 API）
  *
- * 通过 inject script 的 XHR proxy 发请求，让页面的 Sanji SDK 自动注入 x-rap-param。
- * Sanji 只 hook XMLHttpRequest，不 hook fetch，所以需要 x-rap-param 的 API 必须走 XHR。
+ * 委托 inject script（page context）一体化完成：签名 + x-rap-param + fetch。
+ * 和 console 测试 9 在同一个 world（page context）里执行。
  *
  * 适用场景：
  * - /api/sns/web/v1/search/notes (搜索笔记)
@@ -245,45 +274,24 @@ async function signedFetch(apiPath: string, method: 'GET' | 'POST', body?: strin
 async function signedXhrFetch(apiPath: string, method: 'GET' | 'POST', body?: string): Promise<any> {
   const bodyStr = body || '';
 
-  // 1. 并行：签名 + 生成 x-rap-param（发布笔记同款流程，显式生成而非依赖 Sanji 自动注入）
-  const [signHeaders, xRapParam] = await Promise.all([
-    requestSign(apiPath, bodyStr),
-    requestRapParam(apiPath, bodyStr).catch((e: any) => {
-      console.warn(`${TAG} x-rap-param failed (non-fatal): ${e.message}`);
-      return '';
-    }),
-  ]);
+  console.log(`${TAG} [signedXhrFetch] START apiPath=${apiPath} method=${method} bodyLen=${bodyStr.length}`);
 
-  // 2. 组装请求头（对齐 Spider_XHS get_request_headers_template）
-  const headers: Record<string, string> = {
-    'accept': 'application/json, text/plain, */*',
-    'content-type': method === 'POST' ? 'application/json;charset=UTF-8' : 'application/json',
-    'origin': 'https://www.xiaohongshu.com',
-    'referer': 'https://www.xiaohongshu.com/',
-    'x-mns': 'unload',
-    'x-s': signHeaders['x-s'],
-    'x-t': signHeaders['x-t'],
-    'x-b3-traceid': genB3TraceId(),
-    'x-xray-traceid': genXrayTraceId(),
-  };
-  if (signHeaders['x-s-common']) headers['x-s-common'] = signHeaders['x-s-common'];
-  if (xRapParam) headers['x-rap-param'] = xRapParam;
+  const responseText = await new Promise<string>((resolve, reject) => {
+    const msgId = `sf-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
-  // 3. 用普通 fetch 发请求（x-rap-param 已显式附加，无需 XHR proxy）
-  const url = `${EDITH}${apiPath}`;
-  const fetchOptions: RequestInit = {
-    method,
-    headers,
-    credentials: 'include',
-  };
-  if (method === 'POST' && bodyStr) fetchOptions.body = bodyStr;
+    const timer = setTimeout(() => {
+      pendingXhr.delete(msgId);
+      reject(new Error('SignedFetch timed out (20s)'));
+    }, 20000);
 
-  const response = await fetch(url, fetchOptions);
-  if (!response.ok) {
-    const text = await response.text();
-    throw new Error(`API ${response.status}: ${text.slice(0, 200)}`);
-  }
-  return response.json();
+    pendingXhr.set(msgId, { resolve, reject, timer });
+
+    window.postMessage({ type: 'XHS_SIGNED_FETCH', msgId, apiPath, method, body: bodyStr }, '*');
+  });
+
+  const json = JSON.parse(responseText);
+  console.log(`${TAG} [signedXhrFetch] RESPONSE code=${json.code} success=${json.success} hasItems=${!!(json.data?.items?.length || json.data?.notes?.length)} hasMore=${json.data?.has_more}`);
+  return json;
 }
 
 // ── Creator 端带签名的 API 请求（origin 为 creator.xiaohongshu.com）───────────
@@ -659,6 +667,13 @@ async function searchNotes(keyword: string, cursor: string = '', pageSize: numbe
     sort: 'general',
     note_type: 0,
     ext_flags: [],
+    filters: [
+      { tags: ['general'], type: 'sort_type' },
+      { tags: ['不限'], type: 'filter_note_type' },
+      { tags: ['不限'], type: 'filter_note_time' },
+      { tags: ['不限'], type: 'filter_note_range' },
+      { tags: ['不限'], type: 'filter_pos_distance' },
+    ],
     geo: '',
     image_formats: ['jpg', 'webp', 'avif'],
   };
