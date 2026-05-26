@@ -757,8 +757,9 @@ export async function queryXBasicInfo() {
 
 /** 找到已打开的任意小红书标签页 */
 async function findXhsTab(): Promise<chrome.tabs.Tab | null> {
+    // 强制只匹配 www.xiaohongshu.com / xiaohongshu.com 主站，保证 Origin 和 Cookie 正确
     const tabs = await chrome.tabs.query({
-        url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*', '*://*.xiaohongshu.com/*']
+        url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*']
     });
     return tabs.find(t => t.active) || tabs[0] || null;
 }
@@ -790,10 +791,7 @@ export async function queryXhsHomefeed(payload: { cursor_score?: string } = {}) 
 export async function queryXhsAccountInfo() {
     console.log('[TweetClaw-BG] queryXhsAccountInfo called');
 
-    const xhsTabs = await chrome.tabs.query({
-        url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*', '*://*.xiaohongshu.com/*']
-    });
-    const targetTab = xhsTabs.find(t => t.active) || xhsTabs[0];
+    const targetTab = await findXhsTab();
     if (!targetTab?.id) {
         throw new Error('No Xiaohongshu tab found');
     }
@@ -817,10 +815,7 @@ export async function queryXhsAccountInfo() {
 export async function queryXhsFeed(payload: { note_id?: string } = {}) {
     console.log('[TweetClaw-BG] queryXhsFeed called');
 
-    const xhsTabs = await chrome.tabs.query({
-        url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*', '*://*.xiaohongshu.com/*']
-    });
-    const targetTab = xhsTabs.find(t => t.active) || xhsTabs[0];
+    const targetTab = await findXhsTab();
     if (!targetTab?.id) {
         throw new Error('No Xiaohongshu tab found');
     }
@@ -1229,10 +1224,7 @@ initDefaultQueryKeys();
 export async function queryXhsSearch(payload: { keyword?: string; cursor?: string; page_size?: number } = {}) {
     console.log('[TweetClaw-BG] queryXhsSearch called', payload);
 
-    const xhsTabs = await chrome.tabs.query({
-        url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*', '*://*.xiaohongshu.com/*']
-    });
-    const targetTab = xhsTabs.find(t => t.active) || xhsTabs[0];
+    const targetTab = await findXhsTab();
     if (!targetTab?.id) {
         throw new Error('No Xiaohongshu tab found');
     }
@@ -1263,10 +1255,7 @@ export async function queryXhsUserNotes(payload: { user_id?: string; cursor?: st
         throw new Error('user_id is required');
     }
 
-    const xhsTabs = await chrome.tabs.query({
-        url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*', '*://*.xiaohongshu.com/*']
-    });
-    const targetTab = xhsTabs.find(t => t.active) || xhsTabs[0];
+    const targetTab = await findXhsTab();
     if (!targetTab?.id) {
         throw new Error('No Xiaohongshu tab found');
     }

@@ -16,6 +16,13 @@
  */
 
 const TAG = '[XhsClaw-Sign-Inject]';
+const RAP_BUNDLE_URL = (() => {
+  const script = document.currentScript as HTMLScriptElement | null;
+  const injectedUrl = script?.dataset?.extUrl || script?.src || '';
+  return injectedUrl
+    ? injectedUrl.replace(/\/?xhs-sign-inject\.js(?:\?.*)?$/, '/xhs-rap-bundle.js')
+    : '';
+})();
 
 // ── x-s-common 计算（移植自 xhs_creator_260411.js，XsCommon 函数）─────────────
 //
@@ -153,15 +160,18 @@ function hexToBytes(hex: string): number[] {
  * 完全移植自 xhs_creator_260411.js 的 XsCommon(a1, xs, xt)
  * 每次请求必须用本次的 xs/xt 重新计算，不能复用
  */
-function calcXsCommon(a1: string, xs: string, xt: number | string): string {
+function calcXsCommon(a1: string, xs: string, xt: number | string, apiPath = ''): string {
   const xtStr = String(xt);
   const md5Val = xhsMd5(xtStr + xs + FFF);
   if (!md5Val) return '';
 
   const x9 = gens9(hexToBytes(md5Val));
+  const isCreatorApi = apiPath.indexOf('/web_api/') >= 0;
+  const x3 = isCreatorApi ? 'ugc' : 'xhs-pc-web';
+
   const d = {
-    s0: 5, s1: '', x0: '1', x1: '4.3.2', x2: 'Windows',
-    x3: 'ugc', x4: '4.84.1',
+    s0: 5, s1: '', x0: '1', x1: '4.3.2', x2: getPlatformName(),
+    x3, x4: '4.84.1',
     x5: a1,
     x6: Number(xt),
     x7: xs,
@@ -180,6 +190,13 @@ function calcXsCommon(a1: string, xs: string, xt: number | string): string {
 function getCookieValue(name: string): string {
   const match = document.cookie.match(new RegExp(`(?:^|; )${name}=([^;]*)`));
   return match ? decodeURIComponent(match[1]) : '';
+}
+
+function getPlatformName(): string {
+  const ua = navigator.userAgent || '';
+  if (/Mac/i.test(ua)) return 'Macintosh';
+  if (/Linux/i.test(ua)) return 'Linux';
+  return 'Windows';
 }
 
 // ── 等待 _webmsxyw 可用 ────────────────────────────────────────────────────────
@@ -235,9 +252,10 @@ function signWithMnsv2(url: string, data: string): string {
   const d = xhsMd5(url);
   const s = mnsv2(fullStr, c, d);
 
-  // x4 = typeof data（来自页面源码：f ? typeof f : ""）
-  const x4 = dataStr ? typeof dataStr : '';
-  const signObj = { x0: '4.3.2', x1: 'ugc', x2: 'Windows', x3: s, x4 };
+  const isCreatorApi = url.indexOf('/web_api/') >= 0;
+  const x1 = isCreatorApi ? 'ugc' : 'xhs-pc-web';
+  const x4 = 'object';
+  const signObj = { x0: '4.3.2', x1, x2: getPlatformName(), x3: s, x4 };
   return 'XYS_' + xhsB64Encode(Array.from(new TextEncoder().encode(JSON.stringify(signObj))));
 }
 
@@ -270,7 +288,7 @@ async function handleSignRequest(event: MessageEvent) {
       xt = signResult['X-t'] || signResult['x-t'] || Date.now();
     }
 
-    const xsCommon = calcXsCommon(a1, xs, xt);
+    const xsCommon = calcXsCommon(a1, xs, xt, url);
 
     window.postMessage({
       type: 'XHS_SIGN_RESPONSE',
@@ -360,12 +378,12 @@ setTimeout(() => {
 // ── 合成行为事件注入（为 RAP SDK 提供鼠标/键盘/滚动行为数据）────────────────────
 //
 // 关键洞察：Sanji 用 setTimeout 异步消化事件。在同一帧里批量同步分发大量事件，
-// Sanji 会识别为异常模式（byte[4]=0x04 低质量）。
+// Sanji 会识别为异常模式（decoded byte[3]=0x04 低质量）。
 //
 // 正确方案：在页面加载后就启动后台 "行为预热定时器"，每隔 800~1500ms 分散注入
 // 少量事件，让 Sanji 在真正的 setTimeout 回调中逐步消化，形成类似真实用户的
 // 时间分布。当 handleSignedFetch 需要 x-rap-param 时，Sanji 缓冲区已经充实，
-// byte[4] 自然变为 0x05（高质量）。
+// decoded byte[3] 自然变为 0x05（高质量）。
 
 interface Point { x: number; y: number; }
 
@@ -440,18 +458,20 @@ function startBehaviorWarmup(): void {
   _behaviorWarmupStarted = true;
 
   const scheduleNext = () => {
-    const delay = 800 + Math.random() * 700; // 800~1500ms
+    // 前 15 批快速注入（每 80~150ms 一次），之后恢复正常频率（每 800~1500ms）
+    const delay = _behaviorWarmupCount < 15
+      ? 80 + Math.floor(Math.random() * 70) // 80~150ms
+      : 800 + Math.floor(Math.random() * 700); // 800~1500ms
     setTimeout(() => {
       injectSmallBatch();
       _behaviorWarmupCount++;
-      // 前 60 批持续预热，之后降频到每 3~5s 一次维持
       if (_behaviorWarmupCount < 60) {
         scheduleNext();
       } else {
-        const slowDelay = 3000 + Math.random() * 2000;
+        const slowDelay = 3000 + Math.floor(Math.random() * 2000);
         setTimeout(function keepWarm() {
           injectSmallBatch();
-          setTimeout(keepWarm, 3000 + Math.random() * 2000);
+          setTimeout(keepWarm, 3000 + Math.floor(Math.random() * 2000));
         }, slowDelay);
       }
     }, delay);
@@ -461,10 +481,8 @@ function startBehaviorWarmup(): void {
   console.log(`${TAG} [BehaviorWarmup] started`);
 }
 
-// 等待 Sanji 就绪后再启动预热（确保 Sanji 的事件监听器已注册）
-rapReadyPromise.then(() => {
-  startBehaviorWarmup();
-});
+// 默认不启动合成行为预热。RAP 主路径现在走隔离 iframe，同步生成参数；
+// 只有 live 页面 fallback 才会临时使用少量合成事件。
 
 // 返回一个 Promise，在缓冲区积累足够后 resolve（最多等 MAX_WAIT_MS）
 function waitForWarmBuffer(minBatches = WARMUP_BATCH_TARGET, maxWaitMs = 15000): Promise<void> {
@@ -524,25 +542,110 @@ function injectSyntheticBehavior(): void {
   }
 }
 
-/**
- * 生成 x-rap-param：触发 Sanji SDK 异步生成行为签名并等待结果。
- *
- * 关键发现（实测）：
- *   Sanji 用 setTimeout 异步调用 setRequestHeader('x-rap-param', ...)，
- *   同步读 __capturedRapParam 永远拿到 null。
- *   abort() 也无法取消 Sanji 内部已经分发的真实 XHR（会拿到 401，但无害）。
- *
- * 方案：
- *   - 对 window.__capturedRapParam 安装一次性 setter（Object.defineProperty）
- *   - applySetHeaderHook 写入该属性时，setter 立即 resolve
- *   - 3s 超时兜底（超时返回 null，不阻塞发布流程）
- */
-async function generateRapParam(apiPath: string, body: string): Promise<string | null> {
-  console.log(`${TAG} [generateRapParam] START apiPath=${apiPath} bodyLen=${body?.length}`);
-  console.log(`${TAG} [generateRapParam] body=${body?.slice(0, 150)}`);
-  console.log(`${TAG} [generateRapParam] _currentXHR === window.XMLHttpRequest? ${_currentXHR === (window as any).XMLHttpRequest}`);
-  console.log(`${TAG} [generateRapParam] _currentXHR.prototype.__tc_rap_hooked=${!!(_currentXHR?.prototype as any)?.__tc_rap_hooked}`);
+function getRapQualityByte(rapParam: string): number | null {
+  try {
+    const decoded = atob(rapParam);
+    // RAP prefixes differ at decoded byte[3]: ByQBBQ -> 0x05, ByQBBA -> 0x04, ByQBBg -> 0x06.
+    return decoded.length > 3 ? decoded.charCodeAt(3) : null;
+  } catch (_) {
+    return null;
+  }
+}
 
+function formatRapQuality(rapParam: string | null | undefined): string {
+  const quality = rapParam ? getRapQualityByte(rapParam) : null;
+  return quality === null ? '??' : quality.toString(16);
+}
+
+function isPreferredRapParam(rapParam: string | null | undefined, apiPath = ''): boolean {
+  const quality = getRapQualityByte(rapParam || '');
+  const isCreatorApi = apiPath.indexOf('/web_api/') >= 0;
+  if (isCreatorApi) {
+    return quality === 5;
+  }
+  return quality === 5 || quality === 6;
+}
+
+function getRapAppId(apiPath: string): string {
+  const isCreatorApi = apiPath.indexOf('/web_api/sns/v2/note') >= 0
+    || apiPath.indexOf('/web_api/sns/v5/creator/') >= 0;
+  return isCreatorApi ? 'creator-platform' : 'xhs-pc-web';
+}
+
+function getRapBundleUrl(): string {
+  if (RAP_BUNDLE_URL) return RAP_BUNDLE_URL;
+  throw new Error('Cannot locate xhs-rap-bundle.js URL');
+}
+
+let rapSandboxPromise: Promise<Window> | null = null;
+
+function getRapSandboxWindow(): Promise<Window> {
+  if (rapSandboxPromise) return rapSandboxPromise;
+
+  rapSandboxPromise = new Promise<Window>((resolve, reject) => {
+    const iframe = document.createElement('iframe');
+    const bundleUrl = getRapBundleUrl();
+    const timer = setTimeout(() => {
+      reject(new Error('RAP sandbox load timed out'));
+    }, 8000);
+
+    iframe.style.cssText = 'position:absolute;width:0;height:0;border:0;opacity:0;pointer-events:none;';
+    iframe.tabIndex = -1;
+    iframe.setAttribute('aria-hidden', 'true');
+    iframe.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+    iframe.onload = () => {
+      clearTimeout(timer);
+      const frameWindow = iframe.contentWindow as any;
+      if (!frameWindow || typeof frameWindow.generate_x_rap_param !== 'function') {
+        reject(new Error('RAP sandbox generator not available'));
+        return;
+      }
+      console.log(`${TAG} [RAP-Sandbox] loaded`);
+      resolve(frameWindow as Window);
+    };
+    iframe.onerror = () => {
+      clearTimeout(timer);
+      reject(new Error('RAP sandbox iframe failed to load'));
+    };
+    iframe.srcdoc = `<!doctype html><meta charset="utf-8"><script src="${bundleUrl}"></script>`;
+    (document.documentElement || document.body).appendChild(iframe);
+  }).catch((e) => {
+    rapSandboxPromise = null;
+    throw e;
+  });
+
+  return rapSandboxPromise;
+}
+
+function generateRapParamFromSandbox(apiPath: string, body: string): Promise<string | null> {
+  return getRapSandboxWindow().then((frameWindow: any) => {
+    const appId = getRapAppId(apiPath);
+    const MAX_ATTEMPTS = 12;
+    let bestRapParam: string | null = null;
+    let bestQuality: number | null = null;
+    const isCreatorApi = apiPath.indexOf('/web_api/') >= 0;
+
+    for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+      const rapParam = frameWindow.generate_x_rap_param(apiPath, body || '', appId) || '';
+      const quality = getRapQualityByte(rapParam);
+      const isTargetQuality = isCreatorApi ? (quality === 5) : (quality === 5 || quality === 6);
+
+      if (rapParam && (bestRapParam === null || isTargetQuality)) {
+        bestRapParam = rapParam;
+        bestQuality = quality;
+      }
+      console.log(`${TAG} [RAP-Sandbox] attempt=${attempt}/${MAX_ATTEMPTS} len=${rapParam.length} quality=0x${formatRapQuality(rapParam)} first40=${rapParam.slice(0, 40)}`);
+      if (isTargetQuality) {
+        return rapParam;
+      }
+    }
+
+    console.warn(`${TAG} [RAP-Sandbox] no preferred RAP after ${MAX_ATTEMPTS} attempts, bestQuality=0x${bestQuality === null ? '??' : bestQuality.toString(16)}`);
+    return bestRapParam;
+  });
+}
+
+function generateRapParamFromLivePage(apiPath: string, body: string): Promise<string | null> {
   return new Promise<string | null>((resolve) => {
     let settled = false;
     let storedValue: string | null = null;
@@ -552,8 +655,6 @@ async function generateRapParam(apiPath: string, body: string): Promise<string |
       if (settled) return;
       settled = true;
       clearTimeout(timeoutId);
-      console.log(`${TAG} [generateRapParam] SETTLED via=${source} valueLen=${value?.length || 0} first60=${value?.slice(0, 60) || 'NULL'}`);
-      // 还原为普通可写属性，供下次调用重新 define
       try {
         Object.defineProperty(window, '__capturedRapParam', {
           value,
@@ -564,62 +665,62 @@ async function generateRapParam(apiPath: string, body: string): Promise<string |
       } catch (_) {
         try { (window as any).__capturedRapParam = value; } catch (_2) {}
       }
+      console.log(`${TAG} [RAP-LiveFallback] settled via=${source} len=${value?.length || 0} quality=0x${formatRapQuality(value)}`);
       resolve(value);
     };
 
-    // 安装一次性 setter：applySetHeaderHook 写 __capturedRapParam 时立即触发
     try {
       Object.defineProperty(window, '__capturedRapParam', {
         get() { return storedValue; },
         set(v: string | null) {
-          console.log(`${TAG} [generateRapParam] SETTER fired! valueLen=${v?.length || 0} first60=${v?.slice(0, 60) || 'NULL'}`);
           storedValue = v || null;
           if (v) settle(v, 'setter');
         },
         configurable: true,
         enumerable: true,
       });
-      console.log(`${TAG} [generateRapParam] defineProperty setter installed OK`);
     } catch (e: any) {
-      // defineProperty 失败（极少数情况）：退化为超时轮询
-      console.warn(`${TAG} [generateRapParam] defineProperty failed, relying on timeout:`, e.message);
+      console.warn(`${TAG} [RAP-LiveFallback] defineProperty failed:`, e.message);
       try { (window as any).__capturedRapParam = null; } catch (_) {}
     }
 
-    const timeoutId = setTimeout(() => {
-      console.warn(`${TAG} [generateRapParam] TIMEOUT ${TIMEOUT_MS}ms, storedValue=${storedValue ? 'len=' + storedValue.length : 'NULL'}`);
-      settle(storedValue, 'timeout');
-    }, TIMEOUT_MS);
+    const timeoutId = setTimeout(() => settle(storedValue, 'timeout'), TIMEOUT_MS);
 
-    // 注入合成行为事件，让 Sanji 采集到鼠标/滚动/键盘数据
-    injectSyntheticBehavior();
-
-    // 设置 __rap_app_id__（与 Spider_XHS generate_x_rap_param 对齐）
-    // creator 类 API 用 'creator-platform'，其余用 'xhs-pc-web'
-    const isCreatorApi = apiPath.indexOf('/web_api/sns/v2/note') >= 0
-      || apiPath.indexOf('/web_api/sns/v5/creator/') >= 0;
-    (window as any).__rap_app_id__ = isCreatorApi ? 'creator-platform' : 'xhs-pc-web';
-    console.log(`${TAG} [generateRapParam] set __rap_app_id__=${(window as any).__rap_app_id__}`);
-
-    // 触发 Sanji：send() 之后 Sanji 会在 setTimeout 里生成 x-rap-param
-    // Sanji 内部会再发一次真实 XHR（无有效签名，拿到 401 — 完全无害）
     try {
-      const url = /^https?:\/\//.test(apiPath)
-        ? apiPath
-        : 'https://edith.xiaohongshu.com' + apiPath;
-      console.log(`${TAG} [generateRapParam] triggering XHR to url=${url}`);
+      (window as any).__rap_app_id__ = getRapAppId(apiPath);
+      const url = /^https?:\/\//.test(apiPath) ? apiPath : 'https://edith.xiaohongshu.com' + apiPath;
       const xhr = new _currentXHR();
       xhr.open('POST', url, true);
       try { xhr.setRequestHeader('content-type', 'application/json;charset=UTF-8'); } catch (_) {}
       xhr.send(body);
-      console.log(`${TAG} [generateRapParam] XHR.send() done, waiting for Sanji callback...`);
-      // 不 abort：Sanji 的真实请求已在 setTimeout 队列里，abort 拦不住
     } catch (e: any) {
-      console.error(`${TAG} [generateRapParam] XHR send error:`, e.message);
-      clearTimeout(timeoutId);
+      console.error(`${TAG} [RAP-LiveFallback] XHR trigger error:`, e.message);
       settle(null, 'error');
     }
   });
+}
+
+async function generateRapParam(apiPath: string, body: string): Promise<string | null> {
+  console.log(`${TAG} [generateRapParam] START apiPath=${apiPath} bodyLen=${body?.length}`);
+  try {
+    const sandboxRapParam = await generateRapParamFromSandbox(apiPath, body);
+    if (isPreferredRapParam(sandboxRapParam, apiPath)) {
+      return sandboxRapParam;
+    }
+
+    console.warn(`${TAG} [generateRapParam] sandbox RAP quality=0x${formatRapQuality(sandboxRapParam)}, trying live page RAP`);
+    const liveRapParam = await generateRapParamFromLivePage(apiPath, body);
+    if (isPreferredRapParam(liveRapParam, apiPath)) {
+      console.log(`${TAG} [generateRapParam] using live page RAP quality=0x${formatRapQuality(liveRapParam)}`);
+      return liveRapParam;
+    }
+
+    console.warn(`${TAG} [generateRapParam] live page RAP quality=0x${formatRapQuality(liveRapParam)}, using sandbox RAP quality=0x${formatRapQuality(sandboxRapParam)}`);
+    return sandboxRapParam || liveRapParam;
+  } catch (e: any) {
+    console.warn(`${TAG} [generateRapParam] sandbox failed, falling back to live page RAP:`, e.message);
+    return generateRapParamFromLivePage(apiPath, body);
+  }
 }
 
 // ── RAP 参数请求处理 ─────────────────────────────────────────────────────────
@@ -763,10 +864,22 @@ async function handleSignedFetch(event: MessageEvent) {
 
     let xs: string;
     let xt: number;
+    let xsCommon = '';
+    const isCreatorApi = apiPath.indexOf('/web_api/') >= 0;
+
     if (typeof (window as any).mnsv2 === 'function') {
+      // 优先使用 mnsv2 生成 XYS_ 格式签名 + x-s-common（PC Web 消费端已确认为该格式）
       xs = signWithMnsv2(apiPath, bodyStr);
       xt = Date.now();
+      xsCommon = calcXsCommon(a1, xs, xt, apiPath);
+    } else if (typeof (window as any)._webmsxyw === 'function') {
+      // 回退至 _webmsxyw
+      const signFn = (window as any)._webmsxyw;
+      const signResult = signFn(apiPath, bodyStr, a1);
+      xs = signResult['X-s'] || signResult['x-s'] || '';
+      xt = signResult['X-t'] || signResult['x-t'] || Date.now();
     } else {
+      // 兜底：等待 _webmsxyw
       if (!signReady) await signFnReady;
       const signFn = (window as any)._webmsxyw;
       if (typeof signFn !== 'function') throw new Error('No sign function');
@@ -774,20 +887,11 @@ async function handleSignedFetch(event: MessageEvent) {
       xs = signResult['X-s'] || signResult['x-s'] || '';
       xt = signResult['X-t'] || signResult['x-t'] || Date.now();
     }
-    const xsCommon = calcXsCommon(a1, xs, xt);
-    console.log(`${TAG} [handleSignedFetch] signed: xs=${xs.slice(0, 12)}... xt=${xt}`);
+    console.log(`${TAG} [handleSignedFetch] signed: xs=${xs.slice(0, 12)}... xt=${xt} hasXsCommon=${!!xsCommon}`);
 
-    // 2. 生成 x-rap-param
-    // 先等预热缓冲区积累足够的行为数据（≥30批次 ≈ 页面加载后约35s，或最多等15s）
-    // 如果扩展刚加载，这里会阻塞等待；如果已经预热好，立即通过。
-    const warmupBefore = _behaviorWarmupCount;
-    console.log(`${TAG} [handleSignedFetch] waiting for behavior warmup... count=${warmupBefore}`);
-    await waitForWarmBuffer(30, 15000);
-    console.log(`${TAG} [handleSignedFetch] warmup done, count=${_behaviorWarmupCount} (was ${warmupBefore})`);
-
-    const isCreatorApi = apiPath.indexOf('/web_api/sns/v2/note') >= 0
-      || apiPath.indexOf('/web_api/sns/v5/creator/') >= 0;
-    (window as any).__rap_app_id__ = isCreatorApi ? 'creator-platform' : 'xhs-pc-web';
+    // 2. 生成 x-rap-param。主路径在隔离 iframe 中同步执行 Spider_XHS 的 RAP 环境。
+    console.log(`${TAG} [handleSignedFetch] generating x-rap-param...`);
+    (window as any).__rap_app_id__ = getRapAppId(apiPath);
     console.log(`${TAG} [handleSignedFetch] __rap_app_id__=${(window as any).__rap_app_id__}`);
 
     const rapParam = await generateRapParam(apiPath, bodyStr) || '';
@@ -800,15 +904,24 @@ async function handleSignedFetch(event: MessageEvent) {
     const fetchHeaders: Record<string, string> = {
       'accept': 'application/json, text/plain, */*',
       'content-type': 'application/json;charset=UTF-8',
+      'origin': 'https://www.xiaohongshu.com',
+      'referer': 'https://www.xiaohongshu.com/',
       'x-b3-traceid': genHex(16),
       'x-s': xs,
       'x-t': String(xt),
-      'x-s-common': xsCommon,
       'x-xray-traceid': genHex(32),
     };
+    if (xsCommon) fetchHeaders['x-s-common'] = xsCommon;
     if (rapParam) fetchHeaders['x-rap-param'] = rapParam;
 
     console.log(`${TAG} [handleSignedFetch] fetching ${fullUrl}...`);
+    console.log(`${TAG} [handleSignedFetch] DEBUG headers:`, JSON.stringify(fetchHeaders));
+    console.log(`${TAG} [handleSignedFetch] DEBUG body:`, bodyStr?.slice(0, 300));
+    console.log(`${TAG} [handleSignedFetch] DEBUG cookies(a1,web_session,webId):`,
+      getCookieValue('a1')?.slice(0, 12) + '...',
+      getCookieValue('web_session')?.slice(0, 12) + '...',
+      getCookieValue('webId')?.slice(0, 12) + '...',
+    );
     const response = await fetch(fullUrl, {
       method: method || 'POST',
       headers: fetchHeaders,
@@ -889,7 +1002,7 @@ function checkMnsv2Status(): {
     const c = xhsMd5(fullStr);
     const d = xhsMd5(testUrl);
     const s = mnsv2(fullStr, c, d);
-    const signObj = { x0: '4.3.2', x1: 'ugc', x2: 'Windows', x3: s, x4: '' };
+    const signObj = { x0: '4.3.2', x1: 'xhs-pc-web', x2: getPlatformName(), x3: s, x4: 'object' };
     const xs = 'XYS_' + xhsB64Encode(Array.from(new TextEncoder().encode(JSON.stringify(signObj))));
 
     if (!xs.startsWith('XYS_')) {
@@ -911,7 +1024,7 @@ signFnReady.then(() => {
       const result = signFn('/api/sns/web/v2/user/me', '', a1);
       const xs = result['X-s'] || result['x-s'] || '';
       const xt = result['X-t'] || result['x-t'] || '';
-      const xsCommon = calcXsCommon(a1, xs, xt);
+      const xsCommon = calcXsCommon(a1, xs, xt, '/api/sns/web/v2/user/me');
       if (!xsCommon) console.warn(`${TAG} Self-test: x-s-common is empty (CryptoJS missing?)`);
     } catch (e: any) {
       console.error(`${TAG} Self-test error:`, e.message);

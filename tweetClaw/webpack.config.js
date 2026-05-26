@@ -1,5 +1,6 @@
 const path = require('path');
 const webpack = require('webpack');
+const CopyWebpackPlugin = require('copy-webpack-plugin');
 const { version } = require('./package.json');
 
 module.exports = (env, argv) => {
@@ -43,6 +44,14 @@ module.exports = (env, argv) => {
         plugins: [
             new webpack.DefinePlugin({
                 __EXTENSION_VERSION__: JSON.stringify(version),
+            }),
+            new CopyWebpackPlugin({
+                patterns: [
+                    {
+                        from: path.resolve(__dirname, 'src/platforms/xiaohongshu/sign/xhs-rap-bundle.js'),
+                        to: path.resolve(__dirname, 'dist/js/xhs-rap-bundle.js'),
+                    },
+                ],
             }),
         ],
     };
