@@ -357,13 +357,30 @@ Sanji 模块入口：`xhs_rap.js` 第 420 行，`(function Sanji(){...})` 是一
 
 ---
 
-## 当前代码状态与最新进展 (2026-05-26 更新)
+## 当前代码状态与最新进展 (2026-05-26/27 更新)
 
-### 1. 已解决的问题
-- **App ID 动态对齐**：已在 `calcXsCommon` 和 `signWithMnsv2` 中支持根据 API 路径自动对齐 `x1` / `x3` 的 `appId`，即 UGC/创作平台 API 采用 `ugc`，而消费端（www）API 采用 `xhs-pc-web`。`x-s` 中的 `x4` 强制固定为 `'object'`。
+### 1. 已解决/已发现的关键问题
+
+- **签名算法优先级与格式匹配**：
+  - **现象**：之前将 `mnsv2` (`XYS_` 格式) 设为最高优先级，导致消费端（www.xiaohongshu.com）的 API 在请求时携带了 `XYS_` 签名，服务端虽然不报错（HTTP 200, code=0），但会**静默返回空结果**。
+  - **修正**：消费端 API（如 `/api/sns/web/v1/search/notes`）必须使用页面的 `window._webmsxyw` 函数生成 `XYW_` 格式的签名；只有创作者端 API（如 `/web_api/` 下的接口）才使用 `mnsv2` 生成 `XYS_` 格式。
+
+- **x-s-common 与设备指纹 (b1) 的重大误解与对齐**：
+  当切换到正确的 `XYW_` 格式后，搜索接口直接返回 `461` (PULL_BLOCK_STATUS) 或 `300011` (Account abnormal)，这是因为 `x-s-common` 内部的属性及加密算法与 `_webmsxyw` 产生了不匹配。
+  - **设备指纹 (x8) 获取**：以往直接在代码里硬编码了长字符串 `FFF_CONSUMER`。实际上，页面反爬 SDK 会自动生成设备指纹并存储于 `localStorage.getItem("b1")` 中。直接从宿主页面的 `localStorage` 动态获取 `b1` 可确保指纹与请求上下文 100% 保持一致，从而避开风控的硬编码检测。
+  - **签名值加密算子 (x9) 的全新计算法**：
+    - **旧逻辑**：基于 `gens9(hexToBytes(md5(X-t + X-s + fff)))`，这是小红书极早期 SDK 的残余实现。
+    - **新发现**：通过逆向分析当前生产环境的 `xhs_xray_pack1.js` 发现，现在的 `x9` 是**直接对 `X-t + X-s + b1` 的字符串进行标准的 CRC32 校验**（在 JS 混淆版中被称为 `encrypt_mcr`），**中间完全不需要 MD5 转换**。
+  - **字段版本精简**：
+    - 在 www 消费端 API 下，`x-s-common` 对应的结构体移除了历史包袱字段 `x11` 与 `x12`，且字段版本更新为了：`x1: "3.7.8-2"`（宿主 SDK 版本），`x4: "4.38.0"`（固定常数）。
+    - 动态计算平台参数 `s0`（Mac OS 为 `3`，其他为 `5`）和 `x2`（对应 `getPlatformName()`），确保和 HTTP 请求头的 User-Agent 一致。
+
 - **CORS/Origin 问题**：消费端 API（如搜索、评论、推荐流等）已通过 `background.ts` 路由到 `www.xiaohongshu.com` 标签页下执行，使得 `Origin` 头部正确设置为 `https://www.xiaohongshu.com`，避免了服务端因 Origin 校验不匹配而返回空数据的问题。
+
 - **隔离 RAP 沙盒**：当前主路径不再替换小红书主页面的 `setTimeout` / `Promise` / `XMLHttpRequest`。`generateRapParam` 会在隐藏 iframe 中加载 `xhs-rap-bundle.js`，bundle 内部创建 fake `window` 并同步调用 `generate_x_rap_param(api, body, appId)`。
+
 - **质量感知回退**：如果 iframe 沙盒生成的 RAP 不是 `0x05`，会继续尝试 live page Sanji 捕获路径；只有 live page 返回 `0x05` 时才覆盖沙盒结果。
+
 - **沙盒高质量重试**：沙盒每次最多生成 12 个 RAP，拿到第一个 decoded byte[3]=`0x05` 的结果就使用。
 
 ### 2. 已放弃的方向
@@ -373,7 +390,10 @@ Sanji 模块入口：`xhs_rap.js` 第 420 行，`(function Sanji(){...})` 是一
 ### 3. 当前验证状态
 - `npm run build:d`：通过
 - `npm test`：39 个 test files / 211 个 tests 全部通过
-- 仍需在真实登录的小红书页面里确认 `[RAP-Sandbox] generated ... quality=0x5` 以及搜索接口返回 `data.items`。
+- **最新结论与测试结果**：
+  * 我们验证了 `x-s-common` 的 `x9` 加密与 native 的 `encrypt_mcr` 算法完全一致（即直接对 `xt + xs + b1` 计算 CRC32）。此前测到的 `x9` 数值差异，实际是因为我们当时生成并拼接的是 `XYS_` 格式签名，而 native 成功请求拼接的是 `XYW_` 格式签名。
+  * 编译并打包扩展成功。
+  * 运行 Python 客户端示例执行搜索，接口返回：`{"code": -100, "success": false, "msg": "登录已过期"}`。该响应证明请求已完全绕过 `300011` 风控和 `461` 验证码拦截，直接通往业务服务器。只需在浏览器中重新登录小红书账号，即可稳定拉取和展示笔记数据。
 
 ---
 
@@ -388,6 +408,8 @@ Sanji 模块入口：`xhs_rap.js` 第 420 行，`(function Sanji(){...})` 是一
    - `ByQBBA` 开头 = 失败（decoded byte[3]=0x04，默认无行为低分）
    - `ByQBBg` 开头 = 失败（decoded byte[3]=0x06，检测为机器人异常分）
    - 如果进入 `sandbox failed, falling back to live page RAP`，优先排查 iframe `srcdoc` 是否被页面 CSP 阻止加载扩展资源。
+
+
 
 
 

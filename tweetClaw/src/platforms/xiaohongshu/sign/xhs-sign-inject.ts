@@ -31,9 +31,16 @@ const RAP_BUNDLE_URL = (() => {
 
 /**
  * 来自 xhs_creator_260411.js line 400 的固定常量
- * 用于计算 x-s-common 里的 x8 字段和 MD5 输入
+ * 用于 creator (ugc) 接口计算 x-s-common 里的 x8 字段和 MD5 输入
  */
-const FFF = 'I38rHdgsjopgIvesdVwgIC+oIELmBZ5e3VwXLgFTIxS3bqwErFeexd0ekncAzMFYnqthIhJeSfMDKutRI3KsYorWHPtGrbV0P9WfIi/eWc6eYqtyQApPI37ekmR6QL+5Ii6sdneeSfqYHqwl2qt5B0DBIx+PGDi/sVtkIxdsxuwr4qtiIhuaIE3e3LV0I3VTIC7e0utl2ADmsLveDSKsSPw5IEvsiVtJOqw8BuwfPpdeTFWOIx4TIiu6ZPwrPut5IvlaLbgs3qtxIxes1VwHIkumIkIyejgsY/WTge7eSqte/D7sDcpipedeYrDtIC6eDVw2IENsSqtlnlSuNjVtIvoekqt3cZ7sVo4gIESyIhE2HBquIxhnqz8gIkIfoqwkICqWGg3sdlOeVPw3IvAe0fged0lGIi5s3Mkf2utAIiKsidvekZNeTPt4nAOeWPwEIvkazA6efuwApfosDqw+I3SrIxE5Luwwaqw+reibqrOeYjgskqtgIkdeYg0exWbxIhgsfMes6jclIkAe3PtTIirdQqwJ8ut9I36e3PtVIiNe1PtlIi5efVwAHutMGqwxI3QUICEeJaPAGl/siqtMIhVtIieeYuwoeWccpj6sDskuIkGyGuwbmPwvICdekVtUQpdeipJs1LELIhvs6ege1VwmrqttIi0sDqtXIENs1SptIi3sfWdeDPw5IxAsVPwx+/GYIEmgIvNs1Y0eV7vsWI==';
+const FFF_CREATOR = 'I38rHdgsjopgIvesdVwgIC+oIELmBZ5e3VwXLgFTIxS3bqwErFeexd0ekncAzMFYnqthIhJeSfMDKutRI3KsYorWHPtGrbV0P9WfIi/eWc6eYqtyQApPI37ekmR6QL+5Ii6sdneeSfqYHqwl2qt5B0DBIx+PGDi/sVtkIxdsxuwr4qtiIhuaIE3e3LV0I3VTIC7e0utl2ADmsLveDSKsSPw5IEvsiVtJOqw8BuwfPpdeTFWOIx4TIiu6ZPwrPut5IvlaLbgs3qtxIxes1VwHIkumIkIyejgsY/WTge7eSqte/D7sDcpipedeYrDtIC6eDVw2IENsSqtlnlSuNjVtIvoekqt3cZ7sVo4gIESyIhE2HBquIxhnqz8gIkIfoqwkICqWGg3sdlOeVPw3IvAe0fged0lGIi5s3Mkf2utAIiKsidvekZNeTPt4nAOeWPwEIvkazA6efuwApfosDqw+I3SrIxE5Luwwaqw+reibqrOeYjgskqtgIkdeYg0exWbxIhgsfMes6jclIkAe3PtTIirdQqwJ8ut9I36e3PtVIiNe1PtlIi5efVwAHutMGqwxI3QUICEeJaPAGl/siqtMIhVtIieeYuwoeWccpj6sDskuIkGyGuwbmPwvICdekVtUQpdeipJs1LELIhvs6ege1VwmrqttIi0sDqtXIENs1SptIi3sfWdeDPw5IxAsVPwx+/GYIEmgIvNs1Y0eV7vsWI==';
+
+/**
+ * 消费端 (www.xiaohongshu.com) 的 FFF 常量
+ * 从真实浏览器请求的 x-s-common x8 字段中提取
+ * 长度 1640 字符，与创作者平台的 728 字符完全不同
+ */
+const FFF_CONSUMER = 'I38rHdgsjopgIvesdVwgIC+oIELmBZ5e3VwXLgFTIxS3bqwErFeexd0ekncAzMFYnqthIhJeDdRxqqwdIvAsWBchwPttgm46KUzxIh0s0LKsjqwny7DZIvosxbPjyZuAIhKeDa7sfUTTJqtR+qwApdpNIChmNI8KzVwSICgekutHwqwDIEFqIE/sTIZiIxrMIvgedqwR+7pPzZNsdY3efqtAIkNe3VwgqqtpputxKzgs1WpeICVWIhQ0/PtQKVwAI3Z2omdeiqwfICAeTVtrIE++IEmncfdejgzYroosfqwOZWoedLDDBogsjZpBIxKsdVtaIkvefqwRbMLIGf4BI37sxqtE/WOex0l4IhQsIE8+QdZkIxEs8MlmIkcfbPwSICqWG7JsYlOskPwRI3KefBAed04+Ivvs3clltPt0IigeieOexmJsVuwtrnosdVtuI3VbbU6eWuwko9osSPwgI3zrI3+xoPwezPwKoauLyMNsYjgsVqt8IiosdU3s6Du0IiNekjOe0lSBIv6s0qwnIvpypVwHPVtAIx5e6utvIkos3VwVIk3sjut3wutnsPwIICclI3lZ+0QjtY/eTqtjIiPqIiNeYuwKZZzrcnNsYjSuIihLwVwznPtCI35ekVwNnSdsTMKeVzSPIids6B7sTuwGpuwwICJeWVwiIiOe6jroIveeDd/e0PtSICKs6Pw64omqIhHeICgeVLAeTgveYb6sYPtKIiMFI3m5rVtKIvzlIk6s3lS3ygde0PweIiHwaqwiOSJe0WOsDPtNnutnI3i0Ihz4butbNVwcI30s0pde3VwIJutqIEMOHPtUIxc8wzFRIiJsxgNsfD/e0uw1PVtZIiLuI3NsYqtOICKe09bSIEYI/pM0IvVGICoexuwxcVtNtPt8I3W6Ivosxe/eVVwlJSIfIvc2GVtnoutMIkF5I3RbI3QVIEKeV7As6pbeZPwtIEqepqwqZuw2IhdexdF0IkZ1GrgeWutZNPtmrWrhZoc9IiksLPwoIk6siAYnIiQHZqwtIxpesPt+eutsIhIqIvzMIvzgHuwdIkHqIE5s1qwxeYblIvIcIC5sfgJsSuw+IC4yICLSgWFgIvTkpIPYIv/sVp/e0qwyIh6skVtnIhW4ICOsiuw3I3uwpPwiI3NeTMYLeutdOVtrIxNeDVtnIhNedlDvIige0m6exqwpKBAeYVtH/l7s3VwqIxee6c0eVVteIilvIEqHbuw/GMDaIC6eSVwwg7JsiYQ5/PwpIvYqIE0eYcr+I30sYqt8ICSbIhes0DljIEHaIE4KNDPGI3OsYIWRIkPAICuSI35ednpyOVwGrVwrBZ6sjcJsSuwYICoefZ7e3qwngVw4ICMObuwiZuwOQuwYOPwY4qtUO9AsTD/sT9dskI/e6VwLIiqpIhYxI3SII3de370eTeY38ut4IEPqLqwp8d6sVVwqICKsfz0sSBuGIx7eDutB8ID9ICNe0qwxIv0sVVwTtPtaI37edgIyOqtPnBJefmpfIE7sDutn/qw3Bods3VwicPw4bPwBIvF8IkTEBL0sDl7s6Pt3Ix6e1qwKbPwGKaeekZWusshdqcSCpVtbsVtoIxEkI3FJIvu6GLKsiUmaIxLoI3iqePwNIvii2VtB';
 
 /**
  * 来自 xhs_creator_260411.js line 280 的自定义 Base64 字母表
@@ -157,29 +164,54 @@ function hexToBytes(hex: string): number[] {
 
 /**
  * 计算 x-s-common
- * 完全移植自 xhs_creator_260411.js 的 XsCommon(a1, xs, xt)
+ * 完全对齐最新生产环境 xhs_xray_pack1.js 的 xsCommon(a1, xs, xt) 实现
  * 每次请求必须用本次的 xs/xt 重新计算，不能复用
  */
 function calcXsCommon(a1: string, xs: string, xt: number | string, apiPath = ''): string {
   const xtStr = String(xt);
-  const md5Val = xhsMd5(xtStr + xs + FFF);
-  if (!md5Val) return '';
-
-  const x9 = gens9(hexToBytes(md5Val));
   const isCreatorApi = apiPath.indexOf('/web_api/') >= 0;
-  const x3 = isCreatorApi ? 'ugc' : 'xhs-pc-web';
 
-  const d = {
-    s0: 5, s1: '', x0: '1', x1: '4.3.2', x2: getPlatformName(),
-    x3, x4: '4.84.1',
-    x5: a1,
-    x6: Number(xt),
-    x7: xs,
-    x8: FFF,
+  // 优先从 localStorage 读取指纹 b1，若不存在则退回静态 FFF 常量
+  const b1 = localStorage.getItem('b1') || (isCreatorApi ? FFF_CREATOR : FFF_CONSUMER);
+
+  // x9 加密算子：在新版 SDK 中是直接对字符串 (X-t + X-s + b1) 做标准的 CRC32 运算，无需 MD5 转换
+  const x9Input = xtStr + xs + b1;
+  const x9 = gens9(Array.from(new TextEncoder().encode(x9Input)));
+
+  const platform = getPlatformName();
+  const s0 = getPlatformCode(platform);
+  const s1 = '';
+  const x0 = localStorage.getItem('b1b1') || '1';
+  
+  // 版本号对齐：消费端 x1="3.7.8-2", x4="4.38.0"; 创作者端 x1="3.7.2", x4="0.20.13"
+  const x1 = isCreatorApi ? '3.7.2' : '3.7.8-2';
+  const x2 = platform;
+  const x3 = isCreatorApi ? 'ugc' : 'xhs-pc-web';
+  const x4 = isCreatorApi ? '0.20.13' : '4.38.0';
+  const x5 = a1;
+  const x6 = xtStr;
+  const x7 = xs;
+  const x8 = b1;
+  
+  // 从 sessionStorage 读取签名计数器
+  const x10 = Number(sessionStorage.getItem('sc') || '0');
+
+  const d: Record<string, any> = {
+    s0,
+    s1,
+    x0,
+    x1,
+    x2,
+    x3,
+    x4,
+    x5,
+    x6,
+    x7,
+    x8,
     x9,
-    x10: 0,
-    x11: 'normal',
+    x10,
   };
+
   const jsonStr = JSON.stringify(d);
   const utf8Bytes = Array.from(new TextEncoder().encode(jsonStr));
   return xhsB64Encode(utf8Bytes);
@@ -194,9 +226,19 @@ function getCookieValue(name: string): string {
 
 function getPlatformName(): string {
   const ua = navigator.userAgent || '';
-  if (/Mac/i.test(ua)) return 'Macintosh';
+  if (/Mac/i.test(ua)) return 'Mac OS';
   if (/Linux/i.test(ua)) return 'Linux';
   return 'Windows';
+}
+
+function getPlatformCode(platform: string): number {
+  switch (platform) {
+    case 'Android': return 2;
+    case 'iOS': return 1;
+    case 'Mac OS': return 3;
+    case 'Linux': return 4;
+    default: return 5; // other / Windows
+  }
 }
 
 // ── 等待 _webmsxyw 可用 ────────────────────────────────────────────────────────
@@ -255,7 +297,7 @@ function signWithMnsv2(url: string, data: string): string {
   const isCreatorApi = url.indexOf('/web_api/') >= 0;
   const x1 = isCreatorApi ? 'ugc' : 'xhs-pc-web';
   const x4 = 'object';
-  const signObj = { x0: '4.3.2', x1, x2: getPlatformName(), x3: s, x4 };
+  const signObj = { x0: '4.3.5', x1, x2: getPlatformName(), x3: s, x4 };
   return 'XYS_' + xhsB64Encode(Array.from(new TextEncoder().encode(JSON.stringify(signObj))));
 }
 
@@ -273,16 +315,27 @@ async function handleSignRequest(event: MessageEvent) {
     let xs: string;
     let xt: number;
 
-    // 优先用 window.mnsv2 生成 XYS_ 格式签名
-    // www 和 creator 页面现在都用 XYS_ 格式（经真实请求验证）
-    if (typeof (window as any).mnsv2 === 'function') {
+    const isCreatorApi = url.indexOf('/web_api/') >= 0;
+
+    if (isCreatorApi && typeof (window as any).mnsv2 === 'function') {
+      // Creator API → mnsv2 (XYS_ 格式)
+      xs = signWithMnsv2(url, data || '');
+      xt = Date.now();
+    } else if (typeof (window as any)._webmsxyw === 'function') {
+      // 消费端 API → _webmsxyw (XYW_ 格式，与浏览器原生一致)
+      if (!signReady) await signFnReady;
+      const signFn = (window as any)._webmsxyw;
+      const signResult = signFn(url, data, a1);
+      xs = signResult['X-s'] || signResult['x-s'] || '';
+      xt = signResult['X-t'] || signResult['x-t'] || Date.now();
+    } else if (typeof (window as any).mnsv2 === 'function') {
+      // 兜底：mnsv2
       xs = signWithMnsv2(url, data || '');
       xt = Date.now();
     } else {
-      // 回退到 _webmsxyw（旧版页面）
       if (!signReady) await signFnReady;
       const signFn = (window as any)._webmsxyw;
-      if (typeof signFn !== 'function') throw new Error('Neither mnsv2 nor _webmsxyw found on window.');
+      if (typeof signFn !== 'function') throw new Error('Neither _webmsxyw nor mnsv2 found on window.');
       const signResult = signFn(url, data, a1);
       xs = signResult['X-s'] || signResult['x-s'] || '';
       xt = signResult['X-t'] || signResult['x-t'] || Date.now();
@@ -557,13 +610,9 @@ function formatRapQuality(rapParam: string | null | undefined): string {
   return quality === null ? '??' : quality.toString(16);
 }
 
-function isPreferredRapParam(rapParam: string | null | undefined, apiPath = ''): boolean {
+function isPreferredRapParam(rapParam: string | null | undefined, _apiPath = ''): boolean {
   const quality = getRapQualityByte(rapParam || '');
-  const isCreatorApi = apiPath.indexOf('/web_api/') >= 0;
-  if (isCreatorApi) {
-    return quality === 5;
-  }
-  return quality === 5 || quality === 6;
+  return quality === 5;
 }
 
 function getRapAppId(apiPath: string): string {
@@ -628,7 +677,7 @@ function generateRapParamFromSandbox(apiPath: string, body: string): Promise<str
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       const rapParam = frameWindow.generate_x_rap_param(apiPath, body || '', appId) || '';
       const quality = getRapQualityByte(rapParam);
-      const isTargetQuality = isCreatorApi ? (quality === 5) : (quality === 5 || quality === 6);
+      const isTargetQuality = quality === 5;
 
       if (rapParam && (bestRapParam === null || isTargetQuality)) {
         bestRapParam = rapParam;
@@ -867,25 +916,27 @@ async function handleSignedFetch(event: MessageEvent) {
     let xsCommon = '';
     const isCreatorApi = apiPath.indexOf('/web_api/') >= 0;
 
-    if (typeof (window as any).mnsv2 === 'function') {
-      // 优先使用 mnsv2 生成 XYS_ 格式签名 + x-s-common（PC Web 消费端已确认为该格式）
+    if (isCreatorApi && typeof (window as any).mnsv2 === 'function') {
+      // Creator API → mnsv2 生成 XYS_ 格式签名
       xs = signWithMnsv2(apiPath, bodyStr);
       xt = Date.now();
       xsCommon = calcXsCommon(a1, xs, xt, apiPath);
     } else if (typeof (window as any)._webmsxyw === 'function') {
-      // 回退至 _webmsxyw
-      const signFn = (window as any)._webmsxyw;
-      const signResult = signFn(apiPath, bodyStr, a1);
-      xs = signResult['X-s'] || signResult['x-s'] || '';
-      xt = signResult['X-t'] || signResult['x-t'] || Date.now();
-    } else {
-      // 兜底：等待 _webmsxyw
+      // 消费端 API → _webmsxyw 生成 XYW_ 格式签名（与浏览器原生一致）
       if (!signReady) await signFnReady;
       const signFn = (window as any)._webmsxyw;
-      if (typeof signFn !== 'function') throw new Error('No sign function');
       const signResult = signFn(apiPath, bodyStr, a1);
       xs = signResult['X-s'] || signResult['x-s'] || '';
       xt = signResult['X-t'] || signResult['x-t'] || Date.now();
+      // 消费端也需要 x-s-common
+      xsCommon = calcXsCommon(a1, xs, xt, apiPath);
+    } else if (typeof (window as any).mnsv2 === 'function') {
+      // 兜底：若 _webmsxyw 不可用但 mnsv2 可用
+      xs = signWithMnsv2(apiPath, bodyStr);
+      xt = Date.now();
+      xsCommon = calcXsCommon(a1, xs, xt, apiPath);
+    } else {
+      throw new Error('No sign function available (neither _webmsxyw nor mnsv2)');
     }
     console.log(`${TAG} [handleSignedFetch] signed: xs=${xs.slice(0, 12)}... xt=${xt} hasXsCommon=${!!xsCommon}`);
 
@@ -1002,7 +1053,7 @@ function checkMnsv2Status(): {
     const c = xhsMd5(fullStr);
     const d = xhsMd5(testUrl);
     const s = mnsv2(fullStr, c, d);
-    const signObj = { x0: '4.3.2', x1: 'xhs-pc-web', x2: getPlatformName(), x3: s, x4: 'object' };
+    const signObj = { x0: '4.3.5', x1: 'xhs-pc-web', x2: getPlatformName(), x3: s, x4: 'object' };
     const xs = 'XYS_' + xhsB64Encode(Array.from(new TextEncoder().encode(JSON.stringify(signObj))));
 
     if (!xs.startsWith('XYS_')) {
