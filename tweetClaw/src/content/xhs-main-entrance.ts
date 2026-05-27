@@ -667,13 +667,6 @@ async function searchNotes(keyword: string, cursor: string = '', pageSize: numbe
     sort: 'general',
     note_type: 0,
     ext_flags: [],
-    filters: [
-      { tags: ['general'], type: 'sort_type' },
-      { tags: ['不限'], type: 'filter_note_type' },
-      { tags: ['不限'], type: 'filter_note_time' },
-      { tags: ['不限'], type: 'filter_note_range' },
-      { tags: ['不限'], type: 'filter_pos_distance' },
-    ],
     geo: '',
     image_formats: ['jpg', 'webp', 'avif'],
   };
@@ -827,7 +820,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         const data = await searchNotes(
           String(message.keyword || ''),
           String(message.cursor || ''),
-          Number(message.page_size || 20),
+          20,
         );
         sendResponse({ success: true, data });
       } catch (e: any) {
