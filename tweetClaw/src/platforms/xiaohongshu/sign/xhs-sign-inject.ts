@@ -58,7 +58,7 @@ function xhsB64Encode(bytes: number[]): string {
     chunks.push(
       B64_CHARS[(v >> 18) & 63] +
       B64_CHARS[(v >> 12) & 63] +
-      B64_CHARS[(v >>  6) & 63] +
+      B64_CHARS[(v >> 6) & 63] +
       B64_CHARS[v & 63]
     );
   }
@@ -77,33 +77,33 @@ function xhsB64Encode(bytes: number[]): string {
  * 移植自 blueimp-md5，标准 RFC 1321
  */
 function xhsMd5(str: string): string {
-  function safeAdd(x: number, y: number) { const lsw=(x&0xffff)+(y&0xffff); const msw=(x>>16)+(y>>16)+(lsw>>16); return (msw<<16)|(lsw&0xffff); }
-  function bitRotateLeft(num: number, cnt: number) { return (num<<cnt)|(num>>>(32-cnt)); }
-  function md5cmn(q:number,a:number,b:number,x:number,s:number,t:number){return safeAdd(bitRotateLeft(safeAdd(safeAdd(a,q),safeAdd(x,t)),s),b);}
-  function md5ff(a:number,b:number,c:number,d:number,x:number,s:number,t:number){return md5cmn((b&c)|((~b)&d),a,b,x,s,t);}
-  function md5gg(a:number,b:number,c:number,d:number,x:number,s:number,t:number){return md5cmn((b&d)|(c&(~d)),a,b,x,s,t);}
-  function md5hh(a:number,b:number,c:number,d:number,x:number,s:number,t:number){return md5cmn(b^c^d,a,b,x,s,t);}
-  function md5ii(a:number,b:number,c:number,d:number,x:number,s:number,t:number){return md5cmn(c^(b|(~d)),a,b,x,s,t);}
+  function safeAdd(x: number, y: number) { const lsw = (x & 0xffff) + (y & 0xffff); const msw = (x >> 16) + (y >> 16) + (lsw >> 16); return (msw << 16) | (lsw & 0xffff); }
+  function bitRotateLeft(num: number, cnt: number) { return (num << cnt) | (num >>> (32 - cnt)); }
+  function md5cmn(q: number, a: number, b: number, x: number, s: number, t: number) { return safeAdd(bitRotateLeft(safeAdd(safeAdd(a, q), safeAdd(x, t)), s), b); }
+  function md5ff(a: number, b: number, c: number, d: number, x: number, s: number, t: number) { return md5cmn((b & c) | ((~b) & d), a, b, x, s, t); }
+  function md5gg(a: number, b: number, c: number, d: number, x: number, s: number, t: number) { return md5cmn((b & d) | (c & (~d)), a, b, x, s, t); }
+  function md5hh(a: number, b: number, c: number, d: number, x: number, s: number, t: number) { return md5cmn(b ^ c ^ d, a, b, x, s, t); }
+  function md5ii(a: number, b: number, c: number, d: number, x: number, s: number, t: number) { return md5cmn(c ^ (b | (~d)), a, b, x, s, t); }
 
   function md5cycle(x: number[], k: number[]) {
-    let [a,b,c,d] = x;
-    a=md5ff(a,b,c,d,k[0],7,-680876936);d=md5ff(d,a,b,c,k[1],12,-389564586);c=md5ff(c,d,a,b,k[2],17,606105819);b=md5ff(b,c,d,a,k[3],22,-1044525330);
-    a=md5ff(a,b,c,d,k[4],7,-176418897);d=md5ff(d,a,b,c,k[5],12,1200080426);c=md5ff(c,d,a,b,k[6],17,-1473231341);b=md5ff(b,c,d,a,k[7],22,-45705983);
-    a=md5ff(a,b,c,d,k[8],7,1770035416);d=md5ff(d,a,b,c,k[9],12,-1958414417);c=md5ff(c,d,a,b,k[10],17,-42063);b=md5ff(b,c,d,a,k[11],22,-1990404162);
-    a=md5ff(a,b,c,d,k[12],7,1804603682);d=md5ff(d,a,b,c,k[13],12,-40341101);c=md5ff(c,d,a,b,k[14],17,-1502002290);b=md5ff(b,c,d,a,k[15],22,1236535329);
-    a=md5gg(a,b,c,d,k[1],5,-165796510);d=md5gg(d,a,b,c,k[6],9,-1069501632);c=md5gg(c,d,a,b,k[11],14,643717713);b=md5gg(b,c,d,a,k[0],20,-373897302);
-    a=md5gg(a,b,c,d,k[5],5,-701558691);d=md5gg(d,a,b,c,k[10],9,38016083);c=md5gg(c,d,a,b,k[15],14,-660478335);b=md5gg(b,c,d,a,k[4],20,-405537848);
-    a=md5gg(a,b,c,d,k[9],5,568446438);d=md5gg(d,a,b,c,k[14],9,-1019803690);c=md5gg(c,d,a,b,k[3],14,-187363961);b=md5gg(b,c,d,a,k[8],20,1163531501);
-    a=md5gg(a,b,c,d,k[13],5,-1444681467);d=md5gg(d,a,b,c,k[2],9,-51403784);c=md5gg(c,d,a,b,k[7],14,1735328473);b=md5gg(b,c,d,a,k[12],20,-1926607734);
-    a=md5hh(a,b,c,d,k[5],4,-378558);d=md5hh(d,a,b,c,k[8],11,-2022574463);c=md5hh(c,d,a,b,k[11],16,1839030562);b=md5hh(b,c,d,a,k[14],23,-35309556);
-    a=md5hh(a,b,c,d,k[1],4,-1530992060);d=md5hh(d,a,b,c,k[4],11,1272893353);c=md5hh(c,d,a,b,k[7],16,-155497632);b=md5hh(b,c,d,a,k[10],23,-1094730640);
-    a=md5hh(a,b,c,d,k[13],4,681279174);d=md5hh(d,a,b,c,k[0],11,-358537222);c=md5hh(c,d,a,b,k[3],16,-722521979);b=md5hh(b,c,d,a,k[6],23,76029189);
-    a=md5hh(a,b,c,d,k[9],4,-640364487);d=md5hh(d,a,b,c,k[12],11,-421815835);c=md5hh(c,d,a,b,k[15],16,530742520);b=md5hh(b,c,d,a,k[2],23,-995338651);
-    a=md5ii(a,b,c,d,k[0],6,-198630844);d=md5ii(d,a,b,c,k[7],10,1126891415);c=md5ii(c,d,a,b,k[14],15,-1416354905);b=md5ii(b,c,d,a,k[5],21,-57434055);
-    a=md5ii(a,b,c,d,k[12],6,1700485571);d=md5ii(d,a,b,c,k[3],10,-1894986606);c=md5ii(c,d,a,b,k[10],15,-1051523);b=md5ii(b,c,d,a,k[1],21,-2054922799);
-    a=md5ii(a,b,c,d,k[8],6,1873313359);d=md5ii(d,a,b,c,k[15],10,-30611744);c=md5ii(c,d,a,b,k[6],15,-1560198380);b=md5ii(b,c,d,a,k[13],21,1309151649);
-    a=md5ii(a,b,c,d,k[4],6,-145523070);d=md5ii(d,a,b,c,k[11],10,-1120210379);c=md5ii(c,d,a,b,k[2],15,718787259);b=md5ii(b,c,d,a,k[9],21,-343485551);
-    x[0]=safeAdd(a,x[0]);x[1]=safeAdd(b,x[1]);x[2]=safeAdd(c,x[2]);x[3]=safeAdd(d,x[3]);
+    let [a, b, c, d] = x;
+    a = md5ff(a, b, c, d, k[0], 7, -680876936); d = md5ff(d, a, b, c, k[1], 12, -389564586); c = md5ff(c, d, a, b, k[2], 17, 606105819); b = md5ff(b, c, d, a, k[3], 22, -1044525330);
+    a = md5ff(a, b, c, d, k[4], 7, -176418897); d = md5ff(d, a, b, c, k[5], 12, 1200080426); c = md5ff(c, d, a, b, k[6], 17, -1473231341); b = md5ff(b, c, d, a, k[7], 22, -45705983);
+    a = md5ff(a, b, c, d, k[8], 7, 1770035416); d = md5ff(d, a, b, c, k[9], 12, -1958414417); c = md5ff(c, d, a, b, k[10], 17, -42063); b = md5ff(b, c, d, a, k[11], 22, -1990404162);
+    a = md5ff(a, b, c, d, k[12], 7, 1804603682); d = md5ff(d, a, b, c, k[13], 12, -40341101); c = md5ff(c, d, a, b, k[14], 17, -1502002290); b = md5ff(b, c, d, a, k[15], 22, 1236535329);
+    a = md5gg(a, b, c, d, k[1], 5, -165796510); d = md5gg(d, a, b, c, k[6], 9, -1069501632); c = md5gg(c, d, a, b, k[11], 14, 643717713); b = md5gg(b, c, d, a, k[0], 20, -373897302);
+    a = md5gg(a, b, c, d, k[5], 5, -701558691); d = md5gg(d, a, b, c, k[10], 9, 38016083); c = md5gg(c, d, a, b, k[15], 14, -660478335); b = md5gg(b, c, d, a, k[4], 20, -405537848);
+    a = md5gg(a, b, c, d, k[9], 5, 568446438); d = md5gg(d, a, b, c, k[14], 9, -1019803690); c = md5gg(c, d, a, b, k[3], 14, -187363961); b = md5gg(b, c, d, a, k[8], 20, 1163531501);
+    a = md5gg(a, b, c, d, k[13], 5, -1444681467); d = md5gg(d, a, b, c, k[2], 9, -51403784); c = md5gg(c, d, a, b, k[7], 14, 1735328473); b = md5gg(b, c, d, a, k[12], 20, -1926607734);
+    a = md5hh(a, b, c, d, k[5], 4, -378558); d = md5hh(d, a, b, c, k[8], 11, -2022574463); c = md5hh(c, d, a, b, k[11], 16, 1839030562); b = md5hh(b, c, d, a, k[14], 23, -35309556);
+    a = md5hh(a, b, c, d, k[1], 4, -1530992060); d = md5hh(d, a, b, c, k[4], 11, 1272893353); c = md5hh(c, d, a, b, k[7], 16, -155497632); b = md5hh(b, c, d, a, k[10], 23, -1094730640);
+    a = md5hh(a, b, c, d, k[13], 4, 681279174); d = md5hh(d, a, b, c, k[0], 11, -358537222); c = md5hh(c, d, a, b, k[3], 16, -722521979); b = md5hh(b, c, d, a, k[6], 23, 76029189);
+    a = md5hh(a, b, c, d, k[9], 4, -640364487); d = md5hh(d, a, b, c, k[12], 11, -421815835); c = md5hh(c, d, a, b, k[15], 16, 530742520); b = md5hh(b, c, d, a, k[2], 23, -995338651);
+    a = md5ii(a, b, c, d, k[0], 6, -198630844); d = md5ii(d, a, b, c, k[7], 10, 1126891415); c = md5ii(c, d, a, b, k[14], 15, -1416354905); b = md5ii(b, c, d, a, k[5], 21, -57434055);
+    a = md5ii(a, b, c, d, k[12], 6, 1700485571); d = md5ii(d, a, b, c, k[3], 10, -1894986606); c = md5ii(c, d, a, b, k[10], 15, -1051523); b = md5ii(b, c, d, a, k[1], 21, -2054922799);
+    a = md5ii(a, b, c, d, k[8], 6, 1873313359); d = md5ii(d, a, b, c, k[15], 10, -30611744); c = md5ii(c, d, a, b, k[6], 15, -1560198380); b = md5ii(b, c, d, a, k[13], 21, 1309151649);
+    a = md5ii(a, b, c, d, k[4], 6, -145523070); d = md5ii(d, a, b, c, k[11], 10, -1120210379); c = md5ii(c, d, a, b, k[2], 15, 718787259); b = md5ii(b, c, d, a, k[9], 21, -343485551);
+    x[0] = safeAdd(a, x[0]); x[1] = safeAdd(b, x[1]); x[2] = safeAdd(c, x[2]); x[3] = safeAdd(d, x[3]);
   }
 
   function md5blks(s: string) {
@@ -117,7 +117,7 @@ function xhsMd5(str: string): string {
   function rhex(n: number) {
     const hex = '0123456789abcdef';
     let s = '';
-    for (let j = 0; j < 4; j++) s += hex[(n >> (j*8+4))&0xf] + hex[(n >> (j*8))&0xf];
+    for (let j = 0; j < 4; j++) s += hex[(n >> (j * 8 + 4)) & 0xf] + hex[(n >> (j * 8)) & 0xf];
     return s;
   }
 
@@ -409,7 +409,7 @@ const rapReadyPromise = new Promise<void>(resolve => { rapReadyResolve = resolve
 function applySetHeaderHook(proto: any) {
   if (!proto || proto.__tc_rap_hooked) return;
   const orig = proto.setRequestHeader;
-  proto.setRequestHeader = function(name: string, value: string) {
+  proto.setRequestHeader = function (name: string, value: string) {
     if (String(name).toLowerCase() === 'x-rap-param') {
       console.log(`${TAG} [setHeaderHook] CAPTURED x-rap-param! len=${value?.length} first60=${String(value).slice(0, 60)}`);
       (window as any).__capturedRapParam = String(value);
@@ -497,7 +497,7 @@ function bezierMousePath(start: Point, end: Point, steps = 28): Point[] {
 // 单次注入少量事件（3~6 个 mousemove + 偶发 wheel），用于后台定时预热
 function injectSmallBatch(): void {
   try {
-    const vw = window.innerWidth  || 1280;
+    const vw = window.innerWidth || 1280;
     const vh = window.innerHeight || 800;
     const sx = Math.random() * vw * 0.6 + vw * 0.1;
     const sy = Math.random() * vh * 0.6 + vh * 0.1;
@@ -520,7 +520,7 @@ function injectSmallBatch(): void {
         bubbles: true, cancelable: true,
       }));
     }
-  } catch (_) {}
+  } catch (_) { }
 }
 
 // 后台行为预热：inject script 加载后立刻启动，模拟用户持续浏览
@@ -579,12 +579,12 @@ function waitForWarmBuffer(minBatches = WARMUP_BATCH_TARGET, maxWaitMs = 15000):
 // 原 injectSyntheticBehavior：现在只做紧前注入（补充最后几个事件），不作为主要预热方式
 function injectSyntheticBehavior(): void {
   try {
-    const vw = window.innerWidth  || 1280;
+    const vw = window.innerWidth || 1280;
     const vh = window.innerHeight || 800;
 
     const start: Point = { x: Math.random() * vw * 0.4 + 100, y: Math.random() * vh * 0.4 + 100 };
-    const mid:   Point = { x: Math.random() * vw * 0.5 + vw * 0.2, y: Math.random() * vh * 0.3 + vh * 0.3 };
-    const end:   Point = { x: Math.random() * vw * 0.3 + vw * 0.5, y: Math.random() * vh * 0.2 + vh * 0.6 };
+    const mid: Point = { x: Math.random() * vw * 0.5 + vw * 0.2, y: Math.random() * vh * 0.3 + vh * 0.3 };
+    const end: Point = { x: Math.random() * vw * 0.3 + vw * 0.5, y: Math.random() * vh * 0.2 + vh * 0.6 };
 
     const path1 = bezierMousePath(start, mid);
     const path2 = bezierMousePath(mid, end);
@@ -610,7 +610,7 @@ function injectSyntheticBehavior(): void {
     }
 
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', code: 'Tab', bubbles: true }));
-    window.dispatchEvent(new KeyboardEvent('keyup',   { key: 'Tab', code: 'Tab', bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', code: 'Tab', bubbles: true }));
 
     console.log(`${TAG} [SyntheticBehavior] injected: ${mouseMoveCount} mousemove, ${scrollSteps} wheel, 1 Tab`);
   } catch (e: any) {
@@ -735,7 +735,7 @@ function generateRapParamFromLivePage(apiPath: string, body: string): Promise<st
           enumerable: true,
         });
       } catch (_) {
-        try { (window as any).__capturedRapParam = value; } catch (_2) {}
+        try { (window as any).__capturedRapParam = value; } catch (_2) { }
       }
       console.log(`${TAG} [RAP-LiveFallback] settled via=${source} len=${value?.length || 0} quality=0x${formatRapQuality(value)}`);
       resolve(value);
@@ -753,7 +753,7 @@ function generateRapParamFromLivePage(apiPath: string, body: string): Promise<st
       });
     } catch (e: any) {
       console.warn(`${TAG} [RAP-LiveFallback] defineProperty failed:`, e.message);
-      try { (window as any).__capturedRapParam = null; } catch (_) {}
+      try { (window as any).__capturedRapParam = null; } catch (_) { }
     }
 
     const timeoutId = setTimeout(() => settle(storedValue, 'timeout'), TIMEOUT_MS);
@@ -763,7 +763,7 @@ function generateRapParamFromLivePage(apiPath: string, body: string): Promise<st
       const url = /^https?:\/\//.test(apiPath) ? apiPath : 'https://edith.xiaohongshu.com' + apiPath;
       const xhr = new _currentXHR();
       xhr.open('POST', url, true);
-      try { xhr.setRequestHeader('content-type', 'application/json;charset=UTF-8'); } catch (_) {}
+      try { xhr.setRequestHeader('content-type', 'application/json;charset=UTF-8'); } catch (_) { }
       xhr.send(body);
     } catch (e: any) {
       console.error(`${TAG} [RAP-LiveFallback] XHR trigger error:`, e.message);
@@ -961,7 +961,8 @@ async function handleSignedFetch(event: MessageEvent) {
           'x-b3-traceid': '44d659d341c626c3',
           'x-rap-param': dynamicRapParam,
           'x-s': 'XYS_2UQhPsHCH0c1PUhMHjIj2erjwjQhyoPTqBPT49pjHjIj2eHjwjQ+GnPW/MPjNsQhPUHCHfM1qAZAPebK8MQYa7blJnkOJb8HNFqInrprPBSD+MmbJBWMqSHh+p86a9khn/+ba/QxPLL7a/zD/UTD+d8Y8BYnLemz2gZFwp+MLSSec/zzqnMCPMm8JFTNLrMQLnDhpBMy+bSm8nilzSkAGASoG/YbJppla9zs8ez0GSLIaDYNnb+dpMGhy/rltFMeJdmALdkaaSmpGpcAJrziaM+18b8yJB+kz/mtLDS3PrRH/SQaprM0yAbkyUTm4opAL0+nP/8G2SHEa7+IHjIj2ecjwjQ6GfkSG7cjKc==',
-          'x-s-common': '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',
+          // 'x-s-common': '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',
+          'x-s-common': testXsCommon,
           'x-t': '1779807743065',
           'x-xray-traceid': 'cf326775d7b861e9eb64ea6f3bdeabfa',
         },
@@ -1015,7 +1016,7 @@ async function handleSignedFetch(event: MessageEvent) {
 
     // 3. fetch（page context，Origin 正确）
     const hexChars = 'abcdef0123456789';
-    const genHex = (n: number) => Array.from({length: n}, () => hexChars[Math.floor(Math.random() * 16)]).join('');
+    const genHex = (n: number) => Array.from({ length: n }, () => hexChars[Math.floor(Math.random() * 16)]).join('');
 
     const fetchHeaders: Record<string, string> = {
       'accept': 'application/json, text/plain, */*',
