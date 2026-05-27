@@ -164,7 +164,15 @@ function hexToBytes(hex: string): number[] {
 
 /**
  * 计算 x-s-common
- * 完全对齐最新生产环境 xhs_xray_pack1.js 的 xsCommon(a1, xs, xt) 实现
+ *
+ * Creator API (/web_api/)：移植自 Spider_XHS/static/xhs_creator_260411.js XsCommon()
+ *   x9 = gens9(hexToBytes(MD5(xt + xs + b1)))  ← 先 MD5 再 CRC32
+ *   x1="4.3.2", x4="4.84.1", x11="normal"
+ *
+ * Consumer API (/api/sns/ 等)：移植自 Spider_XHS/static/xhs_xray_pack1.js xsCommon()
+ *   x9 = gens9(xt + xs + b1)  ← 直接 CRC32（ASCII 字符串，charCodeAt == UTF-8 bytes）
+ *   x1="3.7.8-2", x4="4.38.0", x6=xt, x7=xs
+ *
  * 每次请求必须用本次的 xs/xt 重新计算，不能复用
  */
 function calcXsCommon(a1: string, xs: string, xt: number | string, apiPath = ''): string {
@@ -174,39 +182,58 @@ function calcXsCommon(a1: string, xs: string, xt: number | string, apiPath = '')
   // 优先从 localStorage 读取指纹 b1，若不存在则退回静态 FFF 常量
   const b1 = localStorage.getItem('b1') || (isCreatorApi ? FFF_CREATOR : FFF_CONSUMER);
 
-  // x9 加密算子
-  const x9Input = xtStr + xs + b1;
-  const x9 = gens9(Array.from(new TextEncoder().encode(x9Input)));
-
   const platform = getPlatformName();
   const s0 = getPlatformCode(platform);
   const x0 = localStorage.getItem('b1b1') || '1';
 
-  // 版本号对齐真实浏览器请求（从 Network 面板解码确认）
-  // 消费端: x1="4.3.5", x4="6.12.3"; 创作者端保持原值
-  const x1 = isCreatorApi ? '3.7.2' : '4.3.5';
-  const x3 = isCreatorApi ? 'ugc' : 'xhs-pc-web';
-  const x4 = isCreatorApi ? '0.20.13' : '6.12.3';
+  let x9: number;
+  let d: Record<string, any>;
 
-  // x6/x7 在消费端真实请求里是空字符串（创作者端保留 xt/xs）
-  const x6 = isCreatorApi ? xtStr : '';
-  const x7 = isCreatorApi ? xs : '';
+  if (isCreatorApi) {
+    // Creator API：x9 = gens9(hexToBytes(MD5(xt + xs + b1)))
+    const md5Input = xtStr + xs + b1;
+    const md5Hex = xhsMd5(md5Input);
+    x9 = gens9(hexToBytes(md5Hex));
 
-  const d: Record<string, any> = {
-    s0,
-    s1: '',
-    x0,
-    x1,
-    x2: platform,
-    x3,
-    x4,
-    x5: a1,
-    x6,
-    x7,
-    x8: b1,
-    x9,
-    x10: Number(sessionStorage.getItem('sc') || '0'),
-  };
+    d = {
+      s0,
+      s1: '',
+      x0,
+      x1: '4.3.2',
+      x2: platform,
+      x3: 'ugc',
+      x4: '4.84.1',
+      x5: a1,
+      x6: xtStr,
+      x7: xs,
+      x8: b1,
+      x9,
+      x10: 0,
+      x11: 'normal',
+    };
+  } else {
+    // Consumer API：x9 = gens9(bytes of xt + xs + b1)
+    // ASCII 字符串，TextEncoder 字节 == charCodeAt，与 xhs_xray_pack1.js encrypt_mcr 一致
+    const x9Input = xtStr + xs + b1;
+    x9 = gens9(Array.from(new TextEncoder().encode(x9Input)));
+
+    d = {
+      s0,
+      s1: '',
+      x0,
+      x1: '4.3.5',
+      x2: platform,
+      x3: 'xhs-pc-web',
+      x4: '6.12.3',
+      x5: a1,
+      x6: '',
+      x7: '',
+      x8: b1,
+      x9,
+      x10: Number(sessionStorage.getItem('sc') || '0'),
+      x11: 'normal',
+    };
+  }
 
   const jsonStr = JSON.stringify(d);
   const utf8Bytes = Array.from(new TextEncoder().encode(jsonStr));
@@ -905,6 +932,22 @@ async function handleSignedFetch(event: MessageEvent) {
     // ── 硬编码测试：直接发送已知成功的请求，验证 inject 环境 ──
     if (apiPath === '/api/sns/web/v1/search/notes') {
       console.log(`${TAG} [handleSignedFetch] HARDCODED TEST MODE`);
+      // x-rap-param 动态生成，其余硬编码
+      const hardcodedBody = '{"keyword":"AI","page":1,"page_size":20,"search_id":"2gf2y0tlhbxxqq7qiyetx","sort":"general","note_type":0,"ext_flags":[],"geo":"","image_formats":["jpg","webp","avif"]}';
+
+      // 验证 calcXsCommon：用硬编码里的 xs/xt，a1 从 cookie 读
+      const testA1 = getCookieValue('a1');
+      const testXs = 'XYS_2UQhPsHCH0c1PUhMHjIj2erjwjQhyoPTqBPT49pjHjIj2eHjwjQ+GnPW/MPjNsQhPUHCHfM1qAZAPebK8MQYa7blJnkOJb8HNFqInrprPBSD+MmbJBWMqSHh+p86a9khn/+ba/QxPLL7a/zD/UTD+d8Y8BYnLemz2gZFwp+MLSSec/zzqnMCPMm8JFTNLrMQLnDhpBMy+bSm8nilzSkAGASoG/YbJppla9zs8ez0GSLIaDYNnb+dpMGhy/rltFMeJdmALdkaaSmpGpcAJrziaM+18b8yJB+kz/mtLDS3PrRH/SQaprM0yAbkyUTm4opAL0+nP/8G2SHEa7+IHjIj2ecjwjQ6GfkSG7cjKc==';
+      const testXt = '1779807743065';
+      const testXsCommon = calcXsCommon(testA1 || '', testXs, testXt, apiPath);
+      const hardcodedXsCommon = '2UQAPsHCPUIjqArjwjHjNsQhPsHCH0rjNsQhPaHCH0c1PUhMHjIj2eHjwjQ+GnPW/MPjNsQhPUHCHdYiqUMIGUM78nHjNsQh+sHCH0G1P/H1PUHVHdWMH0ijP/SDwnbjwBp0GnLI20YDy/pCy9YI47QDGnIFJemd4BD7yn8VGn4I80GAPeZIPeqU+AcAPaHVHdW9H0ijHjIj2eqjwjHjNsQhwsHCHDDAwoQH8B4AyfRI8FS98g+Dpd4daLP3JFSb/BMsn0pSPM87nrldzSzQ2bPAGdb7zgQB8nph8emSy9E0cgk+zSS1qgzianYt8LzDLdYlqg4Dag8mqM4sG9Y7LozF89FF+DTp2dYQyemAPrlNq9kl49EE+Fzyag86q7YjLBkEndpmanYN8LzY+7+fppzLadbFLjTl4FbI8omwaL+iJLEQwrTCpd4/aL+d8nTM4rY7qg4raLpBqLSbN7+LapkkagYU/LS989pDqg4atA4ILoky/d+Dn/+S8dbFcLS3/fLApd4dqgbFqomM4oYN2f4APp4I8LSepS4QybrINMmFLLTn4FbQPMiUJ9MD8nSl498QcFbSpb8FqDSbtUTQznM1G98D8nkd2SSUJ9RA8db7/MkgJ9pD/rzrcfRdq9kyqrQQ2rTA8b8FGLS34fpfqg4aGDMPaL4f+rQQPA4A2obFzaRg/9phPBIFanYzqFSbwsTz8bk3agYbqAY+JBMQy9+fGSm7LFSeqp4o+FkAnnlOq9Tc4MQQPFTS8DQm8ncI+sTQ4d8AP9+VJozc4emQyn4SynpO8gYTad+n4g4FqfE6q9zn4opQPM8jGSL98p4M49T6wnRALMm78FDA2dQQPUThJMm78gkc4FT6GgpP2LMwqMSx87+nqgchanS6q9zpP7P9zoLIanSw8nTx/9LIJb+sagG9qAml49EQ4dmEqb87abmn4rbQ2epS+dpF4DS3J7PApd4nanVAq9kM4e+74gz1qMm7aLSeG9lQP9lytAmzydz8N9pLqgzxanScqLSk/fp84g4NnSkCqf+1/d+8yS+ManSi/o4n47k1Lozea/PM8nTn4FE1L9zAprMN8p8CLMmQynzA+DH7qMzM4F4I4g47aL+t8p4n49SQyLRS+fkUJFS98npr8sRSPbmFLFSea7P9Loq9+BRTqLSiaBpQc94SpDlm8pzd4fp8G08AnpmFaFSk/L8QP9FMqS8FaFS92flQyA8AP9l/P7Sd8BLILo4SanSH49bl49SOLFkSPb4OqFzc4rE14gz1a/+kPrSi20zj4gzj/S87GFDAPoPIqBzSPM87aLkM4obQzLMOabmFpLShGAY72D8aanStq7Yd/d+fzsRSPop7Ppmn4bkQyLlMa/+wqMSl4rRQcFTSPeSjLFSbnLD6qrFIag8nzFSeJ9ph4g4hGM8F/dzc4eYQPMq9ag86q7YSN9pnpd4VaS+Q8DS9GAQopdz1J7pF/LS3z0pQPMQja/+zpDSba9pn+FbA+dmj8pkc47zQzgbSqob7qpkM4AQQyBzS2BzBPrS3n0boqf4Sp7pFnDEc4BMUp7QinfR0wLSky7+PLo46anV9q9SmnnEQypbHndb74rShqBpALoc38gpFqFSiagbQ4dk+ag8C8FYM49zQyFYlaLLMqAbl47YSnnQVag8QGFSe+g+f8FkAL7p7tFSe+oSQcFl/8M4B8FS9pBTIapm8agG6qM8IN9LIqg4EanW9q9Tn4BEQybqFaL+Oq9SM4A+QP7p7qbm7yLDA/fpL/pSP8gpF8rRn4oQQ2rESzb8FJDSi/fpDJrz9anSd8/mT+fphqg4IaFQm8pSn4rW6Je4APM87qLSh8nL9GAmSpS8F8LSkJo8QzgbHGdp7NF4+zBbQcA8SLM8749q7ad+knprMNMm7qrS9ngbQz/mSnn+UtFDAPo+8qgchaL+/GDSi8gPIzBlxaLpHGLSb+rTwzbmoa/+OqMSQpMQQyMmmaL+MLFDA+npDJdmE/M87z7Qn47Qsn08Ayf+tqM+M4MSQc9RS8Si78/+l49EdpdqFaL++/9QM49Sy4g4OLgp7nLRc4MDFqgzp/ASmqMzrN7+LwnzAyFD68/8n4FlQygbIanY82rDALFSQP9zSPAqI8pzSn/Ph4gcFaLpcqLll47Zh8e8ApS87qLSea7+f20mALFQMzFSh+9pr4gzswrSrwLSe/fLIqg4hagGIqM8n4MzFLozYa/P78nzdagSOqgzcJDQt8n8TqB8Qz/4AzopFJjRl4A+sJ9zAPM87yn+c4AzjLo4sag8BwrS3prps/emAzBI7qA8c4e+Q2e8SPgb7a9Qc4F4NGnpSyMkg4g+AyBzlGM+eqb8FGd+n4BRQ2rp3a/+BaDS94/8o/rTAyppTGLSh/BRQP9Sl8pm7/DS9ynDUpdzsHjIj2eDjwjF9PAqh+ArhP/rVHdWlPsHCPsIj2erlH0ijJfRUJnbVHjIj2erUH0ijP/q7w/WI+APAweL9PeVl+Aq7PADA+/ZFP/c9HdF=';
+      console.log(`${TAG} [calcXsCommon TEST] a1=${testA1}`);
+      console.log(`${TAG} [calcXsCommon TEST] result=${testXsCommon}`);
+      console.log(`${TAG} [calcXsCommon TEST] match=${testXsCommon === hardcodedXsCommon}`);
+
+      (window as any).__rap_app_id__ = 'xhs-pc-web';
+      const dynamicRapParam = await generateRapParam(apiPath, hardcodedBody) || '';
+      console.log(`${TAG} [handleSignedFetch] dynamic rapParam first40=${dynamicRapParam.slice(0, 40)}`);
       const resp = await fetch('https://edith.xiaohongshu.com/api/sns/web/v1/search/notes', {
         method: 'POST',
         headers: {
@@ -916,7 +959,7 @@ async function handleSignedFetch(event: MessageEvent) {
           'sec-fetch-mode': 'cors',
           'sec-fetch-site': 'same-site',
           'x-b3-traceid': '44d659d341c626c3',
-          'x-rap-param': 'ByQBBAAAAAEAAAAUAAABRI3ZskwAACg8AAAAMwAAAAAAAAAAd281ZopnlFz31ayWXSZBybdw0nYAAAAQSVW/Dd1QOenZJVw+NvpcH/yPzVW1ZhUdCFGDiNtDSxPZpCnAQRZxyEQW+HIz2ccGfslerwwRLr8ii3ed9XJC8zZ/Ddh4b12o5j1ZCNpqGF+PhPu3iTGRjcZKZ5uLcaYxxcklh95uGcznEcCNnL+ESV0Qzz4+6ZPjmZD6zYsMESjSfUD8QLhKpf3MN3SKUQXVl+ABT3FN0mmB2l3gg6OSH2CgagnFVtE2q187rTnp+jJCy9gnS0AOHoasKisLbToWB6V0LOKeAd2tDfI72NtWgJ03Le4FtYJkJSvCIh8hJGPM7g54X5hiK4wCL6nDJx0p0OotLMArSVJ0EZSlxV+xXhqh1Fwn/SnA2VSvFwOwQJIvZU44pmVpPnHmcwsBpfOIcF3jYbglmOTn7fcW2S0/1/vc3FafqpyrH1RTaEvV5JwAAAFA',
+          'x-rap-param': dynamicRapParam,
           'x-s': 'XYS_2UQhPsHCH0c1PUhMHjIj2erjwjQhyoPTqBPT49pjHjIj2eHjwjQ+GnPW/MPjNsQhPUHCHfM1qAZAPebK8MQYa7blJnkOJb8HNFqInrprPBSD+MmbJBWMqSHh+p86a9khn/+ba/QxPLL7a/zD/UTD+d8Y8BYnLemz2gZFwp+MLSSec/zzqnMCPMm8JFTNLrMQLnDhpBMy+bSm8nilzSkAGASoG/YbJppla9zs8ez0GSLIaDYNnb+dpMGhy/rltFMeJdmALdkaaSmpGpcAJrziaM+18b8yJB+kz/mtLDS3PrRH/SQaprM0yAbkyUTm4opAL0+nP/8G2SHEa7+IHjIj2ecjwjQ6GfkSG7cjKc==',
           'x-s-common': '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',
           'x-t': '1779807743065',
