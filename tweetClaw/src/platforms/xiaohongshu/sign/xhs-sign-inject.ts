@@ -281,7 +281,6 @@ function waitForSignFn(): Promise<void> {
       if (typeof (window as any)._webmsxyw === 'function') {
         clearInterval(timer);
         signReady = true;
-        console.log(`${TAG} _webmsxyw ready after ${attempts * 200}ms`);
         resolve();
       } else if (attempts >= 75) { // 最多等 15s
         clearInterval(timer);
@@ -411,7 +410,6 @@ function applySetHeaderHook(proto: any) {
   const orig = proto.setRequestHeader;
   proto.setRequestHeader = function (name: string, value: string) {
     if (String(name).toLowerCase() === 'x-rap-param') {
-      console.log(`${TAG} [setHeaderHook] CAPTURED x-rap-param! len=${value?.length} first60=${String(value).slice(0, 60)}`);
       (window as any).__capturedRapParam = String(value);
     }
     return orig?.apply(this, arguments as any);
@@ -431,7 +429,6 @@ try {
       applySetHeaderHook(newXHR.prototype);
       if (!rapSdkHooked) {
         rapSdkHooked = true;
-        console.log(`${TAG} [RAP-Hook] RAP SDK replaced XMLHttpRequest, Phase 2 active`);
         rapReadyResolve?.();
       }
     },
@@ -523,101 +520,6 @@ function injectSmallBatch(): void {
   } catch (_) { }
 }
 
-// 后台行为预热：inject script 加载后立刻启动，模拟用户持续浏览
-// 间隔 800~1500ms，与真实用户行为节奏一致，让 Sanji 逐帧消化
-let _behaviorWarmupStarted = false;
-let _behaviorWarmupCount = 0;
-const WARMUP_BATCH_TARGET = 30; // 至少积累 30 次小批次后认为缓冲区已充实
-
-function startBehaviorWarmup(): void {
-  if (_behaviorWarmupStarted) return;
-  _behaviorWarmupStarted = true;
-
-  const scheduleNext = () => {
-    // 前 15 批快速注入（每 80~150ms 一次），之后恢复正常频率（每 800~1500ms）
-    const delay = _behaviorWarmupCount < 15
-      ? 80 + Math.floor(Math.random() * 70) // 80~150ms
-      : 800 + Math.floor(Math.random() * 700); // 800~1500ms
-    setTimeout(() => {
-      injectSmallBatch();
-      _behaviorWarmupCount++;
-      if (_behaviorWarmupCount < 60) {
-        scheduleNext();
-      } else {
-        const slowDelay = 3000 + Math.floor(Math.random() * 2000);
-        setTimeout(function keepWarm() {
-          injectSmallBatch();
-          setTimeout(keepWarm, 3000 + Math.floor(Math.random() * 2000));
-        }, slowDelay);
-      }
-    }, delay);
-  };
-
-  scheduleNext();
-  console.log(`${TAG} [BehaviorWarmup] started`);
-}
-
-// 默认不启动合成行为预热。RAP 主路径现在走隔离 iframe，同步生成参数；
-// 只有 live 页面 fallback 才会临时使用少量合成事件。
-
-// 返回一个 Promise，在缓冲区积累足够后 resolve（最多等 MAX_WAIT_MS）
-function waitForWarmBuffer(minBatches = WARMUP_BATCH_TARGET, maxWaitMs = 15000): Promise<void> {
-  if (_behaviorWarmupCount >= minBatches) return Promise.resolve();
-  return new Promise<void>((resolve) => {
-    const start = Date.now();
-    const check = () => {
-      if (_behaviorWarmupCount >= minBatches || Date.now() - start >= maxWaitMs) {
-        resolve();
-      } else {
-        setTimeout(check, 200);
-      }
-    };
-    check();
-  });
-}
-
-// 原 injectSyntheticBehavior：现在只做紧前注入（补充最后几个事件），不作为主要预热方式
-function injectSyntheticBehavior(): void {
-  try {
-    const vw = window.innerWidth || 1280;
-    const vh = window.innerHeight || 800;
-
-    const start: Point = { x: Math.random() * vw * 0.4 + 100, y: Math.random() * vh * 0.4 + 100 };
-    const mid: Point = { x: Math.random() * vw * 0.5 + vw * 0.2, y: Math.random() * vh * 0.3 + vh * 0.3 };
-    const end: Point = { x: Math.random() * vw * 0.3 + vw * 0.5, y: Math.random() * vh * 0.2 + vh * 0.6 };
-
-    const path1 = bezierMousePath(start, mid);
-    const path2 = bezierMousePath(mid, end);
-    const fullPath = [...path1, ...path2];
-
-    let mouseMoveCount = 0;
-    for (const pt of fullPath) {
-      window.dispatchEvent(new MouseEvent('mousemove', {
-        clientX: pt.x, clientY: pt.y,
-        screenX: pt.x, screenY: pt.y + 80,
-        bubbles: true, cancelable: true,
-      }));
-      mouseMoveCount++;
-    }
-
-    const scrollSteps = 3 + Math.floor(Math.random() * 3);
-    for (let i = 0; i < scrollSteps; i++) {
-      window.dispatchEvent(new WheelEvent('wheel', {
-        deltaY: 60 + Math.random() * 100,
-        deltaMode: 0,
-        bubbles: true, cancelable: true,
-      }));
-    }
-
-    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', code: 'Tab', bubbles: true }));
-    window.dispatchEvent(new KeyboardEvent('keyup', { key: 'Tab', code: 'Tab', bubbles: true }));
-
-    console.log(`${TAG} [SyntheticBehavior] injected: ${mouseMoveCount} mousemove, ${scrollSteps} wheel, 1 Tab`);
-  } catch (e: any) {
-    console.warn(`${TAG} [SyntheticBehavior] inject failed:`, e.message);
-  }
-}
-
 function getRapQualityByte(rapParam: string): number | null {
   try {
     const decoded = atob(rapParam);
@@ -633,9 +535,8 @@ function formatRapQuality(rapParam: string | null | undefined): string {
   return quality === null ? '??' : quality.toString(16);
 }
 
-function isPreferredRapParam(rapParam: string | null | undefined, _apiPath = ''): boolean {
-  const quality = getRapQualityByte(rapParam || '');
-  return quality === 5;
+function isPreferredRapParam(rapParam: string | null | undefined): boolean {
+  return getRapQualityByte(rapParam || '') === 5;
 }
 
 function getRapAppId(apiPath: string): string {
@@ -672,7 +573,6 @@ function getRapSandboxWindow(): Promise<Window> {
         reject(new Error('RAP sandbox generator not available'));
         return;
       }
-      console.log(`${TAG} [RAP-Sandbox] loaded`);
       resolve(frameWindow as Window);
     };
     iframe.onerror = () => {
@@ -695,7 +595,6 @@ function generateRapParamFromSandbox(apiPath: string, body: string): Promise<str
     const MAX_ATTEMPTS = 12;
     let bestRapParam: string | null = null;
     let bestQuality: number | null = null;
-    const isCreatorApi = apiPath.indexOf('/web_api/') >= 0;
 
     for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
       const rapParam = frameWindow.generate_x_rap_param(apiPath, body || '', appId) || '';
@@ -706,7 +605,6 @@ function generateRapParamFromSandbox(apiPath: string, body: string): Promise<str
         bestRapParam = rapParam;
         bestQuality = quality;
       }
-      console.log(`${TAG} [RAP-Sandbox] attempt=${attempt}/${MAX_ATTEMPTS} len=${rapParam.length} quality=0x${formatRapQuality(rapParam)} first40=${rapParam.slice(0, 40)}`);
       if (isTargetQuality) {
         return rapParam;
       }
@@ -723,7 +621,7 @@ function generateRapParamFromLivePage(apiPath: string, body: string): Promise<st
     let storedValue: string | null = null;
     const TIMEOUT_MS = 3000;
 
-    const settle = (value: string | null, source: string) => {
+    const settle = (value: string | null) => {
       if (settled) return;
       settled = true;
       clearTimeout(timeoutId);
@@ -737,7 +635,6 @@ function generateRapParamFromLivePage(apiPath: string, body: string): Promise<st
       } catch (_) {
         try { (window as any).__capturedRapParam = value; } catch (_2) { }
       }
-      console.log(`${TAG} [RAP-LiveFallback] settled via=${source} len=${value?.length || 0} quality=0x${formatRapQuality(value)}`);
       resolve(value);
     };
 
@@ -746,7 +643,7 @@ function generateRapParamFromLivePage(apiPath: string, body: string): Promise<st
         get() { return storedValue; },
         set(v: string | null) {
           storedValue = v || null;
-          if (v) settle(v, 'setter');
+          if (v) settle(v);
         },
         configurable: true,
         enumerable: true,
@@ -756,7 +653,7 @@ function generateRapParamFromLivePage(apiPath: string, body: string): Promise<st
       try { (window as any).__capturedRapParam = null; } catch (_) { }
     }
 
-    const timeoutId = setTimeout(() => settle(storedValue, 'timeout'), TIMEOUT_MS);
+    const timeoutId = setTimeout(() => settle(storedValue), TIMEOUT_MS);
 
     try {
       (window as any).__rap_app_id__ = getRapAppId(apiPath);
@@ -767,27 +664,23 @@ function generateRapParamFromLivePage(apiPath: string, body: string): Promise<st
       xhr.send(body);
     } catch (e: any) {
       console.error(`${TAG} [RAP-LiveFallback] XHR trigger error:`, e.message);
-      settle(null, 'error');
+      settle(null);
     }
   });
 }
 
 async function generateRapParam(apiPath: string, body: string): Promise<string | null> {
-  console.log(`${TAG} [generateRapParam] START apiPath=${apiPath} bodyLen=${body?.length}`);
   try {
     const sandboxRapParam = await generateRapParamFromSandbox(apiPath, body);
-    if (isPreferredRapParam(sandboxRapParam, apiPath)) {
+    if (isPreferredRapParam(sandboxRapParam)) {
       return sandboxRapParam;
     }
 
-    console.warn(`${TAG} [generateRapParam] sandbox RAP quality=0x${formatRapQuality(sandboxRapParam)}, trying live page RAP`);
     const liveRapParam = await generateRapParamFromLivePage(apiPath, body);
-    if (isPreferredRapParam(liveRapParam, apiPath)) {
-      console.log(`${TAG} [generateRapParam] using live page RAP quality=0x${formatRapQuality(liveRapParam)}`);
+    if (isPreferredRapParam(liveRapParam)) {
       return liveRapParam;
     }
 
-    console.warn(`${TAG} [generateRapParam] live page RAP quality=0x${formatRapQuality(liveRapParam)}, using sandbox RAP quality=0x${formatRapQuality(sandboxRapParam)}`);
     return sandboxRapParam || liveRapParam;
   } catch (e: any) {
     console.warn(`${TAG} [generateRapParam] sandbox failed, falling back to live page RAP:`, e.message);
@@ -814,14 +707,9 @@ async function handleRapRequest(event: MessageEvent) {
 
   const { msgId, apiPath, body } = msg;
 
-  console.log(`${TAG} [handleRapRequest] apiPath=${apiPath} bodyLen=${body?.length} body=${body?.slice(0, 150)}`);
-  console.log(`${TAG} [handleRapRequest] rapSdkHooked=${rapSdkHooked} _currentXHR.name=${_currentXHR?.name}`);
-
   try {
     await rapReadyPromise;
-    console.log(`${TAG} [handleRapRequest] rapReadyPromise resolved, calling generateRapParam...`);
     const rapParam = await generateRapParam(apiPath, body);
-    console.log(`${TAG} [handleRapRequest] result: len=${rapParam?.length || 0} first60=${rapParam?.slice(0, 60) || 'NULL'}`);
     if (!rapParam) console.warn(`${TAG} x-rap-param is null for ${apiPath}`);
     window.postMessage({ type: 'XHS_RAP_RESPONSE', msgId, success: true, rapParam: rapParam || '' }, '*');
   } catch (e: any) {
@@ -927,71 +815,12 @@ async function handleSignedFetch(event: MessageEvent) {
     const bodyStr = body || '';
     const fullUrl = 'https://edith.xiaohongshu.com' + apiPath;
 
-    console.log(`${TAG} [handleSignedFetch] START apiPath=${apiPath} bodyLen=${bodyStr.length}`);
-
-    // ── 硬编码测试已移除，改用下方完全动态路径 ──
-    if (false) { // eslint-disable-line no-constant-condition
-      console.log(`${TAG} [handleSignedFetch] HARDCODED TEST MODE`);
-      // x-rap-param 动态生成，其余硬编码
-      const hardcodedBody = '{"keyword":"AI","page":1,"page_size":20,"search_id":"2gf2y0tlhbxxqq7qiyetx","sort":"general","note_type":0,"ext_flags":[],"geo":"","image_formats":["jpg","webp","avif"]}';
-
-      // 验证 calcXsCommon：用硬编码里的 xs/xt，a1 从 cookie 读
-      const testA1 = getCookieValue('a1');
-      const testXs = signWithMnsv2(apiPath, hardcodedBody);
-      const hardcodedXs = 'XYS_2UQhPsHCH0c1PUhMHjIj2erjwjQhyoPTqBPT49pjHjIj2eHjwjQ+GnPW/MPjNsQhPUHCHfM1qAZAPebK8MQYa7blJnkOJb8HNFqInrprPBSD+MmbJBWMqSHh+p86a9khn/+ba/QxPLL7a/zD/UTD+d8Y8BYnLemz2gZFwp+MLSSec/zzqnMCPMm8JFTNLrMQLnDhpBMy+bSm8nilzSkAGASoG/YbJppla9zs8ez0GSLIaDYNnb+dpMGhy/rltFMeJdmALdkaaSmpGpcAJrziaM+18b8yJB+kz/mtLDS3PrRH/SQaprM0yAbkyUTm4opAL0+nP/8G2SHEa7+IHjIj2ecjwjQ6GfkSG7cjKc==';
-      console.log(`${TAG} [xs TEST] dynamic=${testXs}`);
-      console.log(`${TAG} [xs TEST] startsWith XYS_=${testXs.startsWith('XYS_')}`);
-      const testXt = String(Date.now());
-      const testXsCommon = calcXsCommon(testA1 || '', testXs, testXt, apiPath);
-      const hardcodedXsCommon = '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';
-      console.log(`${TAG} [calcXsCommon TEST] a1=${testA1}`);
-      console.log(`${TAG} [calcXsCommon TEST] result=${testXsCommon}`);
-      console.log(`${TAG} [calcXsCommon TEST] match=${testXsCommon === hardcodedXsCommon}`);
-
-      (window as any).__rap_app_id__ = 'xhs-pc-web';
-      const dynamicRapParam = await generateRapParam(apiPath, hardcodedBody) || '';
-      console.log(`${TAG} [handleSignedFetch] dynamic rapParam first40=${dynamicRapParam.slice(0, 40)}`);
-      const resp = await fetch('https://edith.xiaohongshu.com/api/sns/web/v1/search/notes', {
-        method: 'POST',
-        headers: {
-          'accept': 'application/json, text/plain, */*',
-          'accept-language': 'en-US,en;q=0.9',
-          'content-type': 'application/json;charset=UTF-8',
-          'priority': 'u=1, i',
-          'sec-fetch-dest': 'empty',
-          'sec-fetch-mode': 'cors',
-          'sec-fetch-site': 'same-site',
-          'x-b3-traceid': '44d659d341c626c3',
-          'x-rap-param': dynamicRapParam,
-          'x-s': testXs,
-          // 'x-s': 'XYS_2UQhPsHCH0c1PUhMHjIj2erjwjQhyoPTqBPT49pjHjIj2eHjwjQ+GnPW/MPjNsQhPUHCHfM1qAZAPebK8MQYa7blJnkOJb8HNFqInrprPBSD+MmbJBWMqSHh+p86a9khn/+ba/QxPLL7a/zD/UTD+d8Y8BYnLemz2gZFwp+MLSSec/zzqnMCPMm8JFTNLrMQLnDhpBMy+bSm8nilzSkAGASoG/YbJppla9zs8ez0GSLIaDYNnb+dpMGhy/rltFMeJdmALdkaaSmpGpcAJrziaM+18b8yJB+kz/mtLDS3PrRH/SQaprM0yAbkyUTm4opAL0+nP/8G2SHEa7+IHjIj2ecjwjQ6GfkSG7cjKc==',
-          // 'x-s-common': '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',
-          'x-s-common': testXsCommon,
-          // 'x-t': '1779807743065',
-          'x-t': testXt,
-          'x-xray-traceid': 'cf326775d7b861e9eb64ea6f3bdeabfa',
-        },
-        referrer: 'https://www.xiaohongshu.com/',
-        body: '{"keyword":"AI","page":1,"page_size":20,"search_id":"2gf2y0tlhbxxqq7qiyetx","sort":"general","note_type":0,"ext_flags":[],"geo":"","image_formats":["jpg","webp","avif"]}',
-        mode: 'cors',
-        credentials: 'include',
-      });
-      const responseText = await resp.text();
-      console.log(`${TAG} [handleSignedFetch] HARDCODED status=${resp.status} first100=${responseText.slice(0, 100)}`);
-      window.postMessage({ type: 'XHS_SIGNED_FETCH_RESPONSE', msgId, status: resp.status, responseText }, '*');
-      return;
-    }
-    // ── 硬编码测试结束 ──
-
-    // 1. 签名
     const a1 = getCookieValue('a1');
     if (!a1) throw new Error('a1 cookie not found');
-    console.log(`${TAG} [handleSignedFetch] a1=${a1.slice(0, 8)}...`);
 
     let xs: string;
     let xt: number;
     let xsCommon = '';
-    const isCreatorApi = apiPath.indexOf('/web_api/') >= 0;
 
     if (typeof (window as any).mnsv2 === 'function') {
       // 优先用 mnsv2 生成 XYS_ 格式签名（消费端和创作者端均适用）
@@ -1009,15 +838,10 @@ async function handleSignedFetch(event: MessageEvent) {
     } else {
       throw new Error('No sign function available (neither mnsv2 nor _webmsxyw)');
     }
-    console.log(`${TAG} [handleSignedFetch] signed: xs=${xs.slice(0, 12)}... xt=${xt} hasXsCommon=${!!xsCommon}`);
 
     // 2. 生成 x-rap-param。主路径在隔离 iframe 中同步执行 Spider_XHS 的 RAP 环境。
-    console.log(`${TAG} [handleSignedFetch] generating x-rap-param...`);
     (window as any).__rap_app_id__ = getRapAppId(apiPath);
-    console.log(`${TAG} [handleSignedFetch] __rap_app_id__=${(window as any).__rap_app_id__}`);
-
     const rapParam = await generateRapParam(apiPath, bodyStr) || '';
-    console.log(`${TAG} [handleSignedFetch] rapParam len=${rapParam.length} first40=${rapParam.slice(0, 40)}`);
 
     // 3. fetch（page context，Origin 正确）
     const hexChars = 'abcdef0123456789';
@@ -1034,14 +858,6 @@ async function handleSignedFetch(event: MessageEvent) {
     if (xsCommon) fetchHeaders['x-s-common'] = xsCommon;
     if (rapParam) fetchHeaders['x-rap-param'] = rapParam;
 
-    console.log(`${TAG} [handleSignedFetch] fetching ${fullUrl}...`);
-    console.log(`${TAG} [handleSignedFetch] DEBUG headers:`, JSON.stringify(fetchHeaders));
-    console.log(`${TAG} [handleSignedFetch] DEBUG body:`, bodyStr?.slice(0, 300));
-    console.log(`${TAG} [handleSignedFetch] DEBUG cookies(a1,web_session,webId):`,
-      getCookieValue('a1')?.slice(0, 12) + '...',
-      getCookieValue('web_session')?.slice(0, 12) + '...',
-      getCookieValue('webId')?.slice(0, 12) + '...',
-    );
     const response = await fetch(fullUrl, {
       method: method || 'POST',
       headers: fetchHeaders,
@@ -1049,7 +865,6 @@ async function handleSignedFetch(event: MessageEvent) {
       body: bodyStr || undefined,
     });
     const responseText = await response.text();
-    console.log(`${TAG} [handleSignedFetch] response status=${response.status} textLen=${responseText.length} first100=${responseText.slice(0, 100)}`);
 
     window.postMessage({
       type: 'XHS_SIGNED_FETCH_RESPONSE',
