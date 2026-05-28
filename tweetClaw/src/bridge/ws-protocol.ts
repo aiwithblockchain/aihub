@@ -23,6 +23,8 @@ export type MessageType =
   | 'response.query_xhs_user_notes'
   | 'command.xhs_publish_image_note'
   | 'response.xhs_publish_image_note'
+  | 'command.xhs_publish_video_note'
+  | 'response.xhs_publish_video_note'
   | 'command.xhs_check_sign_health'
   | 'response.xhs_check_sign_health'
   | 'command.xhs_get_note_comments'
@@ -93,6 +95,8 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_QUERY_XHS_USER_NOTES: 'response.query_xhs_user_notes',
   COMMAND_XHS_PUBLISH_IMAGE_NOTE: 'command.xhs_publish_image_note',
   RESPONSE_XHS_PUBLISH_IMAGE_NOTE: 'response.xhs_publish_image_note',
+  COMMAND_XHS_PUBLISH_VIDEO_NOTE: 'command.xhs_publish_video_note',
+  RESPONSE_XHS_PUBLISH_VIDEO_NOTE: 'response.xhs_publish_video_note',
   COMMAND_XHS_CHECK_SIGN_HEALTH: 'command.xhs_check_sign_health',
   RESPONSE_XHS_CHECK_SIGN_HEALTH: 'response.xhs_check_sign_health',
   COMMAND_XHS_GET_NOTE_COMMENTS: 'command.xhs_get_note_comments',

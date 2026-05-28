@@ -115,6 +115,7 @@ localBridge.queryXhsFeedHandler = queryXhsFeed;
 localBridge.queryXhsSearchHandler = queryXhsSearch;
 localBridge.queryXhsUserNotesHandler = queryXhsUserNotes;
 localBridge.xhsPublishImageNoteHandler = publishXhsImageNote;
+localBridge.xhsPublishVideoNoteHandler = publishXhsVideoNote;
 localBridge.xhsCheckSignHealthHandler = checkXhsSignHealth;
 localBridge.xhsGetNoteCommentsHandler = getXhsNoteComments;
 localBridge.xhsGetUserInfoHandler = getXhsUserInfo;
@@ -609,6 +610,19 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             try {
                 const { type: _t, ...payload } = message;
                 const data = await publishXhsImageNote(payload);
+                sendResponse({ success: true, data });
+            } catch (e: any) {
+                sendResponse({ success: false, error: e.message });
+            }
+        })();
+        return true;
+    }
+
+    if (message.type === 'XHS_PUBLISH_VIDEO_NOTE') {
+        (async () => {
+            try {
+                const { type: _t, ...payload } = message;
+                const data = await publishXhsVideoNote(payload);
                 sendResponse({ success: true, data });
             } catch (e: any) {
                 sendResponse({ success: false, error: e.message });
@@ -1330,6 +1344,30 @@ export async function publishXhsImageNote(payload: Record<string, unknown> = {})
 
     if (!result?.success) {
         throw new Error(result?.error || 'Failed to publish image note to Xiaohongshu');
+    }
+
+    return result.data;
+}
+
+export async function publishXhsVideoNote(payload: Record<string, unknown> = {}) {
+    console.log('[TweetClaw-BG] publishXhsVideoNote called', {
+        title: payload.title,
+    });
+
+    if (!payload.video) throw new Error('video is required');
+    if (!payload.video_info) throw new Error('video_info is required');
+
+    const tabId = await getOrOpenCreatorTab();
+
+    const result: any = await chrome.tabs.sendMessage(tabId, {
+        type: 'XHS_PUBLISH_VIDEO_NOTE',
+        ...payload,
+    }).catch((e: any) => {
+        throw new Error(`Failed to communicate with content script: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to publish video note to Xiaohongshu');
     }
 
     return result.data;

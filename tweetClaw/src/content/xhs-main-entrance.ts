@@ -340,25 +340,28 @@ async function sha1Hex(message: string): Promise<string> {
 }
 
 /**
- * 计算 COS 上传签名（移植自 xhs_creator_signature.js）
+ * 计算 COS 上传签名（通用版，移植自 xhs_creator_signature.js）
  * message 格式: "{xt前10位};{expireTime前10位}"
+ * urlParams: 已排序的小写 key=value 串，如 "partnumber=1&uploadid=xxx" 或 ""
  */
-async function getUploadSignature(message: string, fileId: string, contentLength: number, host = 'ros-upload.xiaohongshu.com'): Promise<string> {
-  // step1: key1 = HMAC-SHA1("null", message)  → 结果是 hex string（如 "fce354d2..."）
+async function calcCosSignature(
+  message: string,
+  method: string,
+  path: string,
+  urlParams: string,
+  contentLength: number,
+  host: string,
+): Promise<string> {
   const step1Key = await hmacSha1Hex(new TextEncoder().encode('null').buffer as ArrayBuffer, message);
-
-  // step2: key2 = step1Key 作为 UTF-8/ASCII bytes（40字节，每字节是 hex 字符的 ASCII 码）
-  // 注意：CryptoJS.HmacSHA1(message, key) 当 key 是字符串时，直接用其 UTF-8 字节作为 key 材料
-  // 因此不能把 hex string 解码成 20 字节 binary，必须保留 40 字节 ASCII
   const step2KeyBuf = new TextEncoder().encode(step1Key).buffer as ArrayBuffer;
-
-  // step3: canonical request hash
-  const canonicalReq = `put\n/spectrum/${fileId}\n\ncontent-length=${contentLength}&host=${host}\n`;
+  const canonicalReq = `${method}\n${path}\n${urlParams}\ncontent-length=${contentLength}&host=${host}\n`;
   const canonicalHash = await sha1Hex(canonicalReq);
-
-  // step4: final HMAC
   const signStr = `sha1\n${message}\n${canonicalHash}\n`;
   return hmacSha1Hex(step2KeyBuf, signStr);
+}
+
+async function getUploadSignature(message: string, fileId: string, contentLength: number, host = 'ros-upload.xiaohongshu.com'): Promise<string> {
+  return calcCosSignature(message, 'put', `/spectrum/${fileId}`, '', contentLength, host);
 }
 
 // ── 图片上传流程（移植自 xhs_creator_apis.py: get_fileIds + upload_media）──────
@@ -400,13 +403,25 @@ async function getUploadPermit(scene: 'image' | 'video'): Promise<UploadPermit> 
   const res = await response.json();
   if (!res.success) throw new Error(`getUploadPermit failed: ${res.msg}`);
 
-  const permit = res.data.uploadTempPermits[0];
+  const permits: any[] = res.data.uploadTempPermits;
+  console.log(`${TAG} [getUploadPermit] scene=${scene} permits count=${permits.length}`, permits.map((p: any) => p.uploadAddr));
+
+  // video 优先选 CDN 节点（ros-upload-d4.xhscdn.com），image 用主节点
+  const permit = scene === 'video'
+    ? (permits.find((p: any) => String(p.uploadAddr || '').includes('d4')) || permits[0])
+    : permits[0];
+
   const rawFileId: string = permit.fileIds[0]; // 格式: "spectrum/xxx" 或 "xxx"
-  const fileId = rawFileId.split('/').pop()!;
-  const uploadHost = permit.uploadAddr || 'ros-upload.xiaohongshu.com';
+  const fileId = rawFileId.startsWith('spectrum/') ? rawFileId.slice('spectrum/'.length) : rawFileId;
+
+  // uploadAddr 可能含 scheme（"https://ros-upload-d4.xhscdn.com"），提取 hostname 用于签名
+  const rawUploadAddr: string = permit.uploadAddr || 'ros-upload.xiaohongshu.com';
+  const uploadHost = rawUploadAddr.replace(/^https?:\/\//, '').replace(/\/$/, '');
+
   const xt = String(signHeaders['x-t']).slice(0, 10);
   const expireTime = String(permit.expireTime).slice(0, 10);
 
+  console.log(`${TAG} [getUploadPermit] scene=${scene} fileId=${fileId} uploadHost=${uploadHost} expireTime=${expireTime}`);
   return { fileId, expireTime, token: permit.token, uploadHost, xt };
 }
 
@@ -471,6 +486,132 @@ async function uploadImage(imageBase64: string, mimeType = 'image/jpeg'): Promis
   }
 
   return { fileId, width, height, fileSize, mimeType };
+}
+
+// ── 视频上传流程（COS 分片上传）────────────────────────────────────────────────
+
+interface VideoUploadResult {
+  fileId: string;
+  fileSize: number;
+  mimeType: string;
+}
+
+async function uploadVideo(videoBase64: string, mimeType = 'video/mp4'): Promise<VideoUploadResult> {
+  const permit = await getUploadPermit('video');
+  const { fileId, expireTime, token, uploadHost, xt } = permit;
+  const message = `${xt};${expireTime}`;
+
+  // 用 Uint8Array.from 替代 charCodeAt 循环，大文件性能更好
+  const binaryStr = atob(videoBase64);
+  const fileBytes = Uint8Array.from(binaryStr, c => c.charCodeAt(0));
+  const fileSize = fileBytes.length;
+
+  // uploadHost 已在 getUploadPermit 中剥除 scheme，这里直接补全
+  const uploadHostFull = `https://${uploadHost}`;
+  const path = `/spectrum/${fileId}`;
+
+  console.log(`${TAG} [uploadVideo] fileId=${fileId} fileSize=${fileSize} host=${uploadHost}`);
+
+  // ── Step 1: Init multipart upload ────────────────────────────────────────
+  // canonical urlParams: "uploads=" （key=uploads, value 为空）
+  const initSig = await calcCosSignature(message, 'post', path, 'uploads=', 0, uploadHost);
+  const initAuth = `q-sign-algorithm=sha1&q-ak=null&q-sign-time=${message}&q-key-time=${message}&q-header-list=content-length;host&q-url-param-list=uploads&q-signature=${initSig}`;
+
+  console.log(`${TAG} [uploadVideo] init POST ${uploadHostFull}${path}?uploads`);
+  const initResp = await fetch(`${uploadHostFull}${path}?uploads`, {
+    method: 'POST',
+    headers: {
+      'authorization': initAuth,
+      'content-length': '0',
+      'origin': 'https://creator.xiaohongshu.com',
+      'referer': 'https://creator.xiaohongshu.com/',
+      'x-cos-security-token': token,
+    },
+    credentials: 'omit',
+  });
+  if (!initResp.ok) {
+    const text = await initResp.text();
+    throw new Error(`COS init multipart ${initResp.status}: ${text.slice(0, 300)}`);
+  }
+  const initXml = await initResp.text();
+  const uploadIdMatch = initXml.match(/<UploadId>([^<]+)<\/UploadId>/);
+  if (!uploadIdMatch) throw new Error(`COS init: no UploadId in response: ${initXml.slice(0, 200)}`);
+  const uploadId = uploadIdMatch[1];
+  console.log(`${TAG} [uploadVideo] init OK uploadId=${uploadId}`);
+
+  // ── Step 2: Upload parts (5 MB each) ──────────────────────────────────────
+  const PART_SIZE = 5 * 1024 * 1024;
+  const totalParts = Math.ceil(fileSize / PART_SIZE);
+  const etags: string[] = [];
+
+  console.log(`${TAG} [uploadVideo] uploading ${totalParts} parts, partSize=${PART_SIZE}`);
+
+  for (let i = 0; i < totalParts; i++) {
+    const partNumber = i + 1;
+    const start = i * PART_SIZE;
+    const partData = fileBytes.slice(start, Math.min(start + PART_SIZE, fileSize));
+    const partSize = partData.length;
+
+    // q-url-param-list: sorted lowercase keys "partnumber;uploadid"
+    // canonical urlParams: "partnumber=N&uploadid=xxx" (sorted by key)
+    const urlParams = `partnumber=${partNumber}&uploadid=${uploadId}`;
+    const partSig = await calcCosSignature(message, 'put', path, urlParams, partSize, uploadHost);
+    const partAuth = `q-sign-algorithm=sha1&q-ak=null&q-sign-time=${message}&q-key-time=${message}&q-header-list=content-length;host&q-url-param-list=partnumber;uploadid&q-signature=${partSig}`;
+
+    const partResp = await fetch(`${uploadHostFull}${path}?partNumber=${partNumber}&uploadId=${uploadId}`, {
+      method: 'PUT',
+      headers: {
+        'authorization': partAuth,
+        'content-length': String(partSize),
+        'origin': 'https://creator.xiaohongshu.com',
+        'referer': 'https://creator.xiaohongshu.com/',
+        'x-cos-security-token': token,
+      },
+      body: partData,
+      credentials: 'omit',
+    });
+    if (!partResp.ok) {
+      const text = await partResp.text();
+      throw new Error(`COS upload part ${partNumber}/${totalParts} ${partResp.status}: ${text.slice(0, 300)}`);
+    }
+    // ETag 在响应头中，可能带引号，保留原值
+    const etag = partResp.headers.get('etag') || partResp.headers.get('ETag') || '';
+    if (!etag) console.warn(`${TAG} [uploadVideo] part ${partNumber} got empty ETag`);
+    etags.push(etag);
+    console.log(`${TAG} [uploadVideo] part ${partNumber}/${totalParts} OK etag=${etag}`);
+  }
+
+  // ── Step 3: Complete multipart upload ─────────────────────────────────────
+  const completeXml = `<CompleteMultipartUpload>${etags.map((etag, i) =>
+    `<Part><PartNumber>${i + 1}</PartNumber><ETag>${etag}</ETag></Part>`
+  ).join('')}</CompleteMultipartUpload>`;
+  const completeBytes = new TextEncoder().encode(completeXml);
+
+  const completeSig = await calcCosSignature(message, 'post', path, `uploadid=${uploadId}`, completeBytes.length, uploadHost);
+  const completeAuth = `q-sign-algorithm=sha1&q-ak=null&q-sign-time=${message}&q-key-time=${message}&q-header-list=content-length;host&q-url-param-list=uploadid&q-signature=${completeSig}`;
+
+  console.log(`${TAG} [uploadVideo] completing multipart uploadId=${uploadId}`);
+  const completeResp = await fetch(`${uploadHostFull}${path}?uploadId=${uploadId}`, {
+    method: 'POST',
+    headers: {
+      'authorization': completeAuth,
+      'content-length': String(completeBytes.length),
+      'content-type': 'application/xml',
+      'origin': 'https://creator.xiaohongshu.com',
+      'referer': 'https://creator.xiaohongshu.com/',
+      'x-cos-security-token': token,
+    },
+    body: completeBytes,
+    credentials: 'omit',
+  });
+  if (!completeResp.ok) {
+    const text = await completeResp.text();
+    throw new Error(`COS complete multipart ${completeResp.status}: ${text.slice(0, 300)}`);
+  }
+  const completeXmlResp = await completeResp.text();
+  console.log(`${TAG} [uploadVideo] complete OK fileId=${fileId} resp=${completeXmlResp.slice(0, 100)}`);
+
+  return { fileId, fileSize, mimeType };
 }
 
 // ── 发布图文笔记（移植自 xhs_creator_apis.py: post_note）──────────────────────
@@ -598,6 +739,126 @@ async function publishImageNote(params: PublishImageNoteParams): Promise<any> {
 
   if (!response.ok || !result.success) {
     throw new Error(`Publish failed: HTTP ${response.status}, ${result.msg || respText.slice(0, 200)}`);
+  }
+
+  return result;
+}
+
+// ── 发布视频笔记 ──────────────────────────────────────────────────────────────
+
+export interface PublishVideoNoteParams {
+  title: string;
+  desc: string;
+  /** base64 编码的视频（不含 data: 前缀） */
+  video: { base64: string; mimeType?: string };
+  /** video_info 结构体（抓包后填入，透传给 XHS API） */
+  video_info: Record<string, any>;
+  /** 0=公开 1=仅自己可见，默认 0 */
+  privacyType?: number;
+}
+
+async function publishVideoNote(params: PublishVideoNoteParams): Promise<any> {
+  const { title, desc, video, video_info, privacyType = 0 } = params;
+
+  console.log(`${TAG} [publishVideoNote] start title="${title}" privacyType=${privacyType}`);
+
+  // 1. 上传视频到 COS
+  const uploadResult = await uploadVideo(video.base64, video.mimeType || 'video/mp4');
+  console.log(`${TAG} [publishVideoNote] video uploaded fileId=${uploadResult.fileId} size=${uploadResult.fileSize}`);
+
+  // 2. 构建 business_binds
+  const businessBinds = JSON.stringify({
+    version: 1, noteId: 0, bizType: 0,
+    noteOrderBind: {}, notePostTiming: {},
+    noteCollectionBind: { id: '' },
+    noteSketchCollectionBind: { id: '' },
+    coProduceBind: { enable: true },
+    noteCopyBind: { copyable: true },
+    interactionPermissionBind: { commentPermission: 0 },
+    optionRelationList: [],
+  });
+
+  const contextJson = JSON.stringify({
+    recommend_title: { recommend_title_id: '', is_use: 3, used_index: -1 },
+    recommendTitle: [],
+    recommend_topics: { used: [] },
+  });
+
+  // 3. 组装发帖 body
+  // image_info 发视频时传空对象（与图文笔记区分，待抓包后按实际格式调整）
+  // video_info 由调用方提供完整结构，仅覆盖 video.file_id 为本次上传结果
+  const postBody = {
+    common: {
+      type: 'video',
+      title,
+      note_id: '',
+      desc,
+      source: '{"type":"web","ids":"","extraInfo":"{\\"subType\\":\\"official\\",\\"systemId\\":\\"web\\"}"}',
+      business_binds: businessBinds,
+      ats: [],
+      hash_tag: [],
+      post_loc: {},
+      privacy_info: { op_type: 1, type: privacyType, user_ids: [] },
+      goods_info: {},
+      biz_relations: [],
+      capa_trace_info: { contextJson },
+    },
+    image_info: {},
+    video_info: {
+      ...video_info,
+      video: { ...(video_info.video || {}), file_id: `spectrum/${uploadResult.fileId}` },
+    },
+  };
+
+  const postApi = '/web_api/sns/v2/note';
+  const bodyStr = JSON.stringify(postBody);
+
+  // 4. 签名
+  console.log(`${TAG} [publishVideoNote] requesting sign for ${postApi}`);
+  const signHeaders = await requestSign(postApi, bodyStr);
+
+  // 5. x-rap-param（写操作必须携带）
+  let xRapParam = '';
+  try {
+    xRapParam = await requestRapParam(postApi, bodyStr);
+    console.log(`${TAG} [publishVideoNote] rap param ok len=${xRapParam.length}`);
+  } catch (rapErr: any) {
+    console.warn(`${TAG} [publishVideoNote] x-rap-param failed (non-fatal): ${rapErr.message}`);
+  }
+
+  const hexChars = 'abcdef0123456789';
+  const xB3TraceId = Array.from({ length: 16 }, () => hexChars[Math.floor(Math.random() * 16)]).join('');
+  const xXrayTraceId = Array.from({ length: 32 }, () => hexChars[Math.floor(Math.random() * 16)]).join('');
+
+  const publishHeaders: Record<string, string> = {
+    'accept': 'application/json, text/plain, */*',
+    'authorization': '',
+    'content-type': 'application/json',
+    'x-b3-traceid': xB3TraceId,
+    'x-s': signHeaders['x-s'],
+    'x-t': signHeaders['x-t'],
+    'x-xray-traceid': xXrayTraceId,
+  };
+  if (signHeaders['x-s-common']) publishHeaders['x-s-common'] = signHeaders['x-s-common'];
+  if (xRapParam) publishHeaders['x-rap-param'] = xRapParam;
+
+  console.log(`${TAG} [publishVideoNote] POST ${EDITH}${postApi} x-s=${signHeaders['x-s'].slice(0, 20)}... rap=${!!xRapParam}`);
+
+  const response = await fetch(`${EDITH}${postApi}`, {
+    method: 'POST',
+    headers: publishHeaders,
+    body: bodyStr,
+    credentials: 'include',
+  });
+
+  const respText = await response.text();
+  let result: any;
+  try { result = JSON.parse(respText); } catch { throw new Error(`Parse error: ${respText.slice(0, 200)}`); }
+
+  console.log(`${TAG} [publishVideoNote] response HTTP ${response.status} success=${result?.success} msg=${result?.msg}`);
+
+  if (!response.ok || !result.success) {
+    throw new Error(`Publish video failed: HTTP ${response.status}, ${result.msg || respText.slice(0, 200)}`);
   }
 
   return result;
@@ -919,6 +1180,26 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           images: message.images || [],
           privacyType: Number(message.privacy_type ?? 0),
           topics: message.topics || [],
+        });
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === XHS_MSG_TYPE.PUBLISH_VIDEO_NOTE) {
+    (async () => {
+      try {
+        if (!message.video) { sendResponse({ success: false, error: 'video is required' }); return; }
+        if (!message.video_info) { sendResponse({ success: false, error: 'video_info is required' }); return; }
+        const data = await publishVideoNote({
+          title: String(message.title || ''),
+          desc: String(message.desc || ''),
+          video: message.video,
+          video_info: message.video_info,
+          privacyType: Number(message.privacy_type ?? 0),
         });
         sendResponse({ success: true, data });
       } catch (e: any) {

@@ -13,7 +13,7 @@ def main():
     client = ClawBotClient()
 
     print("Testing get_published_notes()...")
-    result = client.xhs.get_published_notes(page=0)
+    result = client.xhs.get_published_notes()
     print(json.dumps(result, ensure_ascii=False, indent=2))
 
 

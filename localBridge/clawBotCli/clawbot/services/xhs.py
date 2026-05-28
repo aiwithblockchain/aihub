@@ -103,6 +103,32 @@ class XhsService:
         """Get all notes published by the current account."""
         return self.transport.get_published_notes_raw()
 
+    def publish_video_note(
+        self,
+        title: str,
+        desc: str,
+        video: Dict[str, Any],
+        video_info: Dict[str, Any],
+        privacy_type: int = 0,
+    ) -> Dict[str, Any]:
+        """
+        Publish a new video note to XHS.
+
+        Args:
+            title: Note title
+            desc: Note description/content
+            video: Dict with 'base64' (pure base64, no data: prefix) and optional 'mimeType'
+            video_info: video_info structure captured from XHS network traffic
+            privacy_type: 0=public, 1=private (default: 0)
+        """
+        return self.transport.publish_video_note_raw(
+            title=title,
+            desc=desc,
+            video=video,
+            video_info=video_info,
+            privacy_type=privacy_type,
+        )
+
     # ── Search Filters ────────────────────────────────────────────────────────
 
     def search_filter(self, keyword: str, search_id: Optional[str] = None) -> Dict[str, Any]:

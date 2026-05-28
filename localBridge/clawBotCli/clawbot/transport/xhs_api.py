@@ -80,3 +80,20 @@ class XhsApiTransport(BaseApiTransport):
         if search_id:
             params["search_id"] = search_id
         return self.request_json("GET", "/api/v1/xhs/search_filter", params=params)
+
+    def publish_video_note_raw(
+        self,
+        title: str,
+        desc: str,
+        video: Dict[str, Any],
+        video_info: Dict[str, Any],
+        privacy_type: int = 0,
+    ) -> Dict[Any, Any]:
+        payload = {
+            "title": title,
+            "desc": desc,
+            "video": video,
+            "video_info": video_info,
+            "privacy_type": privacy_type,
+        }
+        return self.request_json("POST", "/api/v1/xhs/publish_video", json=payload)

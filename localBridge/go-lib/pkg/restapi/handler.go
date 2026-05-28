@@ -75,6 +75,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/xhs/search", h.xhsSearch)
 	mux.HandleFunc("/api/v1/xhs/user_notes", h.xhsUserNotes)
 	mux.HandleFunc("/api/v1/xhs/publish", h.xhsPublish)
+	mux.HandleFunc("/api/v1/xhs/publish_video", h.xhsPublishVideo)
 	mux.HandleFunc("/api/v1/xhs/comments", h.xhsComments)
 	mux.HandleFunc("/api/v1/xhs/user_info", h.xhsUserInfo)
 	mux.HandleFunc("/api/v1/xhs/topics", h.xhsTopics)
@@ -604,6 +605,22 @@ func (h *Handler) xhsPublishedNotes(w http.ResponseWriter, r *http.Request) {
 	}
 	id := newID("http_xhs_published_notes")
 	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_published_notes", "tweetClaw", queryToMap(r)), 35000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) xhsPublishVideo(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	body, err := readRawBody(r)
+	if err != nil {
+		jsonErr(w, 400, err.Error())
+		return
+	}
+	id := newID("http_xhs_publish_video")
+	// 视频上传耗时较长，timeout 设为 120 秒
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_publish_video_note", "tweetClaw", body), 120000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
