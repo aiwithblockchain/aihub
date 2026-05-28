@@ -87,7 +87,7 @@ localBridge 通过 `pluginInvoke` 通用端点或预制快捷端点调用，payl
 | 22 | 获取 COS 上传凭证 | GET | `/api/media/v1/upload/creator/permit` | ✅ |
 | 23 | 上传图片到 COS | PUT | `/spectrum/{fileId}` | ✅ |
 | 24 | 发布图文笔记 | POST | `/web_api/sns/v2/note` | ✅ |
-| 25 | 发布视频笔记 | POST | `/web_api/sns/v2/note` | 🔶 上传已实现，publish body 待抓包 |
+| 25 | 发布视频笔记 | POST | `/web_api/sns/v2/note` | ✅ |
 
 ### 2.7 Spider_XHS 未实现的写操作（AI 运营必需）
 
