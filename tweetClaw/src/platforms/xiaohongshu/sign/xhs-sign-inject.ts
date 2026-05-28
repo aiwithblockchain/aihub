@@ -929,8 +929,8 @@ async function handleSignedFetch(event: MessageEvent) {
 
     console.log(`${TAG} [handleSignedFetch] START apiPath=${apiPath} bodyLen=${bodyStr.length}`);
 
-    // ── 硬编码测试：直接发送已知成功的请求，验证 inject 环境 ──
-    if (apiPath === '/api/sns/web/v1/search/notes') {
+    // ── 硬编码测试已移除，改用下方完全动态路径 ──
+    if (false) { // eslint-disable-line no-constant-condition
       console.log(`${TAG} [handleSignedFetch] HARDCODED TEST MODE`);
       // x-rap-param 动态生成，其余硬编码
       const hardcodedBody = '{"keyword":"AI","page":1,"page_size":20,"search_id":"2gf2y0tlhbxxqq7qiyetx","sort":"general","note_type":0,"ext_flags":[],"geo":"","image_formats":["jpg","webp","avif"]}';
