@@ -45,9 +45,9 @@ class XhsService:
 
     # ── Note Interactions ─────────────────────────────────────────────────────
 
-    def get_note_comments(self, note_id: str, cursor: Optional[str] = None) -> Dict[str, Any]:
+    def get_note_comments(self, note_id: str, cursor: Optional[str] = None, xsec_token: Optional[str] = None) -> Dict[str, Any]:
         """Get comments for a specific note with pagination."""
-        return self.transport.get_note_comments_raw(note_id=note_id, cursor=cursor)
+        return self.transport.get_note_comments_raw(note_id=note_id, cursor=cursor, xsec_token=xsec_token)
 
     # ── Publishing ────────────────────────────────────────────────────────────
 

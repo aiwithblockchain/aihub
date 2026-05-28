@@ -52,10 +52,12 @@ class XhsApiTransport(BaseApiTransport):
         }
         return self.request_json("POST", "/api/v1/xhs/publish", json=payload)
 
-    def get_note_comments_raw(self, note_id: str, cursor: Optional[str] = None) -> Dict[Any, Any]:
+    def get_note_comments_raw(self, note_id: str, cursor: Optional[str] = None, xsec_token: Optional[str] = None) -> Dict[Any, Any]:
         params = {"note_id": note_id}
         if cursor:
             params["cursor"] = cursor
+        if xsec_token:
+            params["xsec_token"] = xsec_token
         return self.request_json("GET", "/api/v1/xhs/comments", params=params)
 
     def get_user_info_raw(self, user_id: str) -> Dict[Any, Any]:

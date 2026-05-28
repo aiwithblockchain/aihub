@@ -1355,7 +1355,6 @@ export async function publishXhsVideoNote(payload: Record<string, unknown> = {})
     });
 
     if (!payload.video) throw new Error('video is required');
-    if (!payload.video_info) throw new Error('video_info is required');
 
     const tabId = await getOrOpenCreatorTab();
 
