@@ -7,11 +7,9 @@ Usage:
     python3 examples/test_xhs_publish_video.py --video path/to/video.mp4 --title "标题" --desc "描述"
     python3 examples/test_xhs_publish_video.py --video path/to/video.mp4 --private
 
-Notes:
+Requirements:
     - creator.xiaohongshu.com tab must be open and signed in
     - www.xiaohongshu.com tab must be open (for x-rap-param calculation)
-    - video_info is a placeholder dict; once you capture a real publish request,
-      replace VIDEO_INFO_TEMPLATE with the actual structure.
 """
 
 import sys
@@ -22,22 +20,6 @@ import argparse
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from clawbot import ClawBotClient
-
-
-# ── video_info 模板 ────────────────────────────────────────────────────────────
-# 这是从抓包中待补全的字段结构。
-# 当前为最小占位符，COS 上传完成后 video.file_id 会被 tweetClaw 自动覆盖。
-# 发布成功后请更新此模板为真实结构（含 cover、duration、width、height 等）。
-VIDEO_INFO_TEMPLATE: dict = {
-    "video": {
-        "file_id": "",          # tweetClaw 会用本次上传的 fileId 覆盖
-    },
-    # TODO: 抓包后补充以下字段
-    # "cover": { "file_id": "spectrum/xxx" },
-    # "duration": 12345,       # 视频时长（毫秒）
-    # "width": 1080,
-    # "height": 1920,
-}
 
 
 def load_video_as_base64(path: str) -> tuple[str, str]:
@@ -63,7 +45,7 @@ def format_size(n: int) -> str:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Test XHS publish_video_note API")
     parser.add_argument("--video", required=True, help="Path to video file to publish")
-    parser.add_argument("--title", default="测试视频标题", help="Note title (default: 测试视频标题)")
+    parser.add_argument("--title", default="测试视频标题", help="Note title")
     parser.add_argument("--desc", default="这是一条测试视频笔记，可以忽略。", help="Note description")
     parser.add_argument("--private", action="store_true", help="Publish as private (privacy_type=1)")
     args = parser.parse_args()
@@ -95,15 +77,13 @@ def main() -> int:
     client = ClawBotClient()
 
     print("\n🚀 Publishing video note...")
-    print("   (requires creator.xiaohongshu.com and www.xiaohongshu.com tabs open)")
-    print("   (large videos will take a while to upload via COS multipart)")
+    print("   (tweetClaw will extract metadata, upload video+cover, then publish)")
 
     try:
         result = client.xhs.publish_video_note(
             title=args.title,
             desc=args.desc,
             video={"base64": b64_data, "mimeType": mime_type},
-            video_info=VIDEO_INFO_TEMPLATE,
             privacy_type=1 if args.private else 0,
         )
     except Exception as e:
@@ -127,3 +107,4 @@ def main() -> int:
 
 if __name__ == "__main__":
     raise SystemExit(main())
+

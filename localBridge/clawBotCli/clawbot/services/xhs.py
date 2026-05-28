@@ -108,7 +108,6 @@ class XhsService:
         title: str,
         desc: str,
         video: Dict[str, Any],
-        video_info: Dict[str, Any],
         privacy_type: int = 0,
     ) -> Dict[str, Any]:
         """
@@ -118,14 +117,12 @@ class XhsService:
             title: Note title
             desc: Note description/content
             video: Dict with 'base64' (pure base64, no data: prefix) and optional 'mimeType'
-            video_info: video_info structure captured from XHS network traffic
             privacy_type: 0=public, 1=private (default: 0)
         """
         return self.transport.publish_video_note_raw(
             title=title,
             desc=desc,
             video=video,
-            video_info=video_info,
             privacy_type=privacy_type,
         )
 

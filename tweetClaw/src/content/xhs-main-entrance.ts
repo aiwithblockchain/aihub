@@ -751,25 +751,146 @@ export interface PublishVideoNoteParams {
   desc: string;
   /** base64 编码的视频（不含 data: 前缀） */
   video: { base64: string; mimeType?: string };
-  /** video_info 结构体（抓包后填入，透传给 XHS API） */
-  video_info: Record<string, any>;
   /** 0=公开 1=仅自己可见，默认 0 */
   privacyType?: number;
 }
 
+/** 从 base64 视频中提取宽高、时长，并截取第一帧作为封面 */
+async function extractVideoMeta(videoBase64: string, mimeType: string): Promise<{
+  width: number;
+  height: number;
+  durationMs: number;
+  coverBase64: string;
+}> {
+  return new Promise((resolve, reject) => {
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.muted = true;
+    video.crossOrigin = 'anonymous';
+
+    video.onloadedmetadata = () => { video.currentTime = 0; };
+
+    video.onseeked = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth;
+        canvas.height = video.videoHeight;
+        canvas.getContext('2d')!.drawImage(video, 0, 0);
+        const coverBase64 = canvas.toDataURL('image/jpeg', 0.85).split(',')[1];
+        URL.revokeObjectURL(video.src);
+        resolve({
+          width: video.videoWidth,
+          height: video.videoHeight,
+          durationMs: Math.round(video.duration * 1000),
+          coverBase64,
+        });
+      } catch (e) { reject(e); }
+    };
+
+    video.onerror = () => reject(new Error('Failed to load video for metadata extraction'));
+    video.src = `data:${mimeType};base64,${videoBase64}`;
+  });
+}
+
 async function publishVideoNote(params: PublishVideoNoteParams): Promise<any> {
-  const { title, desc, video, video_info, privacyType = 0 } = params;
+  const { title, desc, video, privacyType = 0 } = params;
+  const mimeType = video.mimeType || 'video/mp4';
 
   console.log(`${TAG} [publishVideoNote] start title="${title}" privacyType=${privacyType}`);
 
-  // 1. 上传视频到 COS
-  const uploadResult = await uploadVideo(video.base64, video.mimeType || 'video/mp4');
-  console.log(`${TAG} [publishVideoNote] video uploaded fileId=${uploadResult.fileId} size=${uploadResult.fileSize}`);
+  // 1. 提取视频元数据 + 截取封面帧
+  console.log(`${TAG} [publishVideoNote] extracting video metadata...`);
+  let meta: Awaited<ReturnType<typeof extractVideoMeta>>;
+  try {
+    meta = await extractVideoMeta(video.base64, mimeType);
+    console.log(`${TAG} [publishVideoNote] meta ${meta.width}x${meta.height} duration=${meta.durationMs}ms coverLen=${meta.coverBase64.length}`);
+  } catch (e: any) {
+    throw new Error(`Failed to extract video metadata: ${e.message}`);
+  }
 
-  // 2. 构建 business_binds
+  // 2. 并行上传视频 + 封面
+  console.log(`${TAG} [publishVideoNote] uploading video and cover...`);
+  const [videoUpload, coverUpload] = await Promise.all([
+    uploadVideo(video.base64, mimeType),
+    uploadImage(meta.coverBase64, 'image/jpeg'),
+  ]);
+  console.log(`${TAG} [publishVideoNote] video=${videoUpload.fileId} cover=${coverUpload.fileId}`);
+
+  // 3. 构建 video_info（与抓包结构完全一致）
+  const spectrumVideoId = `spectrum/${videoUpload.fileId}`;
+  const spectrumCoverId = `spectrum/${coverUpload.fileId}`;
+  const durationSec = meta.durationMs / 1000;
+
+  const videoInfo = {
+    fileid: spectrumVideoId,
+    file_id: spectrumVideoId,
+    format_width: meta.width,
+    format_height: meta.height,
+    video_preview_type: '',
+    composite_metadata: {
+      video: {
+        bitrate: 0,
+        colour_primaries: 'BT.709',
+        duration: meta.durationMs,
+        format: 'AVC',
+        frame_rate: 30,
+        height: meta.height,
+        matrix_coefficients: 'BT.709',
+        rotation: 0,
+        transfer_characteristics: 'BT.709',
+        width: meta.width,
+      },
+      audio: {},
+    },
+    timelines: [],
+    cover: {
+      fileid: spectrumCoverId,
+      file_id: spectrumCoverId,
+      height: meta.height,
+      width: meta.width,
+      frame: { ts: 0, is_user_select: false, is_upload: false },
+      stickers: { version: 2, neptune: [] },
+      fonts: [],
+      extra_info_json: '{}',
+    },
+    chapters: [],
+    chapter_sync_text: false,
+    segments: {
+      count: 1,
+      need_slice: false,
+      items: [{
+        mute: 0,
+        speed: 1,
+        start: 0,
+        duration: durationSec,
+        transcoded: 0,
+        media_source: 1,
+        original_metadata: {
+          video: {
+            bitrate: 0,
+            colour_primaries: 'BT.709',
+            duration: meta.durationMs,
+            format: 'AVC',
+            frame_rate: 30,
+            height: meta.height,
+            matrix_coefficients: 'BT.709',
+            rotation: 0,
+            transfer_characteristics: 'BT.709',
+            width: meta.width,
+          },
+          audio: {},
+        },
+      }],
+    },
+    entrance: 'web',
+    pk_cover_biz_relations: [],
+  };
+
+  // 4. 构建 business_binds
   const businessBinds = JSON.stringify({
     version: 1, noteId: 0, bizType: 0,
-    noteOrderBind: {}, notePostTiming: {},
+    noteOrderBind: { brandAccountId: '', orderId: '' },
+    notePostTiming: {},
     noteCollectionBind: { id: '' },
     noteSketchCollectionBind: { id: '' },
     coProduceBind: { enable: true },
@@ -784,40 +905,33 @@ async function publishVideoNote(params: PublishVideoNoteParams): Promise<any> {
     recommend_topics: { used: [] },
   });
 
-  // 3. 组装发帖 body
-  // image_info 发视频时传空对象（与图文笔记区分，待抓包后按实际格式调整）
-  // video_info 由调用方提供完整结构，仅覆盖 video.file_id 为本次上传结果
+  // 5. 组装发帖 body
   const postBody = {
     common: {
       type: 'video',
-      title,
       note_id: '',
-      desc,
       source: '{"type":"web","ids":"","extraInfo":"{\\"subType\\":\\"official\\",\\"systemId\\":\\"web\\"}"}',
-      business_binds: businessBinds,
+      title,
+      desc,
       ats: [],
       hash_tag: [],
-      post_loc: {},
+      business_binds: businessBinds,
       privacy_info: { op_type: 1, type: privacyType, user_ids: [] },
       goods_info: {},
       biz_relations: [],
       capa_trace_info: { contextJson },
     },
-    image_info: {},
-    video_info: {
-      ...video_info,
-      video: { ...(video_info.video || {}), file_id: `spectrum/${uploadResult.fileId}` },
-    },
+    image_info: null,
+    video_info: videoInfo,
   };
 
   const postApi = '/web_api/sns/v2/note';
   const bodyStr = JSON.stringify(postBody);
 
-  // 4. 签名
-  console.log(`${TAG} [publishVideoNote] requesting sign for ${postApi}`);
+  // 6. 签名 + x-rap-param
+  console.log(`${TAG} [publishVideoNote] requesting sign...`);
   const signHeaders = await requestSign(postApi, bodyStr);
 
-  // 5. x-rap-param（写操作必须携带）
   let xRapParam = '';
   try {
     xRapParam = await requestRapParam(postApi, bodyStr);
@@ -842,8 +956,8 @@ async function publishVideoNote(params: PublishVideoNoteParams): Promise<any> {
   if (signHeaders['x-s-common']) publishHeaders['x-s-common'] = signHeaders['x-s-common'];
   if (xRapParam) publishHeaders['x-rap-param'] = xRapParam;
 
-  console.log(`${TAG} [publishVideoNote] POST ${EDITH}${postApi} x-s=${signHeaders['x-s'].slice(0, 20)}... rap=${!!xRapParam}`);
-
+  // 7. 发布
+  console.log(`${TAG} [publishVideoNote] posting to ${postApi}...`);
   const response = await fetch(`${EDITH}${postApi}`, {
     method: 'POST',
     headers: publishHeaders,
@@ -855,12 +969,13 @@ async function publishVideoNote(params: PublishVideoNoteParams): Promise<any> {
   let result: any;
   try { result = JSON.parse(respText); } catch { throw new Error(`Parse error: ${respText.slice(0, 200)}`); }
 
-  console.log(`${TAG} [publishVideoNote] response HTTP ${response.status} success=${result?.success} msg=${result?.msg}`);
+  console.log(`${TAG} [publishVideoNote] HTTP ${response.status} success=${result?.success} msg=${result?.msg}`);
 
   if (!response.ok || !result.success) {
     throw new Error(`Publish video failed: HTTP ${response.status}, ${result.msg || respText.slice(0, 200)}`);
   }
 
+  console.log(`${TAG} [publishVideoNote] done noteId=${result.data?.id}`);
   return result;
 }
 
@@ -1193,12 +1308,10 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     (async () => {
       try {
         if (!message.video) { sendResponse({ success: false, error: 'video is required' }); return; }
-        if (!message.video_info) { sendResponse({ success: false, error: 'video_info is required' }); return; }
         const data = await publishVideoNote({
           title: String(message.title || ''),
           desc: String(message.desc || ''),
           video: message.video,
-          video_info: message.video_info,
           privacyType: Number(message.privacy_type ?? 0),
         });
         sendResponse({ success: true, data });

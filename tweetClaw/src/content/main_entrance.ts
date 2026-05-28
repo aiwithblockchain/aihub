@@ -68,6 +68,7 @@ window.addEventListener('message', (event) => {
     }
 
     if (event.data.type === 'SIGNAL_CAPTURED') {
+        if (!chrome.runtime?.id) return;
         chrome.runtime.sendMessage({
             type: 'CAPTURED_DATA',
             op: event.data.op,
@@ -81,6 +82,7 @@ window.addEventListener('message', (event) => {
     }
 
     if (event.data.type === 'HOOK_STATUS_REPORT') {
+        if (!chrome.runtime?.id) return;
         chrome.runtime.sendMessage({
             type: 'REPORT_HOOK_STATUS',
             status: event.data.status
