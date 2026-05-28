@@ -71,6 +71,15 @@ class XReadService:
         _, users = self.search(query=query, count=5, tab_id=tab_id, instance_id=instance_id)
         return users[0] if users else None
 
+    def get_followers_raw(self, user_id: str, count: int = 20, cursor: Optional[str] = None, tab_id: Optional[int] = None, instance_id: Optional[str] = None):
+        return self.transport.get_followers_raw(user_id=user_id, count=count, cursor=cursor, tab_id=tab_id, instance_id=instance_id)
+
+    def get_following_raw(self, user_id: str, count: int = 20, cursor: Optional[str] = None, tab_id: Optional[int] = None, instance_id: Optional[str] = None):
+        return self.transport.get_following_raw(user_id=user_id, count=count, cursor=cursor, tab_id=tab_id, instance_id=instance_id)
+
+    def get_blue_verified_followers_raw(self, user_id: str, count: int = 20, cursor: Optional[str] = None, tab_id: Optional[int] = None, instance_id: Optional[str] = None):
+        return self.transport.get_blue_verified_followers_raw(user_id=user_id, count=count, cursor=cursor, tab_id=tab_id, instance_id=instance_id)
+
     def get_user_tweets(self, user_id: str, count: int = 20, cursor: Optional[str] = None, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> List[XTweet]:
         raw = self.transport.get_user_tweets_raw(user_id=user_id, count=count, cursor=cursor, tab_id=tab_id, instance_id=instance_id)
         data = raw.get("data", {}) if isinstance(raw, dict) else {}

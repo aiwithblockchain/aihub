@@ -80,10 +80,41 @@ class XApiTransport(BaseApiTransport):
             params["instanceId"] = instance_id
         return self.request_json("GET", "/api/v1/x/user_tweets", params=params)
 
+    def get_followers_raw(self, user_id: str, cursor: Optional[str] = None, count: int = 20, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
+        params = {"userId": user_id, "count": count}
+        if cursor:
+            params["cursor"] = cursor
+        if tab_id:
+            params["tabId"] = tab_id
+        if instance_id:
+            params["instanceId"] = instance_id
+        return self.request_json("GET", "/api/v1/x/followers", params=params)
+
+    def get_following_raw(self, user_id: str, cursor: Optional[str] = None, count: int = 20, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
+        params = {"userId": user_id, "count": count}
+        if cursor:
+            params["cursor"] = cursor
+        if tab_id:
+            params["tabId"] = tab_id
+        if instance_id:
+            params["instanceId"] = instance_id
+        return self.request_json("GET", "/api/v1/x/following", params=params)
+
+    def get_blue_verified_followers_raw(self, user_id: str, cursor: Optional[str] = None, count: int = 20, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
+        params = {"userId": user_id, "count": count}
+        if cursor:
+            params["cursor"] = cursor
+        if tab_id:
+            params["tabId"] = tab_id
+        if instance_id:
+            params["instanceId"] = instance_id
+        return self.request_json("GET", "/api/v1/x/blue_verified_followers", params=params)
+
     def create_tweet_raw(self, text: str, media_ids: Optional[List[str]] = None,
                          attachment_url: Optional[str] = None,
                          tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
-        payload = {"text": text}
+        action = "quote_tweet" if attachment_url else "post_tweet"
+        payload = {"text": text, "action": action}
         params = None
         headers = None
         if media_ids:

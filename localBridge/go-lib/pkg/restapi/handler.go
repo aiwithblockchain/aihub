@@ -7,7 +7,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 	"time"
 
@@ -308,33 +307,23 @@ func (h *Handler) xBasicInfo(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) timeline(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_timeline")
-	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_home_timeline", "tweetClaw",
-		types.QuerySearchTimelineRequest{TabID: parseTabID(r)}), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_home_timeline", "tweetClaw", queryToMap(r)), 8000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) tweetsDispatch(w http.ResponseWriter, r *http.Request) {
 	if r.Method == http.MethodPost {
-		var req types.ExecActionRequest
-		if err := readJSON(r, &req); err != nil {
+		body, err := readRawBody(r)
+		if err != nil {
 			jsonErr(w, 400, err.Error())
 			return
 		}
-
-		action := "post_tweet"
-		if req.AttachmentURL != nil && *req.AttachmentURL != "" {
-			action = "quote_tweet"
-		}
-		req.Action = action
-
 		id := newID("http_exec")
-		h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.exec_action", "tweetClaw", req), 8000,
+		h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "request.exec_action", "tweetClaw", body), 8000,
 			func(data []byte) { writeRawPayload(w, data) })
 	} else {
 		id := newID("http_tweet_detail")
-		tweetID := r.URL.Query().Get("tweetId")
-		h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_tweet_detail", "tweetClaw",
-			types.QueryTweetDetailRequest{TweetID: tweetID, TabID: parseTabID(r)}), 8000,
+		h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_tweet_detail", "tweetClaw", queryToMap(r)), 8000,
 			func(data []byte) { writeRawPayload(w, data) })
 	}
 }
@@ -353,16 +342,17 @@ func (h *Handler) tweetResourceDispatch(w http.ResponseWriter, r *http.Request) 
 	}
 
 	tweetID := parts[0]
+	payload := queryToMap(r)
+	payload["tweetId"] = tweetID
+
 	switch {
 	case len(parts) == 1:
 		id := newID("http_tweet")
-		h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_tweet_detail", "tweetClaw",
-			types.QueryTweetDetailRequest{TweetID: tweetID, TabID: parseTabID(r)}), 8000,
+		h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_tweet_detail", "tweetClaw", payload), 8000,
 			func(data []byte) { writeRawPayload(w, data) })
 	case len(parts) == 2 && parts[1] == "replies":
 		id := newID("http_tweet_replies")
-		h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_tweet_replies", "tweetClaw",
-			types.QueryTweetRepliesRequest{TweetID: tweetID, TabID: parseTabID(r), Cursor: r.URL.Query().Get("cursor")}), 8000,
+		h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_tweet_replies", "tweetClaw", payload), 8000,
 			func(data []byte) { writeRawPayload(w, data) })
 	default:
 		jsonErr(w, 404, "not_found")
@@ -371,137 +361,48 @@ func (h *Handler) tweetResourceDispatch(w http.ResponseWriter, r *http.Request) 
 
 func (h *Handler) userProfile(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_user_profile")
-	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_user_profile", "tweetClaw",
-		types.QueryUserProfileRequest{ScreenName: r.URL.Query().Get("screenName"), TabID: parseTabID(r)}), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_user_profile", "tweetClaw", queryToMap(r)), 8000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) searchTimeline(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_search")
-	query := r.URL.Query().Get("query")
-	cursor := r.URL.Query().Get("cursor")
-	count := 20
-	if c := r.URL.Query().Get("count"); c != "" {
-		if n, err := strconv.Atoi(c); err == nil && n > 0 {
-			count = n
-		}
-	}
-
-	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_search_timeline", "tweetClaw",
-		types.QuerySearchTimelineRequest{
-			TabID:  parseTabID(r),
-			Query:  query,
-			Cursor: cursor,
-			Count:  count,
-		}), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_search_timeline", "tweetClaw", queryToMap(r)), 8000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) userTweets(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_user_tweets")
-	userID := r.URL.Query().Get("userId")
-	if userID == "" {
-		jsonErr(w, 400, "userId is required")
-		return
-	}
-	cursor := r.URL.Query().Get("cursor")
-	count := 20
-	if c := r.URL.Query().Get("count"); c != "" {
-		if n, err := strconv.Atoi(c); err == nil && n > 0 {
-			count = n
-		}
-	}
-
-	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_user_tweets", "tweetClaw",
-		types.QueryUserTweetsRequest{
-			UserID: userID,
-			TabID:  parseTabID(r),
-			Cursor: cursor,
-			Count:  count,
-		}), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_user_tweets", "tweetClaw", queryToMap(r)), 8000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) followers(w http.ResponseWriter, r *http.Request) {
-	userID := r.URL.Query().Get("userId")
-	if userID == "" {
-		jsonErr(w, 400, "userId is required")
-		return
-	}
-	cursor := r.URL.Query().Get("cursor")
-	count := 20
-	if c := r.URL.Query().Get("count"); c != "" {
-		if n, err := strconv.Atoi(c); err == nil && n > 0 {
-			count = n
-		}
-	}
 	id := newID("http_followers")
-	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_followers", "tweetClaw",
-		types.QueryFollowersRequest{
-			UserID: userID,
-			TabID:  parseTabID(r),
-			Cursor: cursor,
-			Count:  count,
-		}), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_followers", "tweetClaw", queryToMap(r)), 8000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) following(w http.ResponseWriter, r *http.Request) {
-	userID := r.URL.Query().Get("userId")
-	if userID == "" {
-		jsonErr(w, 400, "userId is required")
-		return
-	}
-	cursor := r.URL.Query().Get("cursor")
-	count := 20
-	if c := r.URL.Query().Get("count"); c != "" {
-		if n, err := strconv.Atoi(c); err == nil && n > 0 {
-			count = n
-		}
-	}
 	id := newID("http_following")
-	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_following", "tweetClaw",
-		types.QueryFollowingRequest{
-			UserID: userID,
-			TabID:  parseTabID(r),
-			Cursor: cursor,
-			Count:  count,
-		}), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_following", "tweetClaw", queryToMap(r)), 8000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) blueVerifiedFollowers(w http.ResponseWriter, r *http.Request) {
-	userID := r.URL.Query().Get("userId")
-	if userID == "" {
-		jsonErr(w, 400, "userId is required")
-		return
-	}
-	cursor := r.URL.Query().Get("cursor")
-	count := 20
-	if c := r.URL.Query().Get("count"); c != "" {
-		if n, err := strconv.Atoi(c); err == nil && n > 0 {
-			count = n
-		}
-	}
 	id := newID("http_blue_verified_followers")
-	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_blue_verified_followers", "tweetClaw",
-		types.QueryBlueVerifiedFollowersRequest{
-			UserID: userID,
-			TabID:  parseTabID(r),
-			Cursor: cursor,
-			Count:  count,
-		}), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_blue_verified_followers", "tweetClaw", queryToMap(r)), 8000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) execAction(w http.ResponseWriter, r *http.Request, action string) {
-	var req types.ExecActionRequest
-	if r.ContentLength > 0 {
-		_ = readJSON(r, &req)
+	body, err := readRawBody(r)
+	if err != nil {
+		jsonErr(w, 400, err.Error())
+		return
 	}
-	req.Action = action
 	id := newID("http_exec")
-	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.exec_action", "tweetClaw", req), 15000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.exec_action", "tweetClaw", mergeAction(body, action)), 15000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -601,10 +502,8 @@ func (h *Handler) xhsHomefeed(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, 405, "method_not_allowed")
 		return
 	}
-	cursorScore := r.URL.Query().Get("cursor_score")
 	id := newID("http_xhs_homefeed")
-	payload := map[string]interface{}{"cursor_score": cursorScore}
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.query_xhs_homefeed", "tweetClaw", payload), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.query_xhs_homefeed", "tweetClaw", queryToMap(r)), 8000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -613,14 +512,8 @@ func (h *Handler) xhsFeed(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, 405, "method_not_allowed")
 		return
 	}
-	noteID := r.URL.Query().Get("note_id")
-	if noteID == "" {
-		jsonErr(w, 400, "note_id is required")
-		return
-	}
 	id := newID("http_xhs_feed")
-	payload := map[string]interface{}{"note_id": noteID}
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.query_xhs_feed", "tweetClaw", payload), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.query_xhs_feed", "tweetClaw", queryToMap(r)), 8000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -629,29 +522,13 @@ func (h *Handler) xhsSearch(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, 405, "method_not_allowed")
 		return
 	}
-	var req struct {
-		Keyword  string `json:"keyword"`
-		Cursor   string `json:"cursor"`
-		PageSize int    `json:"page_size"`
-	}
-	if err := readJSON(r, &req); err != nil {
+	body, err := readRawBody(r)
+	if err != nil {
 		jsonErr(w, 400, err.Error())
 		return
 	}
-	if req.Keyword == "" {
-		jsonErr(w, 400, "keyword is required")
-		return
-	}
-	if req.PageSize <= 0 {
-		req.PageSize = 20
-	}
 	id := newID("http_xhs_search")
-	payload := map[string]interface{}{
-		"keyword":   req.Keyword,
-		"cursor":    req.Cursor,
-		"page_size": req.PageSize,
-	}
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.query_xhs_search", "tweetClaw", payload), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.query_xhs_search", "tweetClaw", body), 8000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -660,18 +537,8 @@ func (h *Handler) xhsUserNotes(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, 405, "method_not_allowed")
 		return
 	}
-	userID := r.URL.Query().Get("user_id")
-	if userID == "" {
-		jsonErr(w, 400, "user_id is required")
-		return
-	}
-	cursor := r.URL.Query().Get("cursor")
 	id := newID("http_xhs_user_notes")
-	payload := map[string]interface{}{
-		"user_id": userID,
-		"cursor":  cursor,
-	}
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.query_xhs_user_notes", "tweetClaw", payload), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.query_xhs_user_notes", "tweetClaw", queryToMap(r)), 8000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -680,26 +547,13 @@ func (h *Handler) xhsPublish(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, 405, "method_not_allowed")
 		return
 	}
-	var req struct {
-		Title       string                   `json:"title"`
-		Desc        string                   `json:"desc"`
-		Images      []map[string]interface{} `json:"images"`
-		PrivacyType int                      `json:"privacy_type"`
-		Topics      []map[string]interface{} `json:"topics"`
-	}
-	if err := readJSON(r, &req); err != nil {
+	body, err := readRawBody(r)
+	if err != nil {
 		jsonErr(w, 400, err.Error())
 		return
 	}
 	id := newID("http_xhs_publish")
-	payload := map[string]interface{}{
-		"title":        req.Title,
-		"desc":         req.Desc,
-		"images":       req.Images,
-		"privacy_type": req.PrivacyType,
-		"topics":       req.Topics,
-	}
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_publish_image_note", "tweetClaw", payload), 30000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_publish_image_note", "tweetClaw", body), 30000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -708,18 +562,8 @@ func (h *Handler) xhsComments(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, 405, "method_not_allowed")
 		return
 	}
-	noteID := r.URL.Query().Get("note_id")
-	if noteID == "" {
-		jsonErr(w, 400, "note_id is required")
-		return
-	}
-	cursor := r.URL.Query().Get("cursor")
 	id := newID("http_xhs_comments")
-	payload := map[string]interface{}{
-		"note_id": noteID,
-		"cursor":  cursor,
-	}
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_note_comments", "tweetClaw", payload), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_note_comments", "tweetClaw", queryToMap(r)), 8000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -728,14 +572,8 @@ func (h *Handler) xhsUserInfo(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, 405, "method_not_allowed")
 		return
 	}
-	userID := r.URL.Query().Get("user_id")
-	if userID == "" {
-		jsonErr(w, 400, "user_id is required")
-		return
-	}
 	id := newID("http_xhs_user_info")
-	payload := map[string]interface{}{"user_id": userID}
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_user_info", "tweetClaw", payload), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_user_info", "tweetClaw", queryToMap(r)), 8000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -744,14 +582,8 @@ func (h *Handler) xhsTopics(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, 405, "method_not_allowed")
 		return
 	}
-	keyword := r.URL.Query().Get("keyword")
-	if keyword == "" {
-		jsonErr(w, 400, "keyword is required")
-		return
-	}
 	id := newID("http_xhs_topics")
-	payload := map[string]interface{}{"keyword": keyword}
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_search_topics", "tweetClaw", payload), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_search_topics", "tweetClaw", queryToMap(r)), 8000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -760,18 +592,8 @@ func (h *Handler) xhsNotifications(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, 405, "method_not_allowed")
 		return
 	}
-	notifType := r.URL.Query().Get("type")
-	if notifType != "mentions" && notifType != "likes" {
-		jsonErr(w, 400, "type must be 'mentions' or 'likes'")
-		return
-	}
-	cursor := r.URL.Query().Get("cursor")
 	id := newID("http_xhs_notifications")
-	payload := map[string]interface{}{
-		"type":   notifType,
-		"cursor": cursor,
-	}
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_notifications", "tweetClaw", payload), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_notifications", "tweetClaw", queryToMap(r)), 8000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -781,8 +603,7 @@ func (h *Handler) xhsPublishedNotes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_xhs_published_notes")
-	payload := map[string]interface{}{}
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_published_notes", "tweetClaw", payload), 35000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_published_notes", "tweetClaw", queryToMap(r)), 35000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -791,18 +612,8 @@ func (h *Handler) xhsSearchFilter(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, 405, "method_not_allowed")
 		return
 	}
-	keyword := r.URL.Query().Get("keyword")
-	if keyword == "" {
-		jsonErr(w, 400, "keyword is required")
-		return
-	}
-	searchID := r.URL.Query().Get("search_id")
 	id := newID("http_xhs_search_filter")
-	payload := map[string]interface{}{
-		"keyword":   keyword,
-		"search_id": searchID,
-	}
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_search_filter", "tweetClaw", payload), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_search_filter", "tweetClaw", queryToMap(r)), 8000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -918,6 +729,18 @@ func buildRawMsg(id string, msgType types.MessageType, target string, payload in
 	}
 }
 
+// buildRawMsgFromBytes 用于已经是 json.RawMessage 的 payload，避免二次 Marshal
+func buildRawMsgFromBytes(id string, msgType types.MessageType, target string, payload json.RawMessage) types.RawMessage {
+	return types.RawMessage{
+		ID:        id,
+		Type:      msgType,
+		Source:    "LocalBridgeGo",
+		Target:    target,
+		Timestamp: time.Now().UnixMilli(),
+		Payload:   payload,
+	}
+}
+
 func writePayload[T any](w http.ResponseWriter, data []byte) {
 	var msg types.Message[T]
 	if err := json.Unmarshal(data, &msg); err != nil {
@@ -955,17 +778,46 @@ func readJSON(r *http.Request, v interface{}) error {
 	return json.Unmarshal(body, v)
 }
 
+// queryToMap 将 URL query string 所有参数转为 map，供 GET 端点透传
+func queryToMap(r *http.Request) map[string]interface{} {
+	m := make(map[string]interface{})
+	for k, v := range r.URL.Query() {
+		if k == "instanceId" {
+			continue // instanceId 由 bridge 层单独处理
+		}
+		if len(v) == 1 {
+			m[k] = v[0]
+		} else {
+			m[k] = v
+		}
+	}
+	return m
+}
+
+// readRawBody 读取 request body 为 json.RawMessage，供 POST 端点透传
+func readRawBody(r *http.Request) (json.RawMessage, error) {
+	defer r.Body.Close()
+	data, err := io.ReadAll(r.Body)
+	if err != nil {
+		return nil, err
+	}
+	if len(data) == 0 {
+		return json.RawMessage("{}"), nil
+	}
+	return json.RawMessage(data), nil
+}
+
+// mergeAction 将 action 字段注入到透传的 JSON payload 中
+func mergeAction(body json.RawMessage, action string) map[string]interface{} {
+	var m map[string]interface{}
+	_ = json.Unmarshal(body, &m)
+	if m == nil {
+		m = make(map[string]interface{})
+	}
+	m["action"] = action
+	return m
+}
+
 func newID(prefix string) string { return prefix + "_" + shortID() }
 func shortID() string            { return uuid.New().String()[:8] }
-func parseTabID(r *http.Request) *int {
-	s := r.URL.Query().Get("tabId")
-	if s == "" {
-		return nil
-	}
-	v, err := strconv.Atoi(s)
-	if err != nil {
-		return nil
-	}
-	return &v
-}
 

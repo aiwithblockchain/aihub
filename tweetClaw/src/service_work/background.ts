@@ -154,16 +154,6 @@ async function getWindowCount(): Promise<number> {
     }
 }
 
-async function logProfileActivityState(event: 'active' | 'inactive', reason: string, extra?: Record<string, unknown>) {
-    const windowCount = await getWindowCount();
-    const payload = {
-        windowCount,
-        ...extra
-    };
-
-    void localBridge.recordActivityState(event, reason, payload);
-    console.log(`[TweetClaw-BG] profile ${event}: reason=${reason} windowCount=${windowCount}, ${localBridge.getDebugIdentityLabel()} state=${JSON.stringify(localBridge.getConnectionDebugState())} extra=${JSON.stringify(extra || {})}`);
-}
 
 async function reconcileBridgeActivity(reason: string, extra?: Record<string, unknown>) {
     const windowCount = await getWindowCount();
@@ -412,7 +402,7 @@ async function harvestBearer(bearer: string | null | undefined) {
 }
 
 // ── 消息中枢 ─────────────────────────────────────────────────────
-chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
     // Bridge 状态查询
     if (message.type === 'GET_BRIDGE_STATUS') {
@@ -553,7 +543,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'XHS_FETCH_HOMEFEED') {
         (async () => {
             try {
-                const data = await queryXhsHomefeed({ cursor_score: message.cursor_score || '' });
+                const { type: _t, ...payload } = message;
+                const data = await queryXhsHomefeed(payload);
                 sendResponse({ success: true, data });
             } catch (e: any) {
                 sendResponse({ success: false, error: e.message });
@@ -577,7 +568,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'XHS_FETCH_FEED') {
         (async () => {
             try {
-                const data = await queryXhsFeed({ note_id: message.note_id || '' });
+                const { type: _t, ...payload } = message;
+                const data = await queryXhsFeed(payload);
                 sendResponse({ success: true, data });
             } catch (e: any) {
                 sendResponse({ success: false, error: e.message });
@@ -589,11 +581,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'XHS_SEARCH_NOTES') {
         (async () => {
             try {
-                const data = await queryXhsSearch({
-                    keyword: message.keyword || '',
-                    cursor: message.cursor || '',
-                    page_size: message.page_size || 20,
-                });
+                const { type: _t, ...payload } = message;
+                const data = await queryXhsSearch(payload);
                 sendResponse({ success: true, data });
             } catch (e: any) {
                 sendResponse({ success: false, error: e.message });
@@ -605,10 +594,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'XHS_FETCH_USER_NOTES') {
         (async () => {
             try {
-                const data = await queryXhsUserNotes({
-                    user_id: message.user_id || '',
-                    cursor: message.cursor || '',
-                });
+                const { type: _t, ...payload } = message;
+                const data = await queryXhsUserNotes(payload);
                 sendResponse({ success: true, data });
             } catch (e: any) {
                 sendResponse({ success: false, error: e.message });
@@ -620,13 +607,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
     if (message.type === 'XHS_PUBLISH_IMAGE_NOTE') {
         (async () => {
             try {
-                const data = await publishXhsImageNote({
-                    title: message.title || '',
-                    desc: message.desc || '',
-                    images: message.images || [],
-                    privacy_type: message.privacy_type ?? 0,
-                    topics: message.topics || [],
-                });
+                const { type: _t, ...payload } = message;
+                const data = await publishXhsImageNote(payload);
                 sendResponse({ success: true, data });
             } catch (e: any) {
                 sendResponse({ success: false, error: e.message });
@@ -778,11 +760,11 @@ async function sendXhsMessage(tab: chrome.tabs.Tab, msg: Record<string, any>): P
 
 // ── XHS Handler 函数 ────────────────────────────────────────────────────────
 
-export async function queryXhsHomefeed(payload: { cursor_score?: string } = {}) {
+export async function queryXhsHomefeed(payload: Record<string, unknown> = {}) {
     console.log('[TweetClaw-BG] queryXhsHomefeed called');
     const tab = await findXhsTab();
     if (!tab) throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
-    return sendXhsMessage(tab, { type: 'XHS_FETCH_HOMEFEED', cursor_score: payload?.cursor_score || '' });
+    return sendXhsMessage(tab, { type: 'XHS_FETCH_HOMEFEED', ...payload });
 }
 
 /**
@@ -812,7 +794,7 @@ export async function queryXhsAccountInfo() {
 /**
  * 查询小红书笔记详情（通过 feed 接口）
  */
-export async function queryXhsFeed(payload: { note_id?: string } = {}) {
+export async function queryXhsFeed(payload: Record<string, unknown> = {}) {
     console.log('[TweetClaw-BG] queryXhsFeed called');
 
     const targetTab = await findXhsTab();
@@ -822,7 +804,7 @@ export async function queryXhsFeed(payload: { note_id?: string } = {}) {
 
     const result: any = await chrome.tabs.sendMessage(targetTab.id, {
         type: 'XHS_FETCH_FEED',
-        note_id: payload?.note_id || '',
+        ...payload,
     }).catch((e: any) => {
         throw new Error(`Failed to communicate with content script: ${e?.message}`);
     });
@@ -932,8 +914,8 @@ export async function navigateXTab(payload: NavigateTabRequestPayload): Promise<
  * 执行推特操作（like, retweet, follow 等）- 返回推特原始响应
  */
 export async function execAction(payload: ExecActionPayload): Promise<TwitterResponse> {
-    const { action, tweetId, userId, tabId, text, media_ids, attachmentUrl } = payload;
-    console.log(`[TweetClaw-BG] execAction: ${action}`, { tweetId, userId, tabId, media_ids, attachmentUrl });
+    const { tabId } = payload;
+    console.log(`[TweetClaw-BG] execAction: ${payload.action}`, payload);
 
     let targetTabId = tabId;
     if (!targetTabId) {
@@ -949,12 +931,7 @@ export async function execAction(payload: ExecActionPayload): Promise<TwitterRes
     // 委托 Content Script 执行操作并返回推特原始响应
     const result = await chrome.tabs.sendMessage(targetTabId, {
         type: MsgType.EXECUTE_ACTION,
-        action,
-        tweetId,
-        userId,
-        text,
-        media_ids,
-        attachmentUrl
+        ...payload,
     }).catch((e: any) => {
         throw new Error(`Failed to execute action: ${e?.message}`);
     });
@@ -1097,7 +1074,7 @@ export async function querySearchTimeline(payload: QuerySearchTimelinePayload): 
         type: 'FETCH_SEARCH_TIMELINE',
         query,
         cursor,
-        count: count || 20
+        count,
     });
 
     // 直接返回推特原始 GraphQL 响应
@@ -1125,7 +1102,7 @@ export async function queryUserTweets(payload: QueryUserTweetsPayload): Promise<
         type: 'FETCH_USER_TWEETS',
         userId,
         cursor,
-        count: count || 20
+        count,
     });
 
     // 直接返回推特原始 GraphQL 响应
@@ -1151,7 +1128,7 @@ export async function queryFollowers(payload: QueryFollowersPayload): Promise<Tw
         type: 'FETCH_FOLLOWERS_PAGE',
         userId,
         cursor,
-        count: count || 20
+        count,
     });
 
     return result;
@@ -1176,7 +1153,7 @@ export async function queryFollowing(payload: QueryFollowingPayload): Promise<Tw
         type: 'FETCH_FOLLOWING_PAGE',
         userId,
         cursor,
-        count: count || 20
+        count,
     });
 
     return result;
@@ -1201,7 +1178,7 @@ export async function queryBlueVerifiedFollowers(payload: QueryBlueVerifiedFollo
         type: 'FETCH_BLUE_VERIFIED_FOLLOWERS_PAGE',
         userId,
         cursor,
-        count: count || 20
+        count,
     });
 
     return result;
@@ -1221,7 +1198,7 @@ initDefaultQueryKeys();
 /**
  * 搜索小红书笔记
  */
-export async function queryXhsSearch(payload: { keyword?: string; cursor?: string; page_size?: number } = {}) {
+export async function queryXhsSearch(payload: Record<string, unknown> = {}) {
     console.log('[TweetClaw-BG] queryXhsSearch called', payload);
 
     const targetTab = await findXhsTab();
@@ -1231,9 +1208,7 @@ export async function queryXhsSearch(payload: { keyword?: string; cursor?: strin
 
     const result: any = await chrome.tabs.sendMessage(targetTab.id, {
         type: 'XHS_SEARCH_NOTES',
-        keyword: payload.keyword || '',
-        cursor: payload.cursor || '',
-        page_size: payload.page_size || 20,
+        ...payload,
     }).catch((e: any) => {
         throw new Error(`Failed to communicate with content script: ${e?.message}`);
     });
@@ -1248,12 +1223,8 @@ export async function queryXhsSearch(payload: { keyword?: string; cursor?: strin
 /**
  * 获取指定用户发布的小红书笔记列表
  */
-export async function queryXhsUserNotes(payload: { user_id?: string; cursor?: string } = {}) {
+export async function queryXhsUserNotes(payload: Record<string, unknown> = {}) {
     console.log('[TweetClaw-BG] queryXhsUserNotes called', payload);
-
-    if (!payload.user_id) {
-        throw new Error('user_id is required');
-    }
 
     const targetTab = await findXhsTab();
     if (!targetTab?.id) {
@@ -1262,8 +1233,7 @@ export async function queryXhsUserNotes(payload: { user_id?: string; cursor?: st
 
     const result: any = await chrome.tabs.sendMessage(targetTab.id, {
         type: 'XHS_FETCH_USER_NOTES',
-        user_id: payload.user_id,
-        cursor: payload.cursor || '',
+        ...payload,
     }).catch((e: any) => {
         throw new Error(`Failed to communicate with content script: ${e?.message}`);
     });
@@ -1337,19 +1307,13 @@ async function getOrOpenCreatorTab(): Promise<number> {
     throw new Error('creator.xiaohongshu.com tab sign function not ready within 30s');
 }
 
-export async function publishXhsImageNote(payload: {
-    title?: string;
-    desc?: string;
-    images?: Array<{ base64: string; mimeType?: string }>;
-    privacy_type?: number;
-    topics?: string[];
-} = {}) {
+export async function publishXhsImageNote(payload: Record<string, unknown> = {}) {
     console.log('[TweetClaw-BG] publishXhsImageNote called', {
         title: payload.title,
-        imageCount: payload.images?.length,
+        imageCount: (payload.images as any[])?.length,
     });
 
-    if (!payload.images || payload.images.length === 0) {
+    if (!payload.images || (payload.images as any[]).length === 0) {
         throw new Error('images array is required');
     }
 
@@ -1359,11 +1323,7 @@ export async function publishXhsImageNote(payload: {
 
     const result: any = await chrome.tabs.sendMessage(tabId, {
         type: 'XHS_PUBLISH_IMAGE_NOTE',
-        title: payload.title || '',
-        desc: payload.desc || '',
-        images: payload.images,
-        privacy_type: payload.privacy_type ?? 0,
-        topics: payload.topics || [],
+        ...payload,
     }).catch((e: any) => {
         throw new Error(`Failed to communicate with content script: ${e?.message}`);
     });
@@ -1457,18 +1417,16 @@ export async function checkXhsSignHealth(_payload?: any): Promise<{
     };
 }
 
-export async function getXhsNoteComments(payload: { note_id: string; cursor?: string }): Promise<any> {
+export async function getXhsNoteComments(payload: Record<string, unknown>): Promise<any> {
     console.log('[TweetClaw-BG] getXhsNoteComments called', payload);
     const tab = await findXhsTab();
     if (!tab?.id) {
         throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
     }
 
-    console.log(`[TweetClaw-BG] Sending XHS_FETCH_NOTE_COMMENTS to tab ${tab.id}, note_id=${payload.note_id}`);
     const result: any = await chrome.tabs.sendMessage(tab.id, {
         type: 'XHS_FETCH_NOTE_COMMENTS',
-        note_id: payload.note_id,
-        cursor: payload.cursor || '',
+        ...payload,
     }).catch((e: any) => {
         console.error('[TweetClaw-BG] Failed to communicate with XHS content script:', e);
         throw new Error(`Content script communication failed: ${e?.message}`);
@@ -1483,17 +1441,16 @@ export async function getXhsNoteComments(payload: { note_id: string; cursor?: st
     return result.data;
 }
 
-export async function getXhsUserInfo(payload: { user_id: string }): Promise<any> {
+export async function getXhsUserInfo(payload: Record<string, unknown>): Promise<any> {
     console.log('[TweetClaw-BG] getXhsUserInfo called', payload);
     const tab = await findXhsTab();
     if (!tab?.id) {
         throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
     }
 
-    console.log(`[TweetClaw-BG] Sending XHS_FETCH_USER_INFO to tab ${tab.id}, user_id=${payload.user_id}`);
     const result: any = await chrome.tabs.sendMessage(tab.id, {
         type: 'XHS_FETCH_USER_INFO',
-        user_id: payload.user_id,
+        ...payload,
     }).catch((e: any) => {
         console.error('[TweetClaw-BG] Failed to communicate with XHS content script:', e);
         throw new Error(`Content script communication failed: ${e?.message}`);
@@ -1508,17 +1465,16 @@ export async function getXhsUserInfo(payload: { user_id: string }): Promise<any>
     return result.data;
 }
 
-export async function searchXhsTopics(payload: { keyword: string }): Promise<any> {
+export async function searchXhsTopics(payload: Record<string, unknown>): Promise<any> {
     console.log('[TweetClaw-BG] searchXhsTopics called', payload);
     const tab = await findXhsTab();
     if (!tab?.id) {
         throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
     }
 
-    console.log(`[TweetClaw-BG] Sending XHS_SEARCH_TOPICS to tab ${tab.id}, keyword=${payload.keyword}`);
     const result: any = await chrome.tabs.sendMessage(tab.id, {
         type: 'XHS_SEARCH_TOPICS',
-        keyword: payload.keyword,
+        ...payload,
     }).catch((e: any) => {
         console.error('[TweetClaw-BG] Failed to communicate with XHS content script:', e);
         throw new Error(`Content script communication failed: ${e?.message}`);
@@ -1533,18 +1489,16 @@ export async function searchXhsTopics(payload: { keyword: string }): Promise<any
     return result.data;
 }
 
-export async function getXhsNotifications(payload: { type: 'mentions' | 'likes'; cursor?: string }): Promise<any> {
+export async function getXhsNotifications(payload: Record<string, unknown>): Promise<any> {
     console.log('[TweetClaw-BG] getXhsNotifications called', payload);
     const tab = await findXhsTab();
     if (!tab?.id) {
         throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
     }
 
-    console.log(`[TweetClaw-BG] Sending XHS_FETCH_NOTIFICATIONS to tab ${tab.id}, type=${payload.type}`);
     const result: any = await chrome.tabs.sendMessage(tab.id, {
         type: 'XHS_FETCH_NOTIFICATIONS',
-        notification_type: payload.type,
-        cursor: payload.cursor || '',
+        ...payload,
     }).catch((e: any) => {
         console.error('[TweetClaw-BG] Failed to communicate with XHS content script:', e);
         throw new Error(`Content script communication failed: ${e?.message}`);
@@ -1580,18 +1534,16 @@ export async function getXhsPublishedNotes(_payload: Record<string, unknown>): P
     return result.data;
 }
 
-export async function getXhsSearchFilter(payload: { keyword: string; search_id?: string }): Promise<any> {
+export async function getXhsSearchFilter(payload: Record<string, unknown>): Promise<any> {
     console.log('[TweetClaw-BG] getXhsSearchFilter called', payload);
     const tab = await findXhsTab();
     if (!tab?.id) {
         throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
     }
 
-    console.log(`[TweetClaw-BG] Sending XHS_SEARCH_FILTER to tab ${tab.id}`);
     const result: any = await chrome.tabs.sendMessage(tab.id, {
         type: 'XHS_SEARCH_FILTER',
-        keyword: payload.keyword,
-        search_id: payload.search_id || '',
+        ...payload,
     }).catch((e: any) => {
         console.error('[TweetClaw-BG] Failed to communicate with XHS content script:', e);
         throw new Error(`Content script communication failed: ${e?.message}`);

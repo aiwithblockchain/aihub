@@ -17,8 +17,12 @@ class XhsApiTransport(BaseApiTransport):
             params["cursor_score"] = cursor_score
         return self.request_json("GET", "/api/v1/xhs/homefeed", params=params)
 
-    def get_feed_raw(self, note_id: str) -> Dict[Any, Any]:
+    def get_feed_raw(self, note_id: str, xsec_token: Optional[str] = None, xsec_source: Optional[str] = None) -> Dict[Any, Any]:
         params = {"note_id": note_id}
+        if xsec_token:
+            params["xsec_token"] = xsec_token
+        if xsec_source:
+            params["xsec_source"] = xsec_source
         return self.request_json("GET", "/api/v1/xhs/feed", params=params)
 
     def search_raw(self, keyword: str, cursor: Optional[str] = None, page_size: int = 20) -> Dict[Any, Any]:
@@ -27,10 +31,14 @@ class XhsApiTransport(BaseApiTransport):
             payload["cursor"] = cursor
         return self.request_json("POST", "/api/v1/xhs/search", json=payload)
 
-    def get_user_notes_raw(self, user_id: str, cursor: Optional[str] = None) -> Dict[Any, Any]:
+    def get_user_notes_raw(self, user_id: str, cursor: Optional[str] = None, xsec_token: Optional[str] = None, xsec_source: Optional[str] = None) -> Dict[Any, Any]:
         params = {"user_id": user_id}
         if cursor:
             params["cursor"] = cursor
+        if xsec_token:
+            params["xsec_token"] = xsec_token
+        if xsec_source:
+            params["xsec_source"] = xsec_source
         return self.request_json("GET", "/api/v1/xhs/user_notes", params=params)
 
     def publish_note_raw(self, title: str, desc: str, images: List[Dict[str, Any]],
@@ -59,7 +67,7 @@ class XhsApiTransport(BaseApiTransport):
         return self.request_json("GET", "/api/v1/xhs/topics", params=params)
 
     def get_notifications_raw(self, notif_type: str, cursor: Optional[str] = None) -> Dict[Any, Any]:
-        params = {"type": notif_type}
+        params = {"notification_type": notif_type}
         if cursor:
             params["cursor"] = cursor
         return self.request_json("GET", "/api/v1/xhs/notifications", params=params)

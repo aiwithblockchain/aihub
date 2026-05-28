@@ -644,7 +644,7 @@ async function fetchFeed(noteId: string, xsecToken: string = '', xsecSource: str
   return signedXhrFetch('/api/sns/web/v1/feed', 'POST', JSON.stringify(body));
 }
 
-async function searchNotes(keyword: string, cursor: string = '', pageSize: number = 20): Promise<any> {
+async function searchNotes(keyword: string, cursor: string = '', pageSize: number): Promise<any> {
   // 与 Spider_XHS generate_search_id 完全一致：
   // _int_to_base36((timestamp_ms << 64) + random_part)
   // JS 用 BigInt 实现真正的 64 位左移
@@ -730,12 +730,8 @@ async function fetchNotifications(type: 'mentions' | 'likes', cursor: string = '
   return signedFetch(`${endpoint}?${params}`, 'GET');
 }
 
-async function fetchPublishedNotes(page: number = 0): Promise<any> {
-  const params = new URLSearchParams({
-    tab: '0',
-    page: String(page),
-  });
-  return signedCreatorFetch(`/api/galaxy/v2/creator/note/user/posted?${params}`, 'GET');
+async function fetchPublishedNotes(): Promise<any> {
+  return signedCreatorFetch(`/api/galaxy/v2/creator/note/user/posted?tab=0&page=0`, 'GET');
 }
 
 // ── 消息处理 ──────────────────────────────────────────────────────────────────
@@ -800,8 +796,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === XHS_MSG_TYPE.FETCH_FEED) {
     (async () => {
       try {
+        if (!message.note_id) { sendResponse({ success: false, error: 'note_id is required' }); return; }
         const data = await fetchFeed(
-          String(message.note_id || ''),
+          String(message.note_id),
           String(message.xsec_token || ''),
           String(message.xsec_source || 'pc_search'),
         );
@@ -816,10 +813,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === XHS_MSG_TYPE.SEARCH_NOTES) {
     (async () => {
       try {
+        if (!message.keyword) { sendResponse({ success: false, error: 'keyword is required' }); return; }
+        if (!message.page_size) { sendResponse({ success: false, error: 'page_size is required' }); return; }
         const data = await searchNotes(
-          String(message.keyword || ''),
+          String(message.keyword),
           String(message.cursor || ''),
-          20,
+          Number(message.page_size),
         );
         sendResponse({ success: true, data });
       } catch (e: any) {
@@ -832,8 +831,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === XHS_MSG_TYPE.FETCH_USER_NOTES) {
     (async () => {
       try {
+        if (!message.user_id) { sendResponse({ success: false, error: 'user_id is required' }); return; }
         const data = await fetchUserNotes(
-          String(message.user_id || ''),
+          String(message.user_id),
           String(message.cursor || ''),
           String(message.xsec_token || ''),
           String(message.xsec_source || 'pc_user'),
@@ -849,8 +849,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === XHS_MSG_TYPE.FETCH_COMMENTS) {
     (async () => {
       try {
+        if (!message.note_id) { sendResponse({ success: false, error: 'note_id is required' }); return; }
         const data = await fetchComments(
-          String(message.note_id || ''),
+          String(message.note_id),
           String(message.cursor || ''),
           String(message.xsec_token || ''),
         );
@@ -865,8 +866,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === XHS_MSG_TYPE.FETCH_NOTE) {
     (async () => {
       try {
+        if (!message.note_id) { sendResponse({ success: false, error: 'note_id is required' }); return; }
         const data = await fetchFeed(
-          String(message.note_id || ''),
+          String(message.note_id),
           String(message.xsec_token || ''),
           String(message.xsec_source || 'pc_search'),
         );
@@ -965,8 +967,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === XHS_MSG_TYPE.FETCH_NOTE_COMMENTS) {
     (async () => {
       try {
+        if (!message.note_id) { sendResponse({ success: false, error: 'note_id is required' }); return; }
         const data = await fetchComments(
-          String(message.note_id || ''),
+          String(message.note_id),
           String(message.cursor || ''),
           String(message.xsec_token || ''),
         );
@@ -981,7 +984,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === XHS_MSG_TYPE.FETCH_USER_INFO) {
     (async () => {
       try {
-        const data = await fetchUserInfo(String(message.user_id || ''));
+        if (!message.user_id) { sendResponse({ success: false, error: 'user_id is required' }); return; }
+        const data = await fetchUserInfo(String(message.user_id));
         sendResponse({ success: true, data });
       } catch (e: any) {
         sendResponse({ success: false, error: e.message });
@@ -993,7 +997,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === XHS_MSG_TYPE.SEARCH_TOPICS) {
     (async () => {
       try {
-        const data = await searchTopics(String(message.keyword || ''));
+        if (!message.keyword) { sendResponse({ success: false, error: 'keyword is required' }); return; }
+        const data = await searchTopics(String(message.keyword));
         sendResponse({ success: true, data });
       } catch (e: any) {
         sendResponse({ success: false, error: e.message });
@@ -1005,10 +1010,12 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === XHS_MSG_TYPE.FETCH_NOTIFICATIONS) {
     (async () => {
       try {
-        const data = await fetchNotifications(
-          message.type === 'mentions' ? 'mentions' : 'likes',
-          String(message.cursor || ''),
-        );
+        const notifType = message.notification_type;
+        if (notifType !== 'mentions' && notifType !== 'likes') {
+          sendResponse({ success: false, error: 'notification_type must be mentions or likes' });
+          return;
+        }
+        const data = await fetchNotifications(notifType, String(message.cursor || ''));
         sendResponse({ success: true, data });
       } catch (e: any) {
         sendResponse({ success: false, error: e.message });
@@ -1020,8 +1027,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === XHS_MSG_TYPE.SEARCH_FILTER) {
     (async () => {
       try {
+        if (!message.keyword) { sendResponse({ success: false, error: 'keyword is required' }); return; }
         const data = await fetchSearchFilter(
-          String(message.keyword || ''),
+          String(message.keyword),
           String(message.search_id || ''),
         );
         sendResponse({ success: true, data });
