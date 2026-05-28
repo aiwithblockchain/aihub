@@ -64,11 +64,8 @@ class XhsApiTransport(BaseApiTransport):
             params["cursor"] = cursor
         return self.request_json("GET", "/api/v1/xhs/notifications", params=params)
 
-    def get_published_notes_raw(self, cursor: Optional[str] = None) -> Dict[Any, Any]:
-        params = {}
-        if cursor:
-            params["cursor"] = cursor
-        return self.request_json("GET", "/api/v1/xhs/published_notes", params=params)
+    def get_published_notes_raw(self) -> Dict[Any, Any]:
+        return self.request_json("GET", "/api/v1/xhs/published_notes")
 
     def search_filter_raw(self, keyword: str, search_id: Optional[str] = None) -> Dict[Any, Any]:
         params = {"keyword": keyword}

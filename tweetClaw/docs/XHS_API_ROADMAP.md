@@ -243,7 +243,7 @@ localBridge REST 端点 → Go messageType → tweetClaw content script
 | 获取他人用户信息 | `GET /api/v1/xhs/user_info` | `command.xhs_get_user_info` | `client.xhs.get_user_info(user_id)` | ✅ 已实现，待 Python 测试 |
 | 搜索话题 | `GET /api/v1/xhs/topics` | `command.xhs_search_topics` | `client.xhs.search_topics(keyword)` | ✅ 已实现，待 Python 测试 |
 | 获取消息通知 | `GET /api/v1/xhs/notifications` | `command.xhs_get_notifications` | `client.xhs.get_notifications(type)` | ✅ 已实现，待 Python 测试 |
-| 获取已发布笔记（creator） | `GET /api/v1/xhs/published_notes` | `command.xhs_get_published_notes` | `client.xhs.get_published_notes()` | ✅ 已实现，待 Python 测试 |
+| 获取已发布笔记（creator） | `GET /api/v1/xhs/published_notes` | `command.xhs_get_published_notes` | `client.xhs.get_published_notes()` | ✅ 已实现+测试通过（需 creator tab 已打开） |
 | 搜索过滤器 | `GET /api/v1/xhs/search_filter` | `command.xhs_search_filter` | `client.xhs.search_filter(keyword)` | ✅ 已实现，待 Python 测试 |
 
 ### 写操作 API

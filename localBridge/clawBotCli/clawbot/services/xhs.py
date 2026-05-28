@@ -99,9 +99,9 @@ class XhsService:
 
     # ── My Content ────────────────────────────────────────────────────────────
 
-    def get_published_notes(self, cursor: Optional[str] = None) -> Dict[str, Any]:
+    def get_published_notes(self) -> Dict[str, Any]:
         """Get all notes published by the current account."""
-        return self.transport.get_published_notes_raw(cursor=cursor)
+        return self.transport.get_published_notes_raw()
 
     # ── Search Filters ────────────────────────────────────────────────────────
 

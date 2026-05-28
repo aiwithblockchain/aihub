@@ -780,10 +780,9 @@ func (h *Handler) xhsPublishedNotes(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, 405, "method_not_allowed")
 		return
 	}
-	cursor := r.URL.Query().Get("cursor")
 	id := newID("http_xhs_published_notes")
-	payload := map[string]interface{}{"cursor": cursor}
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_published_notes", "tweetClaw", payload), 8000,
+	payload := map[string]interface{}{}
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_published_notes", "tweetClaw", payload), 35000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 

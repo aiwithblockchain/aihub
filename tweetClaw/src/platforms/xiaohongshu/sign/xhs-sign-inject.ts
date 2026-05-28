@@ -177,7 +177,7 @@ function hexToBytes(hex: string): number[] {
  */
 function calcXsCommon(a1: string, xs: string, xt: number | string, apiPath = ''): string {
   const xtStr = String(xt);
-  const isCreatorApi = apiPath.indexOf('/web_api/') >= 0;
+  const isCreatorApi = apiPath.indexOf('/web_api/') >= 0 || apiPath.indexOf('/api/galaxy/') >= 0;
 
   // 优先从 localStorage 读取指纹 b1，若不存在则退回静态 FFF 常量
   const b1 = localStorage.getItem('b1') || (isCreatorApi ? FFF_CREATOR : FFF_CONSUMER);
@@ -316,7 +316,7 @@ function signWithMnsv2(url: string, data: string): string {
   const d = xhsMd5(url);
   const s = mnsv2(fullStr, c, d);
 
-  const isCreatorApi = url.indexOf('/web_api/') >= 0;
+  const isCreatorApi = url.indexOf('/web_api/') >= 0 || url.indexOf('/api/galaxy/') >= 0;
   const x1 = isCreatorApi ? 'ugc' : 'xhs-pc-web';
   const x4 = 'object';
   const signObj = { x0: '4.3.5', x1, x2: getPlatformName(), x3: s, x4 };
@@ -337,7 +337,7 @@ async function handleSignRequest(event: MessageEvent) {
     let xs: string;
     let xt: number;
 
-    const isCreatorApi = url.indexOf('/web_api/') >= 0;
+    const isCreatorApi = url.indexOf('/web_api/') >= 0 || url.indexOf('/api/galaxy/') >= 0;
 
     if (isCreatorApi && typeof (window as any).mnsv2 === 'function') {
       // Creator API → mnsv2 (XYS_ 格式)

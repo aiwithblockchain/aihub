@@ -1277,7 +1277,7 @@ export async function queryXhsUserNotes(payload: { user_id?: string; cursor?: st
 
 /** 找到或打开 creator.xiaohongshu.com 标签页，等待签名链路就绪后返回 tabId */
 async function getOrOpenCreatorTab(): Promise<number> {
-    const CREATOR_URL = 'https://creator.xiaohongshu.com/publish/publish?source=official&from=menu&target=image';
+    const CREATOR_URL = 'https://creator.xiaohongshu.com/home';
 
     // 1. 优先找已有的 creator 标签页
     const creatorTabs = await chrome.tabs.query({ url: '*://creator.xiaohongshu.com/*' });
@@ -1559,19 +1559,17 @@ export async function getXhsNotifications(payload: { type: 'mentions' | 'likes';
     return result.data;
 }
 
-export async function getXhsPublishedNotes(payload: { cursor?: string }): Promise<any> {
-    console.log('[TweetClaw-BG] getXhsPublishedNotes called', payload);
-    const tab = await findXhsTab();
-    if (!tab?.id) {
-        throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
-    }
+export async function getXhsPublishedNotes(_payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] getXhsPublishedNotes called');
+    // /api/galaxy/v2/creator/note/user/posted 必须从 creator.xiaohongshu.com 发出（CORS）
+    // 找到已有 creator tab 或自动打开，等待 content script 就绪后返回
+    const tabId = await getOrOpenCreatorTab();
 
-    console.log(`[TweetClaw-BG] Sending XHS_FETCH_PUBLISHED_NOTES to tab ${tab.id}`);
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    console.log(`[TweetClaw-BG] Sending XHS_FETCH_PUBLISHED_NOTES to creator tab ${tabId}`);
+    const result: any = await chrome.tabs.sendMessage(tabId, {
         type: 'XHS_FETCH_PUBLISHED_NOTES',
-        cursor: payload.cursor || '',
     }).catch((e: any) => {
-        console.error('[TweetClaw-BG] Failed to communicate with XHS content script:', e);
+        console.error('[TweetClaw-BG] Failed to communicate with creator content script:', e);
         throw new Error(`Content script communication failed: ${e?.message}`);
     });
 

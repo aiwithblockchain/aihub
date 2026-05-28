@@ -316,7 +316,7 @@ async function signedCreatorFetch(apiPath: string, method: 'GET' | 'POST', body?
   const fetchOptions: RequestInit = { method, headers, credentials: 'include' };
   if (method === 'POST' && bodyStr) fetchOptions.body = bodyStr;
 
-  const response = await fetch(`${EDITH}${apiPath}`, fetchOptions);
+  const response = await fetch(`${CREATOR}${apiPath}`, fetchOptions);
   if (!response.ok) {
     const text = await response.text();
     throw new Error(`Creator API ${response.status}: ${text.slice(0, 200)}`);
@@ -730,13 +730,12 @@ async function fetchNotifications(type: 'mentions' | 'likes', cursor: string = '
   return signedFetch(`${endpoint}?${params}`, 'GET');
 }
 
-async function fetchPublishedNotes(cursor: string = ''): Promise<any> {
+async function fetchPublishedNotes(page: number = 0): Promise<any> {
   const params = new URLSearchParams({
-    cursor,
-    num: '30',
-    image_formats: 'jpg,webp,avif',
+    tab: '0',
+    page: String(page),
   });
-  return signedCreatorFetch(`/api/galaxy/creator/note/user/posted?${params}`, 'GET');
+  return signedCreatorFetch(`/api/galaxy/v2/creator/note/user/posted?${params}`, 'GET');
 }
 
 // ── 消息处理 ──────────────────────────────────────────────────────────────────
@@ -1036,7 +1035,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === XHS_MSG_TYPE.FETCH_PUBLISHED_NOTES) {
     (async () => {
       try {
-        const data = await fetchPublishedNotes(String(message.cursor || ''));
+        const data = await fetchPublishedNotes();
         sendResponse({ success: true, data });
       } catch (e: any) {
         sendResponse({ success: false, error: e.message });
