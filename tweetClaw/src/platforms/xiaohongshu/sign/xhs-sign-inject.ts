@@ -337,30 +337,19 @@ async function handleSignRequest(event: MessageEvent) {
     let xs: string;
     let xt: number;
 
-    const isCreatorApi = url.indexOf('/web_api/') >= 0 || url.indexOf('/api/galaxy/') >= 0;
-
-    if (isCreatorApi && typeof (window as any).mnsv2 === 'function') {
-      // Creator API → mnsv2 (XYS_ 格式)
+    if (typeof (window as any).mnsv2 === 'function') {
+      // 优先 mnsv2 (XYS_ 格式) — 消费端和创作者端均适用
       xs = signWithMnsv2(url, data || '');
       xt = Date.now();
     } else if (typeof (window as any)._webmsxyw === 'function') {
-      // 消费端 API → _webmsxyw (XYW_ 格式，与浏览器原生一致)
+      // 兜底：mnsv2 不可用时用 _webmsxyw (XYW_ 格式)
       if (!signReady) await signFnReady;
       const signFn = (window as any)._webmsxyw;
       const signResult = signFn(url, data, a1);
       xs = signResult['X-s'] || signResult['x-s'] || '';
       xt = signResult['X-t'] || signResult['x-t'] || Date.now();
-    } else if (typeof (window as any).mnsv2 === 'function') {
-      // 兜底：mnsv2
-      xs = signWithMnsv2(url, data || '');
-      xt = Date.now();
     } else {
-      if (!signReady) await signFnReady;
-      const signFn = (window as any)._webmsxyw;
-      if (typeof signFn !== 'function') throw new Error('Neither _webmsxyw nor mnsv2 found on window.');
-      const signResult = signFn(url, data, a1);
-      xs = signResult['X-s'] || signResult['x-s'] || '';
-      xt = signResult['X-t'] || signResult['x-t'] || Date.now();
+      throw new Error('Neither _webmsxyw nor mnsv2 found on window.');
     }
 
     const xsCommon = calcXsCommon(a1, xs, xt, url);

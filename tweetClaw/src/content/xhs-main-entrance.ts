@@ -993,9 +993,9 @@ async function fetchHomefeed(cursorScore: string = ''): Promise<any> {
   const isFirstPage = !cursorScore.trim();
   const body = {
     cursor_score: cursorScore,
-    num: 35,
+    num: 20,
     refresh_type: isFirstPage ? 1 : 3,
-    note_index: isFirstPage ? 0 : 35,
+    note_index: isFirstPage ? 0 : 20,
     unread_begin_note_id: '',
     unread_end_note_id: '',
     unread_note_count: 0,
@@ -1005,7 +1005,7 @@ async function fetchHomefeed(cursorScore: string = ''): Promise<any> {
     image_formats: ['jpg', 'webp', 'avif'],
     need_filter_image: false,
   };
-  return signedFetch('/api/sns/web/v1/homefeed', 'POST', JSON.stringify(body));
+  return signedFetch('/api/sns/web/v1/homefeed', 'POST', JSON.stringify(body), { 'xy-direction': '98' });
 }
 
 async function fetchFeed(noteId: string, xsecToken: string = '', xsecSource: string = 'pc_search'): Promise<any> {
@@ -1070,14 +1070,15 @@ async function fetchUserNotes(userId: string, cursor: string = '', xsecToken: st
 }
 
 async function fetchComments(noteId: string, cursor: string = '', xsecToken: string = ''): Promise<any> {
-  const params = new URLSearchParams({
-    note_id: noteId,
-    cursor,
-    top_comment_id: '',
-    image_formats: 'jpg,webp,avif',
-    xsec_token: xsecToken,
-  });
-  return signedFetch(`/api/sns/web/v2/comment/page?${params}`, 'GET');
+  // 不用 URLSearchParams，避免逗号被编码成 %2C（XHS 服务端要求原始逗号）
+  const query = [
+    `note_id=${encodeURIComponent(noteId)}`,
+    `cursor=${encodeURIComponent(cursor)}`,
+    `top_comment_id=`,
+    `image_formats=jpg,webp,avif`,
+    `xsec_token=${encodeURIComponent(xsecToken)}`,
+  ].join('&');
+  return signedFetch(`/api/sns/web/v2/comment/page?${query}`, 'GET');
 }
 
 async function fetchUserInfo(userId: string): Promise<any> {
