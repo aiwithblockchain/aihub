@@ -1108,6 +1108,22 @@ async function fetchPublishedNotes(page: string = '0'): Promise<any> {
   return signedCreatorFetch(`/api/galaxy/v2/creator/note/user/posted?tab=0&page=${encodeURIComponent(page)}`, 'GET');
 }
 
+async function postComment(noteId: string, content: string, targetCommentId?: string, atUsers: any[] = []): Promise<any> {
+  console.log(`${TAG} [postComment] noteId=${noteId} contentLen=${content.length} targetCommentId=${targetCommentId || 'N/A'}`);
+  const body: Record<string, any> = {
+    note_id: noteId,
+    content,
+    at_users: atUsers,
+  };
+  if (targetCommentId) {
+    body.target_comment_id = targetCommentId;
+  }
+  console.log(`${TAG} [postComment] body=${JSON.stringify(body)}`);
+  const result = await signedXhrFetch('/api/sns/web/v1/comment/post', 'POST', JSON.stringify(body));
+  console.log(`${TAG} [postComment] result code=${result?.code} success=${result?.success}`);
+  return result;
+}
+
 // ── 消息处理 ──────────────────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -1438,6 +1454,37 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         const data = await fetchPublishedNotes(String(message.page || '0'));
         sendResponse({ success: true, data });
       } catch (e: any) {
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === XHS_MSG_TYPE.POST_COMMENT) {
+    console.log(`${TAG} [POST_COMMENT] received message:`, JSON.stringify(message));
+    (async () => {
+      try {
+        if (!message.note_id) {
+          console.log(`${TAG} [POST_COMMENT] validation failed: note_id is required`);
+          sendResponse({ success: false, error: 'note_id is required' });
+          return;
+        }
+        if (!message.content) {
+          console.log(`${TAG} [POST_COMMENT] validation failed: content is required`);
+          sendResponse({ success: false, error: 'content is required' });
+          return;
+        }
+        console.log(`${TAG} [POST_COMMENT] calling postComment...`);
+        const data = await postComment(
+          String(message.note_id),
+          String(message.content),
+          message.target_comment_id ? String(message.target_comment_id) : undefined,
+          message.at_users || [],
+        );
+        console.log(`${TAG} [POST_COMMENT] success, data:`, JSON.stringify(data).slice(0, 200));
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        console.error(`${TAG} [POST_COMMENT] error:`, e.message);
         sendResponse({ success: false, error: e.message });
       }
     })();

@@ -100,3 +100,19 @@ class XhsApiTransport(BaseApiTransport):
             "privacy_type": privacy_type,
         }
         return self.request_json("POST", "/api/v1/xhs/publish_video", json=payload)
+
+    def post_comment_raw(
+        self,
+        note_id: str,
+        content: str,
+        target_comment_id: Optional[str] = None,
+        at_users: Optional[List[str]] = None,
+    ) -> Dict[Any, Any]:
+        payload = {
+            "note_id": note_id,
+            "content": content,
+            "at_users": at_users or [],
+        }
+        if target_comment_id:
+            payload["target_comment_id"] = target_comment_id
+        return self.request_json("POST", "/api/v1/xhs/comment", json=payload)

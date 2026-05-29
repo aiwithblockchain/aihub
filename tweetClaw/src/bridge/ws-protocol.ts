@@ -39,6 +39,8 @@ export type MessageType =
   | 'response.xhs_get_published_notes'
   | 'command.xhs_search_filter'
   | 'response.xhs_search_filter'
+  | 'command.xhs_post_comment'
+  | 'response.xhs_post_comment'
   | 'command.query_x_basic_info'
   | 'request.open_tab'
   | 'response.open_tab'
@@ -111,6 +113,8 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_XHS_GET_PUBLISHED_NOTES: 'response.xhs_get_published_notes',
   COMMAND_XHS_SEARCH_FILTER: 'command.xhs_search_filter',
   RESPONSE_XHS_SEARCH_FILTER: 'response.xhs_search_filter',
+  COMMAND_XHS_POST_COMMENT: 'command.xhs_post_comment',
+  RESPONSE_XHS_POST_COMMENT: 'response.xhs_post_comment',
   COMMAND_QUERY_X_BASIC_INFO: 'command.query_x_basic_info',
   REQUEST_OPEN_TAB: 'request.open_tab',
   RESPONSE_OPEN_TAB: 'response.open_tab',

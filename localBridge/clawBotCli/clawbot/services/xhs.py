@@ -140,3 +140,28 @@ class XhsService:
             search_id: Optional search_id from a prior search() call (for consistency)
         """
         return self.transport.search_filter_raw(keyword=keyword, search_id=search_id)
+
+    # ── Comments ──────────────────────────────────────────────────────────────
+
+    def post_comment(
+        self,
+        note_id: str,
+        content: str,
+        target_comment_id: Optional[str] = None,
+        at_users: Optional[List[str]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Post a comment on a note or reply to an existing comment.
+
+        Args:
+            note_id: The note ID to comment on
+            content: Comment content text
+            target_comment_id: If replying to a comment, the comment ID to reply to
+            at_users: Optional list of user IDs to @mention
+        """
+        return self.transport.post_comment_raw(
+            note_id=note_id,
+            content=content,
+            target_comment_id=target_comment_id,
+            at_users=at_users or [],
+        )

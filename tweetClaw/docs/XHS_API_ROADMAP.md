@@ -251,7 +251,7 @@ localBridge REST 端点 → Go messageType → tweetClaw content script
 | 功能 | REST 端点 | Go messageType | 状态 |
 |------|-----------|---------------|------|
 | 发布图文笔记 | `POST /api/v1/xhs/publish` | `command.xhs_publish_image_note` | ✅ 已完成+测试通过 | 
-| 回复/发布评论 | — | — | 🔲 待实现 |
+| 回复/发布评论 | `POST /api/v1/xhs/comment` | `command.xhs_post_comment` | ✅ 已完成+测试通过（2026-05-29） |
 | 点赞笔记 | — | — | 🔲 待实现 |
 | 关注用户 | — | — | 🔲 待实现 |
 | 取消点赞 | — | — | 🔲 待实现 |

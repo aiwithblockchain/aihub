@@ -12,7 +12,7 @@ export const XHS_API_ENDPOINTS = {
   LIKE: '/api/sns/web/v1/note/like',
   COLLECT: '/api/sns/web/v1/note/collect',
   FOLLOW: '/api/sns/web/v1/user/follow',
-  COMMENT_POST: '/api/sns/web/v2/comment/post',
+  COMMENT_POST: '/api/sns/web/v1/comment/post',
   SEARCH_TOPIC: '/web_api/sns/v1/search/topic',
   NOTIFICATIONS_MENTIONS: '/api/sns/web/v1/you/mentions',
   NOTIFICATIONS_LIKES: '/api/sns/web/v1/you/likes',
@@ -40,6 +40,7 @@ export const XHS_MSG_TYPE = {
   SEARCH_TOPICS: 'XHS_SEARCH_TOPICS',
   FETCH_NOTIFICATIONS: 'XHS_FETCH_NOTIFICATIONS',
   FETCH_PUBLISHED_NOTES: 'XHS_FETCH_PUBLISHED_NOTES',
+  POST_COMMENT: 'XHS_POST_COMMENT',
 } as const;
 
 export const XHS_STORAGE_KEYS = {
