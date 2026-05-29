@@ -222,11 +222,11 @@ POST /api/v1/plugins/tweetClaw/invoke
 
 | 功能 | 状态 | 说明 |
 |------|------|------|
-| mnsv2 签名 (x-s, XYS_ 格式) | ✅ 已完成+测试通过 | `signWithMnsv2()` 动态生成 |
+| mnsv2 签名 (x-s, XYS_ 格式) | ✅ 已完成+测试通过 | `signWithMnsv2()` 动态生成，mnsv2 返回 200 字符字符串直接用 |
 | x-s-common 生成 (consumer API) | ✅ 已完成+测试通过 | `calcXsCommon()` 动态生成，x1=4.3.5 x4=6.12.3 |
 | x-s-common 生成 (creator API) | ✅ 已完成+测试通过 | `calcXsCommon()` isCreatorApi 路径，x1=4.3.2 x4=4.84.1 |
 | x-rap-param 生成 (RAP sandbox) | ✅ 已完成+测试通过 | `generateRapParam()` iframe 沙盒，quality≥0x05 |
-| handleSignedFetch 完全动态化 | ✅ 已完成+测试通过 | 所有参数动态生成，status=200 hasItems=true |
+| handleSignedFetch 完全动态化 | ✅ 已完成+测试通过（2026-05-29） | 所有参数动态生成，status=200 hasItems=true |
 
 ### 读取 API（感知层）
 
@@ -234,17 +234,17 @@ localBridge REST 端点 → Go messageType → tweetClaw content script
 
 | 功能 | REST 端点 | Go messageType | clawBotCli 方法 | 状态 |
 |------|-----------|---------------|----------------|------|
-| 获取自己账号信息 | `GET /api/v1/xhs/account` | `command.query_xhs_account_info` | `client.xhs.get_account_info()` | ✅ 已实现，待 Python 测试 |
+| 获取自己账号信息 | `GET /api/v1/xhs/account` | `command.query_xhs_account_info` | `client.xhs.get_account_info()` | ✅ 已实现+测试通过（2026-05-29） |
 | 获取主页 feed | `GET /api/v1/xhs/homefeed` | `command.query_xhs_homefeed` | `client.xhs.get_homefeed()` | ✅ 已实现+测试通过（2026-05-29） |
-| 获取笔记详情 | `GET /api/v1/xhs/feed` | `command.query_xhs_feed` | `client.xhs.get_feed(note_id)` | ✅ 已实现，待 Python 测试 |
-| 搜索笔记 | `POST /api/v1/xhs/search` | `command.query_xhs_search` | `client.xhs.search(keyword)` | ✅ 已实现+测试通过 |
-| 获取他人发布笔记 | `GET /api/v1/xhs/user_notes` | `command.query_xhs_user_notes` | `client.xhs.get_user_notes(user_id)` | ✅ 已实现，待 Python 测试 |
+| 获取笔记详情 | `GET /api/v1/xhs/feed` | `command.query_xhs_feed` | `client.xhs.get_feed(note_id)` | ✅ 已实现+测试通过（2026-05-29） |
+| 搜索笔记 | `POST /api/v1/xhs/search` | `command.query_xhs_search` | `client.xhs.search(keyword)` | ✅ 已实现+测试通过（2026-05-29，返回 22 条结果） |
+| 获取他人发布笔记 | `GET /api/v1/xhs/user_notes` | `command.query_xhs_user_notes` | `client.xhs.get_user_notes(user_id)` | ✅ 已实现+测试通过（2026-05-29） |
 | 获取笔记评论 | `GET /api/v1/xhs/comments` | `command.xhs_get_note_comments` | `client.xhs.get_note_comments(note_id)` | ✅ 已实现+测试通过（2026-05-29） |
-| 获取他人用户信息 | `GET /api/v1/xhs/user_info` | `command.xhs_get_user_info` | `client.xhs.get_user_info(user_id)` | ✅ 已实现，待 Python 测试 |
-| 搜索话题 | `GET /api/v1/xhs/topics` | `command.xhs_search_topics` | `client.xhs.search_topics(keyword)` | ✅ 已实现，待 Python 测试 |
-| 获取消息通知 | `GET /api/v1/xhs/notifications` | `command.xhs_get_notifications` | `client.xhs.get_notifications(type)` | ✅ 已实现，待 Python 测试 |
+| 获取他人用户信息 | `GET /api/v1/xhs/user_info` | `command.xhs_get_user_info` | `client.xhs.get_user_info(user_id)` | ✅ 已实现+测试通过（2026-05-29） |
+| 搜索话题 | `GET /api/v1/xhs/topics` | `command.xhs_search_topics` | `client.xhs.search_topics(keyword)` | ✅ 已实现+测试通过（2026-05-29） |
+| 获取消息通知 | `GET /api/v1/xhs/notifications` | `command.xhs_get_notifications` | `client.xhs.get_notifications(type)` | ✅ 已实现+测试通过（2026-05-29） |
 | 获取已发布笔记（creator） | `GET /api/v1/xhs/published_notes` | `command.xhs_get_published_notes` | `client.xhs.get_published_notes()` | ✅ 已实现+测试通过（2026-05-29，需 creator tab 已打开） |
-| 搜索过滤器 | `GET /api/v1/xhs/search_filter` | `command.xhs_search_filter` | `client.xhs.search_filter(keyword)` | ✅ 已实现，待 Python 测试 |
+| 搜索过滤器 | `GET /api/v1/xhs/search_filter` | `command.xhs_search_filter` | `client.xhs.search_filter(keyword)` | ✅ 已实现+测试通过（2026-05-29，返回 6 个筛选组） |
 
 ### 写操作 API
 
