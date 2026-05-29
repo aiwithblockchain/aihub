@@ -1550,7 +1550,7 @@ export async function getXhsNotifications(payload: Record<string, unknown>): Pro
     return result.data;
 }
 
-export async function getXhsPublishedNotes(_payload: Record<string, unknown>): Promise<any> {
+export async function getXhsPublishedNotes(payload: Record<string, unknown>): Promise<any> {
     console.log('[TweetClaw-BG] getXhsPublishedNotes called');
     // /api/galaxy/v2/creator/note/user/posted 必须从 creator.xiaohongshu.com 发出（CORS）
     // 找到已有 creator tab 或自动打开，等待 content script 就绪后返回
@@ -1559,6 +1559,7 @@ export async function getXhsPublishedNotes(_payload: Record<string, unknown>): P
     console.log(`[TweetClaw-BG] Sending XHS_FETCH_PUBLISHED_NOTES to creator tab ${tabId}`);
     const result: any = await chrome.tabs.sendMessage(tabId, {
         type: 'XHS_FETCH_PUBLISHED_NOTES',
+        page: payload.page,
     }).catch((e: any) => {
         console.error('[TweetClaw-BG] Failed to communicate with creator content script:', e);
         throw new Error(`Content script communication failed: ${e?.message}`);

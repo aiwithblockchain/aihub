@@ -1107,8 +1107,8 @@ async function fetchNotifications(type: 'mentions' | 'likes', cursor: string = '
   return signedFetch(`${endpoint}?${params}`, 'GET');
 }
 
-async function fetchPublishedNotes(): Promise<any> {
-  return signedCreatorFetch(`/api/galaxy/v2/creator/note/user/posted?tab=0&page=0`, 'GET');
+async function fetchPublishedNotes(page: string = '0'): Promise<any> {
+  return signedCreatorFetch(`/api/galaxy/v2/creator/note/user/posted?tab=0&page=${encodeURIComponent(page)}`, 'GET');
 }
 
 // ── 消息处理 ──────────────────────────────────────────────────────────────────
@@ -1438,7 +1438,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === XHS_MSG_TYPE.FETCH_PUBLISHED_NOTES) {
     (async () => {
       try {
-        const data = await fetchPublishedNotes();
+        const data = await fetchPublishedNotes(String(message.page || '0'));
         sendResponse({ success: true, data });
       } catch (e: any) {
         sendResponse({ success: false, error: e.message });
