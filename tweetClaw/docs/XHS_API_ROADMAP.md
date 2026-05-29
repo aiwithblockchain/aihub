@@ -235,15 +235,15 @@ localBridge REST 端点 → Go messageType → tweetClaw content script
 | 功能 | REST 端点 | Go messageType | clawBotCli 方法 | 状态 |
 |------|-----------|---------------|----------------|------|
 | 获取自己账号信息 | `GET /api/v1/xhs/account` | `command.query_xhs_account_info` | `client.xhs.get_account_info()` | ✅ 已实现，待 Python 测试 |
-| 获取主页 feed | `GET /api/v1/xhs/homefeed` | `command.query_xhs_homefeed` | `client.xhs.get_homefeed()` | ✅ 已实现，待 Python 测试 |
+| 获取主页 feed | `GET /api/v1/xhs/homefeed` | `command.query_xhs_homefeed` | `client.xhs.get_homefeed()` | ✅ 已实现+测试通过（2026-05-29） |
 | 获取笔记详情 | `GET /api/v1/xhs/feed` | `command.query_xhs_feed` | `client.xhs.get_feed(note_id)` | ✅ 已实现，待 Python 测试 |
 | 搜索笔记 | `POST /api/v1/xhs/search` | `command.query_xhs_search` | `client.xhs.search(keyword)` | ✅ 已实现+测试通过 |
 | 获取他人发布笔记 | `GET /api/v1/xhs/user_notes` | `command.query_xhs_user_notes` | `client.xhs.get_user_notes(user_id)` | ✅ 已实现，待 Python 测试 |
-| 获取笔记评论 | `GET /api/v1/xhs/comments` | `command.xhs_get_note_comments` | `client.xhs.get_note_comments(note_id)` | ✅ 已实现，待 Python 测试 |
+| 获取笔记评论 | `GET /api/v1/xhs/comments` | `command.xhs_get_note_comments` | `client.xhs.get_note_comments(note_id)` | ✅ 已实现+测试通过（2026-05-29） |
 | 获取他人用户信息 | `GET /api/v1/xhs/user_info` | `command.xhs_get_user_info` | `client.xhs.get_user_info(user_id)` | ✅ 已实现，待 Python 测试 |
 | 搜索话题 | `GET /api/v1/xhs/topics` | `command.xhs_search_topics` | `client.xhs.search_topics(keyword)` | ✅ 已实现，待 Python 测试 |
 | 获取消息通知 | `GET /api/v1/xhs/notifications` | `command.xhs_get_notifications` | `client.xhs.get_notifications(type)` | ✅ 已实现，待 Python 测试 |
-| 获取已发布笔记（creator） | `GET /api/v1/xhs/published_notes` | `command.xhs_get_published_notes` | `client.xhs.get_published_notes()` | ✅ 已实现+测试通过（需 creator tab 已打开） |
+| 获取已发布笔记（creator） | `GET /api/v1/xhs/published_notes` | `command.xhs_get_published_notes` | `client.xhs.get_published_notes()` | ✅ 已实现+测试通过（2026-05-29，需 creator tab 已打开） |
 | 搜索过滤器 | `GET /api/v1/xhs/search_filter` | `command.xhs_search_filter` | `client.xhs.search_filter(keyword)` | ✅ 已实现，待 Python 测试 |
 
 ### 写操作 API

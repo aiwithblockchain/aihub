@@ -25,9 +25,9 @@ class XhsService:
         """Get XHS home feed with optional pagination cursor."""
         return self.transport.get_homefeed_raw(cursor_score=cursor_score)
 
-    def get_feed(self, note_id: str) -> Dict[str, Any]:
+    def get_feed(self, note_id: str, xsec_token: Optional[str] = None, xsec_source: Optional[str] = None) -> Dict[str, Any]:
         """Get a specific note's feed data by note ID."""
-        return self.transport.get_feed_raw(note_id=note_id)
+        return self.transport.get_feed_raw(note_id=note_id, xsec_token=xsec_token, xsec_source=xsec_source)
 
     def search(self, keyword: str, cursor: Optional[str] = None, page_size: int = 20) -> Dict[str, Any]:
         """Search XHS notes by keyword with pagination."""
@@ -35,9 +35,9 @@ class XhsService:
 
     # ── User Content ──────────────────────────────────────────────────────────
 
-    def get_user_notes(self, user_id: str, cursor: Optional[str] = None) -> Dict[str, Any]:
+    def get_user_notes(self, user_id: str, cursor: Optional[str] = None, xsec_token: Optional[str] = None, xsec_source: Optional[str] = None) -> Dict[str, Any]:
         """Get all notes published by a specific user."""
-        return self.transport.get_user_notes_raw(user_id=user_id, cursor=cursor)
+        return self.transport.get_user_notes_raw(user_id=user_id, cursor=cursor, xsec_token=xsec_token, xsec_source=xsec_source)
 
     def get_user_info(self, user_id: str) -> Dict[str, Any]:
         """Get detailed information about a specific user."""

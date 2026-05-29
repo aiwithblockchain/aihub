@@ -1057,16 +1057,16 @@ async function fetchSearchFilter(keyword: string, searchId: string): Promise<any
   return signedFetch(`/api/sns/web/v1/search/filter?${params}`, 'GET');
 }
 
-async function fetchUserNotes(userId: string, cursor: string = '', xsecToken: string = '', xsecSource: string = 'pc_user'): Promise<any> {
-  const params = new URLSearchParams({
-    user_id: userId,
-    cursor,
-    num: '30',
-    image_formats: 'jpg,webp,avif',
-    xsec_token: xsecToken,
-    xsec_source: xsecSource,
-  });
-  return signedFetch(`/api/sns/web/v1/user_posted?${params}`, 'GET');
+async function fetchUserNotes(userId: string, cursor: string = '', xsecToken: string = '', xsecSource: string = 'pc_note'): Promise<any> {
+  const query = [
+    `user_id=${encodeURIComponent(userId)}`,
+    `cursor=${encodeURIComponent(cursor)}`,
+    `num=30`,
+    `image_formats=jpg,webp,avif`,
+    `xsec_token=${encodeURIComponent(xsecToken)}`,
+    `xsec_source=${encodeURIComponent(xsecSource)}`,
+  ].join('&');
+  return signedFetch(`/api/sns/web/v1/user_posted?${query}`, 'GET');
 }
 
 async function fetchComments(noteId: string, cursor: string = '', xsecToken: string = ''): Promise<any> {
@@ -1089,11 +1089,8 @@ async function fetchUserInfo(userId: string): Promise<any> {
 }
 
 async function searchTopics(keyword: string): Promise<any> {
-  const params = new URLSearchParams({
-    keyword,
-    suggest_topic_request: JSON.stringify({ title: keyword, desc: '' }),
-  });
-  return signedFetch(`/web_api/sns/v1/search/topic?${params}`, 'GET');
+  const body = JSON.stringify({ title: keyword, desc: '', file_ids: [], topic_round_start_time: 0 });
+  return signedCreatorFetch('/api/galaxy/v2/creator/recommend/suggest/topics', 'POST', body);
 }
 
 async function fetchNotifications(type: 'mentions' | 'likes', cursor: string = ''): Promise<any> {

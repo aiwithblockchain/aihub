@@ -1504,16 +1504,13 @@ export async function getXhsUserInfo(payload: Record<string, unknown>): Promise<
 
 export async function searchXhsTopics(payload: Record<string, unknown>): Promise<any> {
     console.log('[TweetClaw-BG] searchXhsTopics called', payload);
-    const tab = await findXhsTab();
-    if (!tab?.id) {
-        throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
-    }
+    const tabId = await getOrOpenCreatorTab();
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await chrome.tabs.sendMessage(tabId, {
         type: 'XHS_SEARCH_TOPICS',
         ...payload,
     }).catch((e: any) => {
-        console.error('[TweetClaw-BG] Failed to communicate with XHS content script:', e);
+        console.error('[TweetClaw-BG] Failed to communicate with creator content script:', e);
         throw new Error(`Content script communication failed: ${e?.message}`);
     });
 
