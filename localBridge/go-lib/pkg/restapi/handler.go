@@ -83,6 +83,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/xhs/published_notes", h.xhsPublishedNotes)
 	mux.HandleFunc("/api/v1/xhs/search_filter", h.xhsSearchFilter)
 	mux.HandleFunc("/api/v1/xhs/comment", h.xhsPostComment)
+	mux.HandleFunc("/api/v1/xhs/search_users", h.xhsSearchUsers)
 
 }
 
@@ -653,6 +654,21 @@ func (h *Handler) xhsPostComment(w http.ResponseWriter, r *http.Request) {
 	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_post_comment", "tweetClaw", body), 15000,
 		func(data []byte) {
 			log.Printf("[xhsPostComment] received response len=%d", len(data))
+			writeRawPayload(w, data)
+		})
+}
+
+func (h *Handler) xhsSearchUsers(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[xhsSearchUsers] received request method=%s", r.Method)
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	id := newID("http_xhs_search_users")
+	log.Printf("[xhsSearchUsers] sending to tweetClaw: id=%s query=%v", id, r.URL.Query())
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_search_users", "tweetClaw", queryToMap(r)), 8000,
+		func(data []byte) {
+			log.Printf("[xhsSearchUsers] received response len=%d", len(data))
 			writeRawPayload(w, data)
 		})
 }

@@ -148,7 +148,7 @@ class XhsService:
         note_id: str,
         content: str,
         target_comment_id: Optional[str] = None,
-        at_users: Optional[List[str]] = None,
+        at_users: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
         """
         Post a comment on a note or reply to an existing comment.
@@ -157,7 +157,7 @@ class XhsService:
             note_id: The note ID to comment on
             content: Comment content text
             target_comment_id: If replying to a comment, the comment ID to reply to
-            at_users: Optional list of user IDs to @mention
+            at_users: Optional list of user dicts to @mention, each with 'user_id' and 'nickname'
         """
         return self.transport.post_comment_raw(
             note_id=note_id,
@@ -165,3 +165,16 @@ class XhsService:
             target_comment_id=target_comment_id,
             at_users=at_users or [],
         )
+
+    def search_users(self, keyword: str, page: int = 1, rows: int = 30) -> Dict[str, Any]:
+        """
+        Search for users by keyword (for @mention in comments).
+
+        Returns users with full userid (including token suffix) needed for at_users.
+
+        Args:
+            keyword: Search keyword (nickname)
+            page: Page number (default: 1)
+            rows: Results per page (default: 30)
+        """
+        return self.transport.search_users_raw(keyword=keyword, page=page, rows=rows)

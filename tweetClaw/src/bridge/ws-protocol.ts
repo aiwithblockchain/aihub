@@ -41,6 +41,8 @@ export type MessageType =
   | 'response.xhs_search_filter'
   | 'command.xhs_post_comment'
   | 'response.xhs_post_comment'
+  | 'command.xhs_search_users'
+  | 'response.xhs_search_users'
   | 'command.query_x_basic_info'
   | 'request.open_tab'
   | 'response.open_tab'
@@ -115,6 +117,8 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_XHS_SEARCH_FILTER: 'response.xhs_search_filter',
   COMMAND_XHS_POST_COMMENT: 'command.xhs_post_comment',
   RESPONSE_XHS_POST_COMMENT: 'response.xhs_post_comment',
+  COMMAND_XHS_SEARCH_USERS: 'command.xhs_search_users',
+  RESPONSE_XHS_SEARCH_USERS: 'response.xhs_search_users',
   COMMAND_QUERY_X_BASIC_INFO: 'command.query_x_basic_info',
   REQUEST_OPEN_TAB: 'request.open_tab',
   RESPONSE_OPEN_TAB: 'response.open_tab',

@@ -3,7 +3,7 @@
 Usage:
   python3 examples/xhs_test_13_post_comment.py <note_id> <content>
   python3 examples/xhs_test_13_post_comment.py <note_id> <content> <target_comment_id>  # 回复评论
-  python3 examples/xhs_test_13_post_comment.py <note_id> <content> <target_comment_id> <at_user_id>  # 回复并@用户
+  python3 examples/xhs_test_13_post_comment.py <note_id> <content> <target_comment_id> <at_user_id> <at_nickname>  # 回复并@用户
 """
 
 import sys, os, json
@@ -13,20 +13,24 @@ from clawbot import ClawBotClient
 client = ClawBotClient()
 
 if len(sys.argv) < 3:
-    print("Usage: python3 examples/xhs_test_13_post_comment.py <note_id> <content> [target_comment_id] [at_user_id]")
+    print("Usage: python3 examples/xhs_test_13_post_comment.py <note_id> <content> [target_comment_id] [at_user_id] [at_nickname]")
     print("  note_id: The note ID to comment on")
     print("  content: Comment text")
     print("  target_comment_id: (optional) Comment ID to reply to")
     print("  at_user_id: (optional) User ID to @mention")
+    print("  at_nickname: (optional) Nickname of the user to @mention")
     sys.exit(1)
 
 note_id = sys.argv[1]
 content = sys.argv[2]
 target_comment_id = sys.argv[3] if len(sys.argv) >= 4 else None
 at_user_id = sys.argv[4] if len(sys.argv) >= 5 else None
+at_nickname = sys.argv[5] if len(sys.argv) >= 6 else None
 
-# 构建 at_users 列表
-at_users = [at_user_id] if at_user_id else []
+# 构建 at_users 列表 - 需要是对象数组，不是字符串数组
+at_users = []
+if at_user_id and at_nickname:
+    at_users = [{"user_id": at_user_id, "nickname": at_nickname}]
 
 print("=" * 60)
 if target_comment_id:

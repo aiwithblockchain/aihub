@@ -80,6 +80,7 @@ export class LocalBridgeSocket {
   public xhsGetPublishedNotesHandler: ((payload: any) => Promise<any>) | null = null;
   public xhsSearchFilterHandler: ((payload: any) => Promise<any>) | null = null;
   public xhsPostCommentHandler: ((payload: any) => Promise<any>) | null = null;
+  public xhsSearchUsersHandler: ((payload: any) => Promise<any>) | null = null;
   public openTabHandler: ((payload: any) => Promise<any>) | null = null;
   public closeTabHandler: ((payload: any) => Promise<any>) | null = null;
   public navigateTabHandler: ((payload: any) => Promise<any>) | null = null;
@@ -655,6 +656,9 @@ export class LocalBridgeSocket {
           break;
         case MESSAGE_TYPES.COMMAND_XHS_POST_COMMENT:
           this.handleGenericQuery(msg, this.xhsPostCommentHandler, MESSAGE_TYPES.RESPONSE_XHS_POST_COMMENT);
+          break;
+        case MESSAGE_TYPES.COMMAND_XHS_SEARCH_USERS:
+          this.handleGenericQuery(msg, this.xhsSearchUsersHandler, MESSAGE_TYPES.RESPONSE_XHS_SEARCH_USERS);
           break;
         case MESSAGE_TYPES.COMMAND_QUERY_X_BASIC_INFO:
           this.handleQueryXBasicInfo(msg);

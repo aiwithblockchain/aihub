@@ -252,6 +252,7 @@ localBridge REST 端点 → Go messageType → tweetClaw content script
 |------|-----------|---------------|------|
 | 发布图文笔记 | `POST /api/v1/xhs/publish` | `command.xhs_publish_image_note` | ✅ 已完成+测试通过 | 
 | 回复/发布评论 | `POST /api/v1/xhs/comment` | `command.xhs_post_comment` | ✅ 已完成+测试通过（2026-05-29） |
+| 搜索用户（@用户前置） | `GET /api/v1/xhs/search_users` | `command.xhs_search_users` | ✅ 已完成+测试通过（2026-05-29） |
 | 点赞笔记 | — | — | 🔲 待实现 |
 | 关注用户 | — | — | 🔲 待实现 |
 | 取消点赞 | — | — | 🔲 待实现 |
@@ -260,3 +261,55 @@ localBridge REST 端点 → Go messageType → tweetClaw content script
 | 私信用户 | — | — | 🔲 待实现 |
 | 删除评论 | — | — | 🔲 待实现 |
 | 删除笔记 | — | — | 🔲 待实现 |
+
+---
+
+### 评论 @ 用户功能说明
+
+评论时 @ 用户需要两步：
+
+**1. 先调用搜索用户 API 获取完整 userid**
+
+```
+GET /api/v1/xhs/search_users?keyword=昵称关键词
+```
+
+XHS 原始 API：`GET /api/sns/web/v1/intimacy/intimacy_list/search?keyword=xxx&page=1&rows=30`
+
+返回格式：
+```json
+{
+  "items": [
+    {
+      "rid": "601f5eec00000000010035a6",
+      "userid": "601f5eec00000000010035a6_d642ce328e4bf3ab750cbd6eb520cb45",
+      "nickname": "敏仔设计实干日记",
+      "images": "https://..."
+    }
+  ]
+}
+```
+
+**关键**：`userid` 字段包含后缀（`{真实user_id}_{token}`），这个完整的 userid 是 @ 用户的必需参数。
+
+**2. 发布评论时传入完整信息**
+
+```json
+POST /api/v1/xhs/comment
+{
+  "note_id": "笔记ID",
+  "content": " @敏仔设计实干日记 评论内容",
+  "target_comment_id": "可选，回复评论时传",
+  "at_users": [
+    {
+      "user_id": "601f5eec00000000010035a6_d642ce328e4bf3ab750cbd6eb520cb45",
+      "nickname": "敏仔设计实干日记"
+    }
+  ]
+}
+```
+
+**注意事项**：
+- `content` 里必须包含 `@昵称`（前面有空格）
+- `at_users` 里的 `user_id` 必须是带后缀的完整格式
+- `nickname` 必须与搜索结果中的昵称完全一致

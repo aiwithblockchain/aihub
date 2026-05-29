@@ -106,7 +106,7 @@ class XhsApiTransport(BaseApiTransport):
         note_id: str,
         content: str,
         target_comment_id: Optional[str] = None,
-        at_users: Optional[List[str]] = None,
+        at_users: Optional[List[Dict[str, Any]]] = None,
     ) -> Dict[Any, Any]:
         payload = {
             "note_id": note_id,
@@ -116,3 +116,7 @@ class XhsApiTransport(BaseApiTransport):
         if target_comment_id:
             payload["target_comment_id"] = target_comment_id
         return self.request_json("POST", "/api/v1/xhs/comment", json=payload)
+
+    def search_users_raw(self, keyword: str, page: int = 1, rows: int = 30) -> Dict[Any, Any]:
+        params = {"keyword": keyword, "page": str(page), "rows": str(rows)}
+        return self.request_json("GET", "/api/v1/xhs/search_users", params=params)

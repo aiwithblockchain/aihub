@@ -1124,6 +1124,14 @@ async function postComment(noteId: string, content: string, targetCommentId?: st
   return result;
 }
 
+async function searchUsers(keyword: string, page: number = 1, rows: number = 30): Promise<any> {
+  console.log(`${TAG} [searchUsers] keyword=${keyword} page=${page} rows=${rows}`);
+  const apiPath = `/api/sns/web/v1/intimacy/intimacy_list/search?keyword=${encodeURIComponent(keyword)}&page=${page}&rows=${rows}`;
+  const result = await signedFetch(apiPath, 'GET');
+  console.log(`${TAG} [searchUsers] result code=${result?.code} success=${result?.success} items=${result?.data?.items?.length || 0}`);
+  return result;
+}
+
 // ── 消息处理 ──────────────────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -1485,6 +1493,31 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ success: true, data });
       } catch (e: any) {
         console.error(`${TAG} [POST_COMMENT] error:`, e.message);
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === XHS_MSG_TYPE.SEARCH_USERS) {
+    console.log(`${TAG} [SEARCH_USERS] received message:`, JSON.stringify(message));
+    (async () => {
+      try {
+        if (!message.keyword) {
+          console.log(`${TAG} [SEARCH_USERS] validation failed: keyword is required`);
+          sendResponse({ success: false, error: 'keyword is required' });
+          return;
+        }
+        console.log(`${TAG} [SEARCH_USERS] calling searchUsers...`);
+        const data = await searchUsers(
+          String(message.keyword),
+          message.page ? Number(message.page) : 1,
+          message.rows ? Number(message.rows) : 30,
+        );
+        console.log(`${TAG} [SEARCH_USERS] success, items:`, data?.data?.items?.length || 0);
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        console.error(`${TAG} [SEARCH_USERS] error:`, e.message);
         sendResponse({ success: false, error: e.message });
       }
     })();
