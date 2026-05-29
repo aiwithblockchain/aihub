@@ -236,6 +236,7 @@ function calcXsCommon(a1: string, xs: string, xt: number | string, apiPath = '')
   }
 
   const jsonStr = JSON.stringify(d);
+  console.log(`${TAG} [calcXsCommon] d=`, d, 'jsonLen=', jsonStr.length);
   const utf8Bytes = Array.from(new TextEncoder().encode(jsonStr));
   return xhsB64Encode(utf8Bytes);
 }
@@ -319,6 +320,7 @@ function signWithMnsv2(url: string, data: string): string {
   const isCreatorApi = url.indexOf('/web_api/') >= 0 || url.indexOf('/api/galaxy/') >= 0;
   const x1 = isCreatorApi ? 'ugc' : 'xhs-pc-web';
   const x4 = 'object';
+  // mnsv2 返回的是字符串，直接用
   const signObj = { x0: '4.3.5', x1, x2: getPlatformName(), x3: s, x4 };
   return 'XYS_' + xhsB64Encode(Array.from(new TextEncoder().encode(JSON.stringify(signObj))));
 }
@@ -847,6 +849,9 @@ async function handleSignedFetch(event: MessageEvent) {
     if (xsCommon) fetchHeaders['x-s-common'] = xsCommon;
     if (rapParam) fetchHeaders['x-rap-param'] = rapParam;
 
+    console.log(`${TAG} [handleSignedFetch] headers:`, JSON.stringify({xs: xs?.slice(0,20), xt, xsCommon: xsCommon?.slice(0,20), rapParam: rapParam?.slice(0,20)}));
+    console.log(`${TAG} [handleSignedFetch] context: window.top=${window === window.top}, origin=${window.location.origin}, href=${window.location.href.slice(0,50)}`);
+
     const response = await fetch(fullUrl, {
       method: method || 'POST',
       headers: fetchHeaders,
@@ -854,6 +859,8 @@ async function handleSignedFetch(event: MessageEvent) {
       body: bodyStr || undefined,
     });
     const responseText = await response.text();
+
+    console.log(`${TAG} [handleSignedFetch] status=${response.status} body=`, responseText.slice(0, 500));
 
     window.postMessage({
       type: 'XHS_SIGNED_FETCH_RESPONSE',
