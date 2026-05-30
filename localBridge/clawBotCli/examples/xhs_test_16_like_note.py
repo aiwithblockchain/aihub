@@ -28,8 +28,8 @@ print(f"Success: {result.get('success')}")
 
 if result.get("success"):
     data = result.get("data", {})
-    print(f"Code: {data.get('code', 'N/A')}")
-    print(f"Message: {data.get('msg', 'N/A')}")
+    new_like = data.get("new_like")
+    print(f"New like: {new_like}")
     print(f"Full response: {json.dumps(data, ensure_ascii=False, indent=2)}")
 else:
     print(f"Error: {result.get('error', 'Unknown error')}")

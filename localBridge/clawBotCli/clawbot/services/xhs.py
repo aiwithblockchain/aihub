@@ -193,6 +193,6 @@ class XhsService:
         Like a note.
 
         Args:
-            note_id: The note ID to like
+            note_id: The note OID to like (note_oid field)
         """
         return self.transport.like_note_raw(note_id=note_id)

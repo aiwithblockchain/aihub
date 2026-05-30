@@ -1686,6 +1686,7 @@ export async function likeXhsNote(payload: Record<string, unknown>): Promise<any
 
     console.log('[TweetClaw-BG] likeXhsNote content script result', {
         success: result?.success,
+        new_like: result?.data?.data?.new_like,
         code: result?.data?.code,
         error: result?.error,
     });

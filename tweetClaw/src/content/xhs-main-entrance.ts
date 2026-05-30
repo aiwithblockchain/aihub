@@ -1142,9 +1142,10 @@ async function getIntimacyList(): Promise<any> {
 
 async function likeNote(noteId: string): Promise<any> {
   console.log(`${TAG} [likeNote] noteId=${noteId}`);
-  const body = JSON.stringify({ note_id: noteId, type: 1 });
+  const body = JSON.stringify({ note_oid: noteId });
+  console.log(`${TAG} [likeNote] body=${body}`);
   const result = await signedXhrFetch(XHS_API_ENDPOINTS.LIKE, 'POST', body);
-  console.log(`${TAG} [likeNote] result code=${result?.code} success=${result?.success}`);
+  console.log(`${TAG} [likeNote] result code=${result?.code} success=${result?.success} new_like=${result?.data?.new_like}`);
   return result;
 }
 
@@ -1559,9 +1560,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === XHS_MSG_TYPE.LIKE_NOTE) {
     (async () => {
       try {
-        console.log(`${TAG} [LIKE_NOTE] received noteId=${message.note_id}`);
-        const data = await likeNote(String(message.note_id));
-        console.log(`${TAG} [LIKE_NOTE] success code=${data?.code}`);
+        console.log(`${TAG} [LIKE_NOTE] received note_oid=${message.note_oid}`);
+        const data = await likeNote(String(message.note_oid));
+        console.log(`${TAG} [LIKE_NOTE] success code=${data?.code} new_like=${data?.data?.new_like}`);
         sendResponse({ success: true, data });
       } catch (e: any) {
         console.error(`${TAG} [LIKE_NOTE] error:`, e.message);
