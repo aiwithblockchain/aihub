@@ -255,7 +255,7 @@ localBridge REST 端点 → Go messageType → tweetClaw content script
 | 搜索用户（@用户前置） | `GET /api/v1/xhs/search_users` | `command.xhs_search_users` | ✅ 已完成+测试通过（2026-05-29） |
 | 获取好友列表（@用户前置） | `GET /api/v1/xhs/intimacy_list` | `command.xhs_get_intimacy_list` | ✅ 已实现（2026-05-29） |
 | 点赞笔记 | `POST /api/v1/xhs/like` | `command.xhs_like_note` | ✅ 已完成+测试通过（2026-05-30） |
-| 关注用户 | — | — | 🔲 待实现 |
+| 关注用户 | `POST /api/v1/xhs/follow` | `command.xhs_follow_user` | ✅ 已完成+测试通过（2026-05-30） |
 | 取消点赞 | — | — | 🔲 待实现 |
 | 取消关注 | — | — | 🔲 待实现 |
 | 收藏笔记 | — | — | 🔲 待实现 |

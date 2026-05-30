@@ -1149,6 +1149,15 @@ async function likeNote(noteId: string): Promise<any> {
   return result;
 }
 
+async function followUser(targetUserId: string): Promise<any> {
+  console.log(`${TAG} [followUser] targetUserId=${targetUserId}`);
+  const body = JSON.stringify({ target_user_id: targetUserId });
+  console.log(`${TAG} [followUser] body=${body}`);
+  const result = await signedXhrFetch(XHS_API_ENDPOINTS.FOLLOW, 'POST', body);
+  console.log(`${TAG} [followUser] result code=${result?.code} success=${result?.success} fstatus=${result?.data?.fstatus}`);
+  return result;
+}
+
 // ── 消息处理 ──────────────────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -1566,6 +1575,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ success: true, data });
       } catch (e: any) {
         console.error(`${TAG} [LIKE_NOTE] error:`, e.message);
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === XHS_MSG_TYPE.FOLLOW_USER) {
+    (async () => {
+      try {
+        console.log(`${TAG} [FOLLOW_USER] received target_user_id=${message.target_user_id}`);
+        const data = await followUser(String(message.target_user_id));
+        console.log(`${TAG} [FOLLOW_USER] success code=${data?.code} fstatus=${data?.data?.fstatus}`);
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        console.error(`${TAG} [FOLLOW_USER] error:`, e.message);
         sendResponse({ success: false, error: e.message });
       }
     })();

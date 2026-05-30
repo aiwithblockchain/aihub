@@ -196,3 +196,12 @@ class XhsService:
             note_id: The note OID to like (note_oid field)
         """
         return self.transport.like_note_raw(note_id=note_id)
+
+    def follow_user(self, target_user_id: str) -> Dict[str, Any]:
+        """
+        Follow a user.
+
+        Args:
+            target_user_id: The user ID to follow (rid field, without hash suffix)
+        """
+        return self.transport.follow_user_raw(target_user_id=target_user_id)

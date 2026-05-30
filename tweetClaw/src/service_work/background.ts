@@ -127,6 +127,7 @@ localBridge.xhsPostCommentHandler = postXhsComment;
 localBridge.xhsSearchUsersHandler = searchXhsUsers;
 localBridge.xhsGetIntimacyListHandler = getXhsIntimacyList;
 localBridge.xhsLikeNoteHandler = likeXhsNote;
+localBridge.xhsFollowUserHandler = followXhsUser;
 localBridge.openTabHandler = openXTab;
 localBridge.closeTabHandler = closeXTab;
 localBridge.navigateTabHandler = navigateXTab;
@@ -1634,6 +1635,35 @@ export async function searchXhsUsers(payload: Record<string, unknown>): Promise<
 
     if (!result?.success) {
         throw new Error(result?.error || 'Failed to search users');
+    }
+
+    return result.data;
+}
+
+export async function followXhsUser(payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] followXhsUser called', payload);
+    const tab = await findXhsTab();
+    if (!tab?.id) {
+        throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
+    }
+    console.log('[TweetClaw-BG] followXhsUser using tab', { tabId: tab.id, url: tab.url });
+
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'XHS_FOLLOW_USER',
+        ...payload,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with XHS content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    console.log('[TweetClaw-BG] followXhsUser content script result', {
+        success: result?.success,
+        fstatus: result?.data?.data?.fstatus,
+        error: result?.error,
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to follow user');
     }
 
     return result.data;

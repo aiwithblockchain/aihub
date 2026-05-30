@@ -126,3 +126,6 @@ class XhsApiTransport(BaseApiTransport):
 
     def like_note_raw(self, note_id: str) -> Dict[Any, Any]:
         return self.request_json("POST", "/api/v1/xhs/like", json={"note_oid": note_id})
+
+    def follow_user_raw(self, target_user_id: str) -> Dict[Any, Any]:
+        return self.request_json("POST", "/api/v1/xhs/follow", json={"target_user_id": target_user_id})
