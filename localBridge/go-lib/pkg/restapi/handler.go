@@ -84,6 +84,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/xhs/search_filter", h.xhsSearchFilter)
 	mux.HandleFunc("/api/v1/xhs/comment", h.xhsPostComment)
 	mux.HandleFunc("/api/v1/xhs/search_users", h.xhsSearchUsers)
+	mux.HandleFunc("/api/v1/xhs/intimacy_list", h.xhsIntimacyList)
 
 }
 
@@ -669,6 +670,21 @@ func (h *Handler) xhsSearchUsers(w http.ResponseWriter, r *http.Request) {
 	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_search_users", "tweetClaw", queryToMap(r)), 8000,
 		func(data []byte) {
 			log.Printf("[xhsSearchUsers] received response len=%d", len(data))
+			writeRawPayload(w, data)
+		})
+}
+
+func (h *Handler) xhsIntimacyList(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[xhsIntimacyList] received request method=%s", r.Method)
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	id := newID("http_xhs_intimacy_list")
+	log.Printf("[xhsIntimacyList] sending to tweetClaw: id=%s", id)
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_intimacy_list", "tweetClaw", nil), 8000,
+		func(data []byte) {
+			log.Printf("[xhsIntimacyList] received response len=%d", len(data))
 			writeRawPayload(w, data)
 		})
 }

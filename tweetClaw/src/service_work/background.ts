@@ -125,6 +125,7 @@ localBridge.xhsGetPublishedNotesHandler = getXhsPublishedNotes;
 localBridge.xhsSearchFilterHandler = getXhsSearchFilter;
 localBridge.xhsPostCommentHandler = postXhsComment;
 localBridge.xhsSearchUsersHandler = searchXhsUsers;
+localBridge.xhsGetIntimacyListHandler = getXhsIntimacyList;
 localBridge.openTabHandler = openXTab;
 localBridge.closeTabHandler = closeXTab;
 localBridge.navigateTabHandler = navigateXTab;
@@ -1632,6 +1633,35 @@ export async function searchXhsUsers(payload: Record<string, unknown>): Promise<
 
     if (!result?.success) {
         throw new Error(result?.error || 'Failed to search users');
+    }
+
+    return result.data;
+}
+
+export async function getXhsIntimacyList(payload: Record<string, unknown> = {}): Promise<any> {
+    console.log('[TweetClaw-BG] getXhsIntimacyList called', payload);
+    const tab = await findXhsTab();
+    if (!tab?.id) {
+        throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
+    }
+    console.log('[TweetClaw-BG] getXhsIntimacyList using tab', { tabId: tab.id, url: tab.url });
+
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'XHS_GET_INTIMACY_LIST',
+        ...payload,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with XHS content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    console.log('[TweetClaw-BG] getXhsIntimacyList content script result', {
+        success: result?.success,
+        items: result?.data?.data?.items?.length || 0,
+        error: result?.error,
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to get intimacy list');
     }
 
     return result.data;

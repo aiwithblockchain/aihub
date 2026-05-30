@@ -1,4 +1,4 @@
-import { XHS_MSG_TYPE } from '../platforms/xiaohongshu/xhs-consts';
+import { XHS_API_ENDPOINTS, XHS_MSG_TYPE } from '../platforms/xiaohongshu/xhs-consts';
 import { performXhsAction } from '../platforms/xiaohongshu/xhs-api';
 
 /**
@@ -1132,6 +1132,14 @@ async function searchUsers(keyword: string, page: number = 1, rows: number = 30)
   return result;
 }
 
+async function getIntimacyList(): Promise<any> {
+  console.log(`${TAG} [getIntimacyList] fetching full intimacy list`);
+  const apiPath = XHS_API_ENDPOINTS.INTIMACY_LIST;
+  const result = await signedFetch(apiPath, 'GET');
+  console.log(`${TAG} [getIntimacyList] result code=${result?.code} success=${result?.success} items=${result?.data?.items?.length || 0}`);
+  return result;
+}
+
 // ── 消息处理 ──────────────────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -1518,6 +1526,22 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ success: true, data });
       } catch (e: any) {
         console.error(`${TAG} [SEARCH_USERS] error:`, e.message);
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === XHS_MSG_TYPE.GET_INTIMACY_LIST) {
+    console.log(`${TAG} [GET_INTIMACY_LIST] received message:`, JSON.stringify(message));
+    (async () => {
+      try {
+        console.log(`${TAG} [GET_INTIMACY_LIST] calling getIntimacyList...`);
+        const data = await getIntimacyList();
+        console.log(`${TAG} [GET_INTIMACY_LIST] success, items:`, data?.data?.items?.length || 0);
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        console.error(`${TAG} [GET_INTIMACY_LIST] error:`, e.message);
         sendResponse({ success: false, error: e.message });
       }
     })();

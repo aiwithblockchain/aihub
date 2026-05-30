@@ -120,3 +120,6 @@ class XhsApiTransport(BaseApiTransport):
     def search_users_raw(self, keyword: str, page: int = 1, rows: int = 30) -> Dict[Any, Any]:
         params = {"keyword": keyword, "page": str(page), "rows": str(rows)}
         return self.request_json("GET", "/api/v1/xhs/search_users", params=params)
+
+    def get_intimacy_list_raw(self) -> Dict[Any, Any]:
+        return self.request_json("GET", "/api/v1/xhs/intimacy_list")

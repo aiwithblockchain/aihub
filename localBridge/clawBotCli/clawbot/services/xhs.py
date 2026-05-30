@@ -178,3 +178,12 @@ class XhsService:
             rows: Results per page (default: 30)
         """
         return self.transport.search_users_raw(keyword=keyword, page=page, rows=rows)
+
+    def get_intimacy_list(self) -> Dict[str, Any]:
+        """
+        Get the full intimacy (friends) list.
+
+        Returns all friends with full userid (including token suffix) needed for at_users.
+        More accurate than search_users for finding specific friends.
+        """
+        return self.transport.get_intimacy_list_raw()
