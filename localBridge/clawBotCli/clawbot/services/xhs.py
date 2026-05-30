@@ -187,3 +187,12 @@ class XhsService:
         More accurate than search_users for finding specific friends.
         """
         return self.transport.get_intimacy_list_raw()
+
+    def like_note(self, note_id: str) -> Dict[str, Any]:
+        """
+        Like a note.
+
+        Args:
+            note_id: The note ID to like
+        """
+        return self.transport.like_note_raw(note_id=note_id)

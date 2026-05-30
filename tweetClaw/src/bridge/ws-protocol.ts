@@ -45,6 +45,8 @@ export type MessageType =
   | 'response.xhs_search_users'
   | 'command.xhs_get_intimacy_list'
   | 'response.xhs_get_intimacy_list'
+  | 'command.xhs_like_note'
+  | 'response.xhs_like_note'
   | 'command.query_x_basic_info'
   | 'request.open_tab'
   | 'response.open_tab'
@@ -123,6 +125,8 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_XHS_SEARCH_USERS: 'response.xhs_search_users',
   COMMAND_XHS_GET_INTIMACY_LIST: 'command.xhs_get_intimacy_list',
   RESPONSE_XHS_GET_INTIMACY_LIST: 'response.xhs_get_intimacy_list',
+  COMMAND_XHS_LIKE_NOTE: 'command.xhs_like_note',
+  RESPONSE_XHS_LIKE_NOTE: 'response.xhs_like_note',
   COMMAND_QUERY_X_BASIC_INFO: 'command.query_x_basic_info',
   REQUEST_OPEN_TAB: 'request.open_tab',
   RESPONSE_OPEN_TAB: 'response.open_tab',

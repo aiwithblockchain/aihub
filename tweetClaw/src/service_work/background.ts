@@ -126,6 +126,7 @@ localBridge.xhsSearchFilterHandler = getXhsSearchFilter;
 localBridge.xhsPostCommentHandler = postXhsComment;
 localBridge.xhsSearchUsersHandler = searchXhsUsers;
 localBridge.xhsGetIntimacyListHandler = getXhsIntimacyList;
+localBridge.xhsLikeNoteHandler = likeXhsNote;
 localBridge.openTabHandler = openXTab;
 localBridge.closeTabHandler = closeXTab;
 localBridge.navigateTabHandler = navigateXTab;
@@ -1662,6 +1663,35 @@ export async function getXhsIntimacyList(payload: Record<string, unknown> = {}):
 
     if (!result?.success) {
         throw new Error(result?.error || 'Failed to get intimacy list');
+    }
+
+    return result.data;
+}
+
+export async function likeXhsNote(payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] likeXhsNote called', payload);
+    const tab = await findXhsTab();
+    if (!tab?.id) {
+        throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
+    }
+    console.log('[TweetClaw-BG] likeXhsNote using tab', { tabId: tab.id, url: tab.url });
+
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'XHS_LIKE_NOTE',
+        ...payload,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with XHS content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    console.log('[TweetClaw-BG] likeXhsNote content script result', {
+        success: result?.success,
+        code: result?.data?.code,
+        error: result?.error,
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to like note');
     }
 
     return result.data;
