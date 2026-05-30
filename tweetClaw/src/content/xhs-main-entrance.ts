@@ -1162,7 +1162,7 @@ async function deleteComment(noteId: string, commentId: string): Promise<any> {
   console.log(`${TAG} [deleteComment] noteId=${noteId} commentId=${commentId}`);
   const body = JSON.stringify({ note_id: noteId, comment_id: commentId });
   console.log(`${TAG} [deleteComment] body=${body}`);
-  const result = await signedXhrFetch(XHS_API_ENDPOINTS.COMMENT_DELETE, 'POST', body);
+  const result = await signedFetch(XHS_API_ENDPOINTS.COMMENT_DELETE, 'POST', body);
   console.log(`${TAG} [deleteComment] result code=${result?.code} success=${result?.success}`);
   return result;
 }

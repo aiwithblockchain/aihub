@@ -260,7 +260,7 @@ localBridge REST 端点 → Go messageType → tweetClaw content script
 | 取消关注 | — | — | 🔲 待实现 |
 | 收藏笔记 | — | — | 🔲 待实现 |
 | 私信用户 | — | — | 🔲 待实现 |
-| 删除评论 | `POST /api/v1/xhs/delete_comment` | `command.xhs_delete_comment` | 🔲 待测试 |
+| 删除评论 | `POST /api/v1/xhs/delete_comment` | `command.xhs_delete_comment` | ✅ 已完成+测试通过（2026-05-30） |
 | 删除笔记 | — | — | 🔲 待实现 |
 
 ---
