@@ -1158,6 +1158,15 @@ async function followUser(targetUserId: string): Promise<any> {
   return result;
 }
 
+async function deleteComment(noteId: string, commentId: string): Promise<any> {
+  console.log(`${TAG} [deleteComment] noteId=${noteId} commentId=${commentId}`);
+  const body = JSON.stringify({ note_id: noteId, comment_id: commentId });
+  console.log(`${TAG} [deleteComment] body=${body}`);
+  const result = await signedXhrFetch(XHS_API_ENDPOINTS.COMMENT_DELETE, 'POST', body);
+  console.log(`${TAG} [deleteComment] result code=${result?.code} success=${result?.success}`);
+  return result;
+}
+
 // ── 消息处理 ──────────────────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -1590,6 +1599,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ success: true, data });
       } catch (e: any) {
         console.error(`${TAG} [FOLLOW_USER] error:`, e.message);
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === XHS_MSG_TYPE.DELETE_COMMENT) {
+    (async () => {
+      try {
+        console.log(`${TAG} [DELETE_COMMENT] received note_id=${message.note_id} comment_id=${message.comment_id}`);
+        const data = await deleteComment(String(message.note_id), String(message.comment_id));
+        console.log(`${TAG} [DELETE_COMMENT] success code=${data?.code}`);
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        console.error(`${TAG} [DELETE_COMMENT] error:`, e.message);
         sendResponse({ success: false, error: e.message });
       }
     })();

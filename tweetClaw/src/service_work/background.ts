@@ -128,6 +128,7 @@ localBridge.xhsSearchUsersHandler = searchXhsUsers;
 localBridge.xhsGetIntimacyListHandler = getXhsIntimacyList;
 localBridge.xhsLikeNoteHandler = likeXhsNote;
 localBridge.xhsFollowUserHandler = followXhsUser;
+localBridge.xhsDeleteCommentHandler = deleteXhsComment;
 localBridge.openTabHandler = openXTab;
 localBridge.closeTabHandler = closeXTab;
 localBridge.navigateTabHandler = navigateXTab;
@@ -1693,6 +1694,35 @@ export async function getXhsIntimacyList(payload: Record<string, unknown> = {}):
 
     if (!result?.success) {
         throw new Error(result?.error || 'Failed to get intimacy list');
+    }
+
+    return result.data;
+}
+
+export async function deleteXhsComment(payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] deleteXhsComment called', payload);
+    const tab = await findXhsTab();
+    if (!tab?.id) {
+        throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
+    }
+    console.log('[TweetClaw-BG] deleteXhsComment using tab', { tabId: tab.id, url: tab.url });
+
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'XHS_DELETE_COMMENT',
+        ...payload,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with XHS content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    console.log('[TweetClaw-BG] deleteXhsComment content script result', {
+        success: result?.success,
+        code: result?.data?.code,
+        error: result?.error,
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to delete comment');
     }
 
     return result.data;

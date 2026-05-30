@@ -49,6 +49,8 @@ export type MessageType =
   | 'response.xhs_like_note'
   | 'command.xhs_follow_user'
   | 'response.xhs_follow_user'
+  | 'command.xhs_delete_comment'
+  | 'response.xhs_delete_comment'
   | 'command.query_x_basic_info'
   | 'request.open_tab'
   | 'response.open_tab'
@@ -131,6 +133,8 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_XHS_LIKE_NOTE: 'response.xhs_like_note',
   COMMAND_XHS_FOLLOW_USER: 'command.xhs_follow_user',
   RESPONSE_XHS_FOLLOW_USER: 'response.xhs_follow_user',
+  COMMAND_XHS_DELETE_COMMENT: 'command.xhs_delete_comment',
+  RESPONSE_XHS_DELETE_COMMENT: 'response.xhs_delete_comment',
   COMMAND_QUERY_X_BASIC_INFO: 'command.query_x_basic_info',
   REQUEST_OPEN_TAB: 'request.open_tab',
   RESPONSE_OPEN_TAB: 'response.open_tab',

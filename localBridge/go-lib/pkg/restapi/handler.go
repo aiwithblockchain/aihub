@@ -87,6 +87,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/xhs/intimacy_list", h.xhsIntimacyList)
 	mux.HandleFunc("/api/v1/xhs/like", h.xhsLikeNote)
 	mux.HandleFunc("/api/v1/xhs/follow", h.xhsFollowUser)
+	mux.HandleFunc("/api/v1/xhs/delete_comment", h.xhsDeleteComment)
 
 }
 
@@ -731,6 +732,28 @@ func (h *Handler) xhsFollowUser(w http.ResponseWriter, r *http.Request) {
 	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_follow_user", "tweetClaw", body), 15000,
 		func(data []byte) {
 			log.Printf("[xhsFollowUser] received response len=%d", len(data))
+			writeRawPayload(w, data)
+		})
+}
+
+func (h *Handler) xhsDeleteComment(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[xhsDeleteComment] received request method=%s", r.Method)
+	if r.Method != http.MethodPost {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	body, err := readRawBody(r)
+	if err != nil {
+		log.Printf("[xhsDeleteComment] failed to read body: %v", err)
+		jsonErr(w, 400, err.Error())
+		return
+	}
+	log.Printf("[xhsDeleteComment] raw body: %s", string(body))
+	id := newID("http_xhs_delete_comment")
+	log.Printf("[xhsDeleteComment] sending to tweetClaw: id=%s", id)
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_delete_comment", "tweetClaw", body), 15000,
+		func(data []byte) {
+			log.Printf("[xhsDeleteComment] received response len=%d", len(data))
 			writeRawPayload(w, data)
 		})
 }

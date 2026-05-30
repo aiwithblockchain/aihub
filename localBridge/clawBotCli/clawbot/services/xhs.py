@@ -205,3 +205,13 @@ class XhsService:
             target_user_id: The user ID to follow (rid field, without hash suffix)
         """
         return self.transport.follow_user_raw(target_user_id=target_user_id)
+
+    def delete_comment(self, note_id: str, comment_id: str) -> Dict[str, Any]:
+        """
+        Delete a comment.
+
+        Args:
+            note_id: The note ID the comment belongs to
+            comment_id: The comment ID to delete
+        """
+        return self.transport.delete_comment_raw(note_id=note_id, comment_id=comment_id)

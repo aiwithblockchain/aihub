@@ -14,6 +14,7 @@ export const XHS_API_ENDPOINTS = {
   COLLECT: '/api/sns/web/v1/note/collect',
   FOLLOW: '/api/sns/web/v1/user/follow',
   COMMENT_POST: '/api/sns/web/v1/comment/post',
+  COMMENT_DELETE: '/api/sns/web/v1/comment/delete',
   INTIMACY_LIST: '/api/sns/web/v1/intimacy/intimacy_list',
   SEARCH_TOPIC: '/web_api/sns/v1/search/topic',
   NOTIFICATIONS_MENTIONS: '/api/sns/web/v1/you/mentions',  NOTIFICATIONS_LIKES: '/api/sns/web/v1/you/likes',
@@ -46,6 +47,7 @@ export const XHS_MSG_TYPE = {
   GET_INTIMACY_LIST: 'XHS_GET_INTIMACY_LIST',
   LIKE_NOTE: 'XHS_LIKE_NOTE',
   FOLLOW_USER: 'XHS_FOLLOW_USER',
+  DELETE_COMMENT: 'XHS_DELETE_COMMENT',
 } as const;
 
 export const XHS_STORAGE_KEYS = {
