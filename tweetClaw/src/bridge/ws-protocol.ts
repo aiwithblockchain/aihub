@@ -47,6 +47,8 @@ export type MessageType =
   | 'response.xhs_get_intimacy_list'
   | 'command.xhs_like_note'
   | 'response.xhs_like_note'
+  | 'command.xhs_unlike_note'
+  | 'response.xhs_unlike_note'
   | 'command.xhs_follow_user'
   | 'response.xhs_follow_user'
   | 'command.xhs_delete_comment'
@@ -131,6 +133,8 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_XHS_GET_INTIMACY_LIST: 'response.xhs_get_intimacy_list',
   COMMAND_XHS_LIKE_NOTE: 'command.xhs_like_note',
   RESPONSE_XHS_LIKE_NOTE: 'response.xhs_like_note',
+  COMMAND_XHS_UNLIKE_NOTE: 'command.xhs_unlike_note',
+  RESPONSE_XHS_UNLIKE_NOTE: 'response.xhs_unlike_note',
   COMMAND_XHS_FOLLOW_USER: 'command.xhs_follow_user',
   RESPONSE_XHS_FOLLOW_USER: 'response.xhs_follow_user',
   COMMAND_XHS_DELETE_COMMENT: 'command.xhs_delete_comment',

@@ -83,6 +83,7 @@ export class LocalBridgeSocket {
   public xhsSearchUsersHandler: ((payload: any) => Promise<any>) | null = null;
   public xhsGetIntimacyListHandler: ((payload: any) => Promise<any>) | null = null;
   public xhsLikeNoteHandler: ((payload: any) => Promise<any>) | null = null;
+  public xhsUnlikeNoteHandler: ((payload: any) => Promise<any>) | null = null;
   public xhsFollowUserHandler: ((payload: any) => Promise<any>) | null = null;
   public xhsDeleteCommentHandler: ((payload: any) => Promise<any>) | null = null;
   public openTabHandler: ((payload: any) => Promise<any>) | null = null;
@@ -669,6 +670,9 @@ export class LocalBridgeSocket {
           break;
         case MESSAGE_TYPES.COMMAND_XHS_LIKE_NOTE:
           this.handleGenericQuery(msg, this.xhsLikeNoteHandler, MESSAGE_TYPES.RESPONSE_XHS_LIKE_NOTE);
+          break;
+        case MESSAGE_TYPES.COMMAND_XHS_UNLIKE_NOTE:
+          this.handleGenericQuery(msg, this.xhsUnlikeNoteHandler, MESSAGE_TYPES.RESPONSE_XHS_UNLIKE_NOTE);
           break;
         case MESSAGE_TYPES.COMMAND_XHS_FOLLOW_USER:
           this.handleGenericQuery(msg, this.xhsFollowUserHandler, MESSAGE_TYPES.RESPONSE_XHS_FOLLOW_USER);

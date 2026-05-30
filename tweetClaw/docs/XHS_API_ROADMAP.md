@@ -103,8 +103,7 @@ Spider_XHS 定位是爬虫，只实现了读取和发布。以下写操作需要
 | W6 | 取消点赞 | ⭐⭐ |
 | W7 | 取消关注 | ⭐⭐ |
 | W8 | 收藏笔记 | ⭐⭐ |
-| W9 | 私信用户 | ⭐⭐ |
-| W10 | 删除笔记 | ⭐ |
+| W9 | 删除笔记 | ⭐ |
 
 ---
 
@@ -161,8 +160,7 @@ AI 运营的核心动作，全部需要 x-rap-param，复用现有 Hook 方案�
 | P2 | `request.xhs_unlike_note` | 取消点赞 | W6 | 0.5h |
 | P2 | `request.xhs_unfollow_user` | 取消关注 | W7 | 0.5h |
 | P2 | `request.xhs_collect_note` | 收藏笔记 | W8 | 0.5h |
-| P3 | `request.xhs_send_dm` | 私信用户 | W9 | 2h |
-| P3 | `request.xhs_delete_note` | 删除笔记 | W10 | 1h |
+| P3 | `request.xhs_delete_note` | 删除笔记 | W9 | 1h |
 
 **阶段二总工时预估：约 8 小时**
 
@@ -179,7 +177,6 @@ tweetClaw 只提供原子 API，以下场景由上层智能体编排实现：
 | 内容发布（含话题） | `search_topics` + `publish_image_note`（已有）|
 | 账号数据监控 | `get_self_info` + `get_published_notes` + `get_note_detail` |
 | 竞品内容分析 | `search_notes` + `get_note_detail` + `get_note_comments` |
-| 私信高价值用户 | `get_note_comments` + `get_user_info` + `send_dm` |
 
 ---
 
@@ -256,7 +253,7 @@ localBridge REST 端点 → Go messageType → tweetClaw content script
 | 获取好友列表（@用户前置） | `GET /api/v1/xhs/intimacy_list` | `command.xhs_get_intimacy_list` | ✅ 已实现（2026-05-29） |
 | 点赞笔记 | `POST /api/v1/xhs/like` | `command.xhs_like_note` | ✅ 已完成+测试通过（2026-05-30） |
 | 关注用户 | `POST /api/v1/xhs/follow` | `command.xhs_follow_user` | ✅ 已完成+测试通过（2026-05-30） |
-| 取消点赞 | — | — | 🔲 待实现 |
+| 取消点赞 | `POST /api/v1/xhs/unlike` | `command.xhs_unlike_note` | 🔲 待测试 |
 | 取消关注 | — | — | 🔲 待实现 |
 | 收藏笔记 | — | — | 🔲 待实现 |
 | 私信用户 | — | — | 🔲 待实现 |

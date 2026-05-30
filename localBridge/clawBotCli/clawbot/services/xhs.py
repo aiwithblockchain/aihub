@@ -197,6 +197,15 @@ class XhsService:
         """
         return self.transport.like_note_raw(note_id=note_id)
 
+    def unlike_note(self, note_id: str) -> Dict[str, Any]:
+        """
+        Unlike (dislike) a note.
+
+        Args:
+            note_id: The note OID to unlike (note_oid field)
+        """
+        return self.transport.unlike_note_raw(note_id=note_id)
+
     def follow_user(self, target_user_id: str) -> Dict[str, Any]:
         """
         Follow a user.
