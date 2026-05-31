@@ -2,7 +2,7 @@
 
 > 目标：为 AI 自动化运营小红书构建完整的基础 API 能力层  
 > 创建日期：2026-05-25  
-> 状态：进行中（2026-05-28 更新）
+> 状态：阶段二写操作 API 全部完成（2026-05-31 更新）
 
 ---
 
@@ -123,46 +123,43 @@ Spider_XHS 定位是爬虫，只实现了读取和发布。以下写操作需要
 
 ---
 
-### 阶段一：读取 API（感知层）
+### 阶段一：读取 API（感知层）✅ 全部完成
 
-让 AI 能"看到"账号状态和平台内容，是写操作的前提。读取 API 不需要 x-rap-param。
+让 AI 能"看到"账号状态和平台内容，是写操作的前提。
 
-**对应 messageType 命名规范：** `request.xhs_<动词>_<对象>`
+| 优先级 | messageType | 功能 | 参考 # | 状态 |
+|--------|------------|------|--------|------|
+| P0 | `command.query_xhs_account_info` | 获取自己账号信息 | #3 | ✅ |
+| P0 | `command.xhs_get_published_notes` | 获取已发布笔记列表 | #8 | ✅ |
+| P0 | `command.query_xhs_feed` | 获取笔记详情 | #4 | ✅ |
+| P0 | `command.xhs_get_note_comments` | 获取笔记评论（含二级） | #16 #17 | ✅ |
+| P0 | `command.xhs_get_notifications` | 获取未读消息和通知 | #18 #19 #20 | ✅ |
+| P1 | `command.query_xhs_search` | 搜索笔记 | #11 | ✅ |
+| P1 | `command.xhs_search_topics` | 搜索话题 | #14 | ✅ |
+| P1 | `command.xhs_get_user_info` | 获取他人用户信息 | #1 | ✅ |
+| P2 | `command.xhs_search_users` | 搜索用户（好友列表） | #12 | ✅ |
+| P2 | `command.query_xhs_homefeed` | 获取主页推荐 feed | #9 | ✅ |
 
-| 优先级 | messageType | 功能 | 参考 # | 预计工时 |
-|--------|------------|------|--------|---------|
-| P0 | `request.xhs_get_self_info` | 获取自己账号信息 | #3 | 0.5h |
-| P0 | `request.xhs_get_published_notes` | 获取已发布笔记列表 | #8 | 0.5h |
-| P0 | `request.xhs_get_note_detail` | 获取笔记详情 | #4 | 0.5h |
-| P0 | `request.xhs_get_note_comments` | 获取笔记评论（含二级） | #16 #17 | 1h |
-| P0 | `request.xhs_get_notifications` | 获取未读消息和通知 | #18 #19 #20 | 1h |
-| P1 | `request.xhs_search_notes` | 搜索笔记 | #11 | 0.5h |
-| P1 | `request.xhs_search_topics` | 搜索话题 | #14 | 0.5h |
-| P1 | `request.xhs_get_user_info` | 获取他人用户信息 | #1 | 0.5h |
-| P2 | `request.xhs_search_users` | 搜索用户 | #12 | 0.5h |
-| P2 | `request.xhs_get_homefeed` | 获取主页推荐 feed | #9 | 0.5h |
-
-**阶段一总工时预估：约 6 小时**
+**阶段一完成日期：2026-05-29**
 
 ---
 
-### 阶段二：写操作 API（执行层）
+### 阶段二：写操作 API（执行层）✅ 全部完成
 
-AI 运营的核心动作，全部需要 x-rap-param，复用现有 Hook 方案。
+AI 运营的核心动作。
 
-| 优先级 | messageType | 功能 | 参考 # | 预计工时 |
-|--------|------------|------|--------|---------|
-| P0 | `request.xhs_reply_comment` | 回复评论 | W2 | 1h |
-| P0 | `request.xhs_post_comment` | 发布评论 | W1 | 1h |
-| P0 | `request.xhs_like_note` | 点赞笔记 | W3 | 0.5h |
-| P1 | `request.xhs_follow_user` | 关注用户 | W4 | 0.5h |
-| P1 | `request.xhs_delete_comment` | 删除评论 | W5 | 0.5h |
-| P2 | `request.xhs_unlike_note` | 取消点赞 | W6 | 0.5h |
-| P2 | `request.xhs_unfollow_user` | 取消关注 | W7 | 0.5h |
-| P2 | `request.xhs_collect_note` | 收藏笔记 | W8 | 0.5h |
-| P3 | `request.xhs_delete_note` | 删除笔记 | W9 | 1h |
+| 优先级 | messageType | 功能 | 参考 # | 状态 |
+|--------|------------|------|--------|------|
+| P0 | `command.xhs_post_comment` | 回复/发布评论 | W1 W2 | ✅ |
+| P0 | `command.xhs_like_note` | 点赞笔记 | W3 | ✅ |
+| P1 | `command.xhs_follow_user` | 关注用户 | W4 | ✅ |
+| P1 | `command.xhs_delete_comment` | 删除评论 | W5 | ✅ |
+| P2 | `command.xhs_unlike_note` | 取消点赞 | W6 | ✅ |
+| P2 | `command.xhs_unfollow_user` | 取消关注 | W7 | ✅ |
+| P2 | `command.xhs_collect_note` | 收藏笔记 | W8 | ✅ |
+| P3 | `command.xhs_delete_note` | 删除笔记 | W9 | ✅ |
 
-**阶段二总工时预估：约 8 小时**
+**阶段二完成日期：2026-05-31**
 
 ---
 
