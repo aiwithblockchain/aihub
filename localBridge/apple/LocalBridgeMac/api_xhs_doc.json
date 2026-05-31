@@ -8,7 +8,7 @@
     "method": "GET",
     "path": "/api/v1/xhs/docs",
     "description": "Resource model: XHS API documentation collection. This endpoint returns the collection of XHS domain REST API documentation currently exposed by OpenHub, allowing clawbot to automatically discover Xiaohongshu interaction capabilities. The URI uses /api/v1/xhs/docs, representing 'documentation resource collection under the XHS domain'; the HTTP method uses GET, semantically for reading. Returns 200 and documentation array on success; returns 500 on failure. The curl examples in the documentation default to port 10088; if the user modifies the REST API port in the settings page, the current configured port should be used.",
-    "description_zh": "资源模型：XHS API documentation collection。该接口返回当前 OpenHub 对外暴露的小红书域 REST API 文档集合，供 clawbot 自动发现与小红书交互相关的能力。URI 使用 /api/v1/xhs/docs，表示"小红书领域下的文档资源集合"；HTTP 方法使用 GET，语义为读取。成功时返回 200 和文档数组；失败时返回 500。文档中的 curl 示例默认使用 10088 端口；如果用户在设置页修改了 REST API 端口，应以当前配置端口为准。",
+    "description_zh": "资源模型：XHS API documentation collection。该接口返回当前 OpenHub 对外暴露的小红书域 REST API 文档集合，供 clawbot 自动发现与小红书交互相关的能力。URI 使用 /api/v1/xhs/docs，表示\"小红书领域下的文档资源集合\"；HTTP 方法使用 GET，语义为读取。成功时返回 200 和文档数组；失败时返回 500。文档中的 curl 示例默认使用 10088 端口；如果用户在设置页修改了 REST API 端口，应以当前配置端口为准。",
     "curl": "curl -X GET http://127.0.0.1:10088/api/v1/xhs/docs",
     "response": "[{\"id\":\"query_xhs_account_info\", \"name\":\"...\"}]"
   },

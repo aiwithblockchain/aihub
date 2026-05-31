@@ -71,7 +71,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         let id: String
         let name: String
         let name_zh: String?
-        let summary: String        // Concise functional description
+        let summary: String
         let summary_zh: String?
         let method: String
         let path: String
@@ -81,7 +81,7 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         let body_zh: String?
         let curl: String
         let response: String
-        
+
         enum CodingKeys: String, CodingKey {
             case id, name, name_zh, summary, summary_zh, method, path, description, description_zh, curl, response
             case body = "request_body"
@@ -117,8 +117,39 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         }
     }
 
+    // 分组数据模型
+    private struct Section {
+        let titleKey: String
+        let docs: [ApiDoc]
+        var isExpanded: Bool = true
 
-    private var docs: [ApiDoc] = []
+        var localizedTitle: String {
+            LanguageManager.shared.localized(titleKey)
+        }
+    }
+
+    // 两个分组：X 和 XHS
+    private var sections: [Section] = []
+
+    // 扁平化的行数据，供 tableView 使用
+    // 每行要么是 section header，要么是 doc
+    private enum Row {
+        case sectionHeader(sectionIndex: Int)
+        case doc(sectionIndex: Int, docIndex: Int)
+    }
+    private var rows: [Row] = []
+
+    private func rebuildRows() {
+        rows = []
+        for (si, section) in sections.enumerated() {
+            rows.append(.sectionHeader(sectionIndex: si))
+            if section.isExpanded {
+                for di in 0..<section.docs.count {
+                    rows.append(.doc(sectionIndex: si, docIndex: di))
+                }
+            }
+        }
+    }
     
     override func loadView() {
         view = NSView()
@@ -168,6 +199,9 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         if instanceSnapshots.isEmpty {
             applyInstances([])
         }
+
+        // Rebuild rows (section titles are localized)
+        rebuildRows()
 
         // Refresh API card list
         tableView.reloadData()
@@ -354,30 +388,41 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     }
     
     private func loadDocs() {
-        for url in apiDocsCandidateURLs() {
+        let xDocs = loadDocFile(name: "api_docs", candidateURLs: candidateURLs(for: "api_docs"))
+        let xhsDocs = loadDocFile(name: "api_xhs_doc", candidateURLs: candidateURLs(for: "api_xhs_doc"))
+        sections = [
+            Section(titleKey: "tweetclaw.section.x", docs: xDocs, isExpanded: true),
+            Section(titleKey: "tweetclaw.section.xhs", docs: xhsDocs, isExpanded: true)
+        ]
+        rebuildRows()
+    }
+
+    private func loadDocFile(name: String, candidateURLs: [URL]) -> [ApiDoc] {
+        for url in candidateURLs {
             if let data = try? Data(contentsOf: url) {
                 do {
-                    self.docs = try JSONDecoder().decode([ApiDoc].self, from: data)
-                    print("[LocalBridgeMac] Loaded api_docs.json from \(url.path)")
-                    return
+                    let docs = try JSONDecoder().decode([ApiDoc].self, from: data)
+                    print("[LocalBridgeMac] Loaded \(name).json from \(url.path)")
+                    return docs
                 } catch {
                     print("[LocalBridgeMac] JSON Decode Error from \(url.path): \(error)")
                 }
             }
         }
+        return []
     }
 
-    private func apiDocsCandidateURLs() -> [URL] {
+    private func candidateURLs(for name: String) -> [URL] {
         let fileManager = FileManager.default
         let currentDirectory = URL(fileURLWithPath: fileManager.currentDirectoryPath, isDirectory: true)
         let repoRoot = fileManager.homeDirectoryForCurrentUser
             .appendingPathComponent("aiwithblockchain/aihub/localBridge/apple", isDirectory: true)
 
         return [
-            Bundle.main.url(forResource: "api_docs", withExtension: "json"),
-            currentDirectory.appendingPathComponent("api_docs.json"),
-            currentDirectory.appendingPathComponent("LocalBridgeMac/api_docs.json"),
-            repoRoot.appendingPathComponent("LocalBridgeMac/api_docs.json")
+            Bundle.main.url(forResource: name, withExtension: "json"),
+            currentDirectory.appendingPathComponent("\(name).json"),
+            currentDirectory.appendingPathComponent("LocalBridgeMac/\(name).json"),
+            repoRoot.appendingPathComponent("LocalBridgeMac/\(name).json")
         ].compactMap { $0 }
     }
     
@@ -534,11 +579,12 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         // 设置代理（放到最后，防止在界面完全初始化前触发选择事件导致的 Crash）
         tableView.delegate = self
         tableView.dataSource = self
-        tableView.usesAutomaticRowHeights = true
-        tableView.rowHeight = -1 // Dynamic height
+        tableView.usesAutomaticRowHeights = false
+        tableView.rowHeight = 80
         tableView.headerView = nil
         tableView.selectionHighlightStyle = .none
         tableView.backgroundColor = .clear
+        tableView.allowsEmptySelection = true
 
         selectDefaultRow()
     }
@@ -546,39 +592,32 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
 
 
 
-    private func makeSectionHeader(_ title: String) -> NSTextField {
-        let label = NSTextField(labelWithString: title)
-        label.font = DSV2.fontTitleSm
-        label.textColor = DSV2.onSurfaceVariant
-        label.translatesAutoresizingMaskIntoConstraints = false
-        return label
-    }
-
-    /// 根据内容自动更新文本视图的高度约束，实现"撑开"效果
-
-    /// 公开方法：强制选中第一行并显示详情，由 DetailViewController 触发
+    /// 公开方法：强制选中第一个 doc 行并显示详情，由 DetailViewController 触发
     func selectDefaultRow() {
-        guard !docs.isEmpty else { return }
-        
-        DispatchQueue.main.async {
-            self.tableView.selectRowIndexes(IndexSet(integer: 0), byExtendingSelection: false)
-            self.refreshCardStyles() // 立即应用样式
+        guard let firstDocRow = rows.firstIndex(where: { if case .doc = $0 { return true }; return false }) else { return }
+        DispatchQueue.main.async { [weak self] in
+            guard let self else { return }
+            self.tableView.selectRowIndexes(IndexSet(integer: firstDocRow), byExtendingSelection: false)
+            self.refreshCardStyles()
             self.updateSelectedDetail()
         }
     }
 
-    /// 强制刷新所有可见 API 卡片的选中/未选中样式，防止样色"粘滞"
+    /// 强制刷新所有可见行的样式
     func refreshCardStyles() {
         let selectedRow = tableView.selectedRow
         for row in 0..<tableView.numberOfRows {
             if let cellView = tableView.view(atColumn: 0, row: row, makeIfNecessary: false) {
-                let isNowSelected = row == selectedRow
-                applyCardStyle(to: cellView, isSelected: isNowSelected)
+                switch rows[row] {
+                case .sectionHeader:
+                    break // section header 无选中样式
+                case .doc:
+                    applyCardStyle(to: cellView, isSelected: row == selectedRow)
+                }
             }
         }
     }
 
-    /// 统一卡片样式应用逻辑
     private func applyCardStyle(to cell: NSView, isSelected: Bool) {
         cell.wantsLayer = true
         cell.layer?.cornerRadius = DSV2.radiusCard
@@ -595,28 +634,90 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             cell.layer?.borderColor = DSV2.cardBorder.withAlphaComponent(0.3).cgColor
         }
 
-        // --- NEW: Update text colors for labels ---
         if let nameLabel = cell.subviews.first(where: { $0.identifier == NSUserInterfaceItemIdentifier("apiNameLabel") }) as? NSTextField {
             nameLabel.textColor = isSelected ? DSV2.primary : DSV2.onSurface
         }
-        
         if let summaryLabel = cell.subviews.first(where: { $0.identifier == NSUserInterfaceItemIdentifier("apiSummaryLabel") }) as? NSTextField {
             summaryLabel.textColor = DSV2.onSurfaceVariant
         }
     }
 
-    /// 按当前选中行更新详情
     func updateSelectedDetail() {
         let row = tableView.selectedRow
-        guard row >= 0 && row < docs.count else { return }
-        updateDetailView(with: docs[row])
+        guard row >= 0 && row < rows.count else { return }
+        if case .doc(let si, let di) = rows[row] {
+            updateDetailView(with: sections[si].docs[di])
+        }
     }
-    
+
     func numberOfRows(in tableView: NSTableView) -> Int {
-        return docs.count
+        return rows.count
     }
-    
+
     func tableView(_ tableView: NSTableView, viewFor tableColumn: NSTableColumn?, row: Int) -> NSView? {
+        guard row < rows.count else { return nil }
+
+        switch rows[row] {
+        case .sectionHeader(let si):
+            return makeSectionHeaderCell(sectionIndex: si)
+        case .doc(let si, let di):
+            return makeDocCell(doc: sections[si].docs[di], row: row)
+        }
+    }
+
+    private func makeSectionHeaderCell(sectionIndex: Int) -> NSView {
+        let identifier = NSUserInterfaceItemIdentifier("SectionHeaderCell")
+        if let existing = tableView.makeView(withIdentifier: identifier, owner: self) {
+            if let titleLabel = existing.subviews.first(where: { $0.identifier == NSUserInterfaceItemIdentifier("sectionTitleLabel") }) as? NSTextField {
+                titleLabel.stringValue = sections[sectionIndex].localizedTitle
+            }
+            if let chevron = existing.subviews.first(where: { $0.identifier == NSUserInterfaceItemIdentifier("sectionChevron") }) as? NSTextField {
+                chevron.stringValue = sections[sectionIndex].isExpanded ? "▾" : "▸"
+            }
+            // ensure gesture recognizer exists (defensive: reused cell from unexpected source)
+            if existing.gestureRecognizers.isEmpty {
+                let click = NSClickGestureRecognizer(target: self, action: #selector(sectionHeaderClicked(_:)))
+                existing.addGestureRecognizer(click)
+            }
+            return existing
+        }
+
+        let cell = NSView()
+        cell.identifier = identifier
+        cell.wantsLayer = true
+
+        let chevron = NSTextField(labelWithString: sections[sectionIndex].isExpanded ? "▾" : "▸")
+        chevron.font = NSFont.systemFont(ofSize: 11, weight: .semibold)
+        chevron.textColor = DSV2.onSurfaceVariant
+        chevron.translatesAutoresizingMaskIntoConstraints = false
+        chevron.identifier = NSUserInterfaceItemIdentifier("sectionChevron")
+
+        let titleLabel = NSTextField(labelWithString: sections[sectionIndex].localizedTitle)
+        titleLabel.font = NSFont.systemFont(ofSize: 11, weight: .semibold)
+        titleLabel.textColor = DSV2.onSurfaceVariant
+        titleLabel.translatesAutoresizingMaskIntoConstraints = false
+        titleLabel.identifier = NSUserInterfaceItemIdentifier("sectionTitleLabel")
+
+        cell.addSubview(chevron)
+        cell.addSubview(titleLabel)
+
+        NSLayoutConstraint.activate([
+            chevron.leadingAnchor.constraint(equalTo: cell.leadingAnchor, constant: 8),
+            chevron.centerYAnchor.constraint(equalTo: cell.centerYAnchor),
+            chevron.widthAnchor.constraint(equalToConstant: 14),
+
+            titleLabel.leadingAnchor.constraint(equalTo: chevron.trailingAnchor, constant: 4),
+            titleLabel.trailingAnchor.constraint(equalTo: cell.trailingAnchor, constant: -8),
+            titleLabel.centerYAnchor.constraint(equalTo: cell.centerYAnchor)
+        ])
+
+        let click = NSClickGestureRecognizer(target: self, action: #selector(sectionHeaderClicked(_:)))
+        cell.addGestureRecognizer(click)
+
+        return cell
+    }
+
+    private func makeDocCell(doc: ApiDoc, row: Int) -> NSView {
         let identifier = NSUserInterfaceItemIdentifier("ApiCell")
         var cell = tableView.makeView(withIdentifier: identifier, owner: self) as? NSTableCellView
 
@@ -636,19 +737,8 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             summaryLabel.translatesAutoresizingMaskIntoConstraints = false
             summaryLabel.identifier = NSUserInterfaceItemIdentifier("apiSummaryLabel")
 
-            let methodBadge = DSV2.makeMethodTag(method: "GET")
-            methodBadge.translatesAutoresizingMaskIntoConstraints = false
-            methodBadge.identifier = NSUserInterfaceItemIdentifier("apiMethodBadge")
-
-            let separator = NSView()
-            separator.wantsLayer = true
-            separator.layer?.backgroundColor = DSV2.cardBorder.withAlphaComponent(0.7).cgColor
-            separator.translatesAutoresizingMaskIntoConstraints = false
-            separator.identifier = NSUserInterfaceItemIdentifier("apiSeparator")
-
             cell?.addSubview(nameLabel)
             cell?.addSubview(summaryLabel)
-            // methodBadge and separator removed for minimalist card style
 
             NSLayoutConstraint.activate([
                 nameLabel.topAnchor.constraint(equalTo: cell!.topAnchor, constant: 12),
@@ -662,35 +752,57 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
             ])
         }
 
-        let doc = docs[row]
         let isSelected = tableView.selectedRow == row
-        
-        // 使用统一的样式应用逻辑
         applyCardStyle(to: cell!, isSelected: isSelected)
 
         if let nameLabel = cell?.subviews.first(where: { $0.identifier == NSUserInterfaceItemIdentifier("apiNameLabel") }) as? NSTextField {
             nameLabel.stringValue = doc.localizedName
         }
-
         if let summaryLabel = cell?.subviews.first(where: { $0.identifier == NSUserInterfaceItemIdentifier("apiSummaryLabel") }) as? NSTextField {
             summaryLabel.stringValue = doc.localizedSummary
         }
 
-        return cell
+        return cell!
     }
-    
+
+    @objc private func sectionHeaderClicked(_ gesture: NSClickGestureRecognizer) {
+        guard let cell = gesture.view else { return }
+        let clickedRow = tableView.row(for: cell)
+        guard clickedRow >= 0 && clickedRow < rows.count,
+              case .sectionHeader(let si) = rows[clickedRow],
+              sections.indices.contains(si) else { return }
+
+        sections[si].isExpanded.toggle()
+        rebuildRows()
+        tableView.reloadData()
+        refreshCardStyles()
+    }
+
+    func tableView(_ tableView: NSTableView, heightOfRow row: Int) -> CGFloat {
+        guard row < rows.count else { return 80 }
+        if case .sectionHeader = rows[row] { return 32 }
+        return 80
+    }
+
+    func tableView(_ tableView: NSTableView, shouldSelectRow row: Int) -> Bool {
+        guard row < rows.count else { return false }
+        if case .sectionHeader = rows[row] { return false }
+        return true
+    }
+
     func tableViewSelectionDidChange(_ notification: Notification) {
-        refreshCardStyles() // 关键：每当选中项变更，立即刷新所有可见 Cell 的 Layer 样式
+        refreshCardStyles()
 
         let row = tableView.selectedRow
-
-        guard row >= 0 && row < docs.count else {
+        guard row >= 0 && row < rows.count else {
             updateDetailView(with: nil)
             return
         }
-        updateDetailView(with: docs[row])
 
-        // 选中新 API 时，将整个区域滚动到最顶部
+        if case .doc(let si, let di) = rows[row] {
+            updateDetailView(with: sections[si].docs[di])
+        }
+
         mainRightScrollView?.contentView.scrollToVisible(NSRect.zero)
     }
 
@@ -847,16 +959,6 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
         textView.scrollToBeginningOfDocument(nil)
     }
     
-    private func methodColor(_ method: String) -> NSColor {
-        switch method.uppercased() {
-        case "GET": return DSV2.secondary
-        case "POST": return DSV2.tertiary
-        case "PUT": return DSV2.primary
-        case "DELETE": return DSV2.error
-        default: return DSV2.onSurfaceVariant
-        }
-    }
-
     private func highlightCurl(_ text: String) -> NSAttributedString {
         let attrStr = NSMutableAttributedString(string: text, attributes: [
             .font: DSV2.fontMonoSm,

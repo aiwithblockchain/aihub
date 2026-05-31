@@ -57,7 +57,8 @@ class XhsService:
         desc: str,
         images: List[Dict[str, Any]],
         privacy_type: int = 0,
-        topics: Optional[List[Dict[str, Any]]] = None
+        topics: Optional[List[Dict[str, Any]]] = None,
+        scheduled_publish_time: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Publish a new image note to XHS.
@@ -67,14 +68,16 @@ class XhsService:
             desc: Note description/content
             images: List of image dicts with 'data' (base64) and 'mime_type'
             privacy_type: 0=public, 1=private (default: 0)
-            topics: Optional list of topic dicts with topic metadata
+            topics: Optional list of topic dicts with 'id' and 'name' fields
+            scheduled_publish_time: Optional Unix timestamp (seconds) for scheduled publish
         """
         return self.transport.publish_note_raw(
             title=title,
             desc=desc,
             images=images,
             privacy_type=privacy_type,
-            topics=topics
+            topics=topics,
+            scheduled_publish_time=scheduled_publish_time,
         )
 
     # ── Topics & Discovery ────────────────────────────────────────────────────
@@ -109,6 +112,8 @@ class XhsService:
         desc: str,
         video: Dict[str, Any],
         privacy_type: int = 0,
+        topics: Optional[List[Dict[str, Any]]] = None,
+        scheduled_publish_time: Optional[int] = None,
     ) -> Dict[str, Any]:
         """
         Publish a new video note to XHS.
@@ -118,12 +123,16 @@ class XhsService:
             desc: Note description/content
             video: Dict with 'base64' (pure base64, no data: prefix) and optional 'mimeType'
             privacy_type: 0=public, 1=private (default: 0)
+            topics: Optional list of topic dicts with 'id' and 'name' fields
+            scheduled_publish_time: Optional Unix timestamp (seconds) for scheduled publish
         """
         return self.transport.publish_video_note_raw(
             title=title,
             desc=desc,
             video=video,
             privacy_type=privacy_type,
+            topics=topics,
+            scheduled_publish_time=scheduled_publish_time,
         )
 
     # ── Search Filters ────────────────────────────────────────────────────────

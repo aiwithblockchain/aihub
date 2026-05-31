@@ -405,6 +405,14 @@ struct Localizations {
             "en": "Select an API from the left sidebar to view details.",
             "zh": "从左侧列表选择 API 查看详情。"
         ],
+        "tweetclaw.section.x": [
+            "en": "X (Twitter) API",
+            "zh": "X (Twitter) API"
+        ],
+        "tweetclaw.section.xhs": [
+            "en": "Xiaohongshu API",
+            "zh": "小红书 API"
+        ],
 
         // MARK: - AIClaw Tab
         "aiclaw.title": [

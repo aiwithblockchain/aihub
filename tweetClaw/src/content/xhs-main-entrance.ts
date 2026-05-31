@@ -623,12 +623,16 @@ export interface PublishImageNoteParams {
   images: Array<{ base64: string; mimeType?: string }>;
   /** 0=公开 1=仅自己可见，默认 0 */
   privacyType?: number;
-  /** 话题列表（暂不处理，预留） */
-  topics?: string[];
+  /** 话题列表，每项含 id 和 name */
+  topics?: Array<{ id: string; name: string }>;
+  /** 定时发布时间（Unix 秒级时间戳），不传则立即发布 */
+  scheduledPublishTime?: number;
 }
 
 async function publishImageNote(params: PublishImageNoteParams): Promise<any> {
-  const { title, desc, images, privacyType = 0 } = params;
+  const { title, desc, images, privacyType = 0, topics = [], scheduledPublishTime } = params;
+  const topicSuffix = topics.length > 0 ? ' ' + topics.map(t => `#${t.name}[话题]#`).join(' ') : '';
+  const fullDesc = desc + topicSuffix;
 
   if (!images || images.length === 0) throw new Error('images array is empty');
 
@@ -639,10 +643,14 @@ async function publishImageNote(params: PublishImageNoteParams): Promise<any> {
     fileInfos.push(result);
   }
 
-  // 2. 构建 business_binds（立即发布）
+  // 2. 构建 business_binds
+  const notePostTiming = scheduledPublishTime
+    ? { postTime: scheduledPublishTime * 1000 }
+    : {};
+  const bizType = scheduledPublishTime ? 13 : 0;
   const businessBinds = JSON.stringify({
-    version: 1, noteId: 0, bizType: 0,
-    noteOrderBind: {}, notePostTiming: {},
+    version: 1, noteId: 0, bizType,
+    noteOrderBind: {}, notePostTiming,
     noteCollectionBind: { id: '' },
     noteSketchCollectionBind: { id: '' },
     coProduceBind: { enable: true },
@@ -676,11 +684,11 @@ async function publishImageNote(params: PublishImageNoteParams): Promise<any> {
       type: 'normal',
       title,
       note_id: '',
-      desc,
+      desc: fullDesc,
       source: '{"type":"web","ids":"","extraInfo":"{\\"subType\\":\\"official\\",\\"systemId\\":\\"web\\"}"}',
       business_binds: businessBinds,
       ats: [],
-      hash_tag: [],
+      hash_tag: topics.map(t => ({ id: t.id, name: t.name, type: 'topic' })),
       post_loc: {},
       privacy_info: { op_type: 1, type: privacyType, user_ids: [] },
       goods_info: {},
@@ -753,6 +761,10 @@ export interface PublishVideoNoteParams {
   video: { base64: string; mimeType?: string };
   /** 0=公开 1=仅自己可见，默认 0 */
   privacyType?: number;
+  /** 话题列表，每项含 id 和 name */
+  topics?: Array<{ id: string; name: string }>;
+  /** 定时发布时间（Unix 秒级时间戳），不传则立即发布 */
+  scheduledPublishTime?: number;
 }
 
 /** 从 base64 视频中提取宽高、时长，并截取第一帧作为封面 */
@@ -793,7 +805,9 @@ async function extractVideoMeta(videoBase64: string, mimeType: string): Promise<
 }
 
 async function publishVideoNote(params: PublishVideoNoteParams): Promise<any> {
-  const { title, desc, video, privacyType = 0 } = params;
+  const { title, desc, video, privacyType = 0, topics = [], scheduledPublishTime } = params;
+  const topicSuffix = topics.length > 0 ? ' ' + topics.map(t => `#${t.name}[话题]#`).join(' ') : '';
+  const fullDesc = desc + topicSuffix;
   const mimeType = video.mimeType || 'video/mp4';
 
   console.log(`${TAG} [publishVideoNote] start title="${title}" privacyType=${privacyType}`);
@@ -887,10 +901,14 @@ async function publishVideoNote(params: PublishVideoNoteParams): Promise<any> {
   };
 
   // 4. 构建 business_binds
+  const notePostTiming = scheduledPublishTime
+    ? { postTime: scheduledPublishTime * 1000 }
+    : {};
+  const bizType = scheduledPublishTime ? 13 : 0;
   const businessBinds = JSON.stringify({
-    version: 1, noteId: 0, bizType: 0,
+    version: 1, noteId: 0, bizType,
     noteOrderBind: { brandAccountId: '', orderId: '' },
-    notePostTiming: {},
+    notePostTiming,
     noteCollectionBind: { id: '' },
     noteSketchCollectionBind: { id: '' },
     coProduceBind: { enable: true },
@@ -912,9 +930,9 @@ async function publishVideoNote(params: PublishVideoNoteParams): Promise<any> {
       note_id: '',
       source: '{"type":"web","ids":"","extraInfo":"{\\"subType\\":\\"official\\",\\"systemId\\":\\"web\\"}"}',
       title,
-      desc,
+      desc: fullDesc,
       ats: [],
-      hash_tag: [],
+      hash_tag: topics.map(t => ({ id: t.id, name: t.name, type: 'topic' })),
       business_binds: businessBinds,
       privacy_info: { op_type: 1, type: privacyType, user_ids: [] },
       goods_info: {},
@@ -1391,6 +1409,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           images: message.images || [],
           privacyType: Number(message.privacy_type ?? 0),
           topics: message.topics || [],
+          scheduledPublishTime: message.scheduled_publish_time ? Number(message.scheduled_publish_time) : undefined,
         });
         sendResponse({ success: true, data });
       } catch (e: any) {
@@ -1409,6 +1428,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           desc: String(message.desc || ''),
           video: message.video,
           privacyType: Number(message.privacy_type ?? 0),
+          topics: message.topics || [],
+          scheduledPublishTime: message.scheduled_publish_time ? Number(message.scheduled_publish_time) : undefined,
         });
         sendResponse({ success: true, data });
       } catch (e: any) {

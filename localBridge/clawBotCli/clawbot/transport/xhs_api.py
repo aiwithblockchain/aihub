@@ -42,14 +42,18 @@ class XhsApiTransport(BaseApiTransport):
         return self.request_json("GET", "/api/v1/xhs/user_notes", params=params)
 
     def publish_note_raw(self, title: str, desc: str, images: List[Dict[str, Any]],
-                        privacy_type: int = 0, topics: Optional[List[Dict[str, Any]]] = None) -> Dict[Any, Any]:
-        payload = {
+                        privacy_type: int = 0,
+                        topics: Optional[List[Dict[str, Any]]] = None,
+                        scheduled_publish_time: Optional[int] = None) -> Dict[Any, Any]:
+        payload: Dict[str, Any] = {
             "title": title,
             "desc": desc,
             "images": images,
             "privacy_type": privacy_type,
-            "topics": topics or []
+            "topics": topics or [],
         }
+        if scheduled_publish_time is not None:
+            payload["scheduled_publish_time"] = scheduled_publish_time
         return self.request_json("POST", "/api/v1/xhs/publish", json=payload)
 
     def get_note_comments_raw(self, note_id: str, cursor: Optional[str] = None, xsec_token: Optional[str] = None) -> Dict[Any, Any]:
@@ -92,13 +96,18 @@ class XhsApiTransport(BaseApiTransport):
         desc: str,
         video: Dict[str, Any],
         privacy_type: int = 0,
+        topics: Optional[List[Dict[str, Any]]] = None,
+        scheduled_publish_time: Optional[int] = None,
     ) -> Dict[Any, Any]:
-        payload = {
+        payload: Dict[str, Any] = {
             "title": title,
             "desc": desc,
             "video": video,
             "privacy_type": privacy_type,
+            "topics": topics or [],
         }
+        if scheduled_publish_time is not None:
+            payload["scheduled_publish_time"] = scheduled_publish_time
         return self.request_json("POST", "/api/v1/xhs/publish_video", json=payload)
 
     def post_comment_raw(
