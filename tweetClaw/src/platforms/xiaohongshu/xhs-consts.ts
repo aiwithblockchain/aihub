@@ -14,6 +14,7 @@ export const XHS_API_ENDPOINTS = {
   DISLIKE: '/api/sns/web/v1/note/dislike',
   COLLECT: '/api/sns/web/v1/note/collect',
   FOLLOW: '/api/sns/web/v1/user/follow',
+  UNFOLLOW: '/api/sns/web/v1/user/unfollow',
   COMMENT_POST: '/api/sns/web/v1/comment/post',
   COMMENT_DELETE: '/api/sns/web/v1/comment/delete',
   INTIMACY_LIST: '/api/sns/web/v1/intimacy/intimacy_list',
@@ -49,6 +50,7 @@ export const XHS_MSG_TYPE = {
   LIKE_NOTE: 'XHS_LIKE_NOTE',
   UNLIKE_NOTE: 'XHS_UNLIKE_NOTE',
   FOLLOW_USER: 'XHS_FOLLOW_USER',
+  UNFOLLOW_USER: 'XHS_UNFOLLOW_USER',
   DELETE_COMMENT: 'XHS_DELETE_COMMENT',
 } as const;
 

@@ -215,6 +215,15 @@ class XhsService:
         """
         return self.transport.follow_user_raw(target_user_id=target_user_id)
 
+    def unfollow_user(self, target_user_id: str) -> Dict[str, Any]:
+        """
+        Unfollow a user.
+
+        Args:
+            target_user_id: The user ID to unfollow (rid field, without hash suffix)
+        """
+        return self.transport.unfollow_user_raw(target_user_id=target_user_id)
+
     def delete_comment(self, note_id: str, comment_id: str) -> Dict[str, Any]:
         """
         Delete a comment.

@@ -129,6 +129,7 @@ localBridge.xhsGetIntimacyListHandler = getXhsIntimacyList;
 localBridge.xhsLikeNoteHandler = likeXhsNote;
 localBridge.xhsUnlikeNoteHandler = unlikeXhsNote;
 localBridge.xhsFollowUserHandler = followXhsUser;
+localBridge.xhsUnfollowUserHandler = unfollowXhsUser;
 localBridge.xhsDeleteCommentHandler = deleteXhsComment;
 localBridge.openTabHandler = openXTab;
 localBridge.closeTabHandler = closeXTab;
@@ -1666,6 +1667,35 @@ export async function followXhsUser(payload: Record<string, unknown>): Promise<a
 
     if (!result?.success) {
         throw new Error(result?.error || 'Failed to follow user');
+    }
+
+    return result.data;
+}
+
+export async function unfollowXhsUser(payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] unfollowXhsUser called', payload);
+    const tab = await findXhsTab();
+    if (!tab?.id) {
+        throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
+    }
+    console.log('[TweetClaw-BG] unfollowXhsUser using tab', { tabId: tab.id, url: tab.url });
+
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'XHS_UNFOLLOW_USER',
+        ...payload,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with XHS content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    console.log('[TweetClaw-BG] unfollowXhsUser content script result', {
+        success: result?.success,
+        fstatus: result?.data?.data?.fstatus,
+        error: result?.error,
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to unfollow user');
     }
 
     return result.data;

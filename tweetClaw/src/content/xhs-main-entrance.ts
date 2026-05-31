@@ -1162,8 +1162,17 @@ async function followUser(targetUserId: string): Promise<any> {
   console.log(`${TAG} [followUser] targetUserId=${targetUserId}`);
   const body = JSON.stringify({ target_user_id: targetUserId });
   console.log(`${TAG} [followUser] body=${body}`);
-  const result = await signedXhrFetch(XHS_API_ENDPOINTS.FOLLOW, 'POST', body);
+  const result = await signedFetch(XHS_API_ENDPOINTS.FOLLOW, 'POST', body);
   console.log(`${TAG} [followUser] result code=${result?.code} success=${result?.success} fstatus=${result?.data?.fstatus}`);
+  return result;
+}
+
+async function unfollowUser(targetUserId: string): Promise<any> {
+  console.log(`${TAG} [unfollowUser] targetUserId=${targetUserId}`);
+  const body = JSON.stringify({ target_user_id: targetUserId });
+  console.log(`${TAG} [unfollowUser] body=${body}`);
+  const result = await signedFetch(XHS_API_ENDPOINTS.UNFOLLOW, 'POST', body);
+  console.log(`${TAG} [unfollowUser] result code=${result?.code} success=${result?.success} fstatus=${result?.data?.fstatus}`);
   return result;
 }
 
@@ -1623,6 +1632,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ success: true, data });
       } catch (e: any) {
         console.error(`${TAG} [FOLLOW_USER] error:`, e.message);
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === XHS_MSG_TYPE.UNFOLLOW_USER) {
+    (async () => {
+      try {
+        console.log(`${TAG} [UNFOLLOW_USER] received target_user_id=${message.target_user_id}`);
+        const data = await unfollowUser(String(message.target_user_id));
+        console.log(`${TAG} [UNFOLLOW_USER] success code=${data?.code} fstatus=${data?.data?.fstatus}`);
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        console.error(`${TAG} [UNFOLLOW_USER] error:`, e.message);
         sendResponse({ success: false, error: e.message });
       }
     })();

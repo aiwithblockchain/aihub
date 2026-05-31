@@ -133,5 +133,8 @@ class XhsApiTransport(BaseApiTransport):
     def follow_user_raw(self, target_user_id: str) -> Dict[Any, Any]:
         return self.request_json("POST", "/api/v1/xhs/follow", json={"target_user_id": target_user_id})
 
+    def unfollow_user_raw(self, target_user_id: str) -> Dict[Any, Any]:
+        return self.request_json("POST", "/api/v1/xhs/unfollow", json={"target_user_id": target_user_id})
+
     def delete_comment_raw(self, note_id: str, comment_id: str) -> Dict[Any, Any]:
         return self.request_json("POST", "/api/v1/xhs/delete_comment", json={"note_id": note_id, "comment_id": comment_id})
