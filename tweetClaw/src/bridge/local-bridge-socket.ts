@@ -87,6 +87,7 @@ export class LocalBridgeSocket {
   public xhsFollowUserHandler: ((payload: any) => Promise<any>) | null = null;
   public xhsUnfollowUserHandler: ((payload: any) => Promise<any>) | null = null;
   public xhsCollectNoteHandler: ((payload: any) => Promise<any>) | null = null;
+  public xhsDeleteNoteHandler: ((payload: any) => Promise<any>) | null = null;
   public xhsDeleteCommentHandler: ((payload: any) => Promise<any>) | null = null;
   public openTabHandler: ((payload: any) => Promise<any>) | null = null;
   public closeTabHandler: ((payload: any) => Promise<any>) | null = null;
@@ -684,6 +685,9 @@ export class LocalBridgeSocket {
           break;
         case MESSAGE_TYPES.COMMAND_XHS_COLLECT_NOTE:
           this.handleGenericQuery(msg, this.xhsCollectNoteHandler, MESSAGE_TYPES.RESPONSE_XHS_COLLECT_NOTE);
+          break;
+        case MESSAGE_TYPES.COMMAND_XHS_DELETE_NOTE:
+          this.handleGenericQuery(msg, this.xhsDeleteNoteHandler, MESSAGE_TYPES.RESPONSE_XHS_DELETE_NOTE);
           break;
         case MESSAGE_TYPES.COMMAND_XHS_DELETE_COMMENT:
           this.handleGenericQuery(msg, this.xhsDeleteCommentHandler, MESSAGE_TYPES.RESPONSE_XHS_DELETE_COMMENT);

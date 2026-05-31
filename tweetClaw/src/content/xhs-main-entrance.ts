@@ -1185,6 +1185,18 @@ async function collectNote(noteId: string): Promise<any> {
   return result;
 }
 
+async function deleteNote(noteId: string): Promise<any> {
+  console.log(`${TAG} [deleteNote] noteId=${noteId}`);
+  const body = JSON.stringify({ note_id: noteId });
+  console.log(`${TAG} [deleteNote] body=${body}`);
+  const result = await signedFetch(XHS_API_ENDPOINTS.NOTE_DELETE, 'POST', body, {
+    'referer': 'https://creator.xiaohongshu.com/',
+    'content-type': 'application/json',
+  });
+  console.log(`${TAG} [deleteNote] result code=${result?.code} success=${result?.success}`);
+  return result;
+}
+
 async function deleteComment(noteId: string, commentId: string): Promise<any> {
   console.log(`${TAG} [deleteComment] noteId=${noteId} commentId=${commentId}`);
   const body = JSON.stringify({ note_id: noteId, comment_id: commentId });
@@ -1671,6 +1683,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ success: true, data });
       } catch (e: any) {
         console.error(`${TAG} [COLLECT_NOTE] error:`, e.message);
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === XHS_MSG_TYPE.DELETE_NOTE) {
+    (async () => {
+      try {
+        console.log(`${TAG} [DELETE_NOTE] received note_id=${message.note_id}`);
+        const data = await deleteNote(String(message.note_id));
+        console.log(`${TAG} [DELETE_NOTE] success code=${data?.code}`);
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        console.error(`${TAG} [DELETE_NOTE] error:`, e.message);
         sendResponse({ success: false, error: e.message });
       }
     })();

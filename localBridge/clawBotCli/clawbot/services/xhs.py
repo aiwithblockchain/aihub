@@ -233,6 +233,15 @@ class XhsService:
         """
         return self.transport.collect_note_raw(note_id=note_id)
 
+    def delete_note(self, note_id: str) -> Dict[str, Any]:
+        """
+        Delete a note (must be executed from creator.xiaohongshu.com context).
+
+        Args:
+            note_id: The note ID to delete
+        """
+        return self.transport.delete_note_raw(note_id=note_id)
+
     def delete_comment(self, note_id: str, comment_id: str) -> Dict[str, Any]:
         """
         Delete a comment.

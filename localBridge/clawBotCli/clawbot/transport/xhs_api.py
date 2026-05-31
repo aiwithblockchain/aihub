@@ -139,5 +139,8 @@ class XhsApiTransport(BaseApiTransport):
     def collect_note_raw(self, note_id: str) -> Dict[Any, Any]:
         return self.request_json("POST", "/api/v1/xhs/collect", json={"note_id": note_id})
 
+    def delete_note_raw(self, note_id: str) -> Dict[Any, Any]:
+        return self.request_json("POST", "/api/v1/xhs/delete_note", json={"note_id": note_id})
+
     def delete_comment_raw(self, note_id: str, comment_id: str) -> Dict[Any, Any]:
         return self.request_json("POST", "/api/v1/xhs/delete_comment", json={"note_id": note_id, "comment_id": comment_id})
