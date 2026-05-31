@@ -1,7 +1,8 @@
-# localBridge Handler 透传规范
+# localBridge Handler 透传：规范与重构历史
 
-> 本文档定义 localBridge REST API handler 的设计原则与编码规范。  
-> 所有新增 API 必须遵循本规范，确保 Go 层保持"纯粹消息总线"定位。
+> 合并自：`HANDLER_PASSTHROUGH_SPEC.md` + `HANDLER_PASSTHROUGH_REFACTOR.md`
+> 创建日期：2026-05-28
+> 状态：**已完成** — 规范已落地，所有 XHS 端点均已按透传规范实现
 
 ---
 
@@ -36,8 +37,8 @@ func (h *Handler) exampleGet(w http.ResponseWriter, r *http.Request) {
     }
     id := newID("http_example")
     payload := queryToMap(r)  // 透传所有 query 参数
-    h.bridge(w, r, "tweetClaw", id, 
-        buildRawMsg(id, "command.example", "tweetClaw", payload), 
+    h.bridge(w, r, "tweetClaw", id,
+        buildRawMsg(id, "command.example", "tweetClaw", payload),
         8000,
         func(data []byte) { writeRawPayload(w, data) })
 }
@@ -59,8 +60,8 @@ func (h *Handler) examplePost(w http.ResponseWriter, r *http.Request) {
         return
     }
     id := newID("http_example")
-    h.bridge(w, r, "tweetClaw", id, 
-        buildRawMsgFromBytes(id, "command.example", "tweetClaw", body), 
+    h.bridge(w, r, "tweetClaw", id,
+        buildRawMsgFromBytes(id, "command.example", "tweetClaw", body),
         8000,
         func(data []byte) { writeRawPayload(w, data) })
 }
@@ -75,20 +76,18 @@ func (h *Handler) execAction(w http.ResponseWriter, r *http.Request, action stri
     body, _ := readRawBody(r)
     payload := mergeAction(body, action)  // 仅注入 action，其余透传
     id := newID("http_exec")
-    h.bridge(w, r, "tweetClaw", id, 
-        buildRawMsg(id, "request.exec_action", "tweetClaw", payload), 
+    h.bridge(w, r, "tweetClaw", id,
+        buildRawMsg(id, "request.exec_action", "tweetClaw", payload),
         15000,
         func(data []byte) { writeRawPayload(w, data) })
 }
 ```
 
-**注意**：这是唯一允许 Go 层"修改" payload 的情况，因为 action 是端点语义的一部分，而非业务逻辑。
+这是唯一允许 Go 层"修改" payload 的情况，因为 action 是端点语义的一部分，而非业务逻辑。
 
 ---
 
 ## 三、工具函数
-
-新增 handler 时使用以下工具函数：
 
 ```go
 // queryToMap 将 URL query string 转为 map，供 GET 端点透传
@@ -156,7 +155,20 @@ func mergeAction(body json.RawMessage, action string) map[string]interface{} {
 
 ---
 
-## 五、新增 API 检查清单
+## 五、例外情况
+
+以下情况不适用透传规则：
+
+| 端点 | 原因 |
+|------|------|
+| 图片/视频上传（`xhsPublish`） | 大附件需要分批处理，涉及 COS 上传流程 |
+| Tab 管理（`openTab`/`closeTab`） | 非业务数据端点，本地操作 |
+| 本地查询（`instances`） | 不走 bridge，直接返回本地状态 |
+| 通用端点（`pluginInvoke`） | 已是完全透传 |
+
+---
+
+## 六、新增 API 检查清单
 
 编写新 handler 前，确认以下事项：
 
@@ -169,25 +181,11 @@ func mergeAction(body json.RawMessage, action string) map[string]interface{} {
 
 ---
 
-## 六、例外情况
-
-以下情况不适用透传规则：
-
-| 端点 | 原因 |
-|------|------|
-| 图片上传（如 `xhsPublish`） | 大附件需要分批处理，涉及 COS 上传流程 |
-| Tab 管理（`openTab`/`closeTab`） | 非业务数据端点，本地操作 |
-| 本地查询（`instances`） | 不走 bridge，直接返回本地状态 |
-| 通用端点（`pluginInvoke`） | 已是完全透传 |
-
----
-
 ## 七、反模式示例
 
-### 7.1 错误：提取参数重新构建
+### 错误：提取参数重新构建
 
 ```go
-// 错误示例
 func (h *Handler) xhsFeed(w http.ResponseWriter, r *http.Request) {
     noteId := r.URL.Query().Get("note_id")
     if noteId == "" {
@@ -197,48 +195,63 @@ func (h *Handler) xhsFeed(w http.ResponseWriter, r *http.Request) {
     payload := map[string]interface{}{
         "note_id": noteId,  // 重新构建 payload
     }
-    // ...
 }
 ```
 
-### 7.2 正确：透传
+### 正确：透传
 
 ```go
-// 正确示例
 func (h *Handler) xhsFeed(w http.ResponseWriter, r *http.Request) {
     if r.Method != http.MethodGet {
         jsonErr(w, 405, "method_not_allowed")
         return
     }
     id := newID("http_xhs_feed")
-    payload := queryToMap(r)  // 透传所有参数
-    h.bridge(w, r, "tweetClaw", id, 
-        buildRawMsg(id, "command.xhs_feed", "tweetClaw", payload), 
+    h.bridge(w, r, "tweetClaw", id,
+        buildRawMsg(id, "command.xhs_feed", "tweetClaw", queryToMap(r)),
         8000,
         func(data []byte) { writeRawPayload(w, data) })
 }
 ```
 
-### 7.3 错误：注入默认值
+---
 
-```go
-// 错误示例
-count := r.URL.Query().Get("count")
-if count == "" {
-    count = "20"  // 默认值不应在 Go 层注入
-}
-```
+## 八、重构历史（2026-05-28）
 
-### 7.4 正确：扩展端处理默认值
+### 背景
 
-```typescript
-// 扩展端 content script
-const count = Number(payload.count) || 20;
-```
+重构前，`handler.go` 中的预制端点存在以下问题：
+- 参数提取后重新构建 payload
+- 注入默认值（`count=20`、`page_size=20`）
+- 业务校验（必填、枚举值）
+- 业务逻辑判断（`tweetsDispatch` 根据 `attachmentURL` 决定 action）
+
+### 已完成的修改
+
+**XHS 端点（全部已按透传规范实现）：**
+
+| 端点 | 原问题 | 修改方式 |
+|------|--------|----------|
+| `xhsHomefeed` | 提取 `cursor_score` 重新构建 | `queryToMap` 透传 |
+| `xhsFeed` | 提取 `note_id`，必填校验 | `queryToMap` 透传 |
+| `xhsSearch` | 解析 body，注入 `page_size` 默认值 | `readRawBody` 透传 |
+| `xhsUserNotes` | 提取参数，必填校验 | `queryToMap` 透传 |
+| `xhsComments` | 提取参数，必填校验 | `queryToMap` 透传 |
+| `xhsUserInfo` | 提取 `user_id`，必填校验 | `queryToMap` 透传 |
+| `xhsTopics` | 提取 `keyword`，必填校验 | `queryToMap` 透传 |
+| `xhsNotifications` | 业务校验 type 枚举值 | `queryToMap` 透传 |
+| `xhsSearchFilter` | 提取参数，必填校验 | `queryToMap` 透传 |
+| 所有新增 XHS 写操作端点 | 从一开始按规范实现 | `readRawBody` 透传 |
+
+**Twitter 端点（部分，未全部完成）：**
+
+| 端点 | 状态 |
+|------|------|
+| `execAction` | ✅ `mergeAction` 注入 action，其余透传 |
+| `tweetsDispatch` / `userProfile` 等 | 🔲 待重构（低优先级） |
 
 ---
 
-## 八、参考
+## 九、参考
 
-- 原始重构任务文档：[HANDLER_PASSTHROUGH_REFACTOR.md](./HANDLER_PASSTHROUGH_REFACTOR.md)
 - handler 实现：`localBridge/go-lib/pkg/restapi/handler.go`
