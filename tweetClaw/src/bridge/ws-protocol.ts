@@ -53,6 +53,8 @@ export type MessageType =
   | 'response.xhs_follow_user'
   | 'command.xhs_unfollow_user'
   | 'response.xhs_unfollow_user'
+  | 'command.xhs_collect_note'
+  | 'response.xhs_collect_note'
   | 'command.xhs_delete_comment'
   | 'response.xhs_delete_comment'
   | 'command.query_x_basic_info'
@@ -141,6 +143,8 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_XHS_FOLLOW_USER: 'response.xhs_follow_user',
   COMMAND_XHS_UNFOLLOW_USER: 'command.xhs_unfollow_user',
   RESPONSE_XHS_UNFOLLOW_USER: 'response.xhs_unfollow_user',
+  COMMAND_XHS_COLLECT_NOTE: 'command.xhs_collect_note',
+  RESPONSE_XHS_COLLECT_NOTE: 'response.xhs_collect_note',
   COMMAND_XHS_DELETE_COMMENT: 'command.xhs_delete_comment',
   RESPONSE_XHS_DELETE_COMMENT: 'response.xhs_delete_comment',
   COMMAND_QUERY_X_BASIC_INFO: 'command.query_x_basic_info',

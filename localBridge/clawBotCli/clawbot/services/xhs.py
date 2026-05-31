@@ -224,6 +224,15 @@ class XhsService:
         """
         return self.transport.unfollow_user_raw(target_user_id=target_user_id)
 
+    def collect_note(self, note_id: str) -> Dict[str, Any]:
+        """
+        Collect (bookmark) a note.
+
+        Args:
+            note_id: The note ID to collect
+        """
+        return self.transport.collect_note_raw(note_id=note_id)
+
     def delete_comment(self, note_id: str, comment_id: str) -> Dict[str, Any]:
         """
         Delete a comment.

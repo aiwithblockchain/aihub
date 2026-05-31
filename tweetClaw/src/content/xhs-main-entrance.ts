@@ -1176,6 +1176,15 @@ async function unfollowUser(targetUserId: string): Promise<any> {
   return result;
 }
 
+async function collectNote(noteId: string): Promise<any> {
+  console.log(`${TAG} [collectNote] noteId=${noteId}`);
+  const body = JSON.stringify({ note_id: noteId });
+  console.log(`${TAG} [collectNote] body=${body}`);
+  const result = await signedFetch(XHS_API_ENDPOINTS.COLLECT, 'POST', body);
+  console.log(`${TAG} [collectNote] result code=${result?.code} success=${result?.success}`);
+  return result;
+}
+
 async function deleteComment(noteId: string, commentId: string): Promise<any> {
   console.log(`${TAG} [deleteComment] noteId=${noteId} commentId=${commentId}`);
   const body = JSON.stringify({ note_id: noteId, comment_id: commentId });
@@ -1647,6 +1656,21 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ success: true, data });
       } catch (e: any) {
         console.error(`${TAG} [UNFOLLOW_USER] error:`, e.message);
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === XHS_MSG_TYPE.COLLECT_NOTE) {
+    (async () => {
+      try {
+        console.log(`${TAG} [COLLECT_NOTE] received note_id=${message.note_id}`);
+        const data = await collectNote(String(message.note_id));
+        console.log(`${TAG} [COLLECT_NOTE] success code=${data?.code}`);
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        console.error(`${TAG} [COLLECT_NOTE] error:`, e.message);
         sendResponse({ success: false, error: e.message });
       }
     })();

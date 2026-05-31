@@ -254,8 +254,8 @@ localBridge REST 端点 → Go messageType → tweetClaw content script
 | 点赞笔记 | `POST /api/v1/xhs/like` | `command.xhs_like_note` | ✅ 已完成+测试通过（2026-05-30） |
 | 关注用户 | `POST /api/v1/xhs/follow` | `command.xhs_follow_user` | ✅ 已完成+测试通过（2026-05-30） |
 | 取消点赞 | `POST /api/v1/xhs/unlike` | `command.xhs_unlike_note` | ✅ 已完成+测试通过（2026-05-30） |
-| 取消关注 | `POST /api/v1/xhs/unfollow` | `command.xhs_unfollow_user` | 🔲 待测试 |
-| 收藏笔记 | — | — | 🔲 待实现 |
+| 取消关注 | `POST /api/v1/xhs/unfollow` | `command.xhs_unfollow_user` | ✅ 已完成+测试通过（2026-05-31） |
+| 收藏笔记 | `POST /api/v1/xhs/collect` | `command.xhs_collect_note` | ✅ 已完成+测试通过（2026-05-31） |
 | 私信用户 | — | — | 🔲 待实现 |
 | 删除评论 | `POST /api/v1/xhs/delete_comment` | `command.xhs_delete_comment` | ✅ 已完成+测试通过（2026-05-30） |
 | 删除笔记 | — | — | 🔲 待实现 |
