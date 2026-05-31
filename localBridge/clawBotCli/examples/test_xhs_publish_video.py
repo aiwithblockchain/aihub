@@ -85,6 +85,7 @@ def main() -> int:
     parser.add_argument("--desc", default="这是一条测试视频笔记，可以忽略。", help="Note description")
     parser.add_argument("--private", action="store_true", help="Publish as private (privacy_type=1)")
     parser.add_argument("--topics", default="", help="Comma-separated topic names to attach")
+    parser.add_argument("--cover", default="", help="Path to custom cover image file")
     parser.add_argument("--schedule", type=int, default=0, help="Seconds from now to schedule publish (0=immediate), or absolute Unix timestamp if > 1000000000")
     args = parser.parse_args()
 
@@ -132,6 +133,19 @@ def main() -> int:
         topics = resolve_topics(client, args.topics.split(","), args.title, args.desc)
         print(f"✓ {len(topics)} topic(s) resolved")
 
+    # Load custom cover
+    cover = None
+    if args.cover:
+        if not os.path.exists(args.cover):
+            print(f"✗ Cover file not found: {args.cover}")
+            return 1
+        ext = os.path.splitext(args.cover)[1].lower()
+        cover_mime = {"jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png", ".webp": "image/webp"}.get(ext, "image/jpeg")
+        with open(args.cover, "rb") as f:
+            cover_b64 = base64.b64encode(f.read()).decode("utf-8")
+        cover = {"base64": cover_b64, "mimeType": cover_mime}
+        print(f"\n🖼 Cover loaded: {args.cover} ({cover_mime})")
+
     print("\n🚀 Publishing video note...")
     print("   (tweetClaw will extract metadata, upload video+cover, then publish)")
 
@@ -143,6 +157,7 @@ def main() -> int:
             privacy_type=1 if args.private else 0,
             topics=topics if topics else None,
             scheduled_publish_time=scheduled_publish_time,
+            cover=cover,
         )
     except Exception as e:
         print(f"✗ Exception: {e}")

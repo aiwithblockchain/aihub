@@ -114,6 +114,7 @@ class XhsService:
         privacy_type: int = 0,
         topics: Optional[List[Dict[str, Any]]] = None,
         scheduled_publish_time: Optional[int] = None,
+        cover: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
         Publish a new video note to XHS.
@@ -125,6 +126,7 @@ class XhsService:
             privacy_type: 0=public, 1=private (default: 0)
             topics: Optional list of topic dicts with 'id' and 'name' fields
             scheduled_publish_time: Optional Unix timestamp (seconds) for scheduled publish
+            cover: Optional custom cover dict with 'base64' and optional 'mimeType'
         """
         return self.transport.publish_video_note_raw(
             title=title,
@@ -133,6 +135,7 @@ class XhsService:
             privacy_type=privacy_type,
             topics=topics,
             scheduled_publish_time=scheduled_publish_time,
+            cover=cover,
         )
 
     # ── Search Filters ────────────────────────────────────────────────────────

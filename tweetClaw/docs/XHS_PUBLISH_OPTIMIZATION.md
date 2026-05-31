@@ -68,11 +68,10 @@
 |--------|------|------|------|
 | P0 | 话题标签 | `hash_tag` 数组 + `desc` 内嵌 `#话题名[话题]#` | ✅ 已完成（2026-06-01） |
 | P0 | 定时发布 | `business_binds.notePostTiming.postTime`（毫秒时间戳）+ `bizType: 13` | ✅ 已完成（2026-06-01） |
-| P0 | 封面自定义 | 支持传入封面图片（base64 或已上传的 fileId） | 🔲 待实现 |
+| P0 | 封面自定义 | 支持传入封面图片（base64），`is_upload=true` + `extra_info_json` 带 cover_effect | ✅ 已完成（2026-06-01） |
 | P0 | 可见范围枚举确认 | 确认 `privacy_type` 的合法值（0=公开，1=私密，2=好友可见？） | 🔲 待抓包 |
-| P1 | 原创声明 | `is_original` 布尔值 + `original_type` 枚举 | 🔲 待抓包 |
-| P2 | 章节 | `chapters` 数组，每项含 `title` + `time_offset_ms` | 🔲 待抓包 |
-| P2 | 合集 | `collection_id` 字符串，需先查询已有合集 | 🔲 待抓包 |
+| P1 | 章节 | `chapters` 数组，每项含 `title` + `time_offset_ms` | 🔲 待抓包 |
+| P1 | 合集 | `collection_id` 字符串，需先查询已有合集 | 🔲 待抓包 |
 | P2 | 地点 POI | `poi_id` + `poi_name`，需先调用 POI 搜索 API | 🔲 待抓包 |
 | P3 | 活动话题 | `activity_id`，需先查询活动列表 | 🔲 待抓包 |
 

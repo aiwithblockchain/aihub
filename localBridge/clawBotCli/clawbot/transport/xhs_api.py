@@ -98,6 +98,7 @@ class XhsApiTransport(BaseApiTransport):
         privacy_type: int = 0,
         topics: Optional[List[Dict[str, Any]]] = None,
         scheduled_publish_time: Optional[int] = None,
+        cover: Optional[Dict[str, Any]] = None,
     ) -> Dict[Any, Any]:
         payload: Dict[str, Any] = {
             "title": title,
@@ -108,6 +109,8 @@ class XhsApiTransport(BaseApiTransport):
         }
         if scheduled_publish_time is not None:
             payload["scheduled_publish_time"] = scheduled_publish_time
+        if cover is not None:
+            payload["cover"] = cover
         return self.request_json("POST", "/api/v1/xhs/publish_video", json=payload)
 
     def post_comment_raw(

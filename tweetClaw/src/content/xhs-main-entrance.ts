@@ -765,6 +765,8 @@ export interface PublishVideoNoteParams {
   topics?: Array<{ id: string; name: string }>;
   /** 定时发布时间（Unix 秒级时间戳），不传则立即发布 */
   scheduledPublishTime?: number;
+  /** 自定义封面（base64，不含 data: 前缀），不传则自动截取第一帧 */
+  cover?: { base64: string; mimeType?: string };
 }
 
 /** 从 base64 视频中提取宽高、时长，并截取第一帧作为封面 */
@@ -805,7 +807,7 @@ async function extractVideoMeta(videoBase64: string, mimeType: string): Promise<
 }
 
 async function publishVideoNote(params: PublishVideoNoteParams): Promise<any> {
-  const { title, desc, video, privacyType = 0, topics = [], scheduledPublishTime } = params;
+  const { title, desc, video, privacyType = 0, topics = [], scheduledPublishTime, cover } = params;
   const topicSuffix = topics.length > 0 ? ' ' + topics.map(t => `#${t.name}[话题]#`).join(' ') : '';
   const fullDesc = desc + topicSuffix;
   const mimeType = video.mimeType || 'video/mp4';
@@ -824,11 +826,14 @@ async function publishVideoNote(params: PublishVideoNoteParams): Promise<any> {
 
   // 2. 并行上传视频 + 封面
   console.log(`${TAG} [publishVideoNote] uploading video and cover...`);
+  const coverBase64 = cover ? cover.base64 : meta.coverBase64;
+  const coverMime = cover ? (cover.mimeType || 'image/jpeg') : 'image/jpeg';
+  const isCustomCover = !!cover;
   const [videoUpload, coverUpload] = await Promise.all([
     uploadVideo(video.base64, mimeType),
-    uploadImage(meta.coverBase64, 'image/jpeg'),
+    uploadImage(coverBase64, coverMime),
   ]);
-  console.log(`${TAG} [publishVideoNote] video=${videoUpload.fileId} cover=${coverUpload.fileId}`);
+  console.log(`${TAG} [publishVideoNote] video=${videoUpload.fileId} cover=${coverUpload.fileId} custom=${isCustomCover} coverSize=${coverUpload.width}x${coverUpload.height}`);
 
   // 3. 构建 video_info（与抓包结构完全一致）
   const spectrumVideoId = `spectrum/${videoUpload.fileId}`;
@@ -860,12 +865,14 @@ async function publishVideoNote(params: PublishVideoNoteParams): Promise<any> {
     cover: {
       fileid: spectrumCoverId,
       file_id: spectrumCoverId,
-      height: meta.height,
-      width: meta.width,
-      frame: { ts: 0, is_user_select: false, is_upload: false },
+      height: isCustomCover ? coverUpload.height : meta.height,
+      width: isCustomCover ? coverUpload.width : meta.width,
+      frame: { ts: 0, is_user_select: false, is_upload: isCustomCover },
       stickers: { version: 2, neptune: [] },
       fonts: [],
-      extra_info_json: '{}',
+      extra_info_json: isCustomCover
+        ? '{"cover_effect":"{\\"crop\\":true,\\"canvas\\":true,\\"template\\":false,\\"filter\\":false,\\"text\\":false,\\"sticker\\":false}"}'
+        : '{}',
     },
     chapters: [],
     chapter_sync_text: false,
@@ -1430,6 +1437,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           privacyType: Number(message.privacy_type ?? 0),
           topics: message.topics || [],
           scheduledPublishTime: message.scheduled_publish_time ? Number(message.scheduled_publish_time) : undefined,
+          cover: message.cover || undefined,
         });
         sendResponse({ success: true, data });
       } catch (e: any) {
