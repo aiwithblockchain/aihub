@@ -70,10 +70,10 @@
 | P0 | 定时发布 | `business_binds.notePostTiming.postTime`（毫秒时间戳）+ `bizType: 13` | ✅ 已完成（2026-06-01） |
 | P0 | 封面自定义 | 支持传入封面图片（base64），`is_upload=true` + `extra_info_json` 带 cover_effect | ✅ 已完成（2026-06-01） |
 | P0 | 可见范围枚举确认 | 确认 `privacy_type` 的合法值 | ✅ 已完成（2026-06-01） |
-| P1 | 章节 | `chapters` 数组，每项含 `title` + `time_offset_ms` | 🔲 待抓包 |
-| P1 | 合集 | `collection_id` 字符串，需先查询已有合集 | 🔲 待抓包 |
-| P2 | 地点 POI | `poi_id` + `poi_name`，需先调用 POI 搜索 API | 🔲 待抓包 |
-| P3 | 活动话题 | `activity_id`，需先查询活动列表 | 🔲 待抓包 |
+| P1 | 章节 | `chapters` 数组，每项含 `title` + `time_offset_ms` | ⏸ 暂不实现，按需再做 |
+| P1 | 合集 | `collection_id` 字符串，需先查询已有合集 | ⏸ 暂不实现，按需再做 |
+| P2 | 地点 POI | `poi_id` + `poi_name`，需先调用 POI 搜索 API | ⏸ 暂不实现，按需再做 |
+| P3 | 活动话题 | `activity_id`，需先查询活动列表 | ⏸ 暂不实现，按需再做 |
 
 ### 3.2 已确认的字段格式（来自抓包 1.log，2026-06-01）
 
@@ -163,25 +163,90 @@ client.xhs.get_friend_fans(cursor="", size=20)
 
 ---
 
-## 四、长文和播客（第二阶段）
+## 四、合集管理（已抓包，2026-06-01）
 
-### 4.1 长文笔记
+合集是长文/视频/图文的容器，发布笔记时可指定归属合集。以下 API 均已通过抓包确认。
 
-长文走 `/publish/article` 路径，正文是富文本（类似 Notion/Tiptap 格式）。
+### 4.1 上传合集封面
 
-**需要抓包确认：**
-- 发布端点 URL
-- 正文的 JSON 格式（Tiptap JSON 还是 HTML？）
-- 图片内嵌方式（上传后替换为 URL？）
-- 是否复用同一个 COS 上传流程
+复用图片上传流程，但 permit 端点不同（`/upload/web/permit` 而非 `/upload/creator/permit`）：
 
-### 4.2 播客
+```
+GET /api/media/v1/upload/web/permit?biz_name=spectrum&scene=image&file_count=1&version=1&source=web
+```
 
-**需要抓包确认：**
-- 发布端点 URL
-- 音频上传流程（是否复用 COS？）
-- 封面图要求
-- 是否支持章节
+返回 `uploadTempPermits`，后续 PUT 上传到 COS，流程与图文封面一致。上传成功后得到 `field_id`（格式 `spectrum/xxx`）。
+
+### 4.2 创建合集
+
+```
+POST /api/sns/v1/note/collection/pc/create
+```
+
+请求体：
+```json
+{
+  "name": "合集名称",
+  "desc": "合集简介",
+  "type": 2,
+  "image": {
+    "field_id": "spectrum/xxx",
+    "file_name": "",
+    "width": "768",
+    "height": "1024"
+  }
+}
+```
+
+注意：
+- `type: 2` 固定值（长文合集）
+- `image.width` / `image.height` 是字符串，不是数字
+- 返回 `data.collection_id`，后续发布笔记时使用
+
+### 4.3 查询用户合集列表
+
+```
+POST /api/sns/v1/note/collection/pc/list_v2
+```
+
+请求体：
+```json
+{
+  "cursor": "",
+  "need_type_list": [2],
+  "target_uid": ""
+}
+```
+
+返回 `data.collection_info_list`，每项含 `id`、`name`、`desc`、`icon`、`note_num` 等。
+
+### 4.4 查询合集下的笔记
+
+```
+GET /api/sns/v1/note/collection/pc/list_note_v2?collection_id={collection_id}
+```
+
+### 4.5 更新合集信息
+
+```
+POST /api/sns/v1/note/collection/pc/update
+```
+
+请求体：
+```json
+{
+  "collection_id": "xxx",
+  "name": "新名称",
+  "desc": "新简介",
+  "image": {
+    "field_id": "",
+    "width": 0,
+    "height": 0
+  }
+}
+```
+
+注意：`image.field_id` 传空字符串表示不更换封面，传新的 `spectrum/xxx` 则更换封面。
 
 ---
 
@@ -346,25 +411,85 @@ client.xhs.get_friend_fans(cursor="", size=20)
 
 ---
 
-## 四、长文和播客（第二阶段）
+## 四、合集管理
 
-### 4.1 长文笔记
+### 4.1 已确认的 API（来自抓包 2026-06-01）
 
-长文走 `/publish/article` 路径，正文是富文本（类似 Notion/Tiptap 格式）。
+| 操作 | 方法 | 端点 |
+|------|------|------|
+| 获取上传许可（封面） | GET | `/api/media/v1/upload/web/permit?biz_name=spectrum&scene=image&...` |
+| 创建合集 | POST | `/api/sns/v1/note/collection/pc/create` |
+| 查询合集列表 | POST | `/api/sns/v1/note/collection/pc/list_v2` |
+| 查询合集内笔记 | GET | `/api/sns/v1/note/collection/pc/list_note_v2?collection_id=xxx` |
+| 更新合集信息 | POST | `/api/sns/v1/note/collection/pc/update` |
 
-**需要抓包确认：**
-- 发布端点 URL
-- 正文的 JSON 格式（Tiptap JSON 还是 HTML？）
-- 图片内嵌方式（上传后替换为 URL？）
-- 是否复用同一个 COS 上传流程
+### 4.2 创建合集请求体
 
-### 4.2 播客
+```json
+{
+  "name": "合集名称",
+  "desc": "合集简介",
+  "type": 2,
+  "image": {
+    "field_id": "spectrum/xxx",
+    "file_name": "",
+    "width": "768",
+    "height": "1024"
+  }
+}
+```
+返回：`{"collection_id": "xxx"}`
 
-**需要抓包确认：**
-- 发布端点 URL
-- 音频上传流程（是否复用 COS？）
-- 封面图要求
-- 是否支持章节
+### 4.3 更新合集请求体
+
+```json
+{
+  "collection_id": "xxx",
+  "name": "新名称",
+  "desc": "新简介",
+  "image": {"field_id": "", "width": 0, "height": 0}
+}
+```
+注意：`image.field_id` 传空字符串表示不更换封面。
+
+### 4.4 查询合集列表请求体
+
+```json
+{"cursor": "", "need_type_list": [2], "target_uid": ""}
+```
+`type: 2` 表示长文合集类型。
+
+### 4.5 Python API
+
+```python
+# 创建合集（可选封面）
+result = client.xhs.create_collection(
+    name="合集名称",
+    desc="合集简介",
+    cover={"base64": "...", "mimeType": "image/jpeg"},  # 可选
+)
+collection_id = result["data"]["collection_id"]
+
+# 查询合集列表
+client.xhs.list_collections(cursor="")
+
+# 查询合集内笔记
+client.xhs.list_collection_notes(collection_id="xxx")
+
+# 更新合集
+client.xhs.update_collection(
+    collection_id="xxx",
+    name="新名称",
+    desc="新简介",
+    cover={"base64": "..."},  # 可选，不传则保留原封面
+)
+```
+
+---
+
+## 五、长文和播客（暂缓）
+
+暂不实现，待收集用户反馈后决定是否开发。
 
 ---
 

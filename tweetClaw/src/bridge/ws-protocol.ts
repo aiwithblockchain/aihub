@@ -59,6 +59,16 @@ export type MessageType =
   | 'response.xhs_delete_note'
   | 'command.xhs_delete_comment'
   | 'response.xhs_delete_comment'
+  | 'command.xhs_get_friend_fans'
+  | 'response.xhs_get_friend_fans'
+  | 'command.xhs_create_collection'
+  | 'response.xhs_create_collection'
+  | 'command.xhs_list_collections'
+  | 'response.xhs_list_collections'
+  | 'command.xhs_list_collection_notes'
+  | 'response.xhs_list_collection_notes'
+  | 'command.xhs_update_collection'
+  | 'response.xhs_update_collection'
   | 'command.query_x_basic_info'
   | 'request.open_tab'
   | 'response.open_tab'
@@ -151,6 +161,16 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_XHS_DELETE_NOTE: 'response.xhs_delete_note',
   COMMAND_XHS_DELETE_COMMENT: 'command.xhs_delete_comment',
   RESPONSE_XHS_DELETE_COMMENT: 'response.xhs_delete_comment',
+  COMMAND_XHS_GET_FRIEND_FANS: 'command.xhs_get_friend_fans',
+  RESPONSE_XHS_GET_FRIEND_FANS: 'response.xhs_get_friend_fans',
+  COMMAND_XHS_CREATE_COLLECTION: 'command.xhs_create_collection',
+  RESPONSE_XHS_CREATE_COLLECTION: 'response.xhs_create_collection',
+  COMMAND_XHS_LIST_COLLECTIONS: 'command.xhs_list_collections',
+  RESPONSE_XHS_LIST_COLLECTIONS: 'response.xhs_list_collections',
+  COMMAND_XHS_LIST_COLLECTION_NOTES: 'command.xhs_list_collection_notes',
+  RESPONSE_XHS_LIST_COLLECTION_NOTES: 'response.xhs_list_collection_notes',
+  COMMAND_XHS_UPDATE_COLLECTION: 'command.xhs_update_collection',
+  RESPONSE_XHS_UPDATE_COLLECTION: 'response.xhs_update_collection',
   COMMAND_QUERY_X_BASIC_INFO: 'command.query_x_basic_info',
   REQUEST_OPEN_TAB: 'request.open_tab',
   RESPONSE_OPEN_TAB: 'response.open_tab',

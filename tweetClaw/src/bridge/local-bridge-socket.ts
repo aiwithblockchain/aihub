@@ -89,6 +89,11 @@ export class LocalBridgeSocket {
   public xhsCollectNoteHandler: ((payload: any) => Promise<any>) | null = null;
   public xhsDeleteNoteHandler: ((payload: any) => Promise<any>) | null = null;
   public xhsDeleteCommentHandler: ((payload: any) => Promise<any>) | null = null;
+  public xhsGetFriendFansHandler: ((payload: any) => Promise<any>) | null = null;
+  public xhsCreateCollectionHandler: ((payload: any) => Promise<any>) | null = null;
+  public xhsListCollectionsHandler: ((payload: any) => Promise<any>) | null = null;
+  public xhsListCollectionNotesHandler: ((payload: any) => Promise<any>) | null = null;
+  public xhsUpdateCollectionHandler: ((payload: any) => Promise<any>) | null = null;
   public openTabHandler: ((payload: any) => Promise<any>) | null = null;
   public closeTabHandler: ((payload: any) => Promise<any>) | null = null;
   public navigateTabHandler: ((payload: any) => Promise<any>) | null = null;
@@ -691,6 +696,21 @@ export class LocalBridgeSocket {
           break;
         case MESSAGE_TYPES.COMMAND_XHS_DELETE_COMMENT:
           this.handleGenericQuery(msg, this.xhsDeleteCommentHandler, MESSAGE_TYPES.RESPONSE_XHS_DELETE_COMMENT);
+          break;
+        case MESSAGE_TYPES.COMMAND_XHS_GET_FRIEND_FANS:
+          this.handleGenericQuery(msg, this.xhsGetFriendFansHandler, MESSAGE_TYPES.RESPONSE_XHS_GET_FRIEND_FANS);
+          break;
+        case MESSAGE_TYPES.COMMAND_XHS_CREATE_COLLECTION:
+          this.handleGenericQuery(msg, this.xhsCreateCollectionHandler, MESSAGE_TYPES.RESPONSE_XHS_CREATE_COLLECTION);
+          break;
+        case MESSAGE_TYPES.COMMAND_XHS_LIST_COLLECTIONS:
+          this.handleGenericQuery(msg, this.xhsListCollectionsHandler, MESSAGE_TYPES.RESPONSE_XHS_LIST_COLLECTIONS);
+          break;
+        case MESSAGE_TYPES.COMMAND_XHS_LIST_COLLECTION_NOTES:
+          this.handleGenericQuery(msg, this.xhsListCollectionNotesHandler, MESSAGE_TYPES.RESPONSE_XHS_LIST_COLLECTION_NOTES);
+          break;
+        case MESSAGE_TYPES.COMMAND_XHS_UPDATE_COLLECTION:
+          this.handleGenericQuery(msg, this.xhsUpdateCollectionHandler, MESSAGE_TYPES.RESPONSE_XHS_UPDATE_COLLECTION);
           break;
         case MESSAGE_TYPES.COMMAND_QUERY_X_BASIC_INFO:
           this.handleQueryXBasicInfo(msg);

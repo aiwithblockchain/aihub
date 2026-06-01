@@ -166,3 +166,22 @@ class XhsApiTransport(BaseApiTransport):
         if cursor:
             params["cursor"] = cursor
         return self.request_json("GET", "/api/v1/xhs/friend_fans", params=params)
+
+    def create_collection_raw(self, name: str, desc: str = '', cover: Optional[Dict[str, Any]] = None) -> Dict[Any, Any]:
+        payload: Dict[str, Any] = {"name": name, "desc": desc}
+        if cover is not None:
+            payload["cover"] = cover
+        return self.request_json("POST", "/api/v1/xhs/collection/create", json=payload)
+
+    def list_collections_raw(self, cursor: str = '') -> Dict[Any, Any]:
+        payload: Dict[str, Any] = {"cursor": cursor}
+        return self.request_json("POST", "/api/v1/xhs/collection/list", json=payload)
+
+    def list_collection_notes_raw(self, collection_id: str) -> Dict[Any, Any]:
+        return self.request_json("GET", "/api/v1/xhs/collection/notes", params={"collection_id": collection_id})
+
+    def update_collection_raw(self, collection_id: str, name: str, desc: str = '', cover: Optional[Dict[str, Any]] = None) -> Dict[Any, Any]:
+        payload: Dict[str, Any] = {"collection_id": collection_id, "name": name, "desc": desc}
+        if cover is not None:
+            payload["cover"] = cover
+        return self.request_json("POST", "/api/v1/xhs/collection/update", json=payload)

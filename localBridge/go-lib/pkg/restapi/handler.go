@@ -92,6 +92,11 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/xhs/collect", h.xhsCollectNote)
 	mux.HandleFunc("/api/v1/xhs/delete_note", h.xhsDeleteNote)
 	mux.HandleFunc("/api/v1/xhs/delete_comment", h.xhsDeleteComment)
+	mux.HandleFunc("/api/v1/xhs/friend_fans", h.xhsGetFriendFans)
+	mux.HandleFunc("/api/v1/xhs/collection/create", h.xhsCreateCollection)
+	mux.HandleFunc("/api/v1/xhs/collection/list", h.xhsListCollections)
+	mux.HandleFunc("/api/v1/xhs/collection/notes", h.xhsListCollectionNotes)
+	mux.HandleFunc("/api/v1/xhs/collection/update", h.xhsUpdateCollection)
 
 }
 
@@ -848,6 +853,71 @@ func (h *Handler) xhsDeleteComment(w http.ResponseWriter, r *http.Request) {
 			log.Printf("[xhsDeleteComment] received response len=%d", len(data))
 			writeRawPayload(w, data)
 		})
+}
+
+func (h *Handler) xhsGetFriendFans(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	id := newID("http_xhs_get_friend_fans")
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_friend_fans", "tweetClaw", queryToMap(r)), 15000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) xhsCreateCollection(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	body, err := readRawBody(r)
+	if err != nil {
+		jsonErr(w, 400, err.Error())
+		return
+	}
+	id := newID("http_xhs_create_collection")
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_create_collection", "tweetClaw", body), 30000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) xhsListCollections(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	body, err := readRawBody(r)
+	if err != nil {
+		jsonErr(w, 400, err.Error())
+		return
+	}
+	id := newID("http_xhs_list_collections")
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_list_collections", "tweetClaw", body), 15000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) xhsListCollectionNotes(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	id := newID("http_xhs_list_collection_notes")
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_list_collection_notes", "tweetClaw", queryToMap(r)), 15000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) xhsUpdateCollection(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	body, err := readRawBody(r)
+	if err != nil {
+		jsonErr(w, 400, err.Error())
+		return
+	}
+	id := newID("http_xhs_update_collection")
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_update_collection", "tweetClaw", body), 15000,
+		func(data []byte) { writeRawPayload(w, data) })
 }
 
 // --- aiClaw 端点 ---

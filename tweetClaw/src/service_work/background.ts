@@ -133,6 +133,11 @@ localBridge.xhsUnfollowUserHandler = unfollowXhsUser;
 localBridge.xhsCollectNoteHandler = collectXhsNote;
 localBridge.xhsDeleteNoteHandler = deleteXhsNote;
 localBridge.xhsDeleteCommentHandler = deleteXhsComment;
+localBridge.xhsGetFriendFansHandler = getXhsFriendFans;
+localBridge.xhsCreateCollectionHandler = createXhsCollection;
+localBridge.xhsListCollectionsHandler = listXhsCollections;
+localBridge.xhsListCollectionNotesHandler = listXhsCollectionNotes;
+localBridge.xhsUpdateCollectionHandler = updateXhsCollection;
 localBridge.openTabHandler = openXTab;
 localBridge.closeTabHandler = closeXTab;
 localBridge.navigateTabHandler = navigateXTab;
@@ -1875,5 +1880,70 @@ export async function likeXhsNote(payload: Record<string, unknown>): Promise<any
         throw new Error(result?.error || 'Failed to like note');
     }
 
+    return result.data;
+}
+
+export async function getXhsFriendFans(payload: Record<string, unknown> = {}): Promise<any> {
+    const tabId = await getOrOpenCreatorTab();
+    if (!tabId) throw new Error('No Xiaohongshu creator tab found.');
+
+    const result: any = await chrome.tabs.sendMessage(tabId, {
+        type: 'XHS_GET_FRIEND_FANS',
+        ...payload,
+    }).catch((e: any) => { throw new Error(`Content script communication failed: ${e?.message}`); });
+
+    if (!result?.success) throw new Error(result?.error || 'Failed to get friend fans');
+    return result.data;
+}
+
+export async function createXhsCollection(payload: Record<string, unknown>): Promise<any> {
+    const tabId = await getOrOpenCreatorTab();
+    if (!tabId) throw new Error('No Xiaohongshu creator tab found.');
+
+    const result: any = await chrome.tabs.sendMessage(tabId, {
+        type: 'XHS_CREATE_COLLECTION',
+        ...payload,
+    }).catch((e: any) => { throw new Error(`Content script communication failed: ${e?.message}`); });
+
+    if (!result?.success) throw new Error(result?.error || 'Failed to create collection');
+    return result.data;
+}
+
+export async function listXhsCollections(payload: Record<string, unknown> = {}): Promise<any> {
+    const tabId = await getOrOpenCreatorTab();
+    if (!tabId) throw new Error('No Xiaohongshu creator tab found.');
+
+    const result: any = await chrome.tabs.sendMessage(tabId, {
+        type: 'XHS_LIST_COLLECTIONS',
+        ...payload,
+    }).catch((e: any) => { throw new Error(`Content script communication failed: ${e?.message}`); });
+
+    if (!result?.success) throw new Error(result?.error || 'Failed to list collections');
+    return result.data;
+}
+
+export async function listXhsCollectionNotes(payload: Record<string, unknown>): Promise<any> {
+    const tabId = await getOrOpenCreatorTab();
+    if (!tabId) throw new Error('No Xiaohongshu creator tab found.');
+
+    const result: any = await chrome.tabs.sendMessage(tabId, {
+        type: 'XHS_LIST_COLLECTION_NOTES',
+        ...payload,
+    }).catch((e: any) => { throw new Error(`Content script communication failed: ${e?.message}`); });
+
+    if (!result?.success) throw new Error(result?.error || 'Failed to list collection notes');
+    return result.data;
+}
+
+export async function updateXhsCollection(payload: Record<string, unknown>): Promise<any> {
+    const tabId = await getOrOpenCreatorTab();
+    if (!tabId) throw new Error('No Xiaohongshu creator tab found.');
+
+    const result: any = await chrome.tabs.sendMessage(tabId, {
+        type: 'XHS_UPDATE_COLLECTION',
+        ...payload,
+    }).catch((e: any) => { throw new Error(`Content script communication failed: ${e?.message}`); });
+
+    if (!result?.success) throw new Error(result?.error || 'Failed to update collection');
     return result.data;
 }

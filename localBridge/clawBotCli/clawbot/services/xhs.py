@@ -154,6 +154,64 @@ class XhsService:
         """
         return self.transport.get_friend_fans_raw(cursor=cursor, size=size)
 
+    # ── Collection Management ─────────────────────────────────────────────────
+
+    def create_collection(
+        self,
+        name: str,
+        desc: str = '',
+        cover: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Create a new collection.
+
+        Args:
+            name: Collection name
+            desc: Collection description
+            cover: Optional cover image dict with 'base64' and optional 'mimeType'
+        Returns:
+            Dict with 'collection_id'
+        """
+        return self.transport.create_collection_raw(name=name, desc=desc, cover=cover)
+
+    def list_collections(self, cursor: str = '') -> Dict[str, Any]:
+        """
+        List user's collections.
+
+        Args:
+            cursor: Pagination cursor (empty string for first page)
+        """
+        return self.transport.list_collections_raw(cursor=cursor)
+
+    def list_collection_notes(self, collection_id: str) -> Dict[str, Any]:
+        """
+        List notes in a collection.
+
+        Args:
+            collection_id: The collection ID
+        """
+        return self.transport.list_collection_notes_raw(collection_id=collection_id)
+
+    def update_collection(
+        self,
+        collection_id: str,
+        name: str,
+        desc: str = '',
+        cover: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Update collection info.
+
+        Args:
+            collection_id: The collection ID to update
+            name: New collection name
+            desc: New collection description
+            cover: Optional new cover image dict with 'base64' and optional 'mimeType'. Omit to keep existing cover.
+        """
+        return self.transport.update_collection_raw(
+            collection_id=collection_id, name=name, desc=desc, cover=cover,
+        )
+
     # ── Search Filters ────────────────────────────────────────────────────────
 
     def search_filter(self, keyword: str, search_id: Optional[str] = None) -> Dict[str, Any]:

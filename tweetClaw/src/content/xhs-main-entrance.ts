@@ -382,8 +382,12 @@ interface ImageUploadResult {
   mimeType: string;
 }
 
-async function getUploadPermit(scene: 'image' | 'video'): Promise<UploadPermit> {
-  const apiPath = `/api/media/v1/upload/creator/permit?biz_name=spectrum&scene=${scene}&file_count=1&version=1&source=web`;
+async function getUploadPermit(scene: 'image' | 'video', source: 'creator' | 'web' = 'creator'): Promise<UploadPermit> {
+  const baseUrl = source === 'web' ? EDITH : CREATOR;
+  const permitPath = source === 'web'
+    ? `/api/media/v1/upload/web/permit`
+    : `/api/media/v1/upload/creator/permit`;
+  const apiPath = `${permitPath}?biz_name=spectrum&scene=${scene}&file_count=1&version=1&source=web`;
   const signHeaders = await requestSign(apiPath, '');
 
   const headers: Record<string, string> = {
@@ -395,7 +399,7 @@ async function getUploadPermit(scene: 'image' | 'video'): Promise<UploadPermit> 
   };
   if (signHeaders['x-s-common']) headers['x-s-common'] = signHeaders['x-s-common'];
 
-  const response = await fetch(`${CREATOR}${apiPath}`, { method: 'GET', headers, credentials: 'include' });
+  const response = await fetch(`${baseUrl}${apiPath}`, { method: 'GET', headers, credentials: 'include' });
   if (!response.ok) {
     const text = await response.text();
     throw new Error(`getUploadPermit ${response.status}: ${text.slice(0, 200)}`);
@@ -404,7 +408,7 @@ async function getUploadPermit(scene: 'image' | 'video'): Promise<UploadPermit> 
   if (!res.success) throw new Error(`getUploadPermit failed: ${res.msg}`);
 
   const permits: any[] = res.data.uploadTempPermits;
-  console.log(`${TAG} [getUploadPermit] scene=${scene} permits count=${permits.length}`, permits.map((p: any) => p.uploadAddr));
+  console.log(`${TAG} [getUploadPermit] scene=${scene} source=${source} permits count=${permits.length}`, permits.map((p: any) => p.uploadAddr));
 
   // video 优先选 CDN 节点（ros-upload-d4.xhscdn.com），image 用主节点
   const permit = scene === 'video'
@@ -1228,7 +1232,85 @@ async function deleteNote(noteId: string): Promise<any> {
 
 async function getFriendFans(cursor: string = '', size: number = 20): Promise<any> {
   const params = new URLSearchParams({ cursor, size: String(size) });
-  return signedFetch(`/api/sns/capa/servicegw/note_privacy/user/friend_fans?${params}`, 'GET');
+  return signedFetch(`/api/sns/capa/servicegw/note_privacy/user/friend_fans?${params}`, 'GET', undefined, {
+    'referer': 'https://creator.xiaohongshu.com/',
+  });
+}
+
+// ── 合集管理 ──────────────────────────────────────────────────────────────────
+
+async function uploadCollectionCover(imageBase64: string, mimeType = 'image/jpeg'): Promise<{ fieldId: string; width: number; height: number }> {
+  const permit = await getUploadPermit('image', 'web');
+  const { fileId, expireTime, token, uploadHost, xt } = permit;
+  const message = `${xt};${expireTime}`;
+
+  const binaryStr = atob(imageBase64);
+  const fileBytes = new Uint8Array(binaryStr.length);
+  for (let i = 0; i < binaryStr.length; i++) fileBytes[i] = binaryStr.charCodeAt(i);
+  const fileSize = fileBytes.length;
+
+  const blob = new Blob([fileBytes], { type: mimeType });
+  let width = 0, height = 0;
+  try {
+    const bitmap = await createImageBitmap(blob);
+    width = bitmap.width;
+    height = bitmap.height;
+    bitmap.close();
+  } catch (e) {
+    console.warn(`${TAG} [uploadCollectionCover] Could not get image dimensions`);
+  }
+
+  const signature = await getUploadSignature(message, fileId, fileSize, uploadHost);
+  const authHeader = `q-sign-algorithm=sha1&q-ak=null&q-sign-time=${message}&q-key-time=${message}&q-header-list=content-length;host&q-url-param-list=&q-signature=${signature}`;
+  const uploadHostFull = uploadHost.startsWith('http') ? uploadHost : `https://${uploadHost}`;
+
+  const putResponse = await fetch(`${uploadHostFull}/spectrum/${fileId}`, {
+    method: 'PUT',
+    headers: {
+      'accept': '*/*',
+      'authorization': authHeader,
+      'origin': 'https://creator.xiaohongshu.com',
+      'referer': 'https://creator.xiaohongshu.com/',
+      'x-cos-security-token': token,
+    },
+    body: fileBytes,
+    credentials: 'omit',
+  });
+  if (!putResponse.ok && putResponse.status !== 409) {
+    const text = await putResponse.text();
+    throw new Error(`COS upload collection cover ${putResponse.status}: ${text.slice(0, 200)}`);
+  }
+
+  return { fieldId: `spectrum/${fileId}`, width, height };
+}
+
+async function createCollection(name: string, desc: string, coverBase64?: string, coverMime = 'image/jpeg'): Promise<any> {
+  let image = { field_id: '', file_name: '', width: '0', height: '0' };
+  if (coverBase64) {
+    const cover = await uploadCollectionCover(coverBase64, coverMime);
+    image = { field_id: cover.fieldId, file_name: '', width: String(cover.width), height: String(cover.height) };
+  }
+  const body = JSON.stringify({ name, desc, type: 2, image });
+  return signedFetch('/api/sns/v1/note/collection/pc/create', 'POST', body, { 'referer': 'https://creator.xiaohongshu.com/' });
+}
+
+async function listCollections(cursor: string = ''): Promise<any> {
+  const body = JSON.stringify({ cursor, need_type_list: [2], target_uid: '' });
+  return signedFetch('/api/sns/v1/note/collection/pc/list_v2', 'POST', body, { 'referer': 'https://creator.xiaohongshu.com/' });
+}
+
+async function listCollectionNotes(collectionId: string): Promise<any> {
+  return signedFetch(`/api/sns/v1/note/collection/pc/list_note_v2?collection_id=${encodeURIComponent(collectionId)}`, 'GET', undefined, { 'referer': 'https://creator.xiaohongshu.com/' });
+}
+
+async function updateCollection(collectionId: string, name: string, desc: string, coverBase64?: string, coverMime = 'image/jpeg'): Promise<any> {
+  let image = { field_id: '', width: 0, height: 0 };
+  if (coverBase64) {
+    const cover = await uploadCollectionCover(coverBase64, coverMime);
+    image = { field_id: cover.fieldId, width: cover.width, height: cover.height };
+  }
+  const body = JSON.stringify({ collection_id: collectionId, name, desc, image });
+  return signedFetch('/api/sns/v1/note/collection/pc/update', 'POST', body, { 'referer': 'https://creator.xiaohongshu.com/' });
 }
 
 async function deleteComment(noteId: string, commentId: string): Promise<any> {
@@ -1769,6 +1851,73 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ success: true, data });
       } catch (e: any) {
         console.error(`${TAG} [GET_FRIEND_FANS] error:`, e.message);
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === XHS_MSG_TYPE.CREATE_COLLECTION) {
+    (async () => {
+      try {
+        if (!message.name) { sendResponse({ success: false, error: 'name is required' }); return; }
+        const data = await createCollection(
+          String(message.name),
+          String(message.desc || ''),
+          message.cover?.base64,
+          message.cover?.mimeType,
+        );
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        console.error(`${TAG} [CREATE_COLLECTION] error:`, e.message);
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === XHS_MSG_TYPE.LIST_COLLECTIONS) {
+    (async () => {
+      try {
+        const data = await listCollections(String(message.cursor || ''));
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        console.error(`${TAG} [LIST_COLLECTIONS] error:`, e.message);
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === XHS_MSG_TYPE.LIST_COLLECTION_NOTES) {
+    (async () => {
+      try {
+        if (!message.collection_id) { sendResponse({ success: false, error: 'collection_id is required' }); return; }
+        const data = await listCollectionNotes(String(message.collection_id));
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        console.error(`${TAG} [LIST_COLLECTION_NOTES] error:`, e.message);
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === XHS_MSG_TYPE.UPDATE_COLLECTION) {
+    (async () => {
+      try {
+        if (!message.collection_id) { sendResponse({ success: false, error: 'collection_id is required' }); return; }
+        if (!message.name) { sendResponse({ success: false, error: 'name is required' }); return; }
+        const data = await updateCollection(
+          String(message.collection_id),
+          String(message.name),
+          String(message.desc || ''),
+          message.cover?.base64,
+          message.cover?.mimeType,
+        );
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        console.error(`${TAG} [UPDATE_COLLECTION] error:`, e.message);
         sendResponse({ success: false, error: e.message });
       }
     })();
