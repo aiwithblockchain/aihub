@@ -160,7 +160,7 @@ XHS 和 X 使用**同一个浏览器扩展（tweetClaw）**，走同一个 Local
 
 TweetPilot 的 Go 代码入口是 `localBridge/go-lib/cmd/rust-bridge/main.go`，编译脚本是 `localBridge/go-lib/scripts/build-rust-static.sh`（macOS）和 `build-windows-dll.ps1`（Windows），编译产物以静态库形式链接进 Tauri 应用，端口在 Rust 层通过 `LocalBridgeConfig` 传入 Go。
 
-所以在 TweetPilot clawbot 里，XHS 和 X 的请求都走同一个 `base_url`（20088），**不需要** `xhs_base_url` 这个独立参数。
+所以在 TweetPilot clawbot 里，XHS 和 X 的请求都走同一个 `base_url`（20088），不需要额外的独立参数。
 
 `ClawBotClient` 的初始化保持现有签名不变：
 
@@ -259,8 +259,8 @@ client.xhs.publish_note(title="标题", desc="正文", images=[...])
   到  ~/.tweetpilot/clawbot/clawbot/services/xhs.py
   验证：文件存在，import 无报错
 
-  步骤 3：修改 config.py
-  无需修改，XHS 复用同一个 API_BASE_URL
+步骤 3：config.py 无需修改
+  XHS 复用同一个 API_BASE_URL（20088）
 
 步骤 4：修改 client.py
   新增 XhsApiTransport + XhsService，复用现有 base_url 参数
