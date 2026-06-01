@@ -2,7 +2,7 @@
 
 > 目标：为 AI 自动化运营小红书构建完整的基础 API 能力层  
 > 创建日期：2026-05-25  
-> 状态：阶段二写操作 API 全部完成（2026-05-31 更新）
+> 状态：阶段二写操作 API 全部完成，发布参数优化 + 合集管理 API 全部完成（2026-06-01 更新）
 
 ---
 
@@ -171,7 +171,10 @@ tweetClaw 只提供原子 API，以下场景由上层智能体编排实现：
 |------|-------------------|
 | 自动回复评论 | `get_notifications` + `reply_comment` |
 | 话题互动增长 | `search_notes` + `like_note` + `follow_user` |
-| 内容发布（含话题） | `search_topics` + `publish_image_note`（已有）|
+| 内容发布（含话题/定时/隐私） | `search_topics` + `publish_image_note` / `publish_video_note` |
+| 视频归档到合集 | `list_collections` + `publish_video_note`（传 collection_id） |
+| 创建合集并发布 | `create_collection` + `publish_video_note` |
+| 指定人可见发布 | `get_friend_fans` + `publish_video_note`（privacy_type=3） |
 | 账号数据监控 | `get_self_info` + `get_published_notes` + `get_note_detail` |
 | 竞品内容分析 | `search_notes` + `get_note_detail` + `get_note_comments` |
 
@@ -206,7 +209,7 @@ POST /api/v1/plugins/tweetClaw/invoke
 }
 ```
 
-如果某个 API 调用频率极高，可在 handler.go 新增预制快捷端点（参考现有 `/api/v1/x/` 系列）。
+如果某个 API 调用频率极高，可在 handler.go 新增预制快捷端点（参考现有 `/api/v1/x/` 系列）。合集管理 API 已在 handler.go 新增预制端点（`/api/v1/xhs/collection/*`）。
 
 ---
 
@@ -244,7 +247,8 @@ localBridge REST 端点 → Go messageType → tweetClaw content script
 
 | 功能 | REST 端点 | Go messageType | 状态 |
 |------|-----------|---------------|------|
-| 发布图文笔记 | `POST /api/v1/xhs/publish` | `command.xhs_publish_image_note` | ✅ 已完成+测试通过 | 
+| 发布图文笔记 | `POST /api/v1/xhs/publish` | `command.xhs_publish_image_note` | ✅ 已完成+测试通过（支持话题/隐私/定时/封面） |
+| 发布视频笔记 | `POST /api/v1/xhs/publish_video` | `command.xhs_publish_video_note` | ✅ 已完成+测试通过（2026-06-01，支持话题/隐私/定时/封面） | 
 | 回复/发布评论 | `POST /api/v1/xhs/comment` | `command.xhs_post_comment` | ✅ 已完成+测试通过（2026-05-29） |
 | 搜索用户（@用户前置） | `GET /api/v1/xhs/search_users` | `command.xhs_search_users` | ✅ 已完成+测试通过（2026-05-29） |
 | 获取好友列表（@用户前置） | `GET /api/v1/xhs/intimacy_list` | `command.xhs_get_intimacy_list` | ✅ 已实现（2026-05-29） |
@@ -256,6 +260,11 @@ localBridge REST 端点 → Go messageType → tweetClaw content script
 | 私信用户 | — | — | 🔲 待实现 |
 | 删除评论 | `POST /api/v1/xhs/delete_comment` | `command.xhs_delete_comment` | ✅ 已完成+测试通过（2026-05-30） |
 | 删除笔记 | `POST /api/v1/xhs/delete_note` | `command.xhs_delete_note` | ✅ 已完成+测试通过（2026-05-31，需 creator tab 已打开） |
+| 获取好友粉丝列表 | `GET /api/v1/xhs/friend_fans` | `command.xhs_get_friend_fans` | ✅ 已完成+测试通过（2026-06-01） |
+| 创建合集 | `POST /api/v1/xhs/collection/create` | `command.xhs_create_collection` | ✅ 已完成+测试通过（2026-06-01） |
+| 查询合集列表 | `POST /api/v1/xhs/collection/list` | `command.xhs_list_collections` | ✅ 已完成+测试通过（2026-06-01） |
+| 查询合集内笔记 | `GET /api/v1/xhs/collection/notes` | `command.xhs_list_collection_notes` | ✅ 已完成+测试通过（2026-06-01） |
+| 更新合集信息 | `POST /api/v1/xhs/collection/update` | `command.xhs_update_collection` | ✅ 已完成+测试通过（2026-06-01） |
 
 ---
 
@@ -308,3 +317,225 @@ POST /api/v1/xhs/comment
 - `content` 里必须包含 `@昵称`（前面有空格）
 - `at_users` 里的 `user_id` 必须是带后缀的完整格式
 - `nickname` 必须与搜索结果中的昵称完全一致
+
+---
+
+## 七、发布笔记参数详解（2026-06-01 抓包确认）
+
+图文和视频笔记共用端点 `POST /web_api/sns/v2/note`，以下参数均已通过抓包确认。
+
+### 7.1 可见范围（privacy_info）
+
+发布接口使用 `privacy_info` 对象，不是顶层整数字段：
+
+```json
+"privacy_info": {
+  "op_type": 1,
+  "type": 0,
+  "user_ids": []
+}
+```
+
+`type` 枚举（全部已确认）：
+
+| 值 | 含义 | user_ids |
+|----|------|----------|
+| `0` | 公开 | `[]` |
+| `1` | 仅自己可见 | `[]` |
+| `3` | 指定人可见 | 填指定用户 ID 列表 |
+| `4` | 好友可见 | `[]` |
+
+注意：没有 `type: 2`，好友可见是 `4` 不是 `2`。
+
+指定人可见（type=3）需先调用 `GET /api/sns/capa/servicegw/note_privacy/user/friend_fans?cursor=&size=20` 获取可选用户列表（支持 cursor 翻页）。
+
+### 7.2 话题标签（topics）
+
+话题必须双写，缺一不可：
+
+**`common.hash_tag` 数组：**
+```json
+[
+  { "id": "624d11eb000000000101e223", "name": "大模型", "type": "topic" },
+  { "id": "6283ac7d0000000001007a8e", "name": "科技的魅力", "type": "topic" }
+]
+```
+注意：`type` 是字符串 `"topic"`，不是数字。
+
+**`common.desc` 正文内嵌：**
+```
+"正文内容 #大模型[话题]# #科技的魅力[话题]#"
+```
+
+话题来源：调用 `/api/galaxy/v2/creator/recommend/suggest/topics`，传入笔记标题和正文，返回推荐话题列表，按名称精确匹配后取 `id`。
+
+### 7.3 定时发布（scheduled_publish_time）
+
+```json
+"business_binds": {
+  "version": 1,
+  "noteId": 0,
+  "bizType": 13,
+  "notePostTiming": { "postTime": 1780420320000 }
+}
+```
+
+- `bizType: 13` 表示定时发布，`bizType: 0` 表示立即发布
+- `postTime` 是**毫秒级** Unix 时间戳（Python 层传入秒级后自动 ×1000）
+- 字段名是 `postTime`（camelCase），不是 `post_time`
+
+### 7.4 自定义封面（cover）
+
+封面需先通过 COS 上传流程获取 `file_id`，再传入发布接口：
+
+```json
+"cover": {
+  "file_id": "spectrum/xxx",
+  "width": 768,
+  "height": 1024
+}
+```
+
+不能直接传 base64，必须先上传。
+
+### 7.5 Python API（当前参数，2026-06-01）
+
+```python
+# 发布图文笔记
+client.xhs.publish_note(
+    title="标题",
+    desc="正文",
+    images=[{"base64": "...", "mimeType": "image/jpeg"}],
+    privacy_type=0,           # 0=公开 1=私密 3=指定人 4=好友
+    privacy_user_ids=[],      # type=3 时填用户 ID 列表
+    topics=[{"id": "...", "name": "大模型"}],
+    scheduled_publish_time=1780418940,  # 可选，Unix 秒级时间戳
+)
+
+# 发布视频笔记
+client.xhs.publish_video_note(
+    title="标题",
+    desc="正文",
+    video={"base64": "...", "mimeType": "video/mp4"},
+    privacy_type=0,
+    privacy_user_ids=[],
+    topics=[{"id": "...", "name": "大模型"}],
+    scheduled_publish_time=1780418940,
+)
+
+# 获取可选用户列表（type=3 时使用）
+client.xhs.get_friend_fans(cursor="", size=20)
+```
+
+测试脚本：`examples/test_xhs_publish_video.py`
+- `--topics "大模型,科技的魅力"` — 自动从推荐列表解析 ID
+- `--schedule 1780418940` — 支持绝对时间戳（>1e9）或秒数偏移
+
+---
+
+## 八、合集管理 API（2026-06-01 抓包确认，全部已实现）
+
+合集是视频/图文/长文的容器，发布笔记时可指定归属合集（`collection_id`）。所有合集 API 均需 creator tab 已打开，使用 `creator.xiaohongshu.com` 的 referer。
+
+### 8.1 API 清单
+
+| 操作 | 方法 | XHS 端点 | localBridge 端点 |
+|------|------|----------|-----------------|
+| 获取好友粉丝列表 | GET | `/api/sns/capa/servicegw/note_privacy/user/friend_fans` | `GET /api/v1/xhs/friend_fans` |
+| 上传合集封面（获取许可） | GET | `/api/media/v1/upload/web/permit` | — （内部调用） |
+| 创建合集 | POST | `/api/sns/v1/note/collection/pc/create` | `POST /api/v1/xhs/collection/create` |
+| 查询合集列表 | POST | `/api/sns/v1/note/collection/pc/list_v2` | `POST /api/v1/xhs/collection/list` |
+| 查询合集内笔记 | GET | `/api/sns/v1/note/collection/pc/list_note_v2` | `GET /api/v1/xhs/collection/notes` |
+| 更新合集信息 | POST | `/api/sns/v1/note/collection/pc/update` | `POST /api/v1/xhs/collection/update` |
+
+### 8.2 创建合集
+
+请求体：
+```json
+{
+  "name": "合集名称",
+  "desc": "合集简介",
+  "type": 2,
+  "image": {
+    "field_id": "spectrum/xxx",
+    "file_name": "",
+    "width": "768",
+    "height": "1024"
+  }
+}
+```
+
+- `type: 2` 固定值（长文/视频合集）
+- `image.width` / `image.height` 是**字符串**，不是数字
+- 不带封面时传 `image: { "field_id": "", "file_name": "", "width": "0", "height": "0" }`
+- 返回 `data.collection_id`，后续发布笔记时使用
+
+封面上传复用图片上传流程，但 permit 端点不同（`/upload/web/permit` 而非 `/upload/creator/permit`）：
+```
+GET /api/media/v1/upload/web/permit?biz_name=spectrum&scene=image&file_count=1&version=1&source=web
+```
+
+### 8.3 查询合集列表
+
+请求体：
+```json
+{ "cursor": "", "need_type_list": [2], "target_uid": "" }
+```
+
+返回 `data.collection_info_list`，每项含 `id`、`name`、`desc`、`icon`、`note_num`。
+
+### 8.4 查询合集内笔记
+
+```
+GET /api/v1/xhs/collection/notes?collection_id={collection_id}
+```
+
+### 8.5 更新合集信息
+
+请求体：
+```json
+{
+  "collection_id": "xxx",
+  "name": "新名称",
+  "desc": "新简介",
+  "image": { "field_id": "", "width": 0, "height": 0 }
+}
+```
+
+`image.field_id` 传空字符串表示不更换封面，传新的 `spectrum/xxx` 则更换封面。
+
+### 8.6 Python API
+
+```python
+# 创建合集（可选封面）
+result = client.xhs.create_collection(
+    name="合集名称",
+    desc="合集简介",
+    cover={"base64": "...", "mimeType": "image/jpeg"},  # 可选
+)
+collection_id = result["data"]["collection_id"]
+
+# 查询合集列表
+client.xhs.list_collections(cursor="")
+
+# 查询合集内笔记
+client.xhs.list_collection_notes(collection_id="xxx")
+
+# 更新合集（可选更换封面）
+client.xhs.update_collection(
+    collection_id="xxx",
+    name="新名称",
+    desc="新简介",
+    cover={"base64": "..."},  # 可选，不传则保留原封面
+)
+
+# 获取好友粉丝列表（用于 privacy_type=3 指定人可见）
+client.xhs.get_friend_fans(cursor="", size=20)
+```
+
+测试脚本：`examples/test_xhs_collection.py`
+- `--action list` — 查询合集列表
+- `--action create --name "名称" --desc "简介" [--cover path/to/img.jpg]`
+- `--action list_notes --collection-id xxx`
+- `--action update --collection-id xxx --name "新名称"`
+- `--action friend_fans`
