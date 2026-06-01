@@ -57,6 +57,7 @@ class XhsService:
         desc: str,
         images: List[Dict[str, Any]],
         privacy_type: int = 0,
+        privacy_user_ids: Optional[List[str]] = None,
         topics: Optional[List[Dict[str, Any]]] = None,
         scheduled_publish_time: Optional[int] = None,
     ) -> Dict[str, Any]:
@@ -67,7 +68,8 @@ class XhsService:
             title: Note title (max 20 characters)
             desc: Note description/content
             images: List of image dicts with 'data' (base64) and 'mime_type'
-            privacy_type: 0=public, 1=private (default: 0)
+            privacy_type: 0=public, 1=private, 3=specific users, 4=friends (default: 0)
+            privacy_user_ids: User IDs for type=3 (specific users visible)
             topics: Optional list of topic dicts with 'id' and 'name' fields
             scheduled_publish_time: Optional Unix timestamp (seconds) for scheduled publish
         """
@@ -76,6 +78,7 @@ class XhsService:
             desc=desc,
             images=images,
             privacy_type=privacy_type,
+            privacy_user_ids=privacy_user_ids,
             topics=topics,
             scheduled_publish_time=scheduled_publish_time,
         )
@@ -112,6 +115,7 @@ class XhsService:
         desc: str,
         video: Dict[str, Any],
         privacy_type: int = 0,
+        privacy_user_ids: Optional[List[str]] = None,
         topics: Optional[List[Dict[str, Any]]] = None,
         scheduled_publish_time: Optional[int] = None,
         cover: Optional[Dict[str, Any]] = None,
@@ -123,7 +127,8 @@ class XhsService:
             title: Note title
             desc: Note description/content
             video: Dict with 'base64' (pure base64, no data: prefix) and optional 'mimeType'
-            privacy_type: 0=public, 1=private (default: 0)
+            privacy_type: 0=public, 1=private, 3=specific users, 4=friends (default: 0)
+            privacy_user_ids: User IDs for type=3 (specific users visible)
             topics: Optional list of topic dicts with 'id' and 'name' fields
             scheduled_publish_time: Optional Unix timestamp (seconds) for scheduled publish
             cover: Optional custom cover dict with 'base64' and optional 'mimeType'
@@ -133,10 +138,21 @@ class XhsService:
             desc=desc,
             video=video,
             privacy_type=privacy_type,
+            privacy_user_ids=privacy_user_ids,
             topics=topics,
             scheduled_publish_time=scheduled_publish_time,
             cover=cover,
         )
+
+    def get_friend_fans(self, cursor: str = '', size: int = 20) -> Dict[str, Any]:
+        """
+        Get friends/fans list for privacy type=3 (specific users visible).
+
+        Args:
+            cursor: Pagination cursor (empty string for first page)
+            size: Number of results per page (default: 20)
+        """
+        return self.transport.get_friend_fans_raw(cursor=cursor, size=size)
 
     # ── Search Filters ────────────────────────────────────────────────────────
 

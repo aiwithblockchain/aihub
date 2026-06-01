@@ -43,6 +43,7 @@ class XhsApiTransport(BaseApiTransport):
 
     def publish_note_raw(self, title: str, desc: str, images: List[Dict[str, Any]],
                         privacy_type: int = 0,
+                        privacy_user_ids: Optional[List[str]] = None,
                         topics: Optional[List[Dict[str, Any]]] = None,
                         scheduled_publish_time: Optional[int] = None) -> Dict[Any, Any]:
         payload: Dict[str, Any] = {
@@ -50,6 +51,7 @@ class XhsApiTransport(BaseApiTransport):
             "desc": desc,
             "images": images,
             "privacy_type": privacy_type,
+            "privacy_user_ids": privacy_user_ids or [],
             "topics": topics or [],
         }
         if scheduled_publish_time is not None:
@@ -96,6 +98,7 @@ class XhsApiTransport(BaseApiTransport):
         desc: str,
         video: Dict[str, Any],
         privacy_type: int = 0,
+        privacy_user_ids: Optional[List[str]] = None,
         topics: Optional[List[Dict[str, Any]]] = None,
         scheduled_publish_time: Optional[int] = None,
         cover: Optional[Dict[str, Any]] = None,
@@ -105,6 +108,7 @@ class XhsApiTransport(BaseApiTransport):
             "desc": desc,
             "video": video,
             "privacy_type": privacy_type,
+            "privacy_user_ids": privacy_user_ids or [],
             "topics": topics or [],
         }
         if scheduled_publish_time is not None:
@@ -156,3 +160,9 @@ class XhsApiTransport(BaseApiTransport):
 
     def delete_comment_raw(self, note_id: str, comment_id: str) -> Dict[Any, Any]:
         return self.request_json("POST", "/api/v1/xhs/delete_comment", json={"note_id": note_id, "comment_id": comment_id})
+
+    def get_friend_fans_raw(self, cursor: str = '', size: int = 20) -> Dict[Any, Any]:
+        params: Dict[str, Any] = {"size": str(size)}
+        if cursor:
+            params["cursor"] = cursor
+        return self.request_json("GET", "/api/v1/xhs/friend_fans", params=params)

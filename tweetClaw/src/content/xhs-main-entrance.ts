@@ -621,8 +621,10 @@ export interface PublishImageNoteParams {
   desc: string;
   /** base64 编码的图片列表（不含 data: 前缀），最多 15 张 */
   images: Array<{ base64: string; mimeType?: string }>;
-  /** 0=公开 1=仅自己可见，默认 0 */
+  /** 0=公开 1=仅自己可见 3=指定人可见 4=好友可见，默认 0 */
   privacyType?: number;
+  /** type=3 时指定可见的用户 ID 列表 */
+  privacyUserIds?: string[];
   /** 话题列表，每项含 id 和 name */
   topics?: Array<{ id: string; name: string }>;
   /** 定时发布时间（Unix 秒级时间戳），不传则立即发布 */
@@ -630,7 +632,7 @@ export interface PublishImageNoteParams {
 }
 
 async function publishImageNote(params: PublishImageNoteParams): Promise<any> {
-  const { title, desc, images, privacyType = 0, topics = [], scheduledPublishTime } = params;
+  const { title, desc, images, privacyType = 0, privacyUserIds = [], topics = [], scheduledPublishTime } = params;
   const topicSuffix = topics.length > 0 ? ' ' + topics.map(t => `#${t.name}[话题]#`).join(' ') : '';
   const fullDesc = desc + topicSuffix;
 
@@ -690,7 +692,7 @@ async function publishImageNote(params: PublishImageNoteParams): Promise<any> {
       ats: [],
       hash_tag: topics.map(t => ({ id: t.id, name: t.name, type: 'topic' })),
       post_loc: {},
-      privacy_info: { op_type: 1, type: privacyType, user_ids: [] },
+      privacy_info: { op_type: 1, type: privacyType, user_ids: privacyUserIds },
       goods_info: {},
       biz_relations: [],
       capa_trace_info: { contextJson },
@@ -759,8 +761,10 @@ export interface PublishVideoNoteParams {
   desc: string;
   /** base64 编码的视频（不含 data: 前缀） */
   video: { base64: string; mimeType?: string };
-  /** 0=公开 1=仅自己可见，默认 0 */
+  /** 0=公开 1=仅自己可见 3=指定人可见 4=好友可见，默认 0 */
   privacyType?: number;
+  /** type=3 时指定可见的用户 ID 列表 */
+  privacyUserIds?: string[];
   /** 话题列表，每项含 id 和 name */
   topics?: Array<{ id: string; name: string }>;
   /** 定时发布时间（Unix 秒级时间戳），不传则立即发布 */
@@ -807,7 +811,7 @@ async function extractVideoMeta(videoBase64: string, mimeType: string): Promise<
 }
 
 async function publishVideoNote(params: PublishVideoNoteParams): Promise<any> {
-  const { title, desc, video, privacyType = 0, topics = [], scheduledPublishTime, cover } = params;
+  const { title, desc, video, privacyType = 0, privacyUserIds = [], topics = [], scheduledPublishTime, cover } = params;
   const topicSuffix = topics.length > 0 ? ' ' + topics.map(t => `#${t.name}[话题]#`).join(' ') : '';
   const fullDesc = desc + topicSuffix;
   const mimeType = video.mimeType || 'video/mp4';
@@ -941,7 +945,7 @@ async function publishVideoNote(params: PublishVideoNoteParams): Promise<any> {
       ats: [],
       hash_tag: topics.map(t => ({ id: t.id, name: t.name, type: 'topic' })),
       business_binds: businessBinds,
-      privacy_info: { op_type: 1, type: privacyType, user_ids: [] },
+      privacy_info: { op_type: 1, type: privacyType, user_ids: privacyUserIds },
       goods_info: {},
       biz_relations: [],
       capa_trace_info: { contextJson },
@@ -1222,6 +1226,11 @@ async function deleteNote(noteId: string): Promise<any> {
   return result;
 }
 
+async function getFriendFans(cursor: string = '', size: number = 20): Promise<any> {
+  const params = new URLSearchParams({ cursor, size: String(size) });
+  return signedFetch(`/api/sns/capa/servicegw/note_privacy/user/friend_fans?${params}`, 'GET');
+}
+
 async function deleteComment(noteId: string, commentId: string): Promise<any> {
   console.log(`${TAG} [deleteComment] noteId=${noteId} commentId=${commentId}`);
   const body = JSON.stringify({ note_id: noteId, comment_id: commentId });
@@ -1415,6 +1424,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           desc: String(message.desc || ''),
           images: message.images || [],
           privacyType: Number(message.privacy_type ?? 0),
+          privacyUserIds: message.privacy_user_ids || [],
           topics: message.topics || [],
           scheduledPublishTime: message.scheduled_publish_time ? Number(message.scheduled_publish_time) : undefined,
         });
@@ -1435,6 +1445,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           desc: String(message.desc || ''),
           video: message.video,
           privacyType: Number(message.privacy_type ?? 0),
+          privacyUserIds: message.privacy_user_ids || [],
           topics: message.topics || [],
           scheduledPublishTime: message.scheduled_publish_time ? Number(message.scheduled_publish_time) : undefined,
           cover: message.cover || undefined,
@@ -1742,6 +1753,22 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ success: true, data });
       } catch (e: any) {
         console.error(`${TAG} [DELETE_COMMENT] error:`, e.message);
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === XHS_MSG_TYPE.GET_FRIEND_FANS) {
+    (async () => {
+      try {
+        const data = await getFriendFans(
+          String(message.cursor || ''),
+          message.size ? Number(message.size) : 20,
+        );
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        console.error(`${TAG} [GET_FRIEND_FANS] error:`, e.message);
         sendResponse({ success: false, error: e.message });
       }
     })();

@@ -24,6 +24,7 @@ export const XHS_API_ENDPOINTS = {
   NOTIFICATIONS_MENTIONS: '/api/sns/web/v1/you/mentions',  NOTIFICATIONS_LIKES: '/api/sns/web/v1/you/likes',
   UNREAD_COUNT: '/api/sns/web/unread_count',
   CREATOR_PUBLISHED_NOTES: '/api/galaxy/creator/note/user/posted',
+  FRIEND_FANS: '/api/sns/capa/servicegw/note_privacy/user/friend_fans',
 } as const;
 
 // XHS_CREATOR_ENDPOINTS 暂缓定义，待抓包验证后添加
@@ -56,6 +57,7 @@ export const XHS_MSG_TYPE = {
   COLLECT_NOTE: 'XHS_COLLECT_NOTE',
   DELETE_NOTE: 'XHS_DELETE_NOTE',
   DELETE_COMMENT: 'XHS_DELETE_COMMENT',
+  GET_FRIEND_FANS: 'XHS_GET_FRIEND_FANS',
 } as const;
 
 export const XHS_STORAGE_KEYS = {

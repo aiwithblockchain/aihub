@@ -69,7 +69,7 @@
 | P0 | 话题标签 | `hash_tag` 数组 + `desc` 内嵌 `#话题名[话题]#` | ✅ 已完成（2026-06-01） |
 | P0 | 定时发布 | `business_binds.notePostTiming.postTime`（毫秒时间戳）+ `bizType: 13` | ✅ 已完成（2026-06-01） |
 | P0 | 封面自定义 | 支持传入封面图片（base64），`is_upload=true` + `extra_info_json` 带 cover_effect | ✅ 已完成（2026-06-01） |
-| P0 | 可见范围枚举确认 | 确认 `privacy_type` 的合法值（0=公开，1=私密，2=好友可见？） | 🔲 待抓包 |
+| P0 | 可见范围枚举确认 | 确认 `privacy_type` 的合法值 | ✅ 已完成（2026-06-01） |
 | P1 | 章节 | `chapters` 数组，每项含 `title` + `time_offset_ms` | 🔲 待抓包 |
 | P1 | 合集 | `collection_id` 字符串，需先查询已有合集 | 🔲 待抓包 |
 | P2 | 地点 POI | `poi_id` + `poi_name`，需先调用 POI 搜索 API | 🔲 待抓包 |
@@ -114,13 +114,29 @@
 - `postTime` 是**毫秒级** Unix 时间戳（秒级 × 1000）
 - 字段名是 `postTime`（camelCase），不是 `post_time`
 
-### 3.3 需要抓包确认的字段
+#### 可见范围
 
-1. **封面**：上传自定义封面的请求体格式（是 fileId 还是 URL？）
-2. **章节**：`chapters` 数组的具体结构
-3. **合集**：`collection_id` 的传入方式，以及查询合集列表的 API
-4. **原创声明**：`original_type` 的枚举值（图文原创、视频原创等）
-5. **可见范围**：`privacy_type` 的完整枚举（当前只用了 0 和 1）
+`privacy_info` 对象（不是顶层 `privacy_type` 整数）：
+
+```json
+"privacy_info": {
+  "op_type": 1,
+  "type": 0,
+  "user_ids": []
+}
+```
+
+`type` 枚举（已全部确认，2026-06-01）：
+- `0` = 公开
+- `1` = 仅自己可见
+- `3` = 指定人可见，`user_ids` 填指定用户 ID 列表
+- `4` = 好友可见（`user_ids: []`）
+
+注意：没有 `type: 2`，好友可见是 `4` 不是 `2`。
+
+指定人可见时需先调用 `GET /api/sns/capa/servicegw/note_privacy/user/friend_fans?cursor=&size=20` 获取可选用户列表（支持分页，cursor 翻页）。
+
+
 
 ### 3.4 当前 Python API 参数（2026-06-01 更新）
 
@@ -129,12 +145,16 @@ client.xhs.publish_video_note(
     title="标题",
     desc="正文",
     video={"base64": "...", "mimeType": "video/mp4"},
-    privacy_type=0,                    # 0=公开 1=私密
+    privacy_type=0,                    # 0=公开 1=私密 2=好友可见 3=指定人可见
+    privacy_user_ids=[],               # type=3 时填用户 ID 列表
     topics=[                           # 可选，从推荐列表选取
         {"id": "624d11eb...", "name": "大模型"},
     ],
     scheduled_publish_time=1780418940, # 可选，Unix 秒级时间戳
 )
+
+# 获取可选用户列表（type=3 时使用）
+client.xhs.get_friend_fans(cursor="", size=20)
 ```
 
 测试脚本：`examples/test_xhs_publish_video.py`

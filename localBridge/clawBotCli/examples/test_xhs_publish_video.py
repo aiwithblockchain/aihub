@@ -84,6 +84,8 @@ def main() -> int:
     parser.add_argument("--title", default="测试视频标题", help="Note title")
     parser.add_argument("--desc", default="这是一条测试视频笔记，可以忽略。", help="Note description")
     parser.add_argument("--private", action="store_true", help="Publish as private (privacy_type=1)")
+    parser.add_argument("--privacy", type=int, default=None, help="Privacy type: 0=public, 1=private, 3=specific users, 4=friends")
+    parser.add_argument("--privacy-user-ids", default="", help="Comma-separated user IDs for privacy_type=3")
     parser.add_argument("--topics", default="", help="Comma-separated topic names to attach")
     parser.add_argument("--cover", default="", help="Path to custom cover image file")
     parser.add_argument("--schedule", type=int, default=0, help="Seconds from now to schedule publish (0=immediate), or absolute Unix timestamp if > 1000000000")
@@ -94,6 +96,14 @@ def main() -> int:
         return 1
 
     file_size = os.path.getsize(args.video)
+    # Determine privacy_type: --privacy takes precedence over --private
+    if args.privacy is not None:
+        privacy_type = args.privacy
+    elif args.private:
+        privacy_type = 1
+    else:
+        privacy_type = 0
+    privacy_user_ids = [u.strip() for u in args.privacy_user_ids.split(",") if u.strip()] if args.privacy_user_ids else []
     # If schedule > 1_000_000_000 treat as absolute Unix timestamp, else as seconds offset
     if args.schedule > 1_000_000_000:
         scheduled_publish_time = args.schedule
@@ -112,6 +122,9 @@ def main() -> int:
     print(f"  Title    : {args.title}")
     print(f"  Desc     : {args.desc}")
     print(f"  Private  : {args.private}")
+    print(f"  Privacy  : {privacy_type} (0=public,1=private,3=specific,4=friends)")
+    if privacy_user_ids:
+        print(f"  UserIDs  : {privacy_user_ids}")
     print(f"  Topics   : {args.topics or '(none)'}")
     print(f"  Schedule : {schedule_display}")
     print("=" * 60)
@@ -154,7 +167,8 @@ def main() -> int:
             title=args.title,
             desc=args.desc,
             video={"base64": b64_data, "mimeType": mime_type},
-            privacy_type=1 if args.private else 0,
+            privacy_type=privacy_type,
+            privacy_user_ids=privacy_user_ids if privacy_user_ids else None,
             topics=topics if topics else None,
             scheduled_publish_time=scheduled_publish_time,
             cover=cover,
