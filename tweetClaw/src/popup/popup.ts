@@ -53,14 +53,6 @@ document.addEventListener('DOMContentLoaded', () => {
         showView('mainView');
     });
 
-    platformX.addEventListener('click', () => {
-        showView('xDetailsView');
-    });
-
-    platformXHS.addEventListener('click', () => {
-        showView('xhsDetailsView');
-    });
-
     btnBackFromX.addEventListener('click', () => {
         showView('mainView');
     });

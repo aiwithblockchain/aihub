@@ -6,24 +6,24 @@
   <style>
     /* ── Design Tokens ── */
     :root {
-      --bg:              #090d14;
-      --surface:         #0f1623;
-      --surface-2:       #141e2e;
-      --surface-hover:   #1a2438;
-      --border:          #1e2d42;
-      --border-strong:   #2a3f5c;
+      --bg:              #f0f2f5;
+      --surface:         #ffffff;
+      --surface-2:       #f8f9fb;
+      --surface-hover:   #f0f4ff;
+      --border:          #e4e8ef;
+      --border-strong:   #c8d0dc;
       --primary:         #1d9bf0;
       --primary-hover:   #1a8cd8;
-      --primary-dim:     rgba(29,155,240,0.12);
-      --success:         #22c55e;
-      --success-dim:     rgba(34,197,94,0.12);
-      --error:           #ef4444;
-      --error-dim:       rgba(239,68,68,0.12);
-      --warning:         #f59e0b;
-      --pending:         #475569;
-      --text-primary:    #e8edf5;
-      --text-secondary:  #8899aa;
-      --text-muted:      #4a5568;
+      --primary-dim:     rgba(29,155,240,0.10);
+      --success:         #16a34a;
+      --success-dim:     rgba(22,163,74,0.10);
+      --error:           #dc2626;
+      --error-dim:       rgba(220,38,38,0.10);
+      --warning:         #d97706;
+      --pending:         #94a3b8;
+      --text-primary:    #0f172a;
+      --text-secondary:  #475569;
+      --text-muted:      #94a3b8;
       --radius-sm:       6px;
       --radius-md:       10px;
       --radius-lg:       14px;
@@ -38,6 +38,7 @@
       font-size: 13px;
       background: var(--bg);
       color: var(--text-primary);
+      min-height: 100vh;
     }
 
     .hidden { display: none !important; }
@@ -49,14 +50,13 @@
       justify-content: space-between;
       padding: 14px 16px 12px;
       border-bottom: 1px solid var(--border);
-      background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
+      background: var(--surface);
+      box-shadow: 0 1px 0 var(--border);
     }
     .header-left { display: flex; align-items: center; gap: 10px; }
     .header-logo {
       width: 32px; height: 32px; border-radius: 8px;
-      background: linear-gradient(135deg, #1d9bf0 0%, #0e7fd8 100%);
       display: flex; align-items: center; justify-content: center;
-      box-shadow: 0 2px 8px rgba(29,155,240,0.3);
       flex-shrink: 0;
     }
     .header-logo img { width: 32px; height: 32px; border-radius: 8px; }
@@ -68,13 +68,14 @@
       display: flex; align-items: center; justify-content: center;
       color: var(--text-muted); transition: all 0.15s ease;
     }
-    .btn-icon:hover { background: var(--surface-2); color: var(--text-secondary); }
+    .btn-icon:hover { background: var(--surface-2); color: var(--text-secondary); border: 1px solid var(--border); }
 
     /* ── Header with Back ── */
     .header-nav {
       display: flex; align-items: center; gap: 8px;
       padding: 12px 16px;
       border-bottom: 1px solid var(--border);
+      background: var(--surface);
     }
     .btn-back {
       width: 28px; height: 28px; border-radius: var(--radius-sm);
@@ -96,9 +97,10 @@
       align-items: center;
       gap: 10px;
       transition: border-color 0.2s;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.06);
     }
-    .status-card.connected { border-color: rgba(34,197,94,0.3); }
-    .status-card.disconnected { border-color: rgba(239,68,68,0.2); }
+    .status-card.connected { border-color: rgba(22,163,74,0.35); background: rgba(22,163,74,0.04); }
+    .status-card.disconnected { border-color: rgba(220,38,38,0.25); background: rgba(220,38,38,0.03); }
 
     .status-dot {
       width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
@@ -124,7 +126,7 @@
       margin-top: 1px;
       overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
     }
-    .status-version { font-size: 10px; color: var(--text-muted); flex-shrink: 0; }
+    .status-version { font-size: 10px; color: var(--text-muted); flex-shrink: 0; font-family: 'SFMono-Regular', Consolas, monospace; }
 
     /* ── Section ── */
     .section-label {
@@ -145,18 +147,20 @@
       cursor: pointer;
       transition: all 0.15s ease;
       text-decoration: none;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
     .platform-card:hover:not(.disabled) {
       background: var(--surface-hover);
-      border-color: var(--border-strong);
+      border-color: var(--primary);
       transform: translateY(-1px);
+      box-shadow: 0 3px 8px rgba(29,155,240,0.12);
     }
-    .platform-card.disabled { opacity: 0.45; cursor: default; pointer-events: none; }
+    .platform-card.disabled { opacity: 0.5; cursor: default; pointer-events: none; }
 
     .platform-left { display: flex; align-items: center; gap: 10px; }
     .platform-icon {
       width: 32px; height: 32px; border-radius: 8px;
-      background: var(--bg); border: 1px solid var(--border);
+      background: var(--surface-2); border: 1px solid var(--border);
       display: flex; align-items: center; justify-content: center;
       flex-shrink: 0;
     }
@@ -170,12 +174,12 @@
       border-radius: 4px; text-transform: uppercase; flex-shrink: 0;
     }
     .badge-active {
-      background: var(--success-dim); color: var(--success);
-      border: 1px solid rgba(34,197,94,0.25);
+      background: rgba(22,163,74,0.10); color: #16a34a;
+      border: 1px solid rgba(22,163,74,0.25);
     }
     .badge-pending {
-      background: rgba(71,85,105,0.25); color: var(--pending);
-      border: 1px solid rgba(71,85,105,0.3);
+      background: rgba(148,163,184,0.12); color: var(--pending);
+      border: 1px solid rgba(148,163,184,0.25);
     }
     .chevron { color: var(--text-muted); flex-shrink: 0; }
 
@@ -184,18 +188,20 @@
       padding: 10px 16px 14px; text-align: center;
       border-top: 1px solid var(--border);
       margin-top: 4px;
+      background: var(--surface);
     }
     .footer a {
       font-size: 11px; color: var(--text-muted);
       text-decoration: none; transition: color 0.15s;
     }
-    .footer a:hover { color: var(--text-secondary); }
+    .footer a:hover { color: var(--primary); }
 
     /* ── Settings View ── */
     .settings-section { padding: 0 16px 12px; }
     .settings-card {
       background: var(--surface); border: 1px solid var(--border);
       border-radius: var(--radius-md); padding: 12px;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.05);
     }
     .field { margin-bottom: 10px; }
     .field:last-of-type { margin-bottom: 12px; }
@@ -204,7 +210,7 @@
       margin-bottom: 4px; font-weight: 500;
     }
     .field input {
-      width: 100%; background: var(--bg);
+      width: 100%; background: var(--surface-2);
       border: 1px solid var(--border); border-radius: var(--radius-sm);
       color: var(--text-primary); padding: 8px 10px;
       font-size: 13px; outline: none;
@@ -214,6 +220,7 @@
     .field input:focus {
       border-color: var(--primary);
       box-shadow: 0 0 0 3px var(--primary-dim);
+      background: var(--surface);
     }
     .field input.mono {
       font-family: 'SFMono-Regular', Consolas, monospace;
@@ -228,7 +235,7 @@
       font-family: inherit;
     }
     .btn-success { background: var(--success); }
-    .btn-success:hover { filter: brightness(1.1); }
+    .btn-success:hover { filter: brightness(1.08); }
     .btn-primary { background: var(--primary); }
     .btn-primary:hover { background: var(--primary-hover); }
     .btn-full { width: 100%; }
@@ -261,8 +268,7 @@
     <button class="btn-icon" id="btnSettings" title="Bridge Settings">
       <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
         <circle cx="12" cy="12" r="3"/>
-        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
-        <path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>
+        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/>
       </svg>
     </button>
   </div>
@@ -295,7 +301,6 @@
       </div>
       <div class="platform-right">
         <span class="badge badge-active" data-i18n="badge.active">Active</span>
-        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
       </div>
     </div>
 
@@ -314,7 +319,6 @@
       </div>
       <div class="platform-right">
         <span class="badge badge-active" data-i18n="badge.active">Active</span>
-        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
       </div>
     </div>
 
