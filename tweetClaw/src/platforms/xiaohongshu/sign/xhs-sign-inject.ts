@@ -804,7 +804,12 @@ async function handleSignedFetch(event: MessageEvent) {
   const { msgId, apiPath, method, body } = event.data;
   try {
     const bodyStr = body || '';
-    const fullUrl = 'https://edith.xiaohongshu.com' + apiPath;
+
+    // 支持完整 URL（如 https://so.xiaohongshu.com/...）或相对路径
+    const isFullUrl = /^https?:\/\//.test(apiPath);
+    const fullUrl = isFullUrl ? apiPath : 'https://edith.xiaohongshu.com' + apiPath;
+    // 签名只用路径部分
+    const signPath = isFullUrl ? new URL(apiPath).pathname + new URL(apiPath).search : apiPath;
 
     const a1 = getCookieValue('a1');
     if (!a1) throw new Error('a1 cookie not found');
@@ -814,25 +819,26 @@ async function handleSignedFetch(event: MessageEvent) {
     let xsCommon = '';
 
     if (typeof (window as any).mnsv2 === 'function') {
-      // 优先用 mnsv2 生成 XYS_ 格式签名（消费端和创作者端均适用）
-      xs = signWithMnsv2(apiPath, bodyStr);
+      xs = signWithMnsv2(signPath, bodyStr);
       xt = Date.now();
-      xsCommon = calcXsCommon(a1, xs, xt, apiPath);
+      xsCommon = calcXsCommon(a1, xs, xt, signPath);
     } else if (typeof (window as any)._webmsxyw === 'function') {
-      // 兜底：mnsv2 不可用时用 _webmsxyw
       if (!signReady) await signFnReady;
       const signFn = (window as any)._webmsxyw;
-      const signResult = signFn(apiPath, bodyStr, a1);
+      const signResult = signFn(signPath, bodyStr, a1);
       xs = signResult['X-s'] || signResult['x-s'] || '';
       xt = signResult['X-t'] || signResult['x-t'] || Date.now();
-      xsCommon = calcXsCommon(a1, xs, xt, apiPath);
+      xsCommon = calcXsCommon(a1, xs, xt, signPath);
     } else {
       throw new Error('No sign function available (neither mnsv2 nor _webmsxyw)');
     }
 
-    // 2. 生成 x-rap-param。主路径在隔离 iframe 中同步执行 Spider_XHS 的 RAP 环境。
-    (window as any).__rap_app_id__ = getRapAppId(apiPath);
-    const rapParam = await generateRapParam(apiPath, bodyStr) || '';
+    // 仅 edith.xiaohongshu.com 需要 x-rap-param，其他域跳过
+    let rapParam = '';
+    if (!isFullUrl || fullUrl.includes('edith.xiaohongshu.com')) {
+      (window as any).__rap_app_id__ = getRapAppId(signPath);
+      rapParam = await generateRapParam(signPath, bodyStr) || '';
+    }
 
     // 3. fetch（page context，Origin 正确）
     const hexChars = 'abcdef0123456789';
@@ -842,7 +848,6 @@ async function handleSignedFetch(event: MessageEvent) {
       'accept': 'application/json, text/plain, */*',
       'content-type': 'application/json;charset=UTF-8',
       'x-b3-traceid': genHex(16),
-      'x-mns': 'unload',
       'x-s': xs,
       'x-t': String(xt),
       'x-xray-traceid': genHex(32),

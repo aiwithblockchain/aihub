@@ -212,8 +212,13 @@ function genXrayTraceId(): string {
 async function signedFetch(apiPath: string, method: 'GET' | 'POST', body?: string, extraHeaders?: Record<string, string>): Promise<any> {
   const bodyStr = body || '';
 
+  // 签名只用路径部分（不含 scheme+host）
+  const signPath = /^https?:\/\//.test(apiPath)
+    ? new URL(apiPath).pathname + new URL(apiPath).search
+    : apiPath;
+
   // 1. 请求签名（包含 x-s, x-t, x-s-common）
-  const signHeaders = await requestSign(apiPath, bodyStr);
+  const signHeaders = await requestSign(signPath, bodyStr);
 
   // 2. 组装完整请求头
   const headers: Record<string, string> = {
@@ -240,8 +245,8 @@ async function signedFetch(apiPath: string, method: 'GET' | 'POST', body?: strin
     Object.assign(headers, extraHeaders);
   }
 
-  // 3. 发起请求
-  const url = `${EDITH}${apiPath}`;
+  // 3. 发起请求（支持传入完整 URL 或相对路径）
+  const url = /^https?:\/\//.test(apiPath) ? apiPath : `${EDITH}${apiPath}`;
   const fetchOptions: RequestInit = {
     method,
     headers,
@@ -1086,11 +1091,15 @@ async function searchNotes(keyword: string, cursor: string = '', pageSize: numbe
     ],
     geo: '',
     image_formats: ['jpg', 'webp', 'avif'],
+    message_id: 'sending',
   };
   if (cursor) body.cursor = cursor;
 
-  // search API 需要 x-rap-param，走 XHR proxy 让 Sanji SDK 自动注入
-  return signedXhrFetch('/api/sns/web/v1/search/notes', 'POST', JSON.stringify(body));
+  // 真实搜索走 so.xiaohongshu.com v2，不需要 x-rap-param，从 page context 发请求保证 Origin 正确
+  // page_size 最小 20，与真实浏览器请求一致
+  const actualPageSize = Math.max(pageSize, 20);
+  body.page_size = actualPageSize;
+  return signedXhrFetch('https://so.xiaohongshu.com/api/sns/web/v2/search/notes', 'POST', JSON.stringify(body));
 }
 
 async function fetchSearchFilter(keyword: string, searchId: string): Promise<any> {
