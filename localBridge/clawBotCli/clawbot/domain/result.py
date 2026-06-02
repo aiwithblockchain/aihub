@@ -8,6 +8,14 @@ from .models import ActionResult
 
 
 def build_action_result(action: str, raw: Dict[str, Any], target_id: Optional[str] = None) -> ActionResult:
-    success = "error" not in raw
-    message = raw.get("error") if isinstance(raw, dict) else None
+    success = False
+    message = None
+
+    if isinstance(raw, dict):
+        if "success" in raw:
+            success = bool(raw.get("success"))
+        else:
+            success = "error" not in raw
+        message = raw.get("error") or raw.get("reason")
+
     return ActionResult(success=success, action=action, target_id=target_id, message=message, raw=raw)
