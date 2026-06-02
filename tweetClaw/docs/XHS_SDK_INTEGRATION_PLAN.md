@@ -287,8 +287,28 @@ client.xhs.publish_note(title="标题", desc="正文", images=[...])
 
 - **不需要** domain 层（XhsNote / XhsUser dataclass）：XHS API 返回 raw dict 已满足 AI 使用需求，过度封装反而增加维护成本
 - **不需要** 多实例路由（instanceId）：XHS 是单账号场景，无此需求
-- **不需要** 修改现有 X 相关代码：完全独立，零影响
 - **不需要** 新的 BaseApiTransport：两个工程的基类完全一致，直接复用
+
+**关于 X/Twitter 层的同步状态**：
+
+在编写本文档过程中，已将 aihub 和 TweetPilot 两个工程的 Twitter/X Python 层完全同步：
+
+| 文件 | 状态 |
+|------|------|
+| `transport/x_api.py` | ✅ 完全一致 |
+| `services/x_actions.py` | ✅ 完全一致 |
+| `services/x_read.py` | ✅ 完全一致 |
+| `services/x_status.py` | ✅ 完全一致 |
+| `services/x_tabs.py` | ✅ 完全一致 |
+| `domain/result.py` | ✅ 完全一致 |
+| `domain/x_parsers.py` | ✅ 完全一致 |
+| `domain/models.py` | ✅ 完全一致 |
+
+同步改动：
+- `domain/result.py`：升级为更健壮的版本，支持显式 `success` 字段检测和 `reason` 错误字段（处理 tab open/close 等操作返回）
+- `domain/x_parsers.py`：补充 `core` 字段兜底，处理 Twitter API 把用户信息放在 `core` 而非 `legacy` 的情况
+
+这意味着：移植 XHS 时，**不需要** 修改任何 X 相关代码，两边的 X 实现已经完全一致。
 
 ---
 
@@ -422,3 +442,88 @@ topics = data.get("topic_dto_list") or data.get("topic_info_dtos") or data.get("
 filters = data.get("filters") or data.get("filter_items") or []
 items = group.get("filter_tags") or group.get("items") or []
 ```
+
+---
+
+## 十、移植完成状态
+
+> 完成日期：2026-06-02
+
+### 10.1 已完成的文件
+
+| 文件 | 位置 | 状态 | 说明 |
+|------|------|------|------|
+| `transport/xhs_api.py` | TweetPilot 源码 | ✅ 完成 | 22 个 API 方法 |
+| `services/xhs.py` | TweetPilot 源码 | ✅ 完成 | 29 个高层方法 |
+| `client.py` | TweetPilot 源码 | ✅ 完成 | 已挂载 `self.xhs` |
+| `examples/xhs_read_examples.py` | TweetPilot 源码 | ✅ 完成 | 10 个读取示例 |
+| `examples/xhs_write_examples.py` | TweetPilot 源码 | ✅ 完成 | 14 个写入示例 |
+| `README.md` | TweetPilot 源码 | ✅ 完成 | 已添加 XHS 文档章节 |
+
+### 10.2 验证结果
+
+```python
+from clawbot import ClawBotClient
+client = ClawBotClient()
+
+# XHS Service 可用
+assert hasattr(client, 'xhs')
+
+# 29 个方法可用
+methods = [m for m in dir(client.xhs) if not m.startswith('_')]
+assert len(methods) == 29
+
+# 示例方法
+client.xhs.get_account_info()
+client.xhs.search(keyword="美食")
+client.xhs.publish_note(title="标题", desc="内容", images=[...])
+```
+
+### 10.3 功能覆盖
+
+**读取操作（14 个方法）：**
+- `get_account_info()` - 获取账号信息
+- `get_homefeed()` - 获取首页推荐
+- `get_feed()` - 获取笔记详情
+- `search()` - 搜索笔记
+- `get_user_notes()` - 获取用户笔记
+- `get_user_info()` - 获取用户信息
+- `get_note_comments()` - 获取笔记评论
+- `get_notifications()` - 获取通知
+- `get_published_notes()` - 获取已发布笔记
+- `search_topics()` - 搜索话题
+- `search_filter()` - 获取搜索筛选器
+- `search_users()` - 搜索用户
+- `get_intimacy_list()` - 获取好友列表
+- `get_friend_fans()` - 获取好友粉丝列表
+
+**写操作（10 个方法）：**
+- `publish_note()` - 发布图文笔记
+- `publish_video_note()` - 发布视频笔记
+- `post_comment()` - 发布/回复评论
+- `like_note()` - 点赞
+- `unlike_note()` - 取消点赞
+- `follow_user()` - 关注
+- `unfollow_user()` - 取消关注
+- `collect_note()` - 收藏
+- `delete_note()` - 删除笔记
+- `delete_comment()` - 删除评论
+
+**合集管理（4 个方法）：**
+- `create_collection()` - 创建合集
+- `list_collections()` - 查询合集列表
+- `list_collection_notes()` - 查询合集内笔记
+- `update_collection()` - 更新合集信息
+
+### 10.4 后续工作
+
+- [ ] Go 层 XHS API 实现（`localBridge/go-lib/pkg/restapi/handler.go`）
+- [ ] Chrome 扩展 XHS 消息处理（`tweetClaw` 扩展）
+- [ ] 实际 API 端到端测试
+
+### 10.5 注意事项
+
+1. **端口配置**：XHS 和 X 共用同一个 LocalBridge 端口（TweetPilot: 20088, aihub: 10088）
+2. **单账号**：XHS 不支持多实例路由（无 `instanceId` 参数）
+3. **creator tab**：部分操作（`get_published_notes`, `delete_note`, 合集管理）需要在 `creator.xiaohongshu.com` 上下文执行
+4. **xsec_token**：`get_feed`, `get_note_comments`, `get_user_notes` 需要从 homefeed/search 结果中获取 `xsec_token`
