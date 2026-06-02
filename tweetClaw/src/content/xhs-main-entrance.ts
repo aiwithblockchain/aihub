@@ -1169,7 +1169,7 @@ async function postComment(noteId: string, content: string, targetCommentId?: st
     body.target_comment_id = targetCommentId;
   }
   console.log(`${TAG} [postComment] body=${JSON.stringify(body)}`);
-  const result = await signedXhrFetch('/api/sns/web/v1/comment/post', 'POST', JSON.stringify(body));
+  const result = await signedFetch('/api/sns/web/v1/comment/post', 'POST', JSON.stringify(body));
   console.log(`${TAG} [postComment] result code=${result?.code} success=${result?.success}`);
   return result;
 }
@@ -1194,7 +1194,7 @@ async function likeNote(noteId: string): Promise<any> {
   console.log(`${TAG} [likeNote] noteId=${noteId}`);
   const body = JSON.stringify({ note_oid: noteId });
   console.log(`${TAG} [likeNote] body=${body}`);
-  const result = await signedXhrFetch(XHS_API_ENDPOINTS.LIKE, 'POST', body);
+  const result = await signedFetch(XHS_API_ENDPOINTS.LIKE, 'POST', body);
   console.log(`${TAG} [likeNote] result code=${result?.code} success=${result?.success} new_like=${result?.data?.new_like}`);
   return result;
 }

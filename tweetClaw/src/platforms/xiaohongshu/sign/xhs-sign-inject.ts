@@ -660,6 +660,10 @@ function generateRapParamFromLivePage(apiPath: string, body: string): Promise<st
   });
 }
 
+// 调用方须确认 apiPath 确实需要 x-rap-param，否则 livePage 路径会向目标 API 发出无凭证探测请求。
+// 当前仅由 handleSignedFetch 中经 RAP_REQUIRED_PATHS 白名单过滤后调用，
+// 以及 handleRapRequest（发布笔记专用）调用。
+// 不要在写入类 API（like/comment/follow 等）里直接调用此函数。
 async function generateRapParam(apiPath: string, body: string): Promise<string | null> {
   try {
     const sandboxRapParam = await generateRapParamFromSandbox(apiPath, body);
@@ -833,9 +837,17 @@ async function handleSignedFetch(event: MessageEvent) {
       throw new Error('No sign function available (neither mnsv2 nor _webmsxyw)');
     }
 
-    // 仅 edith.xiaohongshu.com 需要 x-rap-param，其他域跳过
+    // 只有特定路径需要 x-rap-param，其余路径跳过避免触发探测请求
+    const RAP_REQUIRED_PATHS = [
+      '/api/sns/web/v1/homefeed',
+      '/api/sns/web/v1/feed',
+      '/api/sns/web/v1/user_posted',
+      '/api/sns/web/v1/comment/post',
+      '/web_api/sns/v2/note',
+    ];
     let rapParam = '';
-    if (!isFullUrl || fullUrl.includes('edith.xiaohongshu.com')) {
+    const needsRap = RAP_REQUIRED_PATHS.some(p => signPath.includes(p));
+    if (needsRap) {
       (window as any).__rap_app_id__ = getRapAppId(signPath);
       rapParam = await generateRapParam(signPath, bodyStr) || '';
     }
