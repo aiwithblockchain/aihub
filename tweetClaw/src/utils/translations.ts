@@ -8,8 +8,8 @@ export const translations: Record<'zh' | 'en', Translations> = {
     'app.title': 'TweetClaw',
     'app.subtitle': 'AI 代理的全能桥接器',
 
-    // Platform List
-    'platforms.title': '支持的平台',
+    // Platforms
+    'platforms.title': '平台',
     'platform.x.name': 'X (Twitter)',
     'platform.x.status': '活跃桥接',
     'platform.reddit.name': 'Reddit',
@@ -17,32 +17,31 @@ export const translations: Record<'zh' | 'en', Translations> = {
     'platform.discord.name': 'Discord',
     'platform.discord.status': '即将推出',
     'platform.xiaohongshu.name': '小红书',
-    'platform.xiaohongshu.status': '即将推出',
+    'platform.xiaohongshu.status': '活跃桥接',
 
     // Badges
     'badge.active': '活跃',
-    'badge.coming': '待开发',
-
-    // Download Banner
-    'banner.desc': '访问<strong>官方网站</strong>获取配套应用。',
-    'banner.button': '访问',
+    'badge.pending': '待开发',
 
     // Footer
     'footer.debug': '打开调试界面',
 
-    // X Settings View
-    'x.config.title': 'X (Twitter) 配置',
-    'x.status.title': '桥接状态',
-    'x.status.connected': '已连接到 LocalBridgeMac',
-    'x.status.waiting': '等待 LocalBridgeMac…',
-    'x.status.checking': '检查中…',
-    'x.status.unreachable': '无法连接到后台',
+    // Status
+    'status.connected': '已连接到 LocalBridgeMac',
+    'status.waiting': '等待 LocalBridgeMac…',
+    'status.checking': '检查中…',
+    'status.unreachable': '无法连接到后台',
+
+    // Settings View
+    'settings.title': '桥接设置',
+    'settings.connection.title': '连接',
+    'settings.instance.title': '实例',
 
     // Connection Form
     'form.ip.label': 'IP 地址',
     'form.ip.placeholder': '127.0.0.1',
     'form.port.label': 'WebSocket 端口',
-    'form.port.placeholder': '20086',
+    'form.port.placeholder': '10086',
     'form.rest_port.label': 'REST 端口',
     'form.rest_port.placeholder': '10088',
     'form.reconnect.button': '重新连接',
@@ -51,8 +50,7 @@ export const translations: Record<'zh' | 'en', Translations> = {
     'form.save.success': '已保存!',
 
     // Display Name
-    'name.title': '显示名称',
-    'name.label': '您的名称',
+    'name.label': '显示名称',
     'name.placeholder': 'User-1234',
     'name.save.button': '保存名称并重连',
     'name.save.success': '已保存!',
@@ -65,6 +63,13 @@ export const translations: Record<'zh' | 'en', Translations> = {
     'capabilities.actions': '执行操作(点赞、转发、关注、发帖)',
     'capabilities.navigate': '按需打开和导航 X 标签页',
     'capabilities.save': '通过本地桥接节省 AI token 成本',
+
+    // XHS Capabilities
+    'capabilities.xhs.bind': '将小红书会话绑定到本地 AI 代理',
+    'capabilities.xhs.read': '读取首页和搜索结果',
+    'capabilities.xhs.profile': '获取用户资料信息',
+    'capabilities.xhs.actions': '执行操作(点赞、收藏、评论、发帖)',
+    'capabilities.xhs.save': '通过本地桥接节省 AI token 成本',
 
     // Alerts
     'alert.invalid_ip': '请输入 IP 地址',
@@ -79,8 +84,8 @@ export const translations: Record<'zh' | 'en', Translations> = {
     'app.title': 'TweetClaw',
     'app.subtitle': 'Omni-Bridge for AI Agents',
 
-    // Platform List
-    'platforms.title': 'Supported Platforms',
+    // Platforms
+    'platforms.title': 'Platforms',
     'platform.x.name': 'X (Twitter)',
     'platform.x.status': 'Active Bridge',
     'platform.reddit.name': 'Reddit',
@@ -88,32 +93,31 @@ export const translations: Record<'zh' | 'en', Translations> = {
     'platform.discord.name': 'Discord',
     'platform.discord.status': 'Coming Soon',
     'platform.xiaohongshu.name': 'Xiaohongshu',
-    'platform.xiaohongshu.status': 'Coming Soon',
+    'platform.xiaohongshu.status': 'Active Bridge',
 
     // Badges
     'badge.active': 'Active',
-    'badge.coming': 'Pending',
-
-    // Download Banner
-    'banner.desc': 'Visit <strong>official website</strong> for companion app.',
-    'banner.button': 'Visit',
+    'badge.pending': 'Pending',
 
     // Footer
     'footer.debug': 'Open Debug Interface',
 
-    // X Settings View
-    'x.config.title': 'X (Twitter) Configuration',
-    'x.status.title': 'Bridge Status',
-    'x.status.connected': 'Connected to LocalBridgeMac',
-    'x.status.waiting': 'Waiting for LocalBridgeMac…',
-    'x.status.checking': 'Checking…',
-    'x.status.unreachable': 'Unable to reach background',
+    // Status
+    'status.connected': 'Connected to LocalBridgeMac',
+    'status.waiting': 'Waiting for LocalBridgeMac…',
+    'status.checking': 'Checking…',
+    'status.unreachable': 'Unable to reach background',
+
+    // Settings View
+    'settings.title': 'Bridge Settings',
+    'settings.connection.title': 'Connection',
+    'settings.instance.title': 'Instance',
 
     // Connection Form
     'form.ip.label': 'IP Address',
     'form.ip.placeholder': '127.0.0.1',
     'form.port.label': 'WebSocket Port',
-    'form.port.placeholder': '20086',
+    'form.port.placeholder': '10086',
     'form.rest_port.label': 'REST Port',
     'form.rest_port.placeholder': '10088',
     'form.reconnect.button': 'Reconnect',
@@ -122,8 +126,7 @@ export const translations: Record<'zh' | 'en', Translations> = {
     'form.save.success': 'Saved!',
 
     // Display Name
-    'name.title': 'Display Name',
-    'name.label': 'Your Name',
+    'name.label': 'Display Name',
     'name.placeholder': 'User-1234',
     'name.save.button': 'Save Name & Reconnect',
     'name.save.success': 'Saved!',
@@ -136,6 +139,13 @@ export const translations: Record<'zh' | 'en', Translations> = {
     'capabilities.actions': 'Execute actions (like, retweet, follow, post)',
     'capabilities.navigate': 'Open and navigate X tabs on demand',
     'capabilities.save': 'Saves AI token costs via local bridging',
+
+    // XHS Capabilities
+    'capabilities.xhs.bind': 'Bind Xiaohongshu session to local AI agents',
+    'capabilities.xhs.read': 'Read feed & search results',
+    'capabilities.xhs.profile': 'Fetch user profile information',
+    'capabilities.xhs.actions': 'Execute actions (like, collect, comment, post)',
+    'capabilities.xhs.save': 'Saves AI token costs via local bridging',
 
     // Alerts
     'alert.invalid_ip': 'Please enter an IP address',

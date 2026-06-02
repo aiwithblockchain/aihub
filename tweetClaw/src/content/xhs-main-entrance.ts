@@ -1076,6 +1076,14 @@ async function searchNotes(keyword: string, cursor: string = '', pageSize: numbe
     sort: 'general',
     note_type: 0,
     ext_flags: [],
+    // Spider_XHS 的真实抓包验证：不传 filters 会导致服务端偶发返回空结果
+    filters: [
+      { tags: ['general'], type: 'sort_type' },
+      { tags: ['不限'], type: 'filter_note_type' },
+      { tags: ['不限'], type: 'filter_note_time' },
+      { tags: ['不限'], type: 'filter_note_range' },
+      { tags: ['不限'], type: 'filter_pos_distance' },
+    ],
     geo: '',
     image_formats: ['jpg', 'webp', 'avif'],
   };

@@ -842,6 +842,7 @@ async function handleSignedFetch(event: MessageEvent) {
       'accept': 'application/json, text/plain, */*',
       'content-type': 'application/json;charset=UTF-8',
       'x-b3-traceid': genHex(16),
+      'x-mns': 'unload',
       'x-s': xs,
       'x-t': String(xt),
       'x-xray-traceid': genHex(32),

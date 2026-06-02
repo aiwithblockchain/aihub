@@ -4,399 +4,505 @@
   <meta charset="utf-8">
   <title>TweetClaw</title>
   <style>
+    /* ── Design Tokens ── */
+    :root {
+      --bg:              #090d14;
+      --surface:         #0f1623;
+      --surface-2:       #141e2e;
+      --surface-hover:   #1a2438;
+      --border:          #1e2d42;
+      --border-strong:   #2a3f5c;
+      --primary:         #1d9bf0;
+      --primary-hover:   #1a8cd8;
+      --primary-dim:     rgba(29,155,240,0.12);
+      --success:         #22c55e;
+      --success-dim:     rgba(34,197,94,0.12);
+      --error:           #ef4444;
+      --error-dim:       rgba(239,68,68,0.12);
+      --warning:         #f59e0b;
+      --pending:         #475569;
+      --text-primary:    #e8edf5;
+      --text-secondary:  #8899aa;
+      --text-muted:      #4a5568;
+      --radius-sm:       6px;
+      --radius-md:       10px;
+      --radius-lg:       14px;
+    }
+
+    /* ── Base Reset ── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
     body {
       width: 320px;
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       font-size: 13px;
-      background: #0f1117;
-      color: #e2e8f0;
+      background: var(--bg);
+      color: var(--text-primary);
     }
 
-    /* ── Utilities ── */
     .hidden { display: none !important; }
 
     /* ── Header ── */
     .header {
       display: flex;
       align-items: center;
-      gap: 12px;
-      padding: 16px 16px 14px;
-      border-bottom: 1px solid #1e2433;
-      background: linear-gradient(180deg, #161b22 0%, #0f1117 100%);
+      justify-content: space-between;
+      padding: 14px 16px 12px;
+      border-bottom: 1px solid var(--border);
+      background: linear-gradient(180deg, var(--surface) 0%, var(--bg) 100%);
     }
-    .header img { width: 32px; height: 32px; border-radius: 8px; box-shadow: 0 2px 8px rgba(0,0,0,0.4); }
-    .header-text h1 { font-size: 16px; font-weight: 700; color: #fff; line-height: 1.2; letter-spacing: -0.01em; }
-    .header-text p  { font-size: 11px; color: #64748b; margin-top: 2px; }
+    .header-left { display: flex; align-items: center; gap: 10px; }
+    .header-logo {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: linear-gradient(135deg, #1d9bf0 0%, #0e7fd8 100%);
+      display: flex; align-items: center; justify-content: center;
+      box-shadow: 0 2px 8px rgba(29,155,240,0.3);
+      flex-shrink: 0;
+    }
+    .header-logo img { width: 32px; height: 32px; border-radius: 8px; }
+    .header-title { font-size: 16px; font-weight: 700; color: var(--text-primary); line-height: 1.2; letter-spacing: -0.01em; }
+    .header-subtitle { font-size: 10px; color: var(--text-muted); margin-top: 1px; letter-spacing: 0.02em; }
+    .btn-icon {
+      width: 32px; height: 32px; border-radius: var(--radius-sm);
+      background: none; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-muted); transition: all 0.15s ease;
+    }
+    .btn-icon:hover { background: var(--surface-2); color: var(--text-secondary); }
 
-    .header-with-back {
-      display: flex;
-      align-items: center;
-      gap: 12px;
+    /* ── Header with Back ── */
+    .header-nav {
+      display: flex; align-items: center; gap: 8px;
       padding: 12px 16px;
-      border-bottom: 1px solid #1e2433;
+      border-bottom: 1px solid var(--border);
     }
-    .back-btn {
-      background: none;
-      border: none;
-      color: #94a3b8;
-      cursor: pointer;
-      padding: 4px;
+    .btn-back {
+      width: 28px; height: 28px; border-radius: var(--radius-sm);
+      background: none; border: none; cursor: pointer;
+      display: flex; align-items: center; justify-content: center;
+      color: var(--text-secondary); transition: all 0.15s ease; flex-shrink: 0;
+    }
+    .btn-back:hover { background: var(--surface-2); color: var(--text-primary); }
+    .nav-title { font-size: 14px; font-weight: 700; color: var(--text-primary); }
+
+    /* ── Bridge Status Card ── */
+    .status-card {
+      margin: 12px 16px;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 10px 12px;
       display: flex;
       align-items: center;
-      justify-content: center;
-      border-radius: 6px;
-      transition: all 0.2s;
+      gap: 10px;
+      transition: border-color 0.2s;
     }
-    .back-btn:hover { background: #1e2433; color: #fff; }
-    .header-with-back h2 { font-size: 14px; font-weight: 700; color: #fff; }
+    .status-card.connected { border-color: rgba(34,197,94,0.3); }
+    .status-card.disconnected { border-color: rgba(239,68,68,0.2); }
 
-    /* ── Sections ── */
-    .section { padding: 14px 16px; border-bottom: 1px solid #1e2433; }
-    .section:last-child { border-bottom: none; }
+    .status-dot {
+      width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+    }
+    .status-dot.connected {
+      background: var(--success);
+      box-shadow: 0 0 0 3px var(--success-dim);
+      animation: pulse 2.5s ease-in-out infinite;
+    }
+    .status-dot.disconnected {
+      background: var(--error);
+      box-shadow: 0 0 0 3px var(--error-dim);
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 0 3px var(--success-dim); }
+      50%       { box-shadow: 0 0 0 5px transparent; }
+    }
+    .status-info { flex: 1; min-width: 0; }
+    .status-label { font-size: 12px; font-weight: 600; color: var(--text-primary); }
+    .status-url {
+      font-size: 11px; color: var(--text-muted);
+      font-family: 'SFMono-Regular', Consolas, monospace;
+      margin-top: 1px;
+      overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+    }
+    .status-version { font-size: 10px; color: var(--text-muted); flex-shrink: 0; }
+
+    /* ── Section ── */
     .section-label {
-      font-size: 10px;
-      font-weight: 700;
-      letter-spacing: .08em;
-      text-transform: uppercase;
-      color: #475569;
-      margin-bottom: 10px;
+      font-size: 10px; font-weight: 700;
+      letter-spacing: .08em; text-transform: uppercase;
+      color: var(--text-muted); padding: 10px 16px 6px;
     }
 
     /* ── Platform List ── */
-    .platform-list { padding: 8px 16px; display: flex; flex-direction: column; gap: 8px; }
+    .platform-list { padding: 0 16px 8px; display: flex; flex-direction: column; gap: 6px; }
+
     .platform-card {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 12px;
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 12px;
-      cursor: pointer;
-      transition: all 0.2s;
-    }
-    .platform-card:hover { border-color: #475569; transform: translateY(-1px); background: #1c2128; }
-    .platform-card.disabled { opacity: 0.5; cursor: not-allowed; }
-    .platform-card.disabled:hover { transform: none; border-color: #30363d; background: #161b22; }
-    
-    .platform-info { display: flex; align-items: center; gap: 12px; }
-    .platform-icon { width: 32px; height: 32px; display: flex; align-items: center; justify-content: center; font-size: 20px; border-radius: 8px; background: #0f1117; border: 1px solid #1e2433; }
-    .platform-name h3 { font-size: 14px; font-weight: 600; color: #e2e8f0; }
-    .platform-name p { font-size: 11px; color: #64748b; }
-
-    .platform-badge { font-size: 10px; font-weight: 700; padding: 2px 6px; border-radius: 4px; text-transform: uppercase; }
-    .badge-active { background: #22c55e22; color: #22c55e; border: 1px solid #22c55e44; }
-    .badge-coming { background: #334155; color: #94a3b8; }
-
-    /* ── Status ── */
-    .status-row { display: flex; align-items: center; gap: 8px; }
-    .dot {
-      width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0;
-      box-shadow: 0 0 0 2px rgba(0,0,0,.4);
-    }
-    .dot.connected    { background: #22c55e; box-shadow: 0 0 8px rgba(34, 197, 94, 0.6); }
-    .dot.disconnected { background: #ef4444; box-shadow: 0 0 8px rgba(239, 68, 68, 0.4); }
-    #statusText { font-size: 13px; font-weight: 600; color: #f8fafc; }
-    #statusUrl  { font-size: 11px; color: #64748b; margin-top: 5px; padding-left: 18px; font-family: 'SFMono-Regular', Consolas, monospace; }
-
-    /* ── Feature list ── */
-    .features { list-style: none; display: flex; flex-direction: column; gap: 8px; }
-    .features li {
-      display: flex;
-      align-items: flex-start;
-      gap: 10px;
-      line-height: 1.4;
-      color: #94a3b8;
-      transition: color 0.2s, transform 0.2s;
-    }
-    .features li:hover { color: #e2e8f0; transform: translateX(2px); }
-    .features li .icon { font-size: 14px; flex-shrink: 0; margin-top: 0px; }
-
-    /* ── Port input ── */
-    .port-row { display: flex; gap: 8px; align-items: center; }
-    .port-row input {
-      flex: 1;
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 8px;
-      color: #e2e8f0;
-      padding: 8px 12px;
-      font-size: 13px;
-      outline: none;
-      transition: all 0.2s;
-    }
-    .port-row input:focus { border-color: #3b82f6; background: #1c2128; box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1); }
-    .port-row button {
-      background: #1d9bf0;
-      border: none;
-      border-radius: 8px;
-      color: #fff;
-      font-size: 12px;
-      font-weight: 700;
-      padding: 8px 16px;
-      cursor: pointer;
-      transition: all 0.2s;
-      white-space: nowrap;
-      box-shadow: 0 2px 4px rgba(29, 155, 240, 0.2);
-    }
-    .port-row button:hover { background: #1a8cd8; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(29, 155, 240, 0.3); }
-    .port-row button:active { transform: translateY(0); }
-    #statusMsg { font-size: 11px; color: #22c55e; margin-top: 8px; min-height: 14px; font-weight: 500; }
-
-    /* ── Connection list ── */
-    .connection-item {
-      display: flex;
-      align-items: center;
-      gap: 10px;
+      display: flex; align-items: center; justify-content: space-between;
       padding: 10px 12px;
-      background: #161b22;
-      border: 1px solid #30363d;
-      border-radius: 8px;
-      margin-bottom: 8px;
-      transition: all 0.2s;
-    }
-    .connection-item:hover { background: #1c2128; border-color: #475569; }
-    .primary-connection {
-      border-color: #3b82f6;
-      background: #1e2433;
-    }
-    .connection-url {
-      flex: 1;
-      font-size: 12px;
-      font-family: 'SFMono-Regular', Consolas, monospace;
-      color: #e2e8f0;
-      overflow: hidden;
-      text-overflow: ellipsis;
-      white-space: nowrap;
-    }
-    .connection-version {
-      font-size: 10px;
-      color: #64748b;
-      margin-top: 2px;
-    }
-    .connection-actions {
-      display: flex;
-      gap: 6px;
-      align-items: center;
-    }
-    .btn-remove {
-      background: none;
-      border: none;
-      color: #94a3b8;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg);
       cursor: pointer;
-      padding: 4px 8px;
-      border-radius: 4px;
-      font-size: 11px;
-      transition: all 0.2s;
-    }
-    .btn-remove:hover { background: #ef444422; color: #ef4444; }
-    .empty-state {
-      text-align: center;
-      padding: 20px;
-      color: #64748b;
-      font-size: 12px;
-    }
-
-    /* ── Download banner ── */
-    .download-banner {
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      gap: 12px;
-      background: linear-gradient(135deg, #1e2433 0%, #161b22 100%);
-      border: 1px solid #30363d;
-      border-radius: 12px;
-      padding: 12px 14px;
-      box-shadow: 0 4px 20px rgba(0,0,0,0.2);
-    }
-    .download-banner .desc { font-size: 12px; color: #94a3b8; line-height: 1.5; }
-    .download-banner .desc strong { color: #f8fafc; }
-    .download-banner a.dl-btn {
-      flex-shrink: 0;
-      background: #22c55e;
-      color: #0d1117;
-      font-size: 11px;
-      font-weight: 800;
+      transition: all 0.15s ease;
       text-decoration: none;
-      border-radius: 8px;
-      padding: 8px 12px;
-      transition: all 0.2s;
-      text-transform: uppercase;
-      letter-spacing: 0.02em;
     }
-    .download-banner a.dl-btn:hover { background: #2bd46c; transform: scale(1.05); }
+    .platform-card:hover:not(.disabled) {
+      background: var(--surface-hover);
+      border-color: var(--border-strong);
+      transform: translateY(-1px);
+    }
+    .platform-card.disabled { opacity: 0.45; cursor: default; pointer-events: none; }
+
+    .platform-left { display: flex; align-items: center; gap: 10px; }
+    .platform-icon {
+      width: 32px; height: 32px; border-radius: 8px;
+      background: var(--bg); border: 1px solid var(--border);
+      display: flex; align-items: center; justify-content: center;
+      flex-shrink: 0;
+    }
+    .platform-icon svg { display: block; }
+    .platform-name { font-size: 13px; font-weight: 600; color: var(--text-primary); }
+    .platform-sub  { font-size: 11px; color: var(--text-muted); margin-top: 1px; }
+
+    .platform-right { display: flex; align-items: center; gap: 8px; }
+    .badge {
+      font-size: 10px; font-weight: 700; padding: 2px 7px;
+      border-radius: 4px; text-transform: uppercase; flex-shrink: 0;
+    }
+    .badge-active {
+      background: var(--success-dim); color: var(--success);
+      border: 1px solid rgba(34,197,94,0.25);
+    }
+    .badge-pending {
+      background: rgba(71,85,105,0.25); color: var(--pending);
+      border: 1px solid rgba(71,85,105,0.3);
+    }
+    .chevron { color: var(--text-muted); flex-shrink: 0; }
 
     /* ── Footer ── */
     .footer {
-      padding: 12px 16px 14px;
-      text-align: center;
+      padding: 10px 16px 14px; text-align: center;
+      border-top: 1px solid var(--border);
+      margin-top: 4px;
     }
     .footer a {
-      font-size: 11px;
-      color: #475569;
-      text-decoration: none;
-      transition: color 0.2s;
-      font-weight: 500;
+      font-size: 11px; color: var(--text-muted);
+      text-decoration: none; transition: color 0.15s;
     }
-    .footer a:hover { color: #94a3b8; text-decoration: underline; }
+    .footer a:hover { color: var(--text-secondary); }
+
+    /* ── Settings View ── */
+    .settings-section { padding: 0 16px 12px; }
+    .settings-card {
+      background: var(--surface); border: 1px solid var(--border);
+      border-radius: var(--radius-md); padding: 12px;
+    }
+    .field { margin-bottom: 10px; }
+    .field:last-of-type { margin-bottom: 12px; }
+    .field label {
+      display: block; font-size: 11px; color: var(--text-secondary);
+      margin-bottom: 4px; font-weight: 500;
+    }
+    .field input {
+      width: 100%; background: var(--bg);
+      border: 1px solid var(--border); border-radius: var(--radius-sm);
+      color: var(--text-primary); padding: 8px 10px;
+      font-size: 13px; outline: none;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      font-family: inherit;
+    }
+    .field input:focus {
+      border-color: var(--primary);
+      box-shadow: 0 0 0 3px var(--primary-dim);
+    }
+    .field input.mono {
+      font-family: 'SFMono-Regular', Consolas, monospace;
+      font-size: 12px;
+    }
+    .btn-row { display: flex; gap: 8px; }
+    .btn {
+      flex: 1; border: none; border-radius: var(--radius-sm);
+      color: #fff; font-size: 12px; font-weight: 700;
+      padding: 9px 8px; cursor: pointer;
+      transition: all 0.15s ease; white-space: nowrap;
+      font-family: inherit;
+    }
+    .btn-success { background: var(--success); }
+    .btn-success:hover { filter: brightness(1.1); }
+    .btn-primary { background: var(--primary); }
+    .btn-primary:hover { background: var(--primary-hover); }
+    .btn-full { width: 100%; }
+
+    /* ── Capabilities List ── */
+    .capabilities-list { list-style: none; display: flex; flex-direction: column; gap: 8px; }
+    .capabilities-list li {
+      display: flex; align-items: flex-start; gap: 10px;
+      line-height: 1.4; color: var(--text-secondary);
+      font-size: 12px;
+    }
+    .capabilities-list li svg { flex-shrink: 0; margin-top: 2px; color: var(--primary); }
   </style>
 </head>
 <body>
 
-  <!-- View 1: Main Platform List -->
-  <div id="mainView">
-    <!-- Header -->
-    <div class="header">
-      <img src="images/logo_48.png" alt="TweetClaw">
-      <div class="header-text">
-        <h1 data-i18n="app.title">TweetClaw</h1>
-        <p data-i18n="app.subtitle">Omni-Bridge for AI Agents</p>
+<!-- ── View 1: Main View ── -->
+<div id="mainView">
+  <!-- Header -->
+  <div class="header">
+    <div class="header-left">
+      <div class="header-logo">
+        <img src="images/logo_48.png" alt="TweetClaw" width="32" height="32">
+      </div>
+      <div>
+        <div class="header-title" data-i18n="app.title">TweetClaw</div>
+        <div class="header-subtitle" data-i18n="app.subtitle">Omni-Bridge for AI Agents</div>
+      </div>
+    </div>
+    <button class="btn-icon" id="btnSettings" title="Bridge Settings">
+      <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
+        <path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>
+      </svg>
+    </button>
+  </div>
+
+  <!-- Bridge Status Card -->
+  <div class="status-card" id="mainStatusCard">
+    <span class="status-dot disconnected" id="mainStatusDot"></span>
+    <div class="status-info">
+      <div class="status-label" id="mainStatusLabel" data-i18n="status.checking">Checking…</div>
+      <div class="status-url" id="mainStatusUrl">ws://127.0.0.1:10086/ws</div>
+    </div>
+    <div class="status-version" id="mainStatusVersion"></div>
+  </div>
+
+  <!-- Platforms -->
+  <div class="section-label" data-i18n="platforms.title">Platforms</div>
+  <div class="platform-list">
+    <!-- X (Twitter) -->
+    <div class="platform-card" id="platformX">
+      <div class="platform-left">
+        <div class="platform-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.253 5.622 5.911-5.622zm-1.161 17.52h1.833L7.084 4.126H5.117z"/>
+          </svg>
+        </div>
+        <div>
+          <div class="platform-name" data-i18n="platform.x.name">X (Twitter)</div>
+          <div class="platform-sub" data-i18n="platform.x.status">Active Bridge</div>
+        </div>
+      </div>
+      <div class="platform-right">
+        <span class="badge badge-active" data-i18n="badge.active">Active</span>
+        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
       </div>
     </div>
 
-    <div class="section-label" style="padding: 14px 16px 0;" data-i18n="platforms.title">Supported Platforms</div>
-    <div class="platform-list">
-      <!-- X (Twitter) -->
-      <div class="platform-card" id="btnX">
-        <div class="platform-info">
-          <div class="platform-icon">𝕏</div>
-          <div class="platform-name">
-            <h3 data-i18n="platform.x.name">X (Twitter)</h3>
-            <p data-i18n="platform.x.status">Active Bridge</p>
-          </div>
+    <!-- Xiaohongshu -->
+    <div class="platform-card" id="platformXHS">
+      <div class="platform-left">
+        <div class="platform-icon" style="background: #ff2442; border-color: #ff2442;">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+            <text x="12" y="16" text-anchor="middle" font-size="12" font-weight="700" font-family="sans-serif">小</text>
+          </svg>
         </div>
-        <div class="platform-badge badge-active" data-i18n="badge.active">Active</div>
+        <div>
+          <div class="platform-name" data-i18n="platform.xiaohongshu.name">Xiaohongshu</div>
+          <div class="platform-sub" data-i18n="platform.xiaohongshu.status">Active Bridge</div>
+        </div>
       </div>
-
-      <!-- Reddit -->
-      <div class="platform-card disabled">
-        <div class="platform-info">
-          <div class="platform-icon">🤖</div>
-          <div class="platform-name">
-            <h3 data-i18n="platform.reddit.name">Reddit</h3>
-            <p data-i18n="platform.reddit.status">Coming Soon</p>
-          </div>
-        </div>
-        <div class="platform-badge badge-coming" data-i18n="badge.coming">Pending</div>
-      </div>
-
-      <!-- Discord -->
-      <div class="platform-card disabled">
-        <div class="platform-info">
-          <div class="platform-icon">💬</div>
-          <div class="platform-name">
-            <h3 data-i18n="platform.discord.name">Discord</h3>
-            <p data-i18n="platform.discord.status">Coming Soon</p>
-          </div>
-        </div>
-        <div class="platform-badge badge-coming" data-i18n="badge.coming">Pending</div>
-      </div>
-
-      <!-- Xiaohongshu -->
-      <div class="platform-card disabled">
-        <div class="platform-info">
-          <div class="platform-icon">📕</div>
-          <div class="platform-name">
-            <h3 data-i18n="platform.xiaohongshu.name">Xiaohongshu</h3>
-            <p data-i18n="platform.xiaohongshu.status">Coming Soon</p>
-          </div>
-        </div>
-        <div class="platform-badge badge-coming" data-i18n="badge.coming">Pending</div>
+      <div class="platform-right">
+        <span class="badge badge-active" data-i18n="badge.active">Active</span>
+        <svg class="chevron" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18l6-6-6-6"/></svg>
       </div>
     </div>
 
-    <!-- Companion Banner -->
-    <div class="section">
-      <div class="download-banner">
-        <div class="desc" data-i18n="banner.desc">
-          Visit <strong>official website</strong> for companion app.
+    <!-- Reddit -->
+    <div class="platform-card disabled">
+      <div class="platform-left">
+        <div class="platform-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="#ff4500">
+            <circle cx="12" cy="12" r="10"/>
+            <circle cx="12" cy="12" r="6" fill="white"/>
+            <circle cx="12" cy="12" r="3" fill="#ff4500"/>
+          </svg>
         </div>
-        <a class="dl-btn" href="https://aiwithblockchain.github.io/" target="_blank" rel="noopener" data-i18n="banner.button">Visit</a>
+        <div>
+          <div class="platform-name" data-i18n="platform.reddit.name">Reddit</div>
+          <div class="platform-sub" data-i18n="platform.reddit.status">Coming Soon</div>
+        </div>
+      </div>
+      <div class="platform-right">
+        <span class="badge badge-pending" data-i18n="badge.pending">Pending</span>
       </div>
     </div>
 
-    <div class="footer">
-      <a href="#" id="debugLink" data-i18n="footer.debug">Open Debug Interface</a>
+    <!-- Discord -->
+    <div class="platform-card disabled">
+      <div class="platform-left">
+        <div class="platform-icon">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="#5865f2">
+            <path d="M20.317 4.37a19.791 19.791 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.736 19.736 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.057a.082.082 0 0 0 .031.057 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028c.462-.63.874-1.295 1.226-1.994a.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128 10.2 10.2 0 0 0 .372-.292.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.01c.12.098.246.198.373.292a.077.077 0 0 1-.006.127 12.299 12.299 0 0 1-1.873.892.077.077 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.028 19.839 19.839 0 0 0 6.002-3.03.077.077 0 0 0 .032-.054c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.03z"/>
+          </svg>
+        </div>
+        <div>
+          <div class="platform-name" data-i18n="platform.discord.name">Discord</div>
+          <div class="platform-sub" data-i18n="platform.discord.status">Coming Soon</div>
+        </div>
+      </div>
+      <div class="platform-right">
+        <span class="badge badge-pending" data-i18n="badge.pending">Pending</span>
+      </div>
     </div>
   </div>
 
-  <!-- View 2: X (Twitter) Settings -->
-  <div id="xSettingsView" class="hidden">
-    <div class="header-with-back">
-      <button class="back-btn" id="btnBack">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/></svg>
-      </button>
-      <h2 data-i18n="x.config.title">X (Twitter) Configuration</h2>
-    </div>
+  <!-- Footer -->
+  <div class="footer">
+    <a href="debug.html" target="_blank" data-i18n="footer.debug">Open Debug Interface</a>
+  </div>
+</div>
 
-    <!-- Connection Status -->
-    <div class="section">
-      <div class="section-label" data-i18n="x.status.title">Bridge Status</div>
+<!-- ── View 2: Global Settings ── -->
+<div id="globalSettingsView" class="hidden">
+  <div class="header-nav">
+    <button class="btn-back" id="btnBackFromSettings">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
+      </svg>
+    </button>
+    <div class="nav-title" data-i18n="settings.title">Bridge Settings</div>
+  </div>
 
-      <!-- Single Connection Display -->
-      <div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 12px;">
-        <div style="display: flex; align-items: center; margin-bottom: 12px;">
-          <span class="dot disconnected" id="statusDot"></span>
-          <div style="flex: 1; margin-left: 10px;">
-            <div class="connection-url" id="connectionUrl">ws://127.0.0.1:10086/ws</div>
-            <div class="connection-version" id="connectionVersion" data-i18n="x.status.checking">Checking…</div>
-          </div>
-        </div>
-
-        <!-- IP Input -->
-        <div style="margin-bottom: 10px;">
-          <label style="font-size: 11px; color: #64748b; display: block; margin-bottom: 4px;" data-i18n="form.ip.label">IP Address</label>
-          <input type="text" id="hostInput" data-i18n-placeholder="form.ip.placeholder" placeholder="127.0.0.1" style="width: 100%; background: #0f1117; border: 1px solid #30363d; border-radius: 6px; color: #e2e8f0; padding: 8px 10px; font-size: 13px; outline: none; box-sizing: border-box;">
-        </div>
-
-        <!-- WS Port Input -->
-        <div style="margin-bottom: 10px;">
-          <label style="font-size: 11px; color: #64748b; display: block; margin-bottom: 4px;" data-i18n="form.port.label">Port</label>
-          <input type="number" id="portInput" data-i18n-placeholder="form.port.placeholder" placeholder="20086" min="1024" max="65535" style="width: 100%; background: #0f1117; border: 1px solid #30363d; border-radius: 6px; color: #e2e8f0; padding: 8px 10px; font-size: 13px; outline: none; box-sizing: border-box;">
-        </div>
-
-        <!-- REST Port Input -->
-        <div style="margin-bottom: 10px;">
-          <label style="font-size: 11px; color: #64748b; display: block; margin-bottom: 4px;" data-i18n="form.rest_port.label">REST Port</label>
-          <input type="number" id="restPortInput" data-i18n-placeholder="form.rest_port.placeholder" placeholder="10088" min="1024" max="65535" style="width: 100%; background: #0f1117; border: 1px solid #30363d; border-radius: 6px; color: #e2e8f0; padding: 8px 10px; font-size: 13px; outline: none; box-sizing: border-box;">
-        </div>
-
-        <!-- Buttons -->
-        <div style="display: flex; gap: 8px;">
-          <button id="reconnectBtn" style="flex: 1; background: #22c55e; border: none; border-radius: 6px; color: #fff; font-size: 13px; font-weight: 600; padding: 10px; cursor: pointer; transition: all 0.2s;" data-i18n="form.reconnect.button">Reconnect</button>
-          <button id="saveBtn" style="flex: 1; background: #1d9bf0; border: none; border-radius: 6px; color: #fff; font-size: 13px; font-weight: 600; padding: 10px; cursor: pointer; transition: all 0.2s;" data-i18n="form.save.button">Save &amp; Reconnect</button>
-        </div>
+  <!-- Connection Section -->
+  <div class="section-label" data-i18n="settings.connection.title">Connection</div>
+  <div class="settings-section">
+    <div class="settings-card">
+      <div class="field">
+        <label data-i18n="form.ip.label">IP Address</label>
+        <input type="text" id="settingsIp" class="mono" placeholder="127.0.0.1">
       </div>
-    </div>
-
-    <!-- Display Name -->
-    <div class="section">
-      <div class="section-label" data-i18n="name.title">Display Name</div>
-      <div style="background: #161b22; border: 1px solid #30363d; border-radius: 8px; padding: 12px;">
-        <div style="margin-bottom: 10px;">
-          <label style="font-size: 11px; color: #64748b; display: block; margin-bottom: 4px;" data-i18n="name.label">Your Name</label>
-          <input type="text" id="nameInput" data-i18n-placeholder="name.placeholder" placeholder="User-1234" maxlength="20" style="width: 100%; background: #0f1117; border: 1px solid #30363d; border-radius: 6px; color: #e2e8f0; padding: 8px 10px; font-size: 13px; outline: none; box-sizing: border-box;">
-        </div>
-        <button id="saveNameBtn" style="width: 100%; background: #1d9bf0; border: none; border-radius: 6px; color: #fff; font-size: 13px; font-weight: 600; padding: 10px; cursor: pointer; transition: all 0.2s;" data-i18n="name.save.button">Save Name &amp; Reconnect</button>
+      <div class="field">
+        <label data-i18n="form.port.label">WebSocket Port</label>
+        <input type="number" id="settingsPort" class="mono" placeholder="10086">
       </div>
-    </div>
-
-    <!-- Capabilities -->
-    <div class="section">
-      <div class="section-label" data-i18n="capabilities.title">Capabilities</div>
-      <ul class="features">
-        <li><span class="icon">🔗</span> <span data-i18n="capabilities.bind">Bind X browser session to local AI agents</span></li>
-        <li><span class="icon">📖</span> <span data-i18n="capabilities.read">Read home timeline &amp; search results</span></li>
-        <li><span class="icon">👤</span> <span data-i18n="capabilities.profile">Fetch user profile information</span></li>
-        <li><span class="icon">⚡</span> <span data-i18n="capabilities.actions">Execute actions (like, retweet, follow, post)</span></li>
-        <li><span class="icon">🌐</span> <span data-i18n="capabilities.navigate">Open and navigate X tabs on demand</span></li>
-        <li><span class="icon">💎</span> <span data-i18n="capabilities.save">Saves AI token costs via local bridging</span></li>
-      </ul>
+      <div class="field">
+        <label data-i18n="form.rest_port.label">REST Port</label>
+        <input type="number" id="settingsRestPort" class="mono" placeholder="10088">
+      </div>
+      <div class="btn-row">
+        <button class="btn btn-success" id="btnReconnect" data-i18n="form.reconnect.button">Reconnect</button>
+        <button class="btn btn-primary" id="btnSaveReconnect" data-i18n="form.save.button">Save & Reconnect</button>
+      </div>
+      <div id="settingsStatusMsg" style="font-size:11px;color:var(--success);margin-top:8px;min-height:14px;font-weight:500;"></div>
     </div>
   </div>
 
-  <script src="js/popup.js"></script>
+  <!-- Instance Section -->
+  <div class="section-label" data-i18n="settings.instance.title">Instance</div>
+  <div class="settings-section">
+    <div class="settings-card">
+      <div class="field">
+        <label data-i18n="name.label">Display Name</label>
+        <input type="text" id="settingsName" placeholder="User-1234">
+      </div>
+      <button class="btn btn-primary btn-full" id="btnSaveName" data-i18n="name.save.button">Save Name & Reconnect</button>
+    </div>
+  </div>
+
+  <div class="footer">
+    <a href="debug.html" target="_blank" data-i18n="footer.debug">Open Debug Interface</a>
+  </div>
+</div>
+
+<!-- ── View 3: X (Twitter) Details ── -->
+<div id="xDetailsView" class="hidden">
+  <div class="header-nav">
+    <button class="btn-back" id="btnBackFromX">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
+      </svg>
+    </button>
+    <div class="nav-title" data-i18n="platform.x.name">X (Twitter)</div>
+  </div>
+
+  <div class="section-label" data-i18n="capabilities.title">Capabilities</div>
+  <div class="settings-section">
+    <ul class="capabilities-list">
+      <li>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        <span data-i18n="capabilities.bind">Bind X browser session to local AI agents</span>
+      </li>
+      <li>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        <span data-i18n="capabilities.read">Read home timeline & search results</span>
+      </li>
+      <li>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span data-i18n="capabilities.profile">Fetch user profile information</span>
+      </li>
+      <li>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+        <span data-i18n="capabilities.actions">Execute actions (like, retweet, follow, post)</span>
+      </li>
+      <li>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><line x1="3" y1="9" x2="21" y2="9"/><line x1="9" y1="21" x2="9" y2="9"/></svg>
+        <span data-i18n="capabilities.navigate">Open and navigate X tabs on demand</span>
+      </li>
+      <li>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <span data-i18n="capabilities.save">Saves AI token costs via local bridging</span>
+      </li>
+    </ul>
+  </div>
+
+  <div class="footer">
+    <a href="debug.html" target="_blank" data-i18n="footer.debug">Open Debug Interface</a>
+  </div>
+</div>
+
+<!-- ── View 4: XHS Details ── -->
+<div id="xhsDetailsView" class="hidden">
+  <div class="header-nav">
+    <button class="btn-back" id="btnBackFromXHS">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M19 12H5"/><path d="M12 19l-7-7 7-7"/>
+      </svg>
+    </button>
+    <div class="nav-title" data-i18n="platform.xiaohongshu.name">Xiaohongshu</div>
+  </div>
+
+  <div class="section-label" data-i18n="capabilities.title">Capabilities</div>
+  <div class="settings-section">
+    <ul class="capabilities-list">
+      <li>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        <span data-i18n="capabilities.xhs.bind">Bind Xiaohongshu session to local AI agents</span>
+      </li>
+      <li>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"/><path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"/></svg>
+        <span data-i18n="capabilities.xhs.read">Read feed & search results</span>
+      </li>
+      <li>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+        <span data-i18n="capabilities.xhs.profile">Fetch user profile information</span>
+      </li>
+      <li>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3"/></svg>
+        <span data-i18n="capabilities.xhs.actions">Execute actions (like, collect, comment, post)</span>
+      </li>
+      <li>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+        <span data-i18n="capabilities.xhs.save">Saves AI token costs via local bridging</span>
+      </li>
+    </ul>
+  </div>
+
+  <div class="footer">
+    <a href="debug.html" target="_blank" data-i18n="footer.debug">Open Debug Interface</a>
+  </div>
+</div>
+
+<script src="js/popup.js"></script>
 </body>
 </html>
