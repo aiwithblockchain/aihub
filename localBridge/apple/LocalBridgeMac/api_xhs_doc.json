@@ -389,5 +389,19 @@
     "curl": "curl -X POST http://127.0.0.1:10088/api/v1/xhs/collection/update -H 'Content-Type: application/json' -d '{\"collection_id\":\"6a1d1c310518000000000001\",\"name\":\"新名称\",\"desc\":\"新简介\",\"cover\":{\"base64\":\"...\",\"mimeType\":\"image/jpeg\"}}'",
     "response": "{\"success\":true,\"data\":{\"updated\":true}}",
     "request_body": "{\"collection_id\":\"6a1d1c310518000000000001\",\"name\":\"新名称\",\"desc\":\"新简介\",\"cover\":{\"base64\":\"base64_encoded_image_data\",\"mimeType\":\"image/jpeg\"}}"
+  },
+  {
+    "id": "xhs_publish_video_note_large",
+    "name": "Publish XHS Video Note (Large File)",
+    "name_zh": "发布小红书视频笔记（大文件）",
+    "summary": "Publish a video note to Xiaohongshu with support for large video files (>64MB), using chunked upload to bypass Chrome's message size limit.",
+    "summary_zh": "发布小红书视频笔记，支持大视频文件（>64MB），使用分片上传绕过 Chrome 消息大小限制。",
+    "method": "POST",
+    "path": "/api/v1/xhs/publish_video_large",
+    "description": "Publishes a video note to Xiaohongshu with support for large video files. Uses chunked upload via task channel to bypass Chrome's 64MB message limit. Requires file_path (video file), title, desc parameters. Supports optional cover_path (custom cover image), privacy_type (0=public, 1=private, 3=specific users, 4=friends), privacy_user_ids, topics, and scheduled_publish_time. Video metadata (width, height, duration) is automatically extracted using ffprobe (must be installed). The upload process uses streaming to minimize memory usage - video is uploaded in 5MB parts while being received, avoiding the need to load the entire file into memory. Returns note_id and share_link on success. Requires creator.xiaohongshu.com tab to be open. Maximum supported file size is virtually unlimited (tested with 138MB+ files).",
+    "description_zh": "发布小红书视频笔记，支持大视频文件。使用任务通道的分片上传绕过 Chrome 的 64MB 消息限制。需要 file_path（视频文件）、title、desc 参数。支持可选 cover_path（自定义封面）、privacy_type（0=公开，1=仅自己，3=指定人，4=好友）、privacy_user_ids、topics 和 scheduled_publish_time。视频元数据（宽、高、时长）使用 ffprobe 自动提取（必须安装）。上传过程使用流式处理以最小化内存占用 - 视频以 5MB 分片边接收边上传，无需将整个文件加载到内存。成功时返回 note_id 和 share_link。需要 creator.xiaohongshu.com 标签页已打开。支持的最大文件大小几乎无限制（已测试 138MB+ 文件）。",
+    "curl": "curl -X POST http://127.0.0.1:10088/api/v1/xhs/publish_video_large -H 'Content-Type: application/json' -d '{\"file_path\":\"/path/to/video.mp4\",\"title\":\"视频标题\",\"desc\":\"视频描述\",\"cover_path\":\"/path/to/cover.jpg\",\"privacy_type\":0,\"topics\":[{\"id\":\"topic123\",\"name\":\"话题名称\"}],\"scheduled_publish_time\":1717142400}'",
+    "response": "{\"success\":true,\"data\":{\"id\":\"6a202c4e00000000070213b1\",\"score\":10},\"share_link\":\"https://www.xiaohongshu.com/discovery/item/6a202c4e00000000070213b1\"}",
+    "request_body": "{\"file_path\":\"/absolute/path/to/video.mp4\",\"title\":\"视频标题\",\"desc\":\"视频描述\",\"cover_path\":\"/absolute/path/to/cover.jpg\",\"privacy_type\":0,\"privacy_user_ids\":[],\"topics\":[{\"id\":\"topic_id\",\"name\":\"话题名称\"}],\"scheduled_publish_time\":1717142400}"
   }
 ]
