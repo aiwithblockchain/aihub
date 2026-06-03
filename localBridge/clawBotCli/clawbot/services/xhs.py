@@ -5,13 +5,15 @@ from __future__ import annotations
 from typing import Any, Dict, List, Optional
 
 from clawbot.transport.xhs_api import XhsApiTransport
+from clawbot.utils.video_metadata import extract_video_metadata
 
 
 class XhsService:
     """Unified service for XHS read and write operations."""
 
-    def __init__(self, transport: XhsApiTransport):
+    def __init__(self, transport: XhsApiTransport, task_client=None):
         self.transport = transport
+        self.task_client = task_client
 
     # ── Account & Status ──────────────────────────────────────────────────────
 
@@ -318,6 +320,100 @@ class XhsService:
             note_id: The note ID to collect
         """
         return self.transport.collect_note_raw(note_id=note_id)
+
+    def publish_video_note_large(
+        self,
+        file_path: str,
+        title: str,
+        desc: str,
+        privacy_type: int = 0,
+        privacy_user_ids: Optional[List[str]] = None,
+        cover_path: Optional[str] = None,
+        topics: Optional[List[Dict[str, Any]]] = None,
+        scheduled_publish_time: Optional[int] = None,
+        instance_id: Optional[str] = None,
+        tab_id: Optional[int] = None,
+    ) -> Dict[str, Any]:
+        """发布视频笔记（大文件走分片 Task 通道，绕过 Chrome 64 MiB 消息限制）。"""
+        import os
+        import base64
+        import json
+        import logging
+        from clawbot.upload.chunked_uploader import ChunkedUploader
+
+        logger = logging.getLogger(__name__)
+
+        if self.task_client is None:
+            raise RuntimeError("task_client is required for publish_video_note_large")
+
+        if not os.path.exists(file_path):
+            raise FileNotFoundError(f"File does not exist: {file_path}")
+
+        file_size = os.path.getsize(file_path)
+        logger.info(f"[publish_video_note_large] START file={file_path} size={file_size} title={title}")
+
+        cover = None
+        if cover_path and os.path.exists(cover_path):
+            with open(cover_path, "rb") as f:
+                cover = {"base64": base64.b64encode(f.read()).decode(), "mimeType": "image/jpeg"}
+            logger.info(f"[publish_video_note_large] Cover loaded from {cover_path}")
+
+        # 提取视频元数据（避免在浏览器端处理大文件）
+        video_metadata = extract_video_metadata(file_path)
+
+        params: Dict[str, Any] = {
+            "title": title,
+            "desc": desc,
+            "privacy_type": privacy_type,
+            "privacy_user_ids": privacy_user_ids or [],
+            "topics": topics or [],
+            "cover": cover,
+            "videoMetadata": video_metadata,  # 必须提供，extract_video_metadata 失败时会抛出异常
+        }
+        if scheduled_publish_time is not None:
+            params["scheduled_publish_time"] = scheduled_publish_time
+        if tab_id is not None:
+            params["tabId"] = tab_id
+
+        task_id = None
+        try:
+            if not instance_id:
+                instance_id = self.task_client.get_default_instance_id("tweetClaw")
+
+            task_id = self.task_client.create_task(
+                client_name="tweetClaw",
+                instance_id=instance_id,
+                task_kind="xhs.publish_video",
+                input_mode="chunked_binary",
+                params=params,
+            )
+            logger.info(f"[publish_video_note_large] Task created taskId={task_id}")
+
+            uploader = ChunkedUploader(self.task_client)
+            total_parts, total_bytes, content_type = uploader.upload_file(task_id, file_path)
+            logger.info(f"[publish_video_note_large] Upload complete parts={total_parts} bytes={total_bytes} type={content_type}")
+
+            self.task_client.seal_input(task_id, total_parts, total_bytes, content_type)
+            logger.info(f"[publish_video_note_large] Input sealed, starting task...")
+
+            self.task_client.start_task(task_id)
+            logger.info(f"[publish_video_note_large] Task started, waiting for completion...")
+
+            self.task_client.wait_for_completion(task_id, poll_interval=3.0, timeout=600.0)
+
+            result_bytes = self.task_client.get_task_result(task_id)
+            result = json.loads(result_bytes)
+            logger.info(f"[publish_video_note_large] Task completed noteId={result.get('data', {}).get('id', 'N/A')}")
+            return result
+
+        except Exception as e:
+            logger.error(f"[publish_video_note_large] Task failed taskId={task_id} error={e}")
+            if task_id:
+                try:
+                    self.task_client.cancel_task(task_id)
+                except Exception:
+                    pass
+            raise
 
     def delete_note(self, note_id: str) -> Dict[str, Any]:
         """

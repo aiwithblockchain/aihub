@@ -18,6 +18,7 @@ class TaskApiClient:
     def __init__(self, transport: TaskApiTransport, config_path: str | None = None):
         self.transport = transport
         self.config = self._load_config(config_path)
+        self._instances_cache: dict | None = None
 
     def _load_config(self, config_path: str | None = None) -> dict:
         if config_path is None:
@@ -30,14 +31,49 @@ class TaskApiClient:
                 raise ParseError(f"Invalid config JSON: {config_path}") from exc
         return {}
 
+    def _fetch_instances_from_bridge(self) -> list:
+        """动态从 LocalBridge 查询已连接的插件实例列表。"""
+        try:
+            # 复用 transport 的 base_url 和 session
+            response = self.transport.request_json("GET", "/api/v1/plugins")
+            if isinstance(response, list):
+                return response
+            return []
+        except Exception:
+            return []
+
     def get_default_instance_id(self, client_name: str) -> str:
-        instances = self.config.get("instances", {})
-        instance_id = instances.get(client_name)
-        if instance_id:
-            return instance_id
-        raise ValueError(
-            f"No configured instanceId for {client_name}. Please set ~/.aihub/config.json or pass instance_id explicitly."
-        )
+        """获取指定客户端的默认实例 ID。
+
+        优先级：
+        1. 动态查询 LocalBridge 已连接实例
+           - 单实例：返回该实例的真实 ID
+           - 多实例：抛出错误，要求用户指定
+        2. 配置文件中的静态配置（向后兼容）
+        3. 空字符串（让 LocalBridge 在单实例时自动匹配）
+        """
+        # 尝试动态查询
+        instances = self._fetch_instances_from_bridge()
+        client_instances = [inst for inst in instances if inst.get("clientName") == client_name]
+
+        if len(client_instances) == 1:
+            # 单实例场景：返回真实的 instance ID
+            return client_instances[0].get("instanceId", "")
+        elif len(client_instances) > 1:
+            # 多实例场景：抛出错误，要求用户指定
+            instance_list = "\n".join([
+                f"  - {inst.get('instanceId')} ({inst.get('instanceName', 'unnamed')})"
+                for inst in client_instances
+            ])
+            raise ValueError(
+                f"Multiple instances connected for '{client_name}'. "
+                f"Please specify instance_id:\n{instance_list}"
+            )
+
+        # 回退到配置文件（向后兼容）
+        instances_config = self.config.get("instances", {})
+        instance_id = instances_config.get(client_name)
+        return instance_id if instance_id else ""
 
     def create_task(self, client_name: str, instance_id: str, task_kind: str, input_mode: str, params: dict) -> str:
         payload = {

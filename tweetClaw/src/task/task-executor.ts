@@ -73,15 +73,21 @@ export class BackgroundTaskCoordinator {
     this.runningTasks.set(taskId, context);
 
     try {
-      if (request.taskKind !== 'x.media_upload') {
+      const SUPPORTED_TASK_KINDS = ['x.media_upload', 'xhs.publish_video'] as const;
+      type SupportedTaskKind = typeof SUPPORTED_TASK_KINDS[number];
+
+      if (!SUPPORTED_TASK_KINDS.includes(request.taskKind as SupportedTaskKind)) {
         throw new Error(`Unknown taskKind: ${request.taskKind}`);
       }
+
+      logger.info(`[BackgroundTaskCoordinator] Starting task, taskId=${taskId}, taskKind=${request.taskKind}`);
 
       const params = (request.params || {}) as BackgroundTaskParams;
       this.assertSupportedRequestParams(params);
 
-      const tabId = await this.resolveTargetTab(params.tabId);
+      const tabId = await this.resolveTargetTab(request.taskKind, params.tabId);
       context.tabId = tabId;
+      logger.info(`[BackgroundTaskCoordinator] Resolved target tab, taskId=${taskId}, taskKind=${request.taskKind}, tabId=${tabId}`);
 
       const preparedInput = await this.dataFetcher.fetchAndChunkTaskInput(
         taskId,
@@ -106,8 +112,14 @@ export class BackgroundTaskCoordinator {
       context.contentType = session.mimeType;
       this.handleLocalProgress(context, 'dispatch_to_content', 0.5);
 
+      const messageType = request.taskKind === 'xhs.publish_video'
+        ? 'START_XHS_PUBLISH_VIDEO_TASK'
+        : 'START_TASK_UPLOAD_FROM_BG_SESSION';
+
+      logger.info(`[BackgroundTaskCoordinator] Sending message to content, taskId=${taskId}, messageType=${messageType}, session=${session.sessionId}, chunks=${session.transferChunkCount}, bytes=${session.totalBytes}`);
+
       const startResponse = await chrome.tabs.sendMessage(tabId, {
-        type: 'START_TASK_UPLOAD_FROM_BG_SESSION',
+        type: messageType,
         taskId,
         uploadSessionId: session.sessionId,
         mimeType: session.mimeType,
@@ -234,9 +246,18 @@ export class BackgroundTaskCoordinator {
     }
   }
 
-  private async resolveTargetTab(preferredTabId?: number): Promise<number> {
+  private async resolveTargetTab(taskKind: string, preferredTabId?: number): Promise<number> {
     if (preferredTabId) {
       return preferredTabId;
+    }
+
+    if (taskKind === 'xhs.publish_video') {
+      const xhsTabs = await chrome.tabs.query({ url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*'] });
+      const targetTab = xhsTabs.find(tab => tab.active) || xhsTabs[0];
+      if (!targetTab?.id) {
+        throw new Error('No xiaohongshu.com tab found for task execution');
+      }
+      return targetTab.id;
     }
 
     const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });

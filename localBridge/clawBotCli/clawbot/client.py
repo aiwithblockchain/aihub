@@ -36,7 +36,7 @@ class ClawBotClient:
         self.ai_chat = AIChatService(self.ai_transport)
         self.task_client = TaskApiClient(self.task_transport)
         self.media = MediaService(self.task_client, self.x_actions)
-        self.xhs_service = XhsService(self.xhs_transport)
+        self.xhs_service = XhsService(self.xhs_transport, task_client=self.task_client)
 
         self.x = SimpleNamespace(
             status=self.x_status,
