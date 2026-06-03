@@ -1030,21 +1030,34 @@ async function fetchZones(): Promise<any> {
   return signedFetch('/api/sns/web/v1/zones', 'GET');
 }
 
-async function fetchHomefeed(cursorScore: string = ''): Promise<any> {
-  const isFirstPage = !cursorScore.trim();
+async function fetchHomefeed(options: {
+  cursor_score?: string;
+  category?: string;
+  refresh_type?: number;
+  num?: number;
+  note_index?: number;
+  unread_begin_note_id?: string;
+  unread_end_note_id?: string;
+  unread_note_count?: number;
+  search_key?: string;
+  need_num?: number;
+  image_formats?: string[];
+  need_filter_image?: boolean;
+} = {}): Promise<any> {
+  const isFirstPage = !options.cursor_score?.trim();
   const body = {
-    cursor_score: cursorScore,
-    num: 20,
-    refresh_type: isFirstPage ? 1 : 3,
-    note_index: isFirstPage ? 0 : 20,
-    unread_begin_note_id: '',
-    unread_end_note_id: '',
-    unread_note_count: 0,
-    category: 'homefeed_recommend',
-    search_key: '',
-    need_num: 10,
-    image_formats: ['jpg', 'webp', 'avif'],
-    need_filter_image: false,
+    cursor_score: options.cursor_score || '',
+    num: options.num ?? 20,
+    refresh_type: options.refresh_type ?? (isFirstPage ? 1 : 3),
+    note_index: options.note_index ?? (isFirstPage ? 0 : 20),
+    unread_begin_note_id: options.unread_begin_note_id || '',
+    unread_end_note_id: options.unread_end_note_id || '',
+    unread_note_count: options.unread_note_count ?? 0,
+    category: options.category || 'homefeed_recommend',
+    search_key: options.search_key || '',
+    need_num: options.need_num ?? 10,
+    image_formats: options.image_formats || ['jpg', 'webp', 'avif'],
+    need_filter_image: options.need_filter_image ?? false,
   };
   return signedFetch('/api/sns/web/v1/homefeed', 'POST', JSON.stringify(body), { 'xy-direction': '98' });
 }
@@ -1392,7 +1405,20 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
   if (message.type === XHS_MSG_TYPE.FETCH_HOMEFEED) {
     (async () => {
       try {
-        const data = await fetchHomefeed(String(message.cursor_score || ''));
+        const data = await fetchHomefeed({
+          cursor_score: message.cursor_score,
+          category: message.category,
+          refresh_type: message.refresh_type,
+          num: message.num,
+          note_index: message.note_index,
+          unread_begin_note_id: message.unread_begin_note_id,
+          unread_end_note_id: message.unread_end_note_id,
+          unread_note_count: message.unread_note_count,
+          search_key: message.search_key,
+          need_num: message.need_num,
+          image_formats: message.image_formats,
+          need_filter_image: message.need_filter_image,
+        });
         sendResponse({ success: true, data });
       } catch (e: any) {
         sendResponse({ success: false, error: e.message });

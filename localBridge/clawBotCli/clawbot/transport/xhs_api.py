@@ -11,10 +11,46 @@ class XhsApiTransport(BaseApiTransport):
     def get_account_info_raw(self) -> Dict[Any, Any]:
         return self.request_json("GET", "/api/v1/xhs/account")
 
-    def get_homefeed_raw(self, cursor_score: Optional[str] = None) -> Dict[Any, Any]:
-        params = {}
-        if cursor_score:
+    def get_homefeed_raw(
+        self,
+        cursor_score: Optional[str] = None,
+        category: Optional[str] = None,
+        refresh_type: Optional[int] = None,
+        num: Optional[int] = None,
+        note_index: Optional[int] = None,
+        unread_begin_note_id: Optional[str] = None,
+        unread_end_note_id: Optional[str] = None,
+        unread_note_count: Optional[int] = None,
+        search_key: Optional[str] = None,
+        need_num: Optional[int] = None,
+        image_formats: Optional[List[str]] = None,
+        need_filter_image: Optional[bool] = None,
+    ) -> Dict[Any, Any]:
+        params: Dict[str, Any] = {}
+        if cursor_score is not None:
             params["cursor_score"] = cursor_score
+        if category is not None:
+            params["category"] = category
+        if refresh_type is not None:
+            params["refresh_type"] = refresh_type
+        if num is not None:
+            params["num"] = num
+        if note_index is not None:
+            params["note_index"] = note_index
+        if unread_begin_note_id is not None:
+            params["unread_begin_note_id"] = unread_begin_note_id
+        if unread_end_note_id is not None:
+            params["unread_end_note_id"] = unread_end_note_id
+        if unread_note_count is not None:
+            params["unread_note_count"] = unread_note_count
+        if search_key is not None:
+            params["search_key"] = search_key
+        if need_num is not None:
+            params["need_num"] = need_num
+        if image_formats is not None:
+            params["image_formats"] = image_formats
+        if need_filter_image is not None:
+            params["need_filter_image"] = need_filter_image
         return self.request_json("GET", "/api/v1/xhs/homefeed", params=params)
 
     def get_feed_raw(self, note_id: str, xsec_token: Optional[str] = None, xsec_source: Optional[str] = None) -> Dict[Any, Any]:

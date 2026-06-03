@@ -29,14 +29,14 @@
     "id": "query_xhs_homefeed",
     "name": "Query XHS Homefeed",
     "name_zh": "获取小红书主页推荐",
-    "summary": "Get the home feed recommendations from Xiaohongshu, returning a list of recommended notes based on user preferences.",
-    "summary_zh": "获取小红书主页推荐内容，返回基于用户偏好的推荐笔记列表。",
+    "summary": "Get the home feed from Xiaohongshu with flexible filtering options including category, pagination, and item count control.",
+    "summary_zh": "获取小红书主页信息流，支持分类、分页、数量控制等灵活过滤选项。",
     "method": "GET",
     "path": "/api/v1/xhs/homefeed",
-    "description": "Fetches the home feed from Xiaohongshu's recommendation algorithm. Supports pagination via cursor parameter. Returns a list of notes with details including note_id, title, cover image, author info, like count, and other metadata. The feed_type parameter can be used to specify different feed categories. Useful for content discovery and trend analysis.",
-    "description_zh": "从小红书推荐算法获取主页信息流。支持通过 cursor 参数分页。返回笔记列表，包含 note_id、标题、封面图、作者信息、点赞数等元数据。feed_type 参数可用于指定不同的信息流分类。适用于内容发现和趋势分析。",
-    "curl": "curl -X GET 'http://127.0.0.1:10088/api/v1/xhs/homefeed?cursor=&feed_type='",
-    "response": "{\"success\":true,\"data\":{\"items\":[{\"id\":\"note123\",\"title\":\"推荐笔记标题\",\"type\":\"normal\",\"display_title\":\"展示标题\",\"user\":{\"nickname\":\"作者昵称\",\"image\":\"头像URL\"},\"interact_info\":{\"liked_count\":100,\"collected_count\":50,\"comment_count\":20}}],\"cursor\":\"next_cursor_value\"}}"
+    "description": "Fetches the home feed from Xiaohongshu with comprehensive parameter support. Key parameters include: category (feed type like 'homefeed_recommend' for recommendations, 'homefeed_follow' for following feed), cursor_score (pagination cursor), num (items per page, default 20), refresh_type (1=first page, 3=pagination), note_index (offset), need_num (items needed), search_key, image_formats, and need_filter_image. Returns a list of notes with details including note_id, title, cover image, author info, like count, and other metadata. All parameters are optional - defaults to recommendation feed with 20 items. Useful for content discovery, trend analysis, and feed customization.",
+    "description_zh": "从小红书获取主页信息流，支持完整的参数控制。主要参数包括：category（信息流分类，如 'homefeed_recommend' 推荐流、'homefeed_follow' 关注流），cursor_score（分页游标），num（每页数量，默认 20），refresh_type（1=首页，3=翻页），note_index（索引偏移），need_num（需要数量），search_key（搜索关键字），image_formats（图片格式），need_filter_image（是否过滤图片）。返回笔记列表，包含 note_id、标题、封面图、作者信息、点赞数等元数据。所有参数可选，默认为推荐流 20 条。适用于内容发现、趋势分析和信息流定制。",
+    "curl": "curl -X GET 'http://127.0.0.1:10088/api/v1/xhs/homefeed'\ncurl -X GET 'http://127.0.0.1:10088/api/v1/xhs/homefeed?category=homefeed_follow'\ncurl -X GET 'http://127.0.0.1:10088/api/v1/xhs/homefeed?num=30&need_num=15'\ncurl -X GET 'http://127.0.0.1:10088/api/v1/xhs/homefeed?cursor_score=1.7805065749800014E9'",
+    "response": "{\"success\":true,\"data\":{\"items\":[{\"id\":\"note123\",\"title\":\"推荐笔记标题\",\"type\":\"normal\",\"display_title\":\"展示标题\",\"user\":{\"nickname\":\"作者昵称\",\"image\":\"头像URL\"},\"interact_info\":{\"liked_count\":100,\"collected_count\":50,\"comment_count\":20}}],\"cursor_score\":\"1.7805065749800014E9\"}}"
   },
   {
     "id": "query_xhs_feed",

@@ -23,9 +23,36 @@ class XhsService:
 
     # ── Feed & Content Discovery ──────────────────────────────────────────────
 
-    def get_homefeed(self, cursor_score: Optional[str] = None) -> Dict[str, Any]:
-        """Get XHS home feed with optional pagination cursor."""
-        return self.transport.get_homefeed_raw(cursor_score=cursor_score)
+    def get_homefeed(
+        self,
+        cursor_score: Optional[str] = None,
+        category: Optional[str] = None,
+        refresh_type: Optional[int] = None,
+        num: Optional[int] = None,
+        note_index: Optional[int] = None,
+        unread_begin_note_id: Optional[str] = None,
+        unread_end_note_id: Optional[str] = None,
+        unread_note_count: Optional[int] = None,
+        search_key: Optional[str] = None,
+        need_num: Optional[int] = None,
+        image_formats: Optional[List[str]] = None,
+        need_filter_image: Optional[bool] = None,
+    ) -> Dict[str, Any]:
+        """Get XHS home feed with optional pagination cursor and filters."""
+        return self.transport.get_homefeed_raw(
+            cursor_score=cursor_score,
+            category=category,
+            refresh_type=refresh_type,
+            num=num,
+            note_index=note_index,
+            unread_begin_note_id=unread_begin_note_id,
+            unread_end_note_id=unread_end_note_id,
+            unread_note_count=unread_note_count,
+            search_key=search_key,
+            need_num=need_num,
+            image_formats=image_formats,
+            need_filter_image=need_filter_image,
+        )
 
     def get_feed(self, note_id: str, xsec_token: Optional[str] = None, xsec_source: Optional[str] = None) -> Dict[str, Any]:
         """Get a specific note's feed data by note ID."""
