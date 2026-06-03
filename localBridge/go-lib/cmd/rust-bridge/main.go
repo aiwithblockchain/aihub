@@ -63,6 +63,7 @@ import (
 	"path/filepath"
 	"strings"
 	"sync"
+	"time"
 	"unsafe"
 
 	"github.com/hyperorchid/localbridge/pkg/bridge"
@@ -79,6 +80,19 @@ var logBuf struct {
 var bridgeState struct {
 	mu      sync.Mutex
 	lastErr string
+}
+
+// 日志文件路径（由 Rust 侧通过 SetLogFilePath 设置）
+var logFilePath struct {
+	mu   sync.RWMutex
+	path string
+}
+
+// 日志同步控制
+var logFlusher struct {
+	mu       sync.Mutex
+	running  bool
+	stopChan chan struct{}
 }
 
 type bridgeLogWriter struct{}
@@ -524,6 +538,135 @@ func SetFeishuSendHandler(
 	} else {
 		log.Printf("[rust-bridge] feishu send handler registered")
 	}
+}
+
+// ─── 日志文件输出支持 ─────────────────────────────────────────────────────────
+
+// SetLogFilePath 设置日志文件路径并启动后台写入任务。
+// 传入空路径则停止后台任务（Release 模式）。
+// 路径由 Rust 侧在 Debug 模式下传入，指向 ~/.tweetpilot/logs/go-lib.log
+//
+//export SetLogFilePath
+func SetLogFilePath(path *C.char) {
+	if path == nil {
+		stopLogFlusher()
+		logFilePath.mu.Lock()
+		logFilePath.path = ""
+		logFilePath.mu.Unlock()
+		log.Printf("[rust-bridge] log file path cleared, flusher stopped")
+		return
+	}
+
+	filePath := C.GoString(path)
+	logFilePath.mu.Lock()
+	logFilePath.path = filePath
+	logFilePath.mu.Unlock()
+
+	log.Printf("[rust-bridge] log file path set to: %s", filePath)
+	startLogFlusher()
+}
+
+// startLogFlusher 启动后台日志刷新任务（仅 Debug 模式）
+func startLogFlusher() {
+	logFlusher.mu.Lock()
+	defer logFlusher.mu.Unlock()
+
+	if logFlusher.running {
+		return
+	}
+
+	logFlusher.running = true
+	logFlusher.stopChan = make(chan struct{})
+
+	go func() {
+		ticker := time.NewTicker(5 * time.Second)
+		defer ticker.Stop()
+
+		var lastCount int
+
+		for {
+			select {
+			case <-logFlusher.stopChan:
+				log.Printf("[rust-bridge] log flusher stopped")
+				return
+			case <-ticker.C:
+				flushLogsToFile(&lastCount)
+			}
+		}
+	}()
+
+	log.Printf("[rust-bridge] log flusher started (5s interval)")
+}
+
+// stopLogFlusher 停止后台日志刷新任务
+func stopLogFlusher() {
+	logFlusher.mu.Lock()
+	defer logFlusher.mu.Unlock()
+
+	if !logFlusher.running {
+		return
+	}
+
+	if logFlusher.stopChan != nil {
+		close(logFlusher.stopChan)
+		logFlusher.stopChan = nil
+	}
+	logFlusher.running = false
+}
+
+// flushLogsToFile 将新增日志追加写入文件
+func flushLogsToFile(lastCount *int) {
+	logFilePath.mu.RLock()
+	path := logFilePath.path
+	logFilePath.mu.RUnlock()
+
+	if path == "" {
+		return
+	}
+
+	// 获取新增日志
+	logBuf.mu.Lock()
+	total := len(logBuf.lines)
+
+	// 处理环形缓冲区截断情况：如果 lastCount 超出当前范围，从头开始
+	startIdx := *lastCount
+	if startIdx > total {
+		startIdx = 0
+	}
+
+	newLines := make([]string, total-startIdx)
+	if len(newLines) > 0 {
+		copy(newLines, logBuf.lines[startIdx:])
+	}
+	logBuf.mu.Unlock()
+
+	if len(newLines) == 0 {
+		*lastCount = total
+		return
+	}
+
+	// 确保目录存在
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		log.Printf("[rust-bridge] failed to create log dir: %v", err)
+		return
+	}
+
+	// 追加写入文件
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+	if err != nil {
+		log.Printf("[rust-bridge] failed to open log file: %v", err)
+		return
+	}
+	defer f.Close()
+
+	for _, line := range newLines {
+		if _, err := f.WriteString(line + "\n"); err != nil {
+			break
+		}
+	}
+
+	*lastCount = total
 }
 
 func main() {}
