@@ -17,6 +17,7 @@ module.exports = (env, argv) => {
             popup: path.resolve(__dirname, 'src/popup/popup.ts'),
             'content-xhs': path.resolve(__dirname, 'src/content/xhs-main-entrance.ts'),
             'xhs-sign-inject': path.resolve(__dirname, 'src/platforms/xiaohongshu/sign/xhs-sign-inject.ts'),
+            'content-ig': path.resolve(__dirname, 'src/content/ig-main-entrance.ts'),
         },
         output: {
             path: path.resolve(__dirname, 'dist'),
