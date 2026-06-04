@@ -7,6 +7,8 @@ typedef const char *(*resolve_x_oauth_access_token_fn)(const char *twitter_id);
 typedef void (*free_x_oauth_access_token_fn)(const char *value);
 typedef const char *(*handle_x_oauth_callback_fn)(const char *query_json);
 typedef void (*free_x_oauth_callback_fn)(const char *value);
+typedef const char *(*handle_google_oauth_callback_fn)(const char *query_json);
+typedef void (*free_google_oauth_callback_fn)(const char *value);
 typedef const char *(*feishu_send_fn)(const char *text_json);
 typedef void (*free_feishu_send_fn)(const char *value);
 
@@ -39,6 +41,20 @@ static inline void call_free_x_oauth_access_token_fn(free_x_oauth_access_token_f
 }
 
 static inline void call_free_x_oauth_callback_fn(free_x_oauth_callback_fn fn, const char *value) {
+	if (fn == NULL || value == NULL) {
+		return;
+	}
+	fn(value);
+}
+
+static inline const char *call_handle_google_oauth_callback_fn(handle_google_oauth_callback_fn fn, const char *query_json) {
+	if (fn == NULL) {
+		return NULL;
+	}
+	return fn(query_json);
+}
+
+static inline void call_free_google_oauth_callback_fn(free_google_oauth_callback_fn fn, const char *value) {
 	if (fn == NULL || value == NULL) {
 		return;
 	}
@@ -106,6 +122,13 @@ type cgoXOAuthResolver struct {
 
 var xResolver = &cgoXOAuthResolver{}
 
+// Google OAuth callback cgo 回调持有
+var googleOAuthHandler struct {
+	mu     sync.Mutex
+	fn     C.handle_google_oauth_callback_fn
+	freeFn C.free_google_oauth_callback_fn
+}
+
 // feishu 主动发消息 cgo 回调持有
 var feishuSender struct {
 	mu     sync.Mutex
@@ -142,6 +165,20 @@ type xOAuthCallbackRequest struct {
 }
 
 type xOAuthCallbackResponse struct {
+	OK          bool   `json:"ok"`
+	HTML        string `json:"html,omitempty"`
+	ContentType string `json:"content_type,omitempty"`
+	Error       string `json:"error,omitempty"`
+}
+
+type googleOAuthCallbackRequest struct {
+	Code             string `json:"code,omitempty"`
+	State            string `json:"state,omitempty"`
+	Error            string `json:"error,omitempty"`
+	ErrorDescription string `json:"error_description,omitempty"`
+}
+
+type googleOAuthCallbackResponse struct {
 	OK          bool   `json:"ok"`
 	HTML        string `json:"html,omitempty"`
 	ContentType string `json:"content_type,omitempty"`
@@ -230,6 +267,7 @@ func registerRustBridgeRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/x/docs", restapi.NewAPIDocsHandler(rustBridgeAPIDocsCandidates()))
 	mux.HandleFunc("/api/v1/x/oauth/access-token", handleXOAuthAccessToken)
 	mux.HandleFunc("/oauth/callback", handleXOAuthCallback)
+	mux.HandleFunc("/oauth/google/callback", handleGoogleOAuthCallback)
 	mux.HandleFunc("/api/v1/feishu/send", handleFeishuSend)
 }
 
@@ -353,6 +391,93 @@ func defaultXOAuthCallbackHTML(ok bool, message string) string {
 	return "<!doctype html><html><head><meta charset=\"utf-8\"><title>" + title + "</title></head><body><h1>" + title + "</h1><p>" + body + "</p></body></html>"
 }
 
+func handleGoogleOAuthCallback(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		writeMethodNotAllowed(w, http.MethodGet)
+		return
+	}
+
+	response, err := forwardGoogleOAuthCallback(r)
+	if err != nil {
+		writeHTML(w, http.StatusServiceUnavailable, defaultGoogleOAuthCallbackHTML(false, err.Error()))
+		return
+	}
+
+	status := http.StatusOK
+	if !response.OK {
+		status = http.StatusBadRequest
+	}
+
+	contentType := strings.TrimSpace(response.ContentType)
+	if contentType == "" {
+		contentType = "text/html; charset=utf-8"
+	}
+
+	body := response.HTML
+	if strings.TrimSpace(body) == "" {
+		body = defaultGoogleOAuthCallbackHTML(response.OK, response.Error)
+	}
+
+	w.Header().Set("Content-Type", contentType)
+	w.WriteHeader(status)
+	_, _ = w.Write([]byte(body))
+}
+
+func forwardGoogleOAuthCallback(r *http.Request) (*googleOAuthCallbackResponse, error) {
+	googleOAuthHandler.mu.Lock()
+	fn := googleOAuthHandler.fn
+	freeFn := googleOAuthHandler.freeFn
+	googleOAuthHandler.mu.Unlock()
+
+	if fn == nil {
+		return nil, errors.New("callback_handler_unavailable")
+	}
+
+	requestPayload, err := json.Marshal(googleOAuthCallbackRequest{
+		Code:             strings.TrimSpace(r.URL.Query().Get("code")),
+		State:            strings.TrimSpace(r.URL.Query().Get("state")),
+		Error:            strings.TrimSpace(r.URL.Query().Get("error")),
+		ErrorDescription: strings.TrimSpace(r.URL.Query().Get("error_description")),
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	cPayload := C.CString(string(requestPayload))
+	defer C.free(unsafe.Pointer(cPayload))
+
+	result := C.call_handle_google_oauth_callback_fn(fn, cPayload)
+	if result == nil {
+		return nil, errors.New("callback_handler_unavailable")
+	}
+
+	payload := C.GoString(result)
+	C.call_free_google_oauth_callback_fn(freeFn, result)
+
+	if payload == "" {
+		return nil, errors.New("callback_handler_unavailable")
+	}
+
+	var response googleOAuthCallbackResponse
+	if err := json.Unmarshal([]byte(payload), &response); err != nil {
+		return nil, err
+	}
+	return &response, nil
+}
+
+func defaultGoogleOAuthCallbackHTML(ok bool, message string) string {
+	title := "Google 登录失败"
+	body := "请返回 TweetPilot 重试。"
+	if ok {
+		title = "Google 登录成功"
+		body = "你可以关闭此页面并返回 TweetPilot。"
+	} else if strings.TrimSpace(message) != "" {
+		body = html.EscapeString(message)
+	}
+
+	return "<!doctype html><html><head><meta charset=\"utf-8\"><title>" + title + "</title></head><body><h1>" + title + "</h1><p>" + body + "</p></body></html>"
+}
+
 func decodeJSONBody(r *http.Request, v interface{}) error {
 	defer r.Body.Close()
 	return json.NewDecoder(r.Body).Decode(v)
@@ -459,6 +584,22 @@ func SetXOAuthCallbackHandler(
 	}
 	xResolver.oauthCallback = handler
 	xResolver.freeOAuthCallback = freeFn
+}
+
+//export SetGoogleOAuthCallbackHandler
+func SetGoogleOAuthCallbackHandler(
+	handler C.handle_google_oauth_callback_fn,
+	freeFn C.free_google_oauth_callback_fn,
+) {
+	googleOAuthHandler.mu.Lock()
+	defer googleOAuthHandler.mu.Unlock()
+	if handler == nil {
+		googleOAuthHandler.fn = nil
+		googleOAuthHandler.freeFn = nil
+		return
+	}
+	googleOAuthHandler.fn = handler
+	googleOAuthHandler.freeFn = freeFn
 }
 
 // handleFeishuSend 处理 POST /api/v1/feishu/send 请求。
