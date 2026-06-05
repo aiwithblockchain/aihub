@@ -36,8 +36,9 @@ export const APP_VERSION_CODE = '350696709';
 /**
  * Facebook Analytics Application ID
  * 用于 X-IG-App-ID Header
+ * Instagram Web 使用 936619743392459
  */
-export const X_IG_APP_ID = '567067343352427';
+export const X_IG_APP_ID = '936619743392459';
 
 /**
  * Facebook Orca Application ID
@@ -54,7 +55,7 @@ export const FACEBOOK_OTA_FIELDS = 'fb_ota_fields';
 /**
  * Instagram API 基础 URL
  */
-export const BASE_URL = 'https://i.instagram.com/';
+export const BASE_URL = 'https://www.instagram.com';
 
 /**
  * API 版本前缀

@@ -8,8 +8,6 @@ import { getCsrfToken, getRequiredCookies, isLoggedIn } from './cookie-helper';
 import {
   BASE_URL,
   X_IG_APP_ID,
-  CAPABILITIES_HEADER,
-  CONNECTION_TYPE_HEADER,
   REQUEST_TIMEOUT,
   MIN_WRITE_DELAY,
   MAX_WRITE_DELAY,
@@ -38,21 +36,23 @@ export class IgApiClient {
   /**
    * 构建默认请求 Headers
    */
-  private async buildHeaders(): Promise<Headers> {
+  private async buildHeaders(method: 'GET' | 'POST' = 'GET'): Promise<Headers> {
     const csrfToken = await getCsrfToken();
-    const cookies = await getRequiredCookies();
 
     const headers = new Headers({
-      'Content-Type': 'application/x-www-form-urlencoded',
       'X-CSRFToken': csrfToken,
       'X-IG-App-ID': X_IG_APP_ID,
-      'X-IG-Capabilities': CAPABILITIES_HEADER,
-      'X-IG-Connection-Type': CONNECTION_TYPE_HEADER,
       'Accept': '*/*',
       'Accept-Language': 'en-US,en;q=0.9',
-      'Origin': 'https://www.instagram.com',
+      'X-Requested-With': 'XMLHttpRequest',
       'Referer': 'https://www.instagram.com/',
+      'X-Instagram-AJAX': '1',
+      'User-Agent': navigator.userAgent,
     });
+
+    if (method === 'POST') {
+      headers.set('Content-Type', 'application/x-www-form-urlencoded');
+    }
 
     return headers;
   }
@@ -67,25 +67,30 @@ export class IgApiClient {
   private async request<T>(
     endpoint: string,
     method: 'GET' | 'POST' = 'GET',
-    body?: Record<string, any>
+    body?: Record<string, any>,
+    skipSignature: boolean = false
   ): Promise<T> {
     const url = `${this.baseUrl}${endpoint}`;
-    const headers = await this.buildHeaders();
+    const headers = await this.buildHeaders(method);
 
     const options: RequestInit = {
       method,
       headers,
-      credentials: 'include', // 自动携带 Cookie
-      mode: 'cors',
+      credentials: 'include',
     };
 
     if (body && method === 'POST') {
-      // 对请求体进行签名
-      const signedBody = await sign(body);
-      options.body = new URLSearchParams({
-        ...signedBody,
-        ...body,
-      }).toString();
+      if (skipSignature) {
+        // GraphQL 等查询不需要签名，直接发送表单数据
+        options.body = new URLSearchParams(body).toString();
+      } else {
+        // 对请求体进行签名
+        const signedBody = await sign(body);
+        options.body = new URLSearchParams({
+          ...signedBody,
+          ...body,
+        }).toString();
+      }
     }
 
     console.log(`[IG API] ${method} ${endpoint}`);
@@ -111,14 +116,43 @@ export class IgApiClient {
 
   /**
    * 获取当前用户信息
-   * API: GET /api/v1/accounts/current_user/
+   * API: POST /graphql/query
    */
-  public async getSelfInfo(): Promise<IgCurrentUser> {
-    const response = await this.request<IgCurrentUserResponse>(
-      '/api/v1/accounts/current_user/',
-      'GET'
+  public async getSelfInfo(): Promise<IgUser> {
+    const query = {
+      fb_api_caller_class: 'RelayModern',
+      fb_api_req_friendly_name: 'PolarisViewerInfoQuery',
+      variables: JSON.stringify({}),
+      server_timestamps: true,
+      doc_id: '4608152745944498',
+    };
+
+    const response = await this.request<any>(
+      '/graphql/query',
+      'POST',
+      query,
+      true  // skipSignature - GraphQL 查询不需要签名
     );
-    return response.user;
+
+    // 解析 GraphQL 响应
+    const user = response.data?.viewer;
+    if (!user) {
+      throw new Error('Failed to get user info from GraphQL response');
+    }
+
+    return {
+      pk: user.id || user.pk,
+      username: user.username,
+      full_name: user.full_name,
+      biography: user.biography,
+      follower_count: user.follower_count,
+      following_count: user.following_count,
+      media_count: user.media_count,
+      is_private: user.is_private,
+      is_verified: user.is_verified,
+      profile_pic_url: user.profile_pic_url,
+      is_business: user.is_business || false,
+    };
   }
 
   /**

@@ -129,9 +129,10 @@ export async function getUserId(): Promise<string> {
  */
 export async function isLoggedIn(): Promise<boolean> {
   try {
-    const sessionId = await getCookie('sessionid');
+    // sessionid is HttpOnly and not readable via document.cookie.
+    // ds_user_id is JS-readable and sufficient to confirm login state.
     const userId = await getCookie('ds_user_id');
-    return !!(sessionId && userId);
+    return !!userId;
   } catch (error) {
     return false;
   }
@@ -145,8 +146,8 @@ export async function validateCookies(): Promise<string[]> {
   const cookies = await getInstagramCookies();
   const missing: string[] = [];
 
-  // 核心必需 Cookie
-  const coreCookies = ['sessionid', 'csrftoken', 'ds_user_id'];
+  // sessionid is HttpOnly — not readable via document.cookie, skip validation
+  const coreCookies = ['csrftoken', 'ds_user_id'];
 
   for (const name of coreCookies) {
     if (!cookies.has(name)) {
