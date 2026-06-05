@@ -221,3 +221,8 @@ class XhsApiTransport(BaseApiTransport):
         if cover is not None:
             payload["cover"] = cover
         return self.request_json("POST", "/api/v1/xhs/collection/update", json=payload)
+
+    def get_note_detail_stats_raw(self, note_id: str) -> Dict[Any, Any]:
+        """Get detailed statistics for a note (7-day and 30-day data)."""
+        params = {"note_id": note_id}
+        return self.request_json("GET", "/api/v1/xhs/note_detail_stats", params=params)

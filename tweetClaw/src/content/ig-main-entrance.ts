@@ -31,6 +31,62 @@ const TAG = '[IgClaw-CS]';
 // Instagram API 客户端实例
 const igApi = new IgApiClient();
 
+// ── 暴露全局 API 到 window（供控制台测试和外部调用）─────────────────────────
+
+// 定义全局 API 接口
+interface IgGlobalApi {
+  getSelfInfo: () => Promise<any>;
+  getUserInfo: (userId: string) => Promise<any>;
+  searchUser: (username: string) => Promise<any>;
+  likeMedia: (params: { mediaId: string; moduleName?: string; userId?: string; username?: string; d?: number }) => Promise<any>;
+  unlikeMedia: (mediaId: string) => Promise<any>;
+  followUser: (params: { userId: string; moduleName?: string; username?: string }) => Promise<any>;
+  unfollowUser: (userId: string) => Promise<any>;
+  postComment: (params: { mediaId: string; text: string; repliedToCommentId?: string }) => Promise<any>;
+  checkLogin: () => Promise<boolean>;
+  testConnection: () => Promise<{ success: boolean; userId?: string; error?: string }>;
+}
+
+// 实现全局 API
+const igGlobalApi: IgGlobalApi = {
+  getSelfInfo: async () => {
+    return await handleGetSelfInfo({});
+  },
+  getUserInfo: async (userId: string) => {
+    return await handleGetUserInfo({ userId });
+  },
+  searchUser: async (username: string) => {
+    return await handleSearchUser({ username });
+  },
+  likeMedia: async (params) => {
+    return await handleLikeMedia(params);
+  },
+  unlikeMedia: async (mediaId: string) => {
+    return await handleUnlikeMedia({ mediaId });
+  },
+  followUser: async (params) => {
+    return await handleFollowUser(params);
+  },
+  unfollowUser: async (userId: string) => {
+    return await handleUnfollowUser({ userId });
+  },
+  postComment: async (params) => {
+    return await handlePostComment(params);
+  },
+  checkLogin: async () => {
+    return await handleCheckLogin({});
+  },
+  testConnection: async () => {
+    return await handleTestConnection({});
+  },
+};
+
+// 暴露到 window 对象
+(window as any).igApi = igGlobalApi;
+
+console.log(`${TAG} Instagram API exposed to window.igApi`);
+console.log(`${TAG} Usage: await window.igApi.getSelfInfo()`);
+
 // ── 消息监听器 ─────────────────────────────────────────────────────────────
 
 chrome.runtime.onMessage.addListener((message: IgRequestMessage, sender, sendResponse) => {

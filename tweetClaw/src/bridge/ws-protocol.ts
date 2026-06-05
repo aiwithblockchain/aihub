@@ -69,6 +69,27 @@ export type MessageType =
   | 'response.xhs_list_collection_notes'
   | 'command.xhs_update_collection'
   | 'response.xhs_update_collection'
+  | 'command.xhs_get_note_detail_stats'
+  | 'response.xhs_get_note_detail_stats'
+  // Instagram message types
+  | 'command.ig_check_login'
+  | 'response.ig_check_login'
+  | 'command.ig_get_self_info'
+  | 'response.ig_get_self_info'
+  | 'command.ig_get_user_info'
+  | 'response.ig_get_user_info'
+  | 'command.ig_search_user'
+  | 'response.ig_search_user'
+  | 'command.ig_like_media'
+  | 'response.ig_like_media'
+  | 'command.ig_unlike_media'
+  | 'response.ig_unlike_media'
+  | 'command.ig_follow_user'
+  | 'response.ig_follow_user'
+  | 'command.ig_unfollow_user'
+  | 'response.ig_unfollow_user'
+  | 'command.ig_post_comment'
+  | 'response.ig_post_comment'
   | 'command.query_x_basic_info'
   | 'request.open_tab'
   | 'response.open_tab'
@@ -171,6 +192,27 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_XHS_LIST_COLLECTION_NOTES: 'response.xhs_list_collection_notes',
   COMMAND_XHS_UPDATE_COLLECTION: 'command.xhs_update_collection',
   RESPONSE_XHS_UPDATE_COLLECTION: 'response.xhs_update_collection',
+  COMMAND_XHS_GET_NOTE_DETAIL_STATS: 'command.xhs_get_note_detail_stats',
+  RESPONSE_XHS_GET_NOTE_DETAIL_STATS: 'response.xhs_get_note_detail_stats',
+  // Instagram message types
+  COMMAND_IG_CHECK_LOGIN: 'command.ig_check_login',
+  RESPONSE_IG_CHECK_LOGIN: 'response.ig_check_login',
+  COMMAND_IG_GET_SELF_INFO: 'command.ig_get_self_info',
+  RESPONSE_IG_GET_SELF_INFO: 'response.ig_get_self_info',
+  COMMAND_IG_GET_USER_INFO: 'command.ig_get_user_info',
+  RESPONSE_IG_GET_USER_INFO: 'response.ig_get_user_info',
+  COMMAND_IG_SEARCH_USER: 'command.ig_search_user',
+  RESPONSE_IG_SEARCH_USER: 'response.ig_search_user',
+  COMMAND_IG_LIKE_MEDIA: 'command.ig_like_media',
+  RESPONSE_IG_LIKE_MEDIA: 'response.ig_like_media',
+  COMMAND_IG_UNLIKE_MEDIA: 'command.ig_unlike_media',
+  RESPONSE_IG_UNLIKE_MEDIA: 'response.ig_unlike_media',
+  COMMAND_IG_FOLLOW_USER: 'command.ig_follow_user',
+  RESPONSE_IG_FOLLOW_USER: 'response.ig_follow_user',
+  COMMAND_IG_UNFOLLOW_USER: 'command.ig_unfollow_user',
+  RESPONSE_IG_UNFOLLOW_USER: 'response.ig_unfollow_user',
+  COMMAND_IG_POST_COMMENT: 'command.ig_post_comment',
+  RESPONSE_IG_POST_COMMENT: 'response.ig_post_comment',
   COMMAND_QUERY_X_BASIC_INFO: 'command.query_x_basic_info',
   REQUEST_OPEN_TAB: 'request.open_tab',
   RESPONSE_OPEN_TAB: 'response.open_tab',

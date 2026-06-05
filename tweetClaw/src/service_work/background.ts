@@ -138,6 +138,7 @@ localBridge.xhsCreateCollectionHandler = createXhsCollection;
 localBridge.xhsListCollectionsHandler = listXhsCollections;
 localBridge.xhsListCollectionNotesHandler = listXhsCollectionNotes;
 localBridge.xhsUpdateCollectionHandler = updateXhsCollection;
+localBridge.xhsGetNoteDetailStatsHandler = getXhsNoteDetailStats;
 localBridge.openTabHandler = openXTab;
 localBridge.closeTabHandler = closeXTab;
 localBridge.navigateTabHandler = navigateXTab;
@@ -151,6 +152,16 @@ localBridge.queryUserTweetsHandler = queryUserTweets;
 localBridge.queryFollowersHandler = queryFollowers;
 localBridge.queryFollowingHandler = queryFollowing;
 localBridge.queryBlueVerifiedFollowersHandler = queryBlueVerifiedFollowers;
+// Instagram handlers
+localBridge.igCheckLoginHandler = igCheckLogin;
+localBridge.igGetSelfInfoHandler = igGetSelfInfo;
+localBridge.igGetUserInfoHandler = igGetUserInfo;
+localBridge.igSearchUserHandler = igSearchUser;
+localBridge.igLikeMediaHandler = igLikeMedia;
+localBridge.igUnlikeMediaHandler = igUnlikeMedia;
+localBridge.igFollowUserHandler = igFollowUser;
+localBridge.igUnfollowUserHandler = igUnfollowUser;
+localBridge.igPostCommentHandler = igPostComment;
 
 // Initialize Background Task Coordinator
 let taskCoordinator: BackgroundTaskCoordinator | null = null;
@@ -1945,5 +1956,224 @@ export async function updateXhsCollection(payload: Record<string, unknown>): Pro
     }).catch((e: any) => { throw new Error(`Content script communication failed: ${e?.message}`); });
 
     if (!result?.success) throw new Error(result?.error || 'Failed to update collection');
+    return result.data;
+}
+
+export async function getXhsNoteDetailStats(payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] getXhsNoteDetailStats called', payload);
+    // /api/galaxy/creator/data/note_detail_new 必须从 creator.xiaohongshu.com 发出（CORS）
+    const tabId = await getOrOpenCreatorTab();
+
+    console.log(`[TweetClaw-BG] Sending XHS_FETCH_NOTE_DETAIL_STATS to creator tab ${tabId}`);
+    const result: any = await chrome.tabs.sendMessage(tabId, {
+        type: 'XHS_FETCH_NOTE_DETAIL_STATS',
+        note_id: payload.note_id,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with creator content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to fetch note detail stats');
+    }
+
+    return result.data;
+}
+
+// ============================================================
+// Instagram Handler Functions
+// ============================================================
+
+async function findIgTab(): Promise<chrome.tabs.Tab | null> {
+    const tabs = await chrome.tabs.query({ url: 'https://www.instagram.com/*' });
+    return tabs[0] || null;
+}
+
+export async function igCheckLogin(payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] igCheckLogin called', payload);
+    const tab = await findIgTab();
+    if (!tab?.id) {
+        throw new Error('No Instagram tab found. Please open instagram.com first.');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'command.ig_check_login',
+        params: payload,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with IG content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to check login status');
+    }
+    return result.data;
+}
+
+export async function igGetSelfInfo(payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] igGetSelfInfo called', payload);
+    const tab = await findIgTab();
+    if (!tab?.id) {
+        throw new Error('No Instagram tab found. Please open instagram.com first.');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'command.ig_get_self_info',
+        params: payload,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with IG content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to get self info');
+    }
+    return result.data;
+}
+
+export async function igGetUserInfo(payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] igGetUserInfo called', payload);
+    const tab = await findIgTab();
+    if (!tab?.id) {
+        throw new Error('No Instagram tab found. Please open instagram.com first.');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'command.ig_get_user_info',
+        params: payload,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with IG content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to get user info');
+    }
+    return result.data;
+}
+
+export async function igSearchUser(payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] igSearchUser called', payload);
+    const tab = await findIgTab();
+    if (!tab?.id) {
+        throw new Error('No Instagram tab found. Please open instagram.com first.');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'command.ig_search_user',
+        params: payload,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with IG content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to search user');
+    }
+    return result.data;
+}
+
+export async function igLikeMedia(payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] igLikeMedia called', payload);
+    const tab = await findIgTab();
+    if (!tab?.id) {
+        throw new Error('No Instagram tab found. Please open instagram.com first.');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'command.ig_like_media',
+        params: payload,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with IG content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to like media');
+    }
+    return result.data;
+}
+
+export async function igUnlikeMedia(payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] igUnlikeMedia called', payload);
+    const tab = await findIgTab();
+    if (!tab?.id) {
+        throw new Error('No Instagram tab found. Please open instagram.com first.');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'command.ig_unlike_media',
+        params: payload,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with IG content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to unlike media');
+    }
+    return result.data;
+}
+
+export async function igFollowUser(payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] igFollowUser called', payload);
+    const tab = await findIgTab();
+    if (!tab?.id) {
+        throw new Error('No Instagram tab found. Please open instagram.com first.');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'command.ig_follow_user',
+        params: payload,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with IG content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to follow user');
+    }
+    return result.data;
+}
+
+export async function igUnfollowUser(payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] igUnfollowUser called', payload);
+    const tab = await findIgTab();
+    if (!tab?.id) {
+        throw new Error('No Instagram tab found. Please open instagram.com first.');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'command.ig_unfollow_user',
+        params: payload,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with IG content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to unfollow user');
+    }
+    return result.data;
+}
+
+export async function igPostComment(payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] igPostComment called', payload);
+    const tab = await findIgTab();
+    if (!tab?.id) {
+        throw new Error('No Instagram tab found. Please open instagram.com first.');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'command.ig_post_comment',
+        params: payload,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with IG content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to post comment');
+    }
     return result.data;
 }

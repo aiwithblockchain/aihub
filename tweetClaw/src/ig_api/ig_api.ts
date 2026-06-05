@@ -12,6 +12,13 @@ import {
   MIN_WRITE_DELAY,
   MAX_WRITE_DELAY,
 } from './constants';
+import {
+  getFbDtsgWithCache,
+  buildUserSearchVariables,
+  buildGraphQLBody,
+  parseSearchResponse,
+  GRAPHQL_QUERIES,
+} from './graphql-helper';
 import type {
   IgCurrentUser,
   IgCurrentUserResponse,
@@ -47,7 +54,7 @@ export class IgApiClient {
       'X-Requested-With': 'XMLHttpRequest',
       'Referer': 'https://www.instagram.com/',
       'X-Instagram-AJAX': '1',
-      'User-Agent': navigator.userAgent,
+      // 注意：在浏览器中不要手动设置 User-Agent，浏览器会自动发送
     });
 
     if (method === 'POST') {
@@ -112,47 +119,27 @@ export class IgApiClient {
     return data;
   }
 
+  
   // ============ 读取 API ============
 
   /**
    * 获取当前用户信息
-   * API: POST /graphql/query
+   * 使用 REST API: GET /api/v1/users/{user_id}/info/
    */
   public async getSelfInfo(): Promise<IgUser> {
-    const query = {
-      fb_api_caller_class: 'RelayModern',
-      fb_api_req_friendly_name: 'PolarisViewerInfoQuery',
-      variables: JSON.stringify({}),
-      server_timestamps: true,
-      doc_id: '4608152745944498',
-    };
-
-    const response = await this.request<any>(
-      '/graphql/query',
-      'POST',
-      query,
-      true  // skipSignature - GraphQL 查询不需要签名
-    );
-
-    // 解析 GraphQL 响应
-    const user = response.data?.viewer;
-    if (!user) {
-      throw new Error('Failed to get user info from GraphQL response');
+    // 从 cookie 获取当前用户 ID
+    const cookies = await getRequiredCookies();
+    const userId = cookies.ds_user_id;
+    if (!userId) {
+      throw new Error('Not logged in: ds_user_id not found');
     }
 
-    return {
-      pk: user.id || user.pk,
-      username: user.username,
-      full_name: user.full_name,
-      biography: user.biography,
-      follower_count: user.follower_count,
-      following_count: user.following_count,
-      media_count: user.media_count,
-      is_private: user.is_private,
-      is_verified: user.is_verified,
-      profile_pic_url: user.profile_pic_url,
-      is_business: user.is_business || false,
-    };
+    const response = await this.request<IgUserInfoResponse>(
+      `/api/v1/users/${userId}/info/`,
+      'GET'
+    );
+
+    return this.parseUser(response.user);
   }
 
   /**
@@ -164,25 +151,94 @@ export class IgApiClient {
       `/api/v1/users/${userId}/info/`,
       'GET'
     );
-    return response.user;
+    return this.parseUser(response.user);
   }
 
   /**
-   * 通过用户名获取用户 ID
-   * API: GET /api/v1/users/search/?q={username}
+   * 解析 REST API 用户数据为 IgUser 格式
+   * REST API 返回的字段名和 TypeScript 类型不完全匹配
+   */
+  private parseUser(apiUser: any): IgUser {
+    return {
+      pk: apiUser.pk || apiUser.id || apiUser.instagram_pk,
+      username: apiUser.username || '',
+      full_name: apiUser.full_name || '',
+      is_private: apiUser.is_private || false,
+      is_verified: apiUser.is_verified || false,
+      profile_pic_id: apiUser.profile_pic_id,
+      profile_pic_url: apiUser.profile_pic_url || apiUser.hd_profile_pic_url_info?.url,
+      biography: apiUser.biography,
+      external_url: apiUser.external_url,
+      follower_count: apiUser.follower_count || 0,
+      following_count: apiUser.following_count || 0,
+      media_count: apiUser.media_count || 0,
+      is_business: apiUser.is_business || false,
+      business_category_name: apiUser.business_category_name,
+      category_enum: apiUser.category_enum,
+    };
+  }
+
+  /**
+   * 通过用户名搜索用户
+   * 使用 GraphQL API: POST /api/graphql
+   * 查询: PolarisSearchBoxRefetchableQuery
    */
   public async searchUserId(username: string): Promise<string | null> {
-    const response = await this.request<any>(
-      `/api/v1/users/search/?q=${encodeURIComponent(username)}`,
-      'GET'
-    );
+    try {
+      // 获取 fb_dtsg token
+      const fbDtsg = await getFbDtsgWithCache();
+      if (!fbDtsg) {
+        throw new Error('fb_dtsg token not found. Please refresh Instagram page.');
+      }
 
-    if (response.users && response.users.length > 0) {
-      const user = response.users.find((u: any) => u.username === username);
-      return user?.pk || null;
+      // 构建 GraphQL 查询参数
+      const variables = buildUserSearchVariables(username);
+      const body = buildGraphQLBody(
+        GRAPHQL_QUERIES.SEARCH_USERS.queryName,
+        GRAPHQL_QUERIES.SEARCH_USERS.docId,
+        variables,
+        fbDtsg
+      );
+
+      // 发送 GraphQL 请求
+      const headers = await this.buildHeaders('POST');
+      const response = await fetch(`${this.baseUrl}/api/graphql`, {
+        method: 'POST',
+        headers,
+        body,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      // 解析搜索结果
+      const users = parseSearchResponse(data);
+
+      // 查找精确匹配的用户
+      const exactMatch = users.find((u) => u.username.toLowerCase() === username.toLowerCase());
+
+      if (exactMatch) {
+        console.log(`[IG API] Found user: ${exactMatch.username} (ID: ${exactMatch.userId})`);
+        return exactMatch.userId;
+      }
+
+      // 如果没有精确匹配，返回第一个结果
+      if (users.length > 0) {
+        console.log(`[IG API] No exact match, returning first result: ${users[0].username}`);
+        return users[0].userId;
+      }
+
+      console.log(`[IG API] User not found: ${username}`);
+      return null;
+    } catch (error) {
+      console.error('[IG API] Search user error:', error);
+      throw error;
     }
-
-    return null;
   }
 
   // ============ 写操作 API ============

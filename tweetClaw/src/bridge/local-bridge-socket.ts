@@ -94,6 +94,7 @@ export class LocalBridgeSocket {
   public xhsListCollectionsHandler: ((payload: any) => Promise<any>) | null = null;
   public xhsListCollectionNotesHandler: ((payload: any) => Promise<any>) | null = null;
   public xhsUpdateCollectionHandler: ((payload: any) => Promise<any>) | null = null;
+  public xhsGetNoteDetailStatsHandler: ((payload: any) => Promise<any>) | null = null;
   public openTabHandler: ((payload: any) => Promise<any>) | null = null;
   public closeTabHandler: ((payload: any) => Promise<any>) | null = null;
   public navigateTabHandler: ((payload: any) => Promise<any>) | null = null;
@@ -107,6 +108,16 @@ export class LocalBridgeSocket {
   public queryFollowersHandler: ((payload: any) => Promise<any>) | null = null;
   public queryFollowingHandler: ((payload: any) => Promise<any>) | null = null;
   public queryBlueVerifiedFollowersHandler: ((payload: any) => Promise<any>) | null = null;
+  // Instagram handlers
+  public igCheckLoginHandler: ((payload: any) => Promise<any>) | null = null;
+  public igGetSelfInfoHandler: ((payload: any) => Promise<any>) | null = null;
+  public igGetUserInfoHandler: ((payload: any) => Promise<any>) | null = null;
+  public igSearchUserHandler: ((payload: any) => Promise<any>) | null = null;
+  public igLikeMediaHandler: ((payload: any) => Promise<any>) | null = null;
+  public igUnlikeMediaHandler: ((payload: any) => Promise<any>) | null = null;
+  public igFollowUserHandler: ((payload: any) => Promise<any>) | null = null;
+  public igUnfollowUserHandler: ((payload: any) => Promise<any>) | null = null;
+  public igPostCommentHandler: ((payload: any) => Promise<any>) | null = null;
   public startTaskHandler: ((payload: any) => Promise<any>) | null = null;
   public cancelTaskHandler: ((payload: any) => Promise<any>) | null = null;
   
@@ -593,7 +604,7 @@ export class LocalBridgeSocket {
         clientName: 'tweetClaw',
         clientVersion: __EXTENSION_VERSION__,
         browser: 'chrome',
-        capabilities: ['query_x_tabs_status', 'query_x_basic_info', 'query_xhs_account_info', 'query_xhs_homefeed'],
+        capabilities: ['query_x_tabs_status', 'query_x_basic_info', 'query_xhs_account_info', 'query_xhs_homefeed', 'ig_api'],
         instanceId: this.instanceId || undefined,
         instanceName: this.instanceName || undefined,
         incognito: chrome.extension.inIncognitoContext
@@ -712,6 +723,9 @@ export class LocalBridgeSocket {
         case MESSAGE_TYPES.COMMAND_XHS_UPDATE_COLLECTION:
           this.handleGenericQuery(msg, this.xhsUpdateCollectionHandler, MESSAGE_TYPES.RESPONSE_XHS_UPDATE_COLLECTION);
           break;
+        case MESSAGE_TYPES.COMMAND_XHS_GET_NOTE_DETAIL_STATS:
+          this.handleGenericQuery(msg, this.xhsGetNoteDetailStatsHandler, MESSAGE_TYPES.RESPONSE_XHS_GET_NOTE_DETAIL_STATS);
+          break;
         case MESSAGE_TYPES.COMMAND_QUERY_X_BASIC_INFO:
           this.handleQueryXBasicInfo(msg);
           break;
@@ -753,6 +767,34 @@ export class LocalBridgeSocket {
           break;
         case MESSAGE_TYPES.REQUEST_QUERY_BLUE_VERIFIED_FOLLOWERS:
           this.handleGenericQuery(msg, this.queryBlueVerifiedFollowersHandler, MESSAGE_TYPES.RESPONSE_QUERY_BLUE_VERIFIED_FOLLOWERS);
+          break;
+        // Instagram message handlers
+        case MESSAGE_TYPES.COMMAND_IG_CHECK_LOGIN:
+          this.handleGenericQuery(msg, this.igCheckLoginHandler, MESSAGE_TYPES.RESPONSE_IG_CHECK_LOGIN);
+          break;
+        case MESSAGE_TYPES.COMMAND_IG_GET_SELF_INFO:
+          this.handleGenericQuery(msg, this.igGetSelfInfoHandler, MESSAGE_TYPES.RESPONSE_IG_GET_SELF_INFO);
+          break;
+        case MESSAGE_TYPES.COMMAND_IG_GET_USER_INFO:
+          this.handleGenericQuery(msg, this.igGetUserInfoHandler, MESSAGE_TYPES.RESPONSE_IG_GET_USER_INFO);
+          break;
+        case MESSAGE_TYPES.COMMAND_IG_SEARCH_USER:
+          this.handleGenericQuery(msg, this.igSearchUserHandler, MESSAGE_TYPES.RESPONSE_IG_SEARCH_USER);
+          break;
+        case MESSAGE_TYPES.COMMAND_IG_LIKE_MEDIA:
+          this.handleGenericQuery(msg, this.igLikeMediaHandler, MESSAGE_TYPES.RESPONSE_IG_LIKE_MEDIA);
+          break;
+        case MESSAGE_TYPES.COMMAND_IG_UNLIKE_MEDIA:
+          this.handleGenericQuery(msg, this.igUnlikeMediaHandler, MESSAGE_TYPES.RESPONSE_IG_UNLIKE_MEDIA);
+          break;
+        case MESSAGE_TYPES.COMMAND_IG_FOLLOW_USER:
+          this.handleGenericQuery(msg, this.igFollowUserHandler, MESSAGE_TYPES.RESPONSE_IG_FOLLOW_USER);
+          break;
+        case MESSAGE_TYPES.COMMAND_IG_UNFOLLOW_USER:
+          this.handleGenericQuery(msg, this.igUnfollowUserHandler, MESSAGE_TYPES.RESPONSE_IG_UNFOLLOW_USER);
+          break;
+        case MESSAGE_TYPES.COMMAND_IG_POST_COMMENT:
+          this.handleGenericQuery(msg, this.igPostCommentHandler, MESSAGE_TYPES.RESPONSE_IG_POST_COMMENT);
           break;
         case MESSAGE_TYPES.REQUEST_START_TASK:
           if (this.startTaskHandler) this.startTaskHandler(msg.payload);

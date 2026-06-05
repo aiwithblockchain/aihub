@@ -97,6 +97,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/xhs/collection/list", h.xhsListCollections)
 	mux.HandleFunc("/api/v1/xhs/collection/notes", h.xhsListCollectionNotes)
 	mux.HandleFunc("/api/v1/xhs/collection/update", h.xhsUpdateCollection)
+	mux.HandleFunc("/api/v1/xhs/note_detail_stats", h.xhsNoteDetailStats)
 
 	// Instagram (igClaw) 端点
 	mux.HandleFunc("/api/v1/ig/status", h.igStatus)
@@ -928,6 +929,17 @@ func (h *Handler) xhsUpdateCollection(w http.ResponseWriter, r *http.Request) {
 	}
 	id := newID("http_xhs_update_collection")
 	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_update_collection", "tweetClaw", body), 15000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) xhsNoteDetailStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	id := newID("http_xhs_note_detail_stats")
+	// 30s 超时，因为 getOrOpenCreatorTab 最多需要 30s 等待签名链路就绪
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_note_detail_stats", "tweetClaw", queryToMap(r)), 30000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 

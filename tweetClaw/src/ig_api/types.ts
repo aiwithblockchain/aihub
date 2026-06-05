@@ -7,9 +7,10 @@
 
 /**
  * Instagram 用户信息
+ * 对应 REST API /api/v1/users/{id}/info/ 响应
  */
 export interface IgUser {
-  pk: string;                    // 用户 ID
+  pk: string;                    // 用户 ID (API 返回 id，映射到 pk)
   username: string;              // 用户名
   full_name: string;             // 全名
   is_private: boolean;           // 是否私密账号
