@@ -98,6 +98,17 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/xhs/collection/notes", h.xhsListCollectionNotes)
 	mux.HandleFunc("/api/v1/xhs/collection/update", h.xhsUpdateCollection)
 
+	// Instagram (igClaw) 端点
+	mux.HandleFunc("/api/v1/ig/status", h.igStatus)
+	mux.HandleFunc("/api/v1/ig/account", h.igAccountInfo)
+	mux.HandleFunc("/api/v1/ig/users", h.igUserInfo)
+	mux.HandleFunc("/api/v1/ig/users/search", h.igSearchUser)
+	mux.HandleFunc("/api/v1/ig/likes", h.igLikeMedia)
+	mux.HandleFunc("/api/v1/ig/unlikes", h.igUnlikeMedia)
+	mux.HandleFunc("/api/v1/ig/follows", h.igFollowUser)
+	mux.HandleFunc("/api/v1/ig/unfollows", h.igUnfollowUser)
+	mux.HandleFunc("/api/v1/ig/comments", h.igPostComment)
+
 }
 
 func NewHandler(ws *websocket.Server) *Handler {
@@ -1007,6 +1018,123 @@ func (h *Handler) navigateToPlatform(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_navigate")
 	payload := types.NavigateToPlatformPayload{Platform: req.Platform}
 	h.bridge(w, r, "aiClaw", id, buildMsg(id, "request.navigate_to_platform", "aiClaw", payload), 5000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+// --- Instagram (igClaw) 端点 ---
+
+func (h *Handler) igStatus(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	id := newID("http_ig_status")
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "command.ig_check_login", "tweetClaw", types.EmptyPayload{}), 8000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) igAccountInfo(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	id := newID("http_ig_account")
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "command.ig_get_self_info", "tweetClaw", types.EmptyPayload{}), 8000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) igUserInfo(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	id := newID("http_ig_user_info")
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_get_user_info", "tweetClaw", queryToMap(r)), 8000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) igSearchUser(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	id := newID("http_ig_search_user")
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_search_user", "tweetClaw", queryToMap(r)), 8000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) igLikeMedia(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	body, err := readRawBody(r)
+	if err != nil {
+		jsonErr(w, 400, err.Error())
+		return
+	}
+	id := newID("http_ig_like")
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_like_media", "tweetClaw", body), 15000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) igUnlikeMedia(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	body, err := readRawBody(r)
+	if err != nil {
+		jsonErr(w, 400, err.Error())
+		return
+	}
+	id := newID("http_ig_unlike")
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_unlike_media", "tweetClaw", body), 15000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) igFollowUser(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	body, err := readRawBody(r)
+	if err != nil {
+		jsonErr(w, 400, err.Error())
+		return
+	}
+	id := newID("http_ig_follow")
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_follow_user", "tweetClaw", body), 15000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) igUnfollowUser(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	body, err := readRawBody(r)
+	if err != nil {
+		jsonErr(w, 400, err.Error())
+		return
+	}
+	id := newID("http_ig_unfollow")
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_unfollow_user", "tweetClaw", body), 15000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) igPostComment(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	body, err := readRawBody(r)
+	if err != nil {
+		jsonErr(w, 400, err.Error())
+		return
+	}
+	id := newID("http_ig_comment")
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_post_comment", "tweetClaw", body), 15000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 

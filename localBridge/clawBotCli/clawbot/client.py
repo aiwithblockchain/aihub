@@ -6,6 +6,7 @@ from types import SimpleNamespace
 
 from clawbot.config import API_BASE_URL, API_TIMEOUT
 from clawbot.services.ai_chat import AIChatService
+from clawbot.services.ig import IgService
 from clawbot.services.media import MediaService
 from clawbot.services.x_actions import XActionsService
 from clawbot.services.x_read import XReadService
@@ -13,6 +14,7 @@ from clawbot.services.x_status import XStatusService
 from clawbot.services.x_tabs import XTabsService
 from clawbot.services.xhs import XhsService
 from clawbot.transport.ai_api import AIApiTransport
+from clawbot.transport.ig_api import IgApiTransport
 from clawbot.transport.task_api import TaskApiTransport
 from clawbot.transport.x_api import XApiTransport
 from clawbot.transport.xhs_api import XhsApiTransport
@@ -28,6 +30,7 @@ class ClawBotClient:
         self.ai_transport = AIApiTransport(base_url=base_url, timeout=timeout)
         self.task_transport = TaskApiTransport(base_url=base_url, timeout=timeout)
         self.xhs_transport = XhsApiTransport(base_url=base_url, timeout=timeout)
+        self.ig_transport = IgApiTransport(base_url=base_url, timeout=timeout)
 
         self.x_status = XStatusService(self.x_transport)
         self.x_read = XReadService(self.x_transport)
@@ -37,6 +40,7 @@ class ClawBotClient:
         self.task_client = TaskApiClient(self.task_transport)
         self.media = MediaService(self.task_client, self.x_actions)
         self.xhs_service = XhsService(self.xhs_transport, task_client=self.task_client)
+        self.ig_service = IgService(self.ig_transport)
 
         self.x = SimpleNamespace(
             status=self.x_status,
@@ -53,6 +57,7 @@ class ClawBotClient:
             navigation=self.ai_chat,
         )
         self.xhs = self.xhs_service
+        self.ig = self.ig_service
         self.workflows = CommonWorkflows(
             status=self.x_status,
             read=self.x_read,

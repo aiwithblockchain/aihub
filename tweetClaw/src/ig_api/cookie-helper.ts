@@ -34,34 +34,57 @@ export interface CookieData {
 }
 
 /**
+ * 从页面 Cookie 中获取值
+ * Content Script 可以访问 document.cookie
+ * @param name Cookie 名称
+ * @returns Cookie 值，不存在则返回 null
+ */
+function getCookieFromDocument(name: string): string | null {
+  const cookies = document.cookie.split(';');
+  for (const cookie of cookies) {
+    const [cookieName, cookieValue] = cookie.trim().split('=');
+    if (cookieName === name) {
+      return decodeURIComponent(cookieValue);
+    }
+  }
+  return null;
+}
+
+/**
  * 从浏览器获取所有 Instagram Cookie
  * @returns Cookie 映射表
  */
 export async function getInstagramCookies(): Promise<CookieMap> {
-  const cookies = await chrome.cookies.getAll({
-    domain: '.instagram.com'
-  });
-
+  // Content Script 可以直接访问 document.cookie
   const cookieMap = new Map<string, string>();
+  const cookies = document.cookie.split(';');
+
   for (const cookie of cookies) {
-    cookieMap.set(cookie.name, cookie.value);
+    const [name, value] = cookie.trim().split('=');
+    if (name && value) {
+      cookieMap.set(name, decodeURIComponent(value));
+    }
   }
+
+  console.log('[IG Cookie] All cookies from document.cookie:', Array.from(cookieMap.keys()).sort());
 
   return cookieMap;
 }
 
 /**
  * 获取单个 Cookie 值
+ * Content Script 可以访问 document.cookie
  * @param name Cookie 名称
  * @returns Cookie 值，不存在则返回 null
  */
 export async function getCookie(name: string): Promise<string | null> {
-  const cookies = await chrome.cookies.getAll({
-    domain: '.instagram.com',
-    name: name
-  });
-
-  return cookies.length > 0 ? cookies[0].value : null;
+  const value = getCookieFromDocument(name);
+  if (value) {
+    console.log(`[IG Cookie] Found ${name} from document.cookie`);
+  } else {
+    console.warn(`[IG Cookie] Cookie ${name} not found`);
+  }
+  return value;
 }
 
 /**
