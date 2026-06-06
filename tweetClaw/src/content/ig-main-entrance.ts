@@ -242,13 +242,44 @@ async function handleSearchUser(params: Record<string, any>): Promise<any> {
 }
 
 async function handleGetFeed(params: Record<string, any>): Promise<any> {
-  // TODO: 实现获取 Feed
-  throw new Error('Not implemented yet: ig_get_feed');
+  const { maxId } = params;
+  try {
+    const result = await igApi.getHomeFeed(maxId);
+    return {
+      items: result.items,
+      nextMaxId: result.nextMaxId,
+      _debug: { itemCount: result.items.length, hasNextMaxId: !!result.nextMaxId },
+    };
+  } catch (error: any) {
+    return {
+      items: [],
+      nextMaxId: null,
+      _error: error?.message || String(error),
+    };
+  }
 }
 
 async function handleGetMedia(params: Record<string, any>): Promise<any> {
-  // TODO: 实现获取媒体详情
-  throw new Error('Not implemented yet: ig_get_media');
+  const { shortcode } = params;
+
+  if (!shortcode) {
+    throw new Error('shortcode is required');
+  }
+
+  const result = await igApi.getMediaInfo(shortcode);
+
+  return {
+    id: result.id,
+    pk: result.pk,
+    shortcode: result.shortcode,
+    mediaType: result.mediaType,
+    likeCount: result.likeCount,
+    commentCount: result.commentCount,
+    hasLiked: result.hasLiked,
+    caption: result.caption,
+    takenAt: result.takenAt,
+    user: result.user,
+  };
 }
 
 async function handleGetMediaComments(params: Record<string, any>): Promise<any> {

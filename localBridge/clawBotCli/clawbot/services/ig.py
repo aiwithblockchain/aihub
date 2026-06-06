@@ -23,6 +23,27 @@ class IgService:
         """Get current Instagram account information."""
         return self.transport.get_account_info_raw()
 
+    # ── Feed ──────────────────────────────────────────────────────────────────
+
+    def get_feed(self, max_id: Optional[str] = None) -> Dict[str, Any]:
+        """Get Instagram home feed.
+
+        Args:
+            max_id: Pagination cursor for next page
+        """
+        return self.transport.get_feed_raw(max_id=max_id)
+
+    def get_media_info(self, shortcode: str) -> Dict[str, Any]:
+        """Get media details by shortcode.
+
+        Args:
+            shortcode: Instagram post shortcode (from URL or code field)
+
+        Returns:
+            Media info including like_count, comment_count, has_liked, etc.
+        """
+        return self.transport.get_media_info_raw(shortcode=shortcode)
+
     # ── User Info ─────────────────────────────────────────────────────────────
 
     def get_user_info(self, user_id: str) -> Dict[str, Any]:

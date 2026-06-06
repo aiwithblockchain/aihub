@@ -80,6 +80,10 @@ export type MessageType =
   | 'response.ig_get_user_info'
   | 'command.ig_search_user'
   | 'response.ig_search_user'
+  | 'command.ig_get_feed'
+  | 'response.ig_get_feed'
+  | 'command.ig_get_media'
+  | 'response.ig_get_media'
   | 'command.ig_like_media'
   | 'response.ig_like_media'
   | 'command.ig_unlike_media'
@@ -203,6 +207,10 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_IG_GET_USER_INFO: 'response.ig_get_user_info',
   COMMAND_IG_SEARCH_USER: 'command.ig_search_user',
   RESPONSE_IG_SEARCH_USER: 'response.ig_search_user',
+  COMMAND_IG_GET_FEED: 'command.ig_get_feed',
+  RESPONSE_IG_GET_FEED: 'response.ig_get_feed',
+  COMMAND_IG_GET_MEDIA: 'command.ig_get_media',
+  RESPONSE_IG_GET_MEDIA: 'response.ig_get_media',
   COMMAND_IG_LIKE_MEDIA: 'command.ig_like_media',
   RESPONSE_IG_LIKE_MEDIA: 'response.ig_like_media',
   COMMAND_IG_UNLIKE_MEDIA: 'command.ig_unlike_media',

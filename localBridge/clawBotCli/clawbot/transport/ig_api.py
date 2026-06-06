@@ -14,6 +14,15 @@ class IgApiTransport(BaseApiTransport):
     def get_account_info_raw(self) -> Dict[Any, Any]:
         return self.request_json("GET", "/api/v1/ig/account")
 
+    def get_feed_raw(self, max_id: Optional[str] = None) -> Dict[Any, Any]:
+        params = {}
+        if max_id:
+            params["maxId"] = max_id
+        return self.request_json("GET", "/api/v1/ig/feed", params=params)
+
+    def get_media_info_raw(self, shortcode: str) -> Dict[Any, Any]:
+        return self.request_json("GET", "/api/v1/ig/media", params={"shortcode": shortcode})
+
     def get_user_info_raw(self, user_id: str) -> Dict[Any, Any]:
         return self.request_json("GET", "/api/v1/ig/users", params={"userId": user_id})
 

@@ -113,6 +113,50 @@ export function buildUserSearchVariables(username: string): GraphQLVariables {
 }
 
 /**
+ * 构建 Home Feed GraphQL 变量
+ */
+export function buildHomeFeedVariables(maxId?: string): any {
+  return {
+    after: maxId || null,
+    before: null,
+    data: {
+      device_id: generateDeviceId(),
+      is_async_ads_double_request: "0",
+      is_async_ads_in_headload_enabled: "0",
+      is_async_ads_rti: "0",
+      rti_delivery_backend: "0",
+    },
+    first: 12,
+    last: null,
+    variant: "home",
+    __relay_internal__pv__PolarisImmersiveFeedChainingEnabledrelayprovider: true,
+    __relay_internal__pv__PolarisAIGMMediaWebLabelEnabledrelayprovider: true,
+    __relay_internal__pv__PolarisAIGMAccountLabelEnabledrelayprovider: false,
+  };
+}
+
+/**
+ * 构建 Media Info GraphQL 变量
+ */
+export function buildMediaInfoVariables(shortcode: string): any {
+  return {
+    shortcode: shortcode,
+    __relay_internal__pv__PolarisAIGMMediaWebLabelEnabledrelayprovider: true,
+  };
+}
+
+/**
+ * 生成设备 ID
+ */
+function generateDeviceId(): string {
+  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+    const r = Math.random() * 16 | 0;
+    const v = c === 'x' ? r : (r & 0x3 | 0x8);
+    return v.toString(16).toUpperCase();
+  });
+}
+
+/**
  * 生成搜索会话 ID
  */
 function generateSessionId(): string {
@@ -139,14 +183,52 @@ function generateRandomHash(): string {
  * GraphQL 查询配置
  *
  * PolarisSearchBoxRefetchableQuery - 用户搜索查询
- * doc_id: 26841114978842944
+ * PolarisHomeFeedQuery - 首页 Feed
  */
 export const GRAPHQL_QUERIES = {
   SEARCH_USERS: {
     docId: '26841114978842944',
     queryName: 'PolarisSearchBoxRefetchableQuery',
   },
+  HOME_FEED: {
+    docId: '26431707439838189',
+    queryName: 'PolarisFeedRootPaginationCachedQuery_subscribe',
+  },
+  MEDIA_INFO: {
+    docId: '26713194205046842',
+    queryName: 'PolarisPostRootQuery',
+  },
 } as const;
+
+/**
+ * 从页面提取 LSD token
+ */
+function getLsdToken(): string | null {
+  const scripts = Array.from(document.querySelectorAll('script'));
+  for (const script of scripts) {
+    const text = script.textContent || '';
+    const match = text.match(/"LSD"\s*,\s*\[\]\s*,\s*\{\s*"token"\s*:\s*"([^"]+)"/);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return null;
+}
+
+/**
+ * 从页面提取 __rev (revision)
+ */
+function getRevision(): string {
+  const scripts = Array.from(document.querySelectorAll('script'));
+  for (const script of scripts) {
+    const text = script.textContent || '';
+    const match = text.match(/["']__spin_r["']\s*:\s*(\d+)/);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return '1000000000'; // fallback
+}
 
 /**
  * 构建完整的 GraphQL 请求体
@@ -159,14 +241,38 @@ export function buildGraphQLBody(
 ): string {
   const params = new URLSearchParams();
 
-  // 必需参数
+  // 必需参数（按浏览器实际请求）
+  params.append('av', '17841427211664125');
+  params.append('__d', 'www');
+  params.append('__user', '0');
+  params.append('__a', '1');
+  params.append('__req', '1');
+  params.append('__hs', '20610.HYP:instagram_web_pkg.2.1...0');
+  params.append('dpr', '2');
+  params.append('__ccg', 'MODERATE');
+  params.append('__rev', getRevision());
+  params.append('__s', '');
+  params.append('__hsi', '0');
+  params.append('__dyn', '');
+  params.append('__csr', '');
+  params.append('__comet_req', '7');
   params.append('fb_dtsg', fbDtsg);
+  params.append('jazoest', '25000');
+
+  const lsd = getLsdToken();
+  if (lsd) {
+    params.append('lsd', lsd);
+  }
+
+  params.append('__spin_r', getRevision());
+  params.append('__spin_b', 'trunk');
+  params.append('__spin_t', Math.floor(Date.now() / 1000).toString());
+
+  // GraphQL 特定参数
   params.append('fb_api_caller_class', 'RelayModern');
   params.append('fb_api_req_friendly_name', queryName);
   params.append('server_timestamps', 'true');
   params.append('doc_id', docId);
-
-  // 变量参数
   params.append('variables', JSON.stringify(variables));
 
   return params.toString();
@@ -215,4 +321,112 @@ export function parseSearchResponse(response: GraphQLSearchResponse): Array<{
     fullName: item.user.full_name,
     isVerified: item.user.is_verified,
   }));
+}
+
+/**
+ * GraphQL Feed 响应
+ */
+export interface GraphQLFeedResponse {
+  data: {
+    xdt_api__v1__feed__timeline__connection: {
+      edges: Array<{
+        node: {
+          media: {
+            id: string;
+            pk: string;
+            code: string;
+            media_type: number;
+            image_versions2?: {
+              candidates: Array<{
+                url: string;
+                width: number;
+                height: number;
+              }>;
+            };
+            video_versions?: Array<{
+              url: string;
+              width: number;
+              height: number;
+              type: number;
+            }>;
+            carousel_media?: any[];
+            caption?: {
+              pk: string;
+              text: string;
+              user: any;
+            };
+            taken_at: number;
+            like_count: number;
+            comment_count: number;
+            user: any;
+            has_liked: boolean;
+            has_saved: boolean;
+          };
+        };
+      }>;
+      page_info: {
+        has_next_page: boolean;
+        end_cursor: string | null;
+      };
+    };
+  };
+}
+
+/**
+ * 解析 GraphQL Feed 响应
+ */
+export function parseFeedResponse(response: GraphQLFeedResponse): {
+  items: Array<{
+    id: string;
+    pk: string;
+    code: string;
+    mediaType: string;
+    imageUrl: string;
+    caption: string;
+    likeCount: number;
+    commentCount: number;
+    hasLiked: boolean;
+    user: {
+      userId: string;
+      username: string;
+      fullName: string;
+    };
+  }>;
+  nextMaxId: string | null;
+} {
+  const edges = response?.data?.xdt_api__v1__feed__timeline__connection?.edges || [];
+  const pageInfo = response?.data?.xdt_api__v1__feed__timeline__connection?.page_info;
+
+  const items = edges
+    .filter((edge) => edge?.node?.media) // 过滤掉 media 为 null 的项
+    .map((edge) => {
+      const media = edge.node.media;
+      const mediaTypeMap: Record<number, string> = {
+        1: 'IMAGE',
+        2: 'VIDEO',
+        8: 'CAROUSEL',
+      };
+
+      return {
+        id: media.id,
+        pk: media.pk,
+        code: media.code,
+        mediaType: mediaTypeMap[media.media_type] || 'IMAGE',
+        imageUrl: media.image_versions2?.candidates?.[0]?.url || '',
+        caption: media.caption?.text || '',
+        likeCount: media.like_count,
+        commentCount: media.comment_count,
+        hasLiked: media.has_liked,
+        user: {
+          userId: media.user?.pk || '',
+          username: media.user?.username || '',
+          fullName: media.user?.full_name || '',
+        },
+      };
+    });
+
+  return {
+    items,
+    nextMaxId: pageInfo?.end_cursor || null,
+  };
 }

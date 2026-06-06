@@ -146,6 +146,52 @@ export interface IgCommentParams {
   repliedToCommentId?: string;  // 回复的评论 ID
 }
 
+// ============ Feed 相关 ============
+
+/**
+ * Feed 媒体项（简化版）
+ */
+export interface IgFeedMedia {
+  id: string;                    // 媒体 ID
+  pk: string;                    // 媒体 PK
+  code: string;                  // 短代码 (如 "DXNLA7nEYoz")
+  media_type: IgMediaType;       // 媒体类型
+  image_versions?: {
+    candidates: Array<{
+      url: string;
+      width: number;
+      height: number;
+    }>;
+  };
+  video_versions?: Array<{
+    url: string;
+    width: number;
+    height: number;
+    type: number;
+  }>;
+  carousel_media?: IgFeedMedia[];
+  caption?: {
+    pk: string;
+    text: string;
+    user: IgUser;
+  };
+  taken_at: number;
+  like_count: number;
+  comment_count: number;
+  user: IgUser;
+  has_liked: boolean;
+  has_saved: boolean;
+}
+
+/**
+ * Feed 响应
+ */
+export interface IgFeedResponse {
+  items: IgFeedMedia[];
+  more_available: boolean;
+  next_max_id?: string;          // 分页游标
+}
+
 /**
  * 发布媒体参数
  */
@@ -244,7 +290,7 @@ export interface IgUserInfoResponse {
  */
 export interface IgLikeResponse {
   status: string;
-  like_count: number;
+  like_count?: number; // GraphQL API 不返回 like_count，设为可选
 }
 
 /**

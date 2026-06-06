@@ -113,6 +113,8 @@ export class LocalBridgeSocket {
   public igGetSelfInfoHandler: ((payload: any) => Promise<any>) | null = null;
   public igGetUserInfoHandler: ((payload: any) => Promise<any>) | null = null;
   public igSearchUserHandler: ((payload: any) => Promise<any>) | null = null;
+  public igGetFeedHandler: ((payload: any) => Promise<any>) | null = null;
+  public igGetMediaHandler: ((payload: any) => Promise<any>) | null = null;
   public igLikeMediaHandler: ((payload: any) => Promise<any>) | null = null;
   public igUnlikeMediaHandler: ((payload: any) => Promise<any>) | null = null;
   public igFollowUserHandler: ((payload: any) => Promise<any>) | null = null;
@@ -780,6 +782,12 @@ export class LocalBridgeSocket {
           break;
         case MESSAGE_TYPES.COMMAND_IG_SEARCH_USER:
           this.handleGenericQuery(msg, this.igSearchUserHandler, MESSAGE_TYPES.RESPONSE_IG_SEARCH_USER);
+          break;
+        case MESSAGE_TYPES.COMMAND_IG_GET_FEED:
+          this.handleGenericQuery(msg, this.igGetFeedHandler, MESSAGE_TYPES.RESPONSE_IG_GET_FEED);
+          break;
+        case MESSAGE_TYPES.COMMAND_IG_GET_MEDIA:
+          this.handleGenericQuery(msg, this.igGetMediaHandler, MESSAGE_TYPES.RESPONSE_IG_GET_MEDIA);
           break;
         case MESSAGE_TYPES.COMMAND_IG_LIKE_MEDIA:
           this.handleGenericQuery(msg, this.igLikeMediaHandler, MESSAGE_TYPES.RESPONSE_IG_LIKE_MEDIA);

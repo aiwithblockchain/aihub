@@ -102,6 +102,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// Instagram (igClaw) 端点
 	mux.HandleFunc("/api/v1/ig/status", h.igStatus)
 	mux.HandleFunc("/api/v1/ig/account", h.igAccountInfo)
+	mux.HandleFunc("/api/v1/ig/feed", h.igFeed)
+	mux.HandleFunc("/api/v1/ig/media", h.igGetMedia)
 	mux.HandleFunc("/api/v1/ig/users", h.igUserInfo)
 	mux.HandleFunc("/api/v1/ig/users/search", h.igSearchUser)
 	mux.HandleFunc("/api/v1/ig/likes", h.igLikeMedia)
@@ -1052,6 +1054,26 @@ func (h *Handler) igAccountInfo(w http.ResponseWriter, r *http.Request) {
 	}
 	id := newID("http_ig_account")
 	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "command.ig_get_self_info", "tweetClaw", types.EmptyPayload{}), 8000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) igFeed(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	id := newID("http_ig_feed")
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_get_feed", "tweetClaw", queryToMap(r)), 10000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) igGetMedia(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	id := newID("http_ig_get_media")
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_get_media", "tweetClaw", queryToMap(r)), 8000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 

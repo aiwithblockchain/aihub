@@ -157,6 +157,8 @@ localBridge.igCheckLoginHandler = igCheckLogin;
 localBridge.igGetSelfInfoHandler = igGetSelfInfo;
 localBridge.igGetUserInfoHandler = igGetUserInfo;
 localBridge.igSearchUserHandler = igSearchUser;
+localBridge.igGetFeedHandler = igGetFeed;
+localBridge.igGetMediaHandler = igGetMedia;
 localBridge.igLikeMediaHandler = igLikeMedia;
 localBridge.igUnlikeMediaHandler = igUnlikeMedia;
 localBridge.igFollowUserHandler = igFollowUser;
@@ -2069,6 +2071,48 @@ export async function igSearchUser(payload: Record<string, unknown>): Promise<an
 
     if (!result?.success) {
         throw new Error(result?.error || 'Failed to search user');
+    }
+    return result.data;
+}
+
+export async function igGetFeed(payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] igGetFeed called', payload);
+    const tab = await findIgTab();
+    if (!tab?.id) {
+        throw new Error('No Instagram tab found. Please open instagram.com first.');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'command.ig_get_feed',
+        params: payload,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with IG content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to get feed');
+    }
+    return result.data;
+}
+
+export async function igGetMedia(payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] igGetMedia called', payload);
+    const tab = await findIgTab();
+    if (!tab?.id) {
+        throw new Error('No Instagram tab found. Please open instagram.com first.');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'command.ig_get_media',
+        params: payload,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with IG content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to get media info');
     }
     return result.data;
 }

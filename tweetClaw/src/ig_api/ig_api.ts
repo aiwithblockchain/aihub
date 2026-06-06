@@ -15,8 +15,11 @@ import {
 import {
   getFbDtsgWithCache,
   buildUserSearchVariables,
+  buildHomeFeedVariables,
+  buildMediaInfoVariables,
   buildGraphQLBody,
   parseSearchResponse,
+  parseFeedResponse,
   GRAPHQL_QUERIES,
 } from './graphql-helper';
 import type {
@@ -25,6 +28,8 @@ import type {
   IgUser,
   IgUserInfoResponse,
   IgMedia,
+  IgFeedMedia,
+  IgFeedResponse,
   IgLikeParams,
   IgLikeResponse,
   IgFollowParams,
@@ -33,6 +38,86 @@ import type {
   IgCommentResponse,
   IgApiResponse,
 } from './types';
+
+/**
+ * Shortcode 和 Media ID 转换工具
+ */
+const SHORTCODE_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_';
+
+/**
+ * 将 Instagram shortcode 转换为 media ID
+ * @param shortcode - Instagram post shortcode (例如 "DWxxh4pJHjK")
+ * @returns media ID (例如 "3879237864781848334")
+ *
+ * @example
+ * shortcodeToMediaId('DWxxh4pJHjK') // => '3879237864781848334'
+ */
+export function shortcodeToMediaId(shortcode: string): string {
+  let mediaId = 0n;
+  for (let i = 0; i < shortcode.length; i++) {
+    const c = shortcode[i];
+    const index = SHORTCODE_ALPHABET.indexOf(c);
+    if (index === -1) {
+      throw new Error(`Invalid character in shortcode: ${c}`);
+    }
+    mediaId = mediaId * 64n + BigInt(index);
+  }
+  return mediaId.toString();
+}
+
+/**
+ * 将 media ID 转换为 Instagram shortcode
+ * @param mediaId - Instagram media ID (例如 "3879237864781848334")
+ * @returns shortcode (例如 "DWxxh4pJHjK")
+ *
+ * @example
+ * mediaIdToShortcode('3879237864781848334') // => 'DWxxh4pJHjK'
+ */
+export function mediaIdToShortcode(mediaId: string): string {
+  let id = BigInt(mediaId);
+  let shortcode = '';
+
+  while (id > 0n) {
+    const remainder = Number(id % 64n);
+    shortcode = SHORTCODE_ALPHABET[remainder] + shortcode;
+    id = id / 64n;
+  }
+
+  return shortcode || SHORTCODE_ALPHABET[0];
+}
+
+/**
+ * 从 Instagram URL 提取 shortcode
+ * @param url - Instagram post URL
+ * @returns shortcode 或 null
+ *
+ * @example
+ * extractShortcodeFromUrl('https://www.instagram.com/p/DWxxh4pJHjK/') // => 'DWxxh4pJHjK'
+ * extractShortcodeFromUrl('https://www.instagram.com/reel/DWxxh4pJHjK/') // => 'DWxxh4pJHjK'
+ */
+export function extractShortcodeFromUrl(url: string): string | null {
+  const match = url.match(/(?:\/p\/|\/reel\/|\/tv\/)([A-Za-z0-9_-]+)/);
+  return match ? match[1] : null;
+}
+
+/**
+ * 从 Instagram URL 提取 media ID
+ * @param url - Instagram post URL
+ * @returns media ID 或 null
+ *
+ * @example
+ * extractMediaIdFromUrl('https://www.instagram.com/p/DWxxh4pJHjK/') // => '3879237864781848334'
+ */
+export function extractMediaIdFromUrl(url: string): string | null {
+  const shortcode = extractShortcodeFromUrl(url);
+  if (!shortcode) return null;
+
+  try {
+    return shortcodeToMediaId(shortcode);
+  } catch {
+    return null;
+  }
+}
 
 /**
  * Instagram API 客户端
@@ -241,47 +326,313 @@ export class IgApiClient {
     }
   }
 
+  /**
+   * 获取首页 Feed
+   * 使用 GraphQL API: POST /api/graphql
+   * 查询: PolarisHomeFeedQuery
+   */
+  public async getHomeFeed(maxId?: string): Promise<{
+    items: Array<{
+      id: string;
+      pk: string;
+      code: string;
+      mediaType: string;
+      imageUrl: string;
+      caption: string;
+      likeCount: number;
+      commentCount: number;
+      hasLiked: boolean;
+      user: {
+        userId: string;
+        username: string;
+        fullName: string;
+      };
+    }>;
+    nextMaxId: string | null;
+  }> {
+    try {
+      // 获取 fb_dtsg token
+      const fbDtsg = await getFbDtsgWithCache();
+      if (!fbDtsg) {
+        throw new Error('fb_dtsg token not found. Please refresh Instagram page.');
+      }
+
+      // 构建 GraphQL 查询参数
+      const variables = buildHomeFeedVariables(maxId);
+      const body = buildGraphQLBody(
+        GRAPHQL_QUERIES.HOME_FEED.queryName,
+        GRAPHQL_QUERIES.HOME_FEED.docId,
+        variables,
+        fbDtsg
+      );
+
+      // 发送 GraphQL 请求
+      const headers = await this.buildHeaders('POST');
+      const response = await fetch(`${this.baseUrl}/graphql/query`, {
+        method: 'POST',
+        headers,
+        body,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      // Debug: log raw response structure
+      console.log('[IG API] Feed raw response keys:', Object.keys(data));
+      const conn = data?.data?.xdt_api__v1__feed__timeline__connection;
+      console.log('[IG API] Feed connection:', conn ? `edges: ${conn.edges?.length}, hasNext: ${conn.page_info?.has_next_page}` : 'NOT FOUND');
+      if (data?.errors) {
+        console.error('[IG API] Feed errors:', JSON.stringify(data.errors));
+      }
+
+      // 解析 Feed 结果
+      const result = parseFeedResponse(data);
+
+      console.log(`[IG API] Got ${result.items.length} feed items`);
+      return result;
+    } catch (error) {
+      console.error('[IG API] Get home feed error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取媒体详情 (通过 shortcode) - 使用 GraphQL API
+   * API: POST /graphql/query
+   * Query: PolarisPostRootQuery
+   *
+   * @param shortcode - Instagram post shortcode (从 URL 或 code 字段获取)
+   * @returns 包含 like_count, comment_count, has_liked 等详细信息
+   *
+   * @example
+   * const info = await igApi.getMediaInfo('DWxxh4pJHjK');
+   * console.log(info.likeCount, info.hasLiked);
+   */
+  public async getMediaInfo(shortcode: string): Promise<{
+    id: string;
+    pk: string;
+    shortcode: string;
+    mediaType: string;
+    likeCount: number;
+    commentCount: number;
+    hasLiked: boolean;
+    caption: string;
+    takenAt: number;
+    user: {
+      userId: string;
+      username: string;
+      fullName: string;
+    };
+  }> {
+    try {
+      const fbDtsg = await getFbDtsgWithCache();
+      if (!fbDtsg) {
+        throw new Error('fb_dtsg token not found. Please refresh Instagram page.');
+      }
+
+      const variables = buildMediaInfoVariables(shortcode);
+      const body = buildGraphQLBody(
+        GRAPHQL_QUERIES.MEDIA_INFO.queryName,
+        GRAPHQL_QUERIES.MEDIA_INFO.docId,
+        variables,
+        fbDtsg
+      );
+
+      const headers = await this.buildHeaders('POST');
+      headers.set('content-type', 'application/x-www-form-urlencoded');
+
+      const response = await fetch(`${this.baseUrl}/graphql/query`, {
+        method: 'POST',
+        headers,
+        body,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      // 解析 GraphQL 响应
+      const items = data?.data?.xdt_api__v1__media__shortcode__web_info?.items;
+
+      if (!items || items.length === 0) {
+        console.error('[IG API] Media not found, response keys:', Object.keys(data?.data || {}));
+        throw new Error('Media not found or invalid response structure');
+      }
+
+      const media = items[0];
+
+      const mediaTypeMap: Record<number, string> = {
+        1: 'IMAGE',
+        2: 'VIDEO',
+        8: 'CAROUSEL',
+      };
+
+      return {
+        id: media.id,
+        pk: media.pk,
+        shortcode: media.code,
+        mediaType: mediaTypeMap[media.media_type] || 'IMAGE',
+        likeCount: media.like_count || 0,
+        commentCount: media.comment_count || 0,
+        hasLiked: media.has_liked || false,
+        caption: media.caption?.text || '',
+        takenAt: media.taken_at || 0,
+        user: {
+          userId: media.user?.id || '',
+          username: media.user?.username || '',
+          fullName: media.user?.full_name || '',
+        },
+      };
+    } catch (error) {
+      console.error('[IG API] Get media info error:', error);
+      throw error;
+    }
+  }
+
   // ============ 写操作 API ============
 
   /**
-   * 点赞媒体
-   * API: POST /api/v1/media/{media_id}/like/
+   * 获取 actor_id (user's Facebook ID)
+   */
+  private async getActorId(): Promise<string> {
+    // 从页面脚本中提取 actor_id
+    const scripts = Array.from(document.querySelectorAll('script'));
+    for (const script of scripts) {
+      const text = script.textContent || '';
+      const match = text.match(/"actorID"\s*:\s*"(\d+)"/);
+      if (match && match[1]) {
+        return match[1];
+      }
+    }
+    throw new Error('Actor ID not found. Please refresh the page.');
+  }
+
+  /**
+   * 点赞媒体 (使用 GraphQL API)
+   * API: POST /api/graphql
+   * Mutation: PolarisAPILikePostMutation
    */
   public async likeMedia(params: IgLikeParams): Promise<IgLikeResponse> {
     // 写操作延迟
     await smartDelay(MIN_WRITE_DELAY, MAX_WRITE_DELAY);
 
-    const body = {
-      media_id: params.mediaId,
-      module_name: params.moduleName || 'profile',
-      user_id: params.userId || '',
-      username: params.username || '',
-      d: params.d || 0,
-    };
+    try {
+      const fbDtsg = await getFbDtsgWithCache();
+      if (!fbDtsg) {
+        throw new Error('fb_dtsg token not found. Please refresh Instagram page.');
+      }
 
-    const response = await this.request<IgLikeResponse>(
-      `/api/v1/media/${params.mediaId}/like/`,
-      'POST',
-      body
-    );
+      const actorId = await this.getActorId();
 
-    return response;
+      const variables = {
+        input: {
+          media_id: params.mediaId,
+          actor_id: actorId,
+          client_mutation_id: '1',
+        },
+      };
+
+      const body = buildGraphQLBody(
+        'PolarisAPILikePostMutation',
+        '27232073366423857',
+        variables,
+        fbDtsg
+      );
+
+      const headers = await this.buildHeaders('POST');
+      const response = await fetch(`${this.baseUrl}/api/graphql`, {
+        method: 'POST',
+        headers,
+        body,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      // 解析 GraphQL 响应
+      const hasLiked = data?.data?.xig_media_like?.media?.has_liked;
+
+      return {
+        status: hasLiked ? 'ok' : 'fail',
+        // GraphQL 响应不包含 like_count，如需获取请单独调用 media 详情接口
+      };
+    } catch (error) {
+      console.error('[IG API] Like media error:', error);
+      throw error;
+    }
   }
 
   /**
-   * 取消点赞
-   * API: POST /api/v1/media/{media_id}/unlike/
+   * 取消点赞 (使用 GraphQL API)
+   * API: POST /api/graphql
+   * Mutation: PolarisAPIUnlikePostMutation
    */
   public async unlikeMedia(mediaId: string): Promise<IgLikeResponse> {
     await smartDelay(MIN_WRITE_DELAY, MAX_WRITE_DELAY);
 
-    const response = await this.request<IgLikeResponse>(
-      `/api/v1/media/${mediaId}/unlike/`,
-      'POST',
-      { media_id: mediaId }
-    );
+    try {
+      const fbDtsg = await getFbDtsgWithCache();
+      if (!fbDtsg) {
+        throw new Error('fb_dtsg token not found. Please refresh Instagram page.');
+      }
 
-    return response;
+      const actorId = await this.getActorId();
+
+      const variables = {
+        input: {
+          media_id: mediaId,
+          actor_id: actorId,
+          client_mutation_id: '1',
+        },
+      };
+
+      const body = buildGraphQLBody(
+        'PolarisAPIUnlikePostMutation',
+        '27232137286390697', // unlike 的 doc_id (需要从真实请求中获取)
+        variables,
+        fbDtsg
+      );
+
+      const headers = await this.buildHeaders('POST');
+      const response = await fetch(`${this.baseUrl}/api/graphql`, {
+        method: 'POST',
+        headers,
+        body,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      // 解析 GraphQL 响应
+      const hasLiked = data?.data?.xig_media_unlike?.media?.has_liked;
+
+      return {
+        status: !hasLiked ? 'ok' : 'fail',
+        // GraphQL 响应不包含 like_count，如需获取请单独调用 media 详情接口
+      };
+    } catch (error) {
+      console.error('[IG API] Unlike media error:', error);
+      throw error;
+    }
   }
 
   /**
@@ -378,6 +729,7 @@ export const igApi = new IgApiClient();
 // 导出便捷函数
 export const getSelfInfo = () => igApi.getSelfInfo();
 export const getUserInfo = (userId: string) => igApi.getUserInfo(userId);
+export const getMediaInfo = (shortcode: string) => igApi.getMediaInfo(shortcode);
 export const likeMedia = (params: IgLikeParams) => igApi.likeMedia(params);
 export const unlikeMedia = (mediaId: string) => igApi.unlikeMedia(mediaId);
 export const followUser = (params: IgFollowParams) => igApi.followUser(params);
