@@ -120,23 +120,23 @@ tweetClaw/src/
 
 让 AI 能"看到"账号状态和平台内容。
 
-| 优先级 | messageType | 功能 | 状态 |
-|--------|------------|------|------|
-| P0 | `command.ig_get_self_info` | 获取自己账号信息 | ✅ 已完成 |
-| P0 | `command.ig_get_feed` | 获取主页 Feed | ✅ 已完成 (2026-06-07) |
-| P1 | `command.ig_get_user_info` | 获取他人用户信息 | ✅ 已完成 |
-| P1 | `command.ig_get_media` | 获取媒体详情 | ✅ 已完成 (2026-06-07) |
-| P1 | `command.ig_get_media_comments` | 获取媒体评论 | 待开发 |
-| P1 | `command.ig_search` | 搜索内容 | 待开发 |
-| P1 | `command.ig_search_user` | 搜索用户 | ✅ 已完成 |
-| P1 | `command.ig_get_notifications` | 获取消息通知 | 待开发 |
-| P2 | `command.ig_get_user_media` | 获取用户发布内容 | 待开发 |
-| P2 | `command.ig_get_followers` | 获取粉丝列表 | 待开发 |
-| P2 | `command.ig_get_following` | 获取关注列表 | 待开发 |
+| 优先级 | messageType | 功能 | 状态 | 测试日期 |
+|--------|------------|------|------|---------|
+| P0 | `command.ig_get_self_info` | 获取自己账号信息 | ✅ 已完成 | 2026-06-07 |
+| P0 | `command.ig_get_feed` | 获取主页 Feed | ✅ 已完成 | 2026-06-07 |
+| P1 | `command.ig_get_user_info` | 获取他人用户信息 | ✅ 已完成 | 2026-06-07 |
+| P1 | `command.ig_get_media` | 获取媒体详情 | ✅ 已完成 | 2026-06-07 |
+| P1 | `command.ig_get_media_comments` | 获取媒体评论 | 待开发 | - |
+| P1 | `command.ig_search` | 搜索内容 | 待开发 | - |
+| P1 | `command.ig_search_user` | 搜索用户 | ✅ 已完成 | 2026-06-07 |
+| P1 | `command.ig_get_notifications` | 获取消息通知 | 待开发 | - |
+| P2 | `command.ig_get_user_media` | 获取用户发布内容 | 待开发 | - |
+| P2 | `command.ig_get_followers` | 获取粉丝列表 | 待开发 | - |
+| P2 | `command.ig_get_following` | 获取关注列表 | 待开发 | - |
 
 **预计工期：** 5-7 个工作日
 
-**实际进度：** 已完成 5/11 个读取 API (45%)
+**实际进度：** 已完成 5/11 个读取 API (45%) - ✅ 测试通过 5/5 (100%)
 
 ---
 
@@ -148,11 +148,11 @@ AI 运营的核心动作。
 |--------|------------|------|------|---------|
 | P0 | `command.ig_post_media` | 发布图文/视频 | 待开发 | - |
 | P0 | `command.ig_like_media` | 点赞 | ✅ 已完成 | 2026-06-06 |
-| P0 | `command.ig_post_comment` | 发布评论 | ✅ 已完成 | - |
-| P0 | `command.ig_follow_user` | 关注用户 | ✅ 已完成 | - |
+| P0 | `command.ig_post_comment` | 发布评论 | ✅ 已完成 | 2026-06-07 |
+| P0 | `command.ig_follow_user` | 关注用户 | ✅ 已完成 | 2026-06-07 |
 | P1 | `command.ig_upload_media` | 上传媒体文件 | 待开发 | - |
 | P1 | `command.ig_unlike_media` | 取消点赞 | ✅ 已完成 | 2026-06-07 |
-| P1 | `command.ig_unfollow_user` | 取消关注 | ✅ 已完成 | - |
+| P1 | `command.ig_unfollow_user` | 取消关注 | ✅ 已完成 | 2026-06-07 |
 | P2 | `command.ig_delete_media` | 删除内容 | 待开发 | - |
 | P2 | `command.ig_delete_comment` | 删除评论 | 待开发 | - |
 

@@ -228,25 +228,72 @@ GET  /api/v1/feed/user/123/            # 获取用户 Feed
 
 ### 5.1 已完成 API
 
-| API | 实现方式 | 关键发现 |
-|-----|---------|---------|
-| **获取媒体详情** | GraphQL API | REST API `/p/{shortcode}/?__a=1` 已废弃，需使用 GraphQL |
-| **取消点赞** | GraphQL Mutation | `usePolarisLikeMediaXIGUnlikeMutation`，doc_id: `26662414810082851` |
-| **点赞** | GraphQL Mutation | 类似 unlike，使用对应的 mutation |
+| API | 实现方式 | 关键发现 | 测试状态 |
+|-----|---------|---------|---------|
+| **获取媒体详情** | GraphQL API | REST API `/p/{shortcode}/?__a=1` 已废弃，需使用 GraphQL | ✅ 通过 |
+| **取消点赞** | GraphQL Mutation | `usePolarisLikeMediaXIGUnlikeMutation`，doc_id: `26662414810082851` | ✅ 通过 |
+| **点赞** | GraphQL Mutation | 类似 unlike，使用对应的 mutation | ✅ 通过 |
 
 ### 5.2 GraphQL API 发现
 
 **Instagram Web 已从 REST API 迁移到 GraphQL API：**
 
-| 功能 | GraphQL Query/Mutation | doc_id |
-|------|----------------------|--------|
-| 获取媒体详情 | `PolarisPostRootQuery` | `26713194205046842` |
-| 取消点赞 | `usePolarisLikeMediaXIGUnlikeMutation` | `26662414810082851` |
+| 功能 | API 类型 | 端点/Mutation | doc_id | 测试状态 |
+|------|---------|--------------|--------|---------|
+| 获取媒体详情 | GraphQL Query | `PolarisPostRootQuery` | `26713194205046842` | ✅ 通过 |
+| 取消点赞 | GraphQL Mutation | `usePolarisLikeMediaXIGUnlikeMutation` | `26662414810082851` | ✅ 通过 |
+| 点赞 | GraphQL Mutation | `usePolarisLikeMediaMutation` | 待确认 | ✅ 通过 |
+| 关注用户 | GraphQL Mutation | `usePolarisFollowMutation` | `26508036048874888` | ✅ 通过 |
+| 取消关注 | GraphQL Mutation | `usePolarisUnfollowMutation` | `27789106940691111` | ✅ 通过 |
+| 获取首页 Feed | GraphQL Query | `PolarisFeedRootPaginationCachedQuery_subscribe` | `26431707439838189` | ✅ 通过 |
+| 发布评论 | REST API | `/api/v1/web/comments/{media_id}/add/` | N/A | ✅ 通过 |
 
-**关键请求参数：**
+**关键发现：**
+- **关注/取消关注** 使用 GraphQL API（不是 REST API）
+- **发布评论** 仍使用 REST API（不是 GraphQL）
+- **获取首页 Feed** 使用 GraphQL API，混合多种内容类型
+- GraphQL 请求需要 `fb_dtsg` token 和 `x-fb-friendly-name` header
 
+**Feed API 特殊发现（2026-06-07）：**
+- Feed 响应包含多种内容类型：`media`、`explore_story`、`ad`
+- 推荐内容在 `node.explore_story.media` 路径
+- 标准 Feed 媒体在 `node.media` 路径
+- 需要合并处理才能获取完整 Feed 内容
+
+**GraphQL 请求格式：**
 ```typescript
 // 必需参数
+const body = new URLSearchParams();
+body.append('av', '17841427211664125');
+body.append('__d', 'www');
+body.append('fb_dtsg', fbDtsgToken);
+body.append('variables', JSON.stringify(variables));
+body.append('doc_id', docId);
+
+// Headers
+headers.set('x-fb-friendly-name', mutationName);
+```
+
+**REST API 请求格式（发布评论）：**
+```typescript
+// 端点
+POST /api/v1/web/comments/{media_id}/add/
+
+// 请求体
+const formData = new URLSearchParams();
+formData.append('comment_text', text);
+formData.append('fb_dtsg', fbDtsgToken);
+formData.append('jazoest', '22673');
+
+// Headers
+headers.set('x-ig-www-claim', 'hmac.xxx');
+headers.set('x-instagram-ajax', '1040987894');
+headers.set('x-requested-with', 'XMLHttpRequest');
+```
+
+---
+
+## 六、响应格式对比
 {
   av: '17841427211664125',  // 固定值（不是 0）
   __d: 'www',

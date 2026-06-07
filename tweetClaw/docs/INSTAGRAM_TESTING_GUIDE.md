@@ -31,16 +31,16 @@ tweetClaw/
 
 | 功能 | 消息类型 | 状态 | 测试日期 |
 |------|---------|------|---------|
-| 获取当前用户信息 | `command.ig_get_self_info` | ✅ 已实现 | - |
-| 获取用户信息 | `command.ig_get_user_info` | ✅ 已实现 | - |
-| 搜索用户 ID | `command.ig_search_user` | ✅ 已实现 | - |
+| 获取当前用户信息 | `command.ig_get_self_info` | ✅ 已实现 | 2026-06-07 |
+| 获取用户信息 | `command.ig_get_user_info` | ✅ 已实现 | 2026-06-07 |
+| 搜索用户 ID | `command.ig_search_user` | ✅ 已实现 | 2026-06-07 |
 | 获取媒体详情 | `command.ig_get_media` | ✅ 已实现 | 2026-06-07 |
 | 获取首页 Feed | `command.ig_get_feed` | ✅ 已实现 | 2026-06-07 |
 | 点赞媒体 | `command.ig_like_media` | ✅ 已实现 | 2026-06-06 |
 | 取消点赞 | `command.ig_unlike_media` | ✅ 已实现 | 2026-06-07 |
-| 关注用户 | `command.ig_follow_user` | ✅ 已实现 | - |
-| 取消关注 | `command.ig_unfollow_user` | ✅ 已实现 | - |
-| 发布评论 | `command.ig_post_comment` | ✅ 已实现 | - |
+| 关注用户 | `command.ig_follow_user` | ✅ 已实现 | 2026-06-07 |
+| 取消关注 | `command.ig_unfollow_user` | ✅ 已实现 | 2026-06-07 |
+| 发布评论 | `command.ig_post_comment` | ✅ 已实现 | 2026-06-07 |
 | 检查登录状态 | `command.ig_check_login` | ✅ 已实现 | - |
 | 测试连接 | `command.ig_test_connection` | ✅ 已实现 | - |
 
@@ -327,9 +327,161 @@ Promise.all([
 
 ---
 
-## 七、集成到 LocalBridge
+## 七、API 实现细节
 
-### 7.1 Python SDK 集成
+### 7.1 发布评论（postComment）
+
+**API 类型：** REST API
+
+**端点：** `POST /api/v1/web/comments/{media_id}/add/`
+
+**请求体：**
+```
+comment_text=xxx&fb_dtsg=xxx&jazoest=xxx
+```
+
+**必需 Headers：**
+```
+x-ig-www-claim: hmac.AR0WfvuQCL7DQedh15YwL5r8w1EnVqMNDPpLTaXT-bsO97RD
+x-instagram-ajax: 1040987894
+x-requested-with: XMLHttpRequest
+```
+
+**响应示例：**
+```json
+{
+  "id": "18103254392115657",
+  "from": {
+    "id": "27233003055",
+    "username": "tweetpilot_ai",
+    "full_name": "tweetpilotAgent"
+  },
+  "text": "人美，风景也好",
+  "created_time": 1780820154,
+  "status": "ok"
+}
+```
+
+**测试脚本：**
+```bash
+cd localBridge/clawBotCli
+python3 examples/ig_test_8_post_comment.py <media_id> "<评论内容>"
+```
+
+**测试状态：** ✅ 通过 (2026-06-07)
+
+---
+
+### 7.2 获取首页 Feed（getFeed）
+
+**API 类型：** GraphQL Query
+
+**端点：** `POST /graphql/query`
+
+**Query Name：** `PolarisFeedRootPaginationCachedQuery_subscribe`
+
+**doc_id：** `26431707439838189`
+
+**关键发现：**
+- Feed 混合多种内容类型：`media`、`explore_story`、`ad`
+- 需要处理 `explore_story.media` 才能获取推荐内容
+- 响应路径：`data.xdt_api__v1__feed__timeline__connection.edges`
+
+**响应结构：**
+```json
+{
+  "data": {
+    "xdt_api__v1__feed__timeline__connection": {
+      "edges": [
+        {
+          "node": {
+            "media": { ... },           // 标准 Feed 媒体
+            "explore_story": {          // 推荐内容
+              "media": { ... }
+            },
+            "ad": { ... }               // 广告
+          }
+        }
+      ],
+      "page_info": {
+        "has_next_page": true,
+        "end_cursor": "cursor_string"
+      }
+    }
+  }
+}
+```
+
+**测试脚本：**
+```bash
+cd localBridge/clawBotCli
+python3 examples/ig_test_9_get_feed.py [max_id]
+```
+
+**测试状态：** ✅ 通过 (2026-06-07)
+
+---
+
+### 7.3 获取媒体详情（getMediaInfo）
+
+**API 类型：** GraphQL Query
+
+**端点：** `POST /graphql/query`
+
+**Query Name：** `PolarisPostRootQuery`
+
+**doc_id：** `26713194205046842`
+
+**请求参数：**
+```typescript
+{
+  shortcode: "DYgTwyuE9VC",
+  __relay_internal__pv__PolarisAIGMMediaWebLabelEnabledrelayprovider: true
+}
+```
+
+**响应路径：** `data.xdt_api__v1__media__shortcode__web_info.items[0]`
+
+**响应示例：**
+```json
+{
+  "id": "3900204193181586754",
+  "pk": "3900204193181586754",
+  "shortcode": "DYgTwyuE9VC",
+  "mediaType": "IMAGE",
+  "likeCount": 1234,
+  "commentCount": 56,
+  "hasLiked": false,
+  "caption": "帖子文案",
+  "takenAt": 1780800000,
+  "user": {
+    "userId": "38975345923",
+    "username": "username",
+    "fullName": "User Name"
+  }
+}
+```
+
+**如何获取 shortcode：**
+1. 从 Instagram URL 提取：`https://www.instagram.com/p/DYgTwyuE9VC/` → `DYgTwyuE9VC`
+2. 从 Feed API 返回的 `code` 字段获取
+
+**测试脚本：**
+```bash
+cd localBridge/clawBotCli
+python3 examples/ig_test_10_get_media_info.py <shortcode>
+
+# 示例
+python3 examples/ig_test_10_get_media_info.py DYgTwyuE9VC
+```
+
+**测试状态：** ✅ 通过 (2026-06-07)
+
+---
+
+## 八、集成到 LocalBridge
+
+### 8.1 Python SDK 集成
 
 **创建文件：** `clawbot/transport/ig_api.py`
 

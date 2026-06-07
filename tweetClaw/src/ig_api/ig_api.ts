@@ -641,8 +641,9 @@ export class IgApiClient {
   }
 
   /**
-   * 关注用户
-   * API: POST /api/v1/friendships/create/{user_id}/
+   * 关注用户 (使用 GraphQL API)
+   * API: POST /api/graphql
+   * Mutation: usePolarisFollowMutation
    *
    * @param params - userId 必需，其他参数可选
    * @returns 关注状态
@@ -656,21 +657,26 @@ export class IgApiClient {
         throw new Error('fb_dtsg token not found. Please refresh Instagram page.');
       }
 
-      const body = new URLSearchParams();
-      body.append('container_module', params.moduleName || 'profile');
-      body.append('include_follow_friction_check', 'true');
-      body.append('nav_chain', 'PolarisDesktopPostRoot:postPage:1:via_cold_start');
-      body.append('user_id', params.userId);
-      body.append('jazoest', '22673');
-      body.append('fb_dtsg', fbDtsg);
+      const variables = {
+        target_user_id: params.userId,
+        container_module: params.moduleName || 'profile',
+        nav_chain: 'PolarisProfilePostsTabRoot:profilePage:1:via_cold_start',
+      };
+
+      const body = buildGraphQLBody(
+        'usePolarisFollowMutation',
+        '26508036048874888',
+        variables,
+        fbDtsg
+      );
 
       const headers = await this.buildHeaders('POST');
-      headers.set('content-type', 'application/x-www-form-urlencoded');
+      headers.set('x-fb-friendly-name', 'usePolarisFollowMutation');
 
-      const response = await fetch(`${this.baseUrl}/api/v1/friendships/create/${params.userId}/`, {
+      const response = await fetch(`${this.baseUrl}/api/graphql`, {
         method: 'POST',
         headers,
-        body: body.toString(),
+        body,
         credentials: 'include',
       });
 
@@ -681,14 +687,13 @@ export class IgApiClient {
 
       const data = await response.json();
 
-      if (data.status !== 'ok') {
-        throw new Error(`API Error: ${data.message || 'Unknown error'}`);
-      }
+      // 解析 GraphQL 响应
+      const friendshipStatus = data?.data?.xdt_create_friendship?.friendship_status;
 
       return {
-        status: data.status,
-        following: data.friendship_status?.following || false,
-        friendship_status: data.friendship_status,
+        status: 'ok',
+        following: friendshipStatus?.following || false,
+        friendship_status: friendshipStatus,
       };
     } catch (error) {
       console.error('[IG API] Follow user error:', error);
@@ -697,41 +702,114 @@ export class IgApiClient {
   }
 
   /**
-   * 取消关注
-   * API: POST /api/v1/friendships/destroy/{user_id}/
+   * 取消关注 (使用 GraphQL API)
+   * API: POST /api/graphql
+   * Mutation: usePolarisUnfollowMutation
+   *
+   * @param userId - Instagram user ID
+   * @returns 关注状态
    */
   public async unfollowUser(userId: string): Promise<IgFollowResponse> {
     await smartDelay(MIN_WRITE_DELAY, MAX_WRITE_DELAY);
 
-    const response = await this.request<IgFollowResponse>(
-      `/api/v1/friendships/destroy/${userId}/`,
-      'POST',
-      { user_id: userId }
-    );
+    try {
+      const fbDtsg = await getFbDtsgWithCache();
+      if (!fbDtsg) {
+        throw new Error('fb_dtsg token not found. Please refresh Instagram page.');
+      }
 
-    return response;
+      const variables = {
+        target_user_id: userId,
+        container_module: 'profile',
+        nav_chain: 'PolarisProfilePostsTabRoot:profilePage:1:via_cold_start',
+      };
+
+      const body = buildGraphQLBody(
+        'usePolarisUnfollowMutation',
+        '27789106940691111',
+        variables,
+        fbDtsg
+      );
+
+      const headers = await this.buildHeaders('POST');
+      headers.set('x-fb-friendly-name', 'usePolarisUnfollowMutation');
+
+      const response = await fetch(`${this.baseUrl}/api/graphql`, {
+        method: 'POST',
+        headers,
+        body,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      // 解析 GraphQL 响应
+      const friendshipStatus = data?.data?.xdt_destroy_friendship?.friendship_status;
+
+      return {
+        status: 'ok',
+        following: friendshipStatus?.following || false,
+        friendship_status: friendshipStatus,
+      };
+    } catch (error) {
+      console.error('[IG API] Unfollow user error:', error);
+      throw error;
+    }
   }
 
   /**
-   * 发布评论
-   * API: POST /api/v1/media/{media_id}/comment/
+   * 发布评论 (使用 REST API)
+   * API: POST /api/v1/web/comments/{media_id}/add/
+   *
+   * @param params - mediaId 和 text 必需
+   * @returns 评论对象
    */
-  public async postComment(params: IgCommentParams): Promise<IgCommentResponse> {
+  public async postComment(params: IgCommentParams): Promise<any> {
     await smartDelay(MIN_WRITE_DELAY, MAX_WRITE_DELAY);
 
-    const body = {
-      media_id: params.mediaId,
-      text: params.text,
-      replied_to_comment_id: params.repliedToCommentId || '',
-    };
+    try {
+      const fbDtsg = await getFbDtsgWithCache();
+      if (!fbDtsg) {
+        throw new Error('fb_dtsg token not found. Please refresh Instagram page.');
+      }
 
-    const response = await this.request<IgCommentResponse>(
-      `/api/v1/media/${params.mediaId}/comment/`,
-      'POST',
-      body
-    );
+      // 构建表单数据
+      const formData = new URLSearchParams();
+      formData.append('comment_text', params.text);
+      formData.append('fb_dtsg', fbDtsg);
+      formData.append('jazoest', '22673');
 
-    return response;
+      const headers = await this.buildHeaders('POST');
+      headers.set('x-ig-www-claim', 'hmac.AR0WfvuQCL7DQedh15YwL5r8w1EnVqMNDPpLTaXT-bsO97RD');
+      headers.set('x-instagram-ajax', '1040987894');
+      headers.set('x-requested-with', 'XMLHttpRequest');
+
+      const response = await fetch(
+        `${this.baseUrl}/api/v1/web/comments/${params.mediaId}/add/`,
+        {
+          method: 'POST',
+          headers,
+          body: formData.toString(),
+          credentials: 'include',
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+      return data;
+    } catch (error) {
+      console.error('[IG API] Post comment error:', error);
+      throw error;
+    }
   }
 
   // ============ 工具方法 ============

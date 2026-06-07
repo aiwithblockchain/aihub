@@ -331,7 +331,7 @@ export interface GraphQLFeedResponse {
     xdt_api__v1__feed__timeline__connection: {
       edges: Array<{
         node: {
-          media: {
+          media?: {
             id: string;
             pk: string;
             code: string;
@@ -361,6 +361,33 @@ export interface GraphQLFeedResponse {
             user: any;
             has_liked: boolean;
             has_saved: boolean;
+          };
+          explore_story?: {
+            media?: {
+              id: string;
+              pk: string;
+              code: string;
+              media_type: number;
+              image_versions2?: {
+                candidates: Array<{
+                  url: string;
+                  width: number;
+                  height: number;
+                }>;
+              };
+              caption?: {
+                pk: string;
+                text: string;
+                user: any;
+              };
+              like_count: number;
+              comment_count: number;
+              user: any;
+              has_liked: boolean;
+            };
+          };
+          ad?: {
+            media?: any;
           };
         };
       }>;
@@ -398,9 +425,27 @@ export function parseFeedResponse(response: GraphQLFeedResponse): {
   const pageInfo = response?.data?.xdt_api__v1__feed__timeline__connection?.page_info;
 
   const items = edges
-    .filter((edge) => edge?.node?.media) // 过滤掉 media 为 null 的项
     .map((edge) => {
-      const media = edge.node.media;
+      // Feed 可能包含多种类型：media, explore_story, ad 等
+      // 优先级：media > explore_story.media > ad
+      const node = edge?.node;
+      let media = null;
+
+      if (node?.media) {
+        // 标准 Feed 媒体
+        media = node.media;
+      } else if (node?.explore_story?.media) {
+        // Explore/推荐内容
+        media = node.explore_story.media;
+      } else if (node?.ad?.media) {
+        // 广告（可选处理）
+        media = node.ad.media;
+      }
+
+      if (!media) {
+        return null; // 过滤掉无效项
+      }
+
       const mediaTypeMap: Record<number, string> = {
         1: 'IMAGE',
         2: 'VIDEO',
@@ -414,16 +459,17 @@ export function parseFeedResponse(response: GraphQLFeedResponse): {
         mediaType: mediaTypeMap[media.media_type] || 'IMAGE',
         imageUrl: media.image_versions2?.candidates?.[0]?.url || '',
         caption: media.caption?.text || '',
-        likeCount: media.like_count,
-        commentCount: media.comment_count,
-        hasLiked: media.has_liked,
+        likeCount: media.like_count || 0,
+        commentCount: media.comment_count || 0,
+        hasLiked: media.has_liked || false,
         user: {
           userId: media.user?.pk || '',
           username: media.user?.username || '',
           fullName: media.user?.full_name || '',
         },
       };
-    });
+    })
+    .filter((item) => item !== null); // 移除 null 项
 
   return {
     items,

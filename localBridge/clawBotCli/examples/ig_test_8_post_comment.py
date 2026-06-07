@@ -48,10 +48,11 @@ result = client.ig.post_comment(
     replied_to_comment_id=reply_to_comment_id,
 )
 
-# Go REST API 直接返回 payload，不包装 success/data
-comment = result.get("comment", {})
-print(f"Comment ID:     {comment.get('pk')}")
-print(f"Text:           {comment.get('text')}")
+# Instagram API 直接返回评论对象，不包装
+# 响应格式: { "id": "xxx", "text": "xxx", "status": "ok", ... }
+print(f"Comment ID:     {result.get('id')}")
+print(f"Text:           {result.get('text')}")
+print(f"Status:         {result.get('status')}")
 print()
 print("Full response:")
 print(json.dumps(result, ensure_ascii=False, indent=2))

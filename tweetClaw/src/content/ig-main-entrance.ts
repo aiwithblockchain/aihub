@@ -394,13 +394,16 @@ async function handlePostComment(params: Record<string, any>): Promise<any> {
   };
 
   const result = await igApi.postComment(commentParams);
+
+  // Instagram API 直接返回评论对象，不包装在 comment 字段中
+  // 响应格式: { "id": "xxx", "text": "xxx", "from": {...}, "status": "ok" }
   return {
     success: true,
     comment: {
-      id: result.comment.pk,
-      text: result.comment.text,
-      userId: result.comment.user.pk,
-      username: result.comment.user.username,
+      id: result.id,
+      text: result.text,
+      userId: result.from?.id,
+      username: result.from?.username,
     },
   };
 }
