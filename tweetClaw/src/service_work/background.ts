@@ -163,6 +163,7 @@ localBridge.igUnlikeMediaHandler = igUnlikeMedia;
 localBridge.igFollowUserHandler = igFollowUser;
 localBridge.igUnfollowUserHandler = igUnfollowUser;
 localBridge.igPostCommentHandler = igPostComment;
+localBridge.igDeleteCommentHandler = igDeleteComment;
 localBridge.igGetMediaCommentsHandler = igGetMediaComments;
 
 // Initialize Background Task Coordinator
@@ -2218,6 +2219,27 @@ export async function igPostComment(payload: Record<string, unknown>): Promise<a
 
     if (!result?.success) {
         throw new Error(result?.error || 'Failed to post comment');
+    }
+    return result.data;
+}
+
+export async function igDeleteComment(payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] igDeleteComment called', payload);
+    const tab = await findIgTab();
+    if (!tab?.id) {
+        throw new Error('No Instagram tab found. Please open instagram.com first.');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'command.ig_delete_comment',
+        params: payload,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with IG content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to delete comment');
     }
     return result.data;
 }

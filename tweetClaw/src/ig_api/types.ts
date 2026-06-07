@@ -177,6 +177,14 @@ export interface IgCommentParams {
   repliedToCommentId?: string;  // 回复的评论 ID
 }
 
+/**
+ * 删除评论参数
+ */
+export interface IgDeleteCommentParams {
+  mediaId: string;
+  commentId: string;
+}
+
 // ============ Feed 相关 ============
 
 /**

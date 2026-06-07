@@ -36,6 +36,7 @@ import type {
   IgFollowResponse,
   IgCommentParams,
   IgCommentResponse,
+  IgDeleteCommentParams,
   IgGetCommentsParams,
   IgGetCommentsResponse,
   IgComment,
@@ -895,6 +896,49 @@ export class IgApiClient {
       return data;
     } catch (error) {
       console.error('[IG API] Post comment error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 删除评论 (使用 REST API)
+   * API: POST /api/v1/web/comments/{media_id}/delete/{comment_id}/
+   *
+   * @param params - mediaId 和 commentId 必需
+   * @returns 操作结果
+   */
+  public async deleteComment(params: IgDeleteCommentParams): Promise<any> {
+    await smartDelay(MIN_WRITE_DELAY, MAX_WRITE_DELAY);
+
+    try {
+      const headers = await this.buildHeaders('POST');
+
+      console.log(`[IG API] POST /api/v1/web/comments/${params.mediaId}/delete/${params.commentId}/`);
+
+      const response = await fetch(
+        `${this.baseUrl}/api/v1/web/comments/${params.mediaId}/delete/${params.commentId}/`,
+        {
+          method: 'POST',
+          headers,
+          credentials: 'include',
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      if (data.status !== 'ok') {
+        throw new Error('Failed to delete comment');
+      }
+
+      console.log(`[IG API] Comment deleted: ${params.commentId}`);
+      return data;
+    } catch (error) {
+      console.error('[IG API] Delete comment error:', error);
       throw error;
     }
   }

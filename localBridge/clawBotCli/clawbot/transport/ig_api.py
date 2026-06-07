@@ -47,6 +47,22 @@ class IgApiTransport(BaseApiTransport):
             payload["repliedToCommentId"] = replied_to_comment_id
         return self.request_json("POST", "/api/v1/ig/comments", json=payload)
 
+    def delete_comment_raw(self, media_id: str, comment_id: str) -> Dict[Any, Any]:
+        """删除评论
+
+        Args:
+            media_id: 媒体 ID
+            comment_id: 评论 ID
+
+        Returns:
+            操作结果
+        """
+        return self.request_json(
+            "POST",
+            "/api/v1/ig/comments/delete",
+            json={"mediaId": media_id, "commentId": comment_id}
+        )
+
     def get_media_comments_raw(
         self,
         media_id: str,

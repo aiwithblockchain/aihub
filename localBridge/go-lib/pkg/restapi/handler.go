@@ -111,6 +111,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/ig/follows", h.igFollowUser)
 	mux.HandleFunc("/api/v1/ig/unfollows", h.igUnfollowUser)
 	mux.HandleFunc("/api/v1/ig/comments", h.igPostComment)
+	mux.HandleFunc("/api/v1/ig/comments/delete", h.igDeleteComment)
 	mux.HandleFunc("/api/v1/ig/media/comments", h.igGetMediaComments)
 
 }
@@ -1170,6 +1171,21 @@ func (h *Handler) igPostComment(w http.ResponseWriter, r *http.Request) {
 	}
 	id := newID("http_ig_comment")
 	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_post_comment", "tweetClaw", body), 30000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) igDeleteComment(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	body, err := readRawBody(r)
+	if err != nil {
+		jsonErr(w, 400, err.Error())
+		return
+	}
+	id := newID("http_ig_delete_comment")
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_delete_comment", "tweetClaw", body), 30000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 

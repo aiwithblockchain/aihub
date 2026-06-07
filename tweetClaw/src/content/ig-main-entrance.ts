@@ -33,7 +33,6 @@ const igApi = new IgApiClient();
 
 // ── 暴露全局 API 到 window（供控制台测试和外部调用）─────────────────────────
 
-// 定义全局 API 接口
 interface IgGlobalApi {
   getSelfInfo: () => Promise<any>;
   getUserInfo: (userId: string) => Promise<any>;
@@ -46,6 +45,7 @@ interface IgGlobalApi {
   followUser: (params: { userId: string; moduleName?: string; username?: string }) => Promise<any>;
   unfollowUser: (userId: string) => Promise<any>;
   postComment: (params: { mediaId: string; text: string; repliedToCommentId?: string }) => Promise<any>;
+  deleteComment: (params: { mediaId: string; commentId: string }) => Promise<any>;
   checkLogin: () => Promise<boolean>;
   testConnection: () => Promise<{ success: boolean; userId?: string; error?: string }>;
   // 工具函数
@@ -88,6 +88,9 @@ const igGlobalApi: IgGlobalApi = {
   },
   postComment: async (params) => {
     return await handlePostComment(params);
+  },
+  deleteComment: async (params) => {
+    return await handleDeleteComment(params);
   },
   checkLogin: async () => {
     return await handleCheckLogin({});
@@ -453,8 +456,18 @@ async function handlePostComment(params: Record<string, any>): Promise<any> {
 }
 
 async function handleDeleteComment(params: Record<string, any>): Promise<any> {
-  // TODO: 实现删除评论
-  throw new Error('Not implemented yet: ig_delete_comment');
+  const { mediaId, commentId } = params;
+
+  if (!mediaId || !commentId) {
+    throw new Error('mediaId and commentId are required');
+  }
+
+  const result = await igApi.deleteComment({ mediaId, commentId });
+
+  return {
+    success: true,
+    status: result.status,
+  };
 }
 
 async function handlePostMedia(params: Record<string, any>): Promise<any> {

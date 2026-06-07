@@ -96,6 +96,22 @@ class IgService:
             replied_to_comment_id=replied_to_comment_id,
         )
 
+    def delete_comment(self, media_id: str, comment_id: str) -> Dict[str, Any]:
+        """
+        Delete a comment from a media post.
+
+        Args:
+            media_id: The media ID
+            comment_id: The comment ID to delete
+
+        Returns:
+            Operation result
+        """
+        return self.transport.delete_comment_raw(
+            media_id=media_id,
+            comment_id=comment_id,
+        )
+
     def get_media_comments(
         self,
         media_id: str,

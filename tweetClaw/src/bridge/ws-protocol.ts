@@ -94,6 +94,8 @@ export type MessageType =
   | 'response.ig_unfollow_user'
   | 'command.ig_post_comment'
   | 'response.ig_post_comment'
+  | 'command.ig_delete_comment'
+  | 'response.ig_delete_comment'
   | 'command.ig_get_media_comments'
   | 'response.ig_get_media_comments'
   | 'command.query_x_basic_info'
@@ -223,6 +225,8 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_IG_UNFOLLOW_USER: 'response.ig_unfollow_user',
   COMMAND_IG_POST_COMMENT: 'command.ig_post_comment',
   RESPONSE_IG_POST_COMMENT: 'response.ig_post_comment',
+  COMMAND_IG_DELETE_COMMENT: 'command.ig_delete_comment',
+  RESPONSE_IG_DELETE_COMMENT: 'response.ig_delete_comment',
   COMMAND_IG_GET_MEDIA_COMMENTS: 'command.ig_get_media_comments',
   RESPONSE_IG_GET_MEDIA_COMMENTS: 'response.ig_get_media_comments',
   COMMAND_QUERY_X_BASIC_INFO: 'command.query_x_basic_info',
