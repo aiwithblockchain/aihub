@@ -479,6 +479,70 @@ python3 examples/ig_test_10_get_media_info.py DYgTwyuE9VC
 
 ---
 
+### 7.4 获取媒体评论列表（getMediaComments）
+
+**API 类型：** REST API
+
+**端点：** `GET /api/v1/media/{media_id}/comments/`
+
+**Query Parameters：**
+```
+can_support_threading=true
+permalink_enabled=false
+min_id={"cached_comments_cursor":"xxx","bifilter_token":"xxx"}  // 分页游标（可选）
+sort_order=popular  // 或 chronological
+```
+
+**响应示例：**
+```json
+{
+  "caption": {
+    "pk": "17863752171587422",
+    "text": "Roland Garros 2026🎾\n\n#lacoste \n#rolandgarros",
+    "user": {...}
+  },
+  "comment_count": 5847,
+  "comments": [
+    {
+      "pk": "18266015344290462",
+      "text": "😍😍😍😍",
+      "user": {
+        "id": "1268261909",
+        "username": "omairaduarte",
+        "full_name": "O M A I R A●D U A R T E"
+      },
+      "created_at": 1780741517,
+      "comment_like_count": 2,
+      "has_liked_comment": false,
+      "child_comment_count": 0
+    }
+  ]
+}
+```
+
+**分页机制：**
+- `min_id` 参数是 URL 编码的 JSON 对象
+- 包含 `cached_comments_cursor` 和 `bifilter_token`
+- 响应中可能包含 `next_min_id` 用于下一页
+
+**测试脚本：**
+```bash
+cd localBridge/clawBotCli
+
+# 获取热门评论
+python3 examples/ig_test_11_get_media_comments.py 3913384059204773903
+
+# 获取时间顺序评论
+python3 examples/ig_test_11_get_media_comments.py 3913384059204773903 "" chronological
+
+# 使用分页游标
+python3 examples/ig_test_11_get_media_comments.py 3913384059204773903 '{"cached_comments_cursor":"xxx"}'
+```
+
+**测试状态：** ⏳ 待测试
+
+---
+
 ## 八、集成到 LocalBridge
 
 ### 8.1 Python SDK 集成

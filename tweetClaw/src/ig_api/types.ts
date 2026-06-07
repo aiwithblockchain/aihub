@@ -104,15 +104,46 @@ export interface IgMedia {
  * Instagram 评论
  */
 export interface IgComment {
-  pk: string;
-  user_id: string;
-  text: string;
-  type: number;
-  created_at: number;
-  user: IgUser;
-  comment_like_count: number;
-  has_liked_comment: boolean;
+  pk: string;                      // 评论 ID
+  user_id: string;                 // 用户 ID
+  text: string;                    // 评论内容
+  type: number;                    // 评论类型
+  created_at: number;              // 创建时间戳
+  user: IgUser;                    // 评论用户
+  comment_like_count: number;      // 评论点赞数
+  has_liked_comment: boolean;      // 是否已点赞评论
+  has_disliked_comment?: boolean;  // 是否已点踩评论
   is_covered_by_ig_rules: boolean;
+  child_comment_count?: number;    // 子评论数（回复）
+  is_edited?: boolean;             // 是否已编辑
+  status?: string;                 // 评论状态
+}
+
+/**
+ * 获取评论参数
+ */
+export interface IgGetCommentsParams {
+  mediaId: string;                 // 媒体 ID
+  minId?: string;                  // 分页游标（JSON 编码）
+  sortOrder?: 'popular' | 'chronological';  // 排序方式
+  canSupportThreading?: boolean;   // 是否支持评论回复
+  permalinkEnabled?: boolean;      // 是否启用永久链接
+}
+
+/**
+ * 获取评论响应
+ */
+export interface IgGetCommentsResponse {
+  caption?: {                      // 帖子原始文案
+    pk: string;
+    text: string;
+    user: IgUser;
+    created_at: number;
+  };
+  comment_count: number;           // 总评论数
+  comments: IgComment[];           // 评论列表
+  can_view_more_preview_comments: boolean;
+  next_min_id?: string;            // 下一页游标
 }
 
 // ============ 请求参数 ============

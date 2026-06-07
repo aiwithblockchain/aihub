@@ -36,6 +36,9 @@ import type {
   IgFollowResponse,
   IgCommentParams,
   IgCommentResponse,
+  IgGetCommentsParams,
+  IgGetCommentsResponse,
+  IgComment,
   IgApiResponse,
 } from './types';
 
@@ -494,6 +497,90 @@ export class IgApiClient {
       };
     } catch (error) {
       console.error('[IG API] Get media info error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取媒体评论列表 (使用 REST API)
+   * API: GET /api/v1/media/{media_id}/comments/
+   *
+   * @param params - mediaId 必需，其他参数可选
+   * @returns 评论列表和分页信息
+   */
+  public async getMediaComments(params: IgGetCommentsParams): Promise<IgGetCommentsResponse> {
+    try {
+      // 构建查询参数
+      const queryParams = new URLSearchParams();
+
+      if (params.canSupportThreading !== false) {
+        queryParams.append('can_support_threading', 'true');
+      }
+
+      if (params.permalinkEnabled !== false) {
+        queryParams.append('permalink_enabled', 'false');
+      }
+
+      if (params.minId) {
+        queryParams.append('min_id', params.minId);
+      }
+
+      if (params.sortOrder) {
+        queryParams.append('sort_order', params.sortOrder);
+      }
+
+      // 发送 GET 请求
+      const headers = await this.buildHeaders('GET');
+      const url = `${this.baseUrl}/api/v1/media/${params.mediaId}/comments/?${queryParams.toString()}`;
+
+      console.log(`[IG API] GET /api/v1/media/${params.mediaId}/comments/`);
+
+      const response = await fetch(url, {
+        method: 'GET',
+        headers,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      // 解析响应
+      const comments: IgComment[] = (data.comments || []).map((comment: any) => ({
+        pk: comment.pk,
+        user_id: comment.user_id,
+        text: comment.text,
+        type: comment.type,
+        created_at: comment.created_at,
+        user: this.parseUser(comment.user),
+        comment_like_count: comment.comment_like_count || 0,
+        has_liked_comment: comment.has_liked_comment || false,
+        has_disliked_comment: comment.has_disliked_comment || false,
+        is_covered_by_ig_rules: comment.is_covered_by_ig_rules || false,
+        child_comment_count: comment.child_comment_count || 0,
+        is_edited: comment.is_edited || false,
+        status: comment.status,
+      }));
+
+      console.log(`[IG API] Got ${comments.length} comments, total: ${data.comment_count}`);
+
+      return {
+        caption: data.caption ? {
+          pk: data.caption.pk,
+          text: data.caption.text,
+          user: this.parseUser(data.caption.user),
+          created_at: data.caption.created_at,
+        } : undefined,
+        comment_count: data.comment_count || 0,
+        comments,
+        can_view_more_preview_comments: data.can_view_more_preview_comments || false,
+        next_min_id: data.next_min_id,  // 如果存在分页游标
+      };
+    } catch (error) {
+      console.error('[IG API] Get media comments error:', error);
       throw error;
     }
   }

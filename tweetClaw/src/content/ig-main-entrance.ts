@@ -297,8 +297,40 @@ async function handleGetMedia(params: Record<string, any>): Promise<any> {
 }
 
 async function handleGetMediaComments(params: Record<string, any>): Promise<any> {
-  // TODO: 实现获取评论列表
-  throw new Error('Not implemented yet: ig_get_media_comments');
+  const { mediaId, minId, sortOrder, canSupportThreading, permalinkEnabled } = params;
+
+  if (!mediaId) {
+    throw new Error('mediaId is required');
+  }
+
+  const result = await igApi.getMediaComments({
+    mediaId,
+    minId,
+    sortOrder: sortOrder || 'popular',
+    canSupportThreading: canSupportThreading !== false,
+    permalinkEnabled: permalinkEnabled !== false,
+  });
+
+  return {
+    caption: result.caption,
+    commentCount: result.comment_count,
+    comments: result.comments.map(comment => ({
+      id: comment.pk,
+      text: comment.text,
+      userId: comment.user_id,
+      username: comment.user.username,
+      fullName: comment.user.full_name,
+      profilePicUrl: comment.user.profile_pic_url,
+      createdAt: comment.created_at,
+      likeCount: comment.comment_like_count,
+      hasLiked: comment.has_liked_comment,
+      childCommentCount: comment.child_comment_count || 0,
+      isEdited: comment.is_edited || false,
+      status: comment.status,
+    })),
+    canViewMore: result.can_view_more_preview_comments,
+    nextMinId: result.next_min_id,
+  };
 }
 
 async function handleSearch(params: Record<string, any>): Promise<any> {
