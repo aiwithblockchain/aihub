@@ -29,18 +29,31 @@ tweetClaw/
 
 ### 1.2 已实现的功能
 
-| 功能 | 消息类型 | 状态 |
-|------|---------|------|
-| 获取当前用户信息 | `command.ig_get_self_info` | ✅ 已实现 |
-| 获取用户信息 | `command.ig_get_user_info` | ✅ 已实现 |
-| 搜索用户 ID | `command.ig_search_user` | ✅ 已实现 |
-| 点赞媒体 | `command.ig_like_media` | ✅ 已实现 |
-| 取消点赞 | `command.ig_unlike_media` | ✅ 已实现 |
-| 关注用户 | `command.ig_follow_user` | ✅ 已实现 |
-| 取消关注 | `command.ig_unfollow_user` | ✅ 已实现 |
-| 发布评论 | `command.ig_post_comment` | ✅ 已实现 |
-| 检查登录状态 | `command.ig_check_login` | ✅ 已实现 |
-| 测试连接 | `command.ig_test_connection` | ✅ 已实现 |
+| 功能 | 消息类型 | 状态 | 测试日期 |
+|------|---------|------|---------|
+| 获取当前用户信息 | `command.ig_get_self_info` | ✅ 已实现 | - |
+| 获取用户信息 | `command.ig_get_user_info` | ✅ 已实现 | - |
+| 搜索用户 ID | `command.ig_search_user` | ✅ 已实现 | - |
+| 获取媒体详情 | `command.ig_get_media` | ✅ 已实现 | 2026-06-07 |
+| 获取首页 Feed | `command.ig_get_feed` | ✅ 已实现 | 2026-06-07 |
+| 点赞媒体 | `command.ig_like_media` | ✅ 已实现 | 2026-06-06 |
+| 取消点赞 | `command.ig_unlike_media` | ✅ 已实现 | 2026-06-07 |
+| 关注用户 | `command.ig_follow_user` | ✅ 已实现 | - |
+| 取消关注 | `command.ig_unfollow_user` | ✅ 已实现 | - |
+| 发布评论 | `command.ig_post_comment` | ✅ 已实现 | - |
+| 检查登录状态 | `command.ig_check_login` | ✅ 已实现 | - |
+| 测试连接 | `command.ig_test_connection` | ✅ 已实现 | - |
+
+### 1.3 工具函数（已暴露到 window.igApi）
+
+```javascript
+// Shortcode ↔ Media ID 转换
+window.igApi.shortcodeToMediaId('DWxxh4pJHjK')  // => '3869091387729541322'
+window.igApi.mediaIdToShortcode('3869091387729541322')  // => 'DWxxh4pJHjK'
+
+// 从 URL 提取 shortcode
+window.igApi.extractShortcodeFromUrl('https://www.instagram.com/p/DWxxh4pJHjK/')  // => 'DWxxh4pJHjK'
+```
 
 ---
 

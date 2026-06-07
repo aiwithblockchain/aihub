@@ -16,7 +16,7 @@
  * - Cookie 由浏览器自动管理（用户已登录）
  */
 
-import { IgApiClient } from '../ig_api/ig_api';
+import { IgApiClient, shortcodeToMediaId, mediaIdToShortcode, extractShortcodeFromUrl } from '../ig_api/ig_api';
 import type {
   IgMessageType,
   IgRequestMessage,
@@ -45,6 +45,10 @@ interface IgGlobalApi {
   postComment: (params: { mediaId: string; text: string; repliedToCommentId?: string }) => Promise<any>;
   checkLogin: () => Promise<boolean>;
   testConnection: () => Promise<{ success: boolean; userId?: string; error?: string }>;
+  // 工具函数
+  shortcodeToMediaId: (shortcode: string) => string;
+  mediaIdToShortcode: (mediaId: string) => string;
+  extractShortcodeFromUrl: (url: string) => string | null;
 }
 
 // 实现全局 API
@@ -78,6 +82,16 @@ const igGlobalApi: IgGlobalApi = {
   },
   testConnection: async () => {
     return await handleTestConnection({});
+  },
+  // 工具函数（同步）
+  shortcodeToMediaId: (shortcode: string) => {
+    return shortcodeToMediaId(shortcode);
+  },
+  mediaIdToShortcode: (mediaId: string) => {
+    return mediaIdToShortcode(mediaId);
+  },
+  extractShortcodeFromUrl: (url: string) => {
+    return extractShortcodeFromUrl(url);
   },
 };
 

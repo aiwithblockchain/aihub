@@ -1108,7 +1108,7 @@ func (h *Handler) igLikeMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_like")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_like_media", "tweetClaw", body), 15000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_like_media", "tweetClaw", body), 30000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -1123,7 +1123,7 @@ func (h *Handler) igUnlikeMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_unlike")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_unlike_media", "tweetClaw", body), 15000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_unlike_media", "tweetClaw", body), 30000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -1138,7 +1138,7 @@ func (h *Handler) igFollowUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_follow")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_follow_user", "tweetClaw", body), 15000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_follow_user", "tweetClaw", body), 30000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -1153,7 +1153,7 @@ func (h *Handler) igUnfollowUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_unfollow")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_unfollow_user", "tweetClaw", body), 15000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_unfollow_user", "tweetClaw", body), 30000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -1168,7 +1168,7 @@ func (h *Handler) igPostComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_comment")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_post_comment", "tweetClaw", body), 15000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_post_comment", "tweetClaw", body), 30000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 

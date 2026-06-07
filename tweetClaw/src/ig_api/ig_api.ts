@@ -579,7 +579,10 @@ export class IgApiClient {
   /**
    * 取消点赞 (使用 GraphQL API)
    * API: POST /api/graphql
-   * Mutation: PolarisAPIUnlikePostMutation
+   * Mutation: usePolarisLikeMediaXIGUnlikeMutation
+   *
+   * @param mediaId - Instagram media ID (例如 "3869091387729541322")
+   * @returns 操作结果
    */
   public async unlikeMedia(mediaId: string): Promise<IgLikeResponse> {
     await smartDelay(MIN_WRITE_DELAY, MAX_WRITE_DELAY);
@@ -594,20 +597,23 @@ export class IgApiClient {
 
       const variables = {
         input: {
-          media_id: mediaId,
           actor_id: actorId,
           client_mutation_id: '1',
+          media_id: mediaId,
+          tracking_token: '',
         },
       };
 
       const body = buildGraphQLBody(
-        'PolarisAPIUnlikePostMutation',
-        '27232137286390697', // unlike 的 doc_id (需要从真实请求中获取)
+        'usePolarisLikeMediaXIGUnlikeMutation',
+        '26662414810082851',
         variables,
         fbDtsg
       );
 
       const headers = await this.buildHeaders('POST');
+      headers.set('x-fb-friendly-name', 'usePolarisLikeMediaXIGUnlikeMutation');
+
       const response = await fetch(`${this.baseUrl}/api/graphql`, {
         method: 'POST',
         headers,
@@ -627,7 +633,6 @@ export class IgApiClient {
 
       return {
         status: !hasLiked ? 'ok' : 'fail',
-        // GraphQL 响应不包含 like_count，如需获取请单独调用 media 详情接口
       };
     } catch (error) {
       console.error('[IG API] Unlike media error:', error);
@@ -638,23 +643,57 @@ export class IgApiClient {
   /**
    * 关注用户
    * API: POST /api/v1/friendships/create/{user_id}/
+   *
+   * @param params - userId 必需，其他参数可选
+   * @returns 关注状态
    */
   public async followUser(params: IgFollowParams): Promise<IgFollowResponse> {
     await smartDelay(MIN_WRITE_DELAY, MAX_WRITE_DELAY);
 
-    const body = {
-      user_id: params.userId,
-      module_name: params.moduleName || 'profile',
-      username: params.username || '',
-    };
+    try {
+      const fbDtsg = await getFbDtsgWithCache();
+      if (!fbDtsg) {
+        throw new Error('fb_dtsg token not found. Please refresh Instagram page.');
+      }
 
-    const response = await this.request<IgFollowResponse>(
-      `/api/v1/friendships/create/${params.userId}/`,
-      'POST',
-      body
-    );
+      const body = new URLSearchParams();
+      body.append('container_module', params.moduleName || 'profile');
+      body.append('include_follow_friction_check', 'true');
+      body.append('nav_chain', 'PolarisDesktopPostRoot:postPage:1:via_cold_start');
+      body.append('user_id', params.userId);
+      body.append('jazoest', '22673');
+      body.append('fb_dtsg', fbDtsg);
 
-    return response;
+      const headers = await this.buildHeaders('POST');
+      headers.set('content-type', 'application/x-www-form-urlencoded');
+
+      const response = await fetch(`${this.baseUrl}/api/v1/friendships/create/${params.userId}/`, {
+        method: 'POST',
+        headers,
+        body: body.toString(),
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      if (data.status !== 'ok') {
+        throw new Error(`API Error: ${data.message || 'Unknown error'}`);
+      }
+
+      return {
+        status: data.status,
+        following: data.friendship_status?.following || false,
+        friendship_status: data.friendship_status,
+      };
+    } catch (error) {
+      console.error('[IG API] Follow user error:', error);
+      throw error;
+    }
   }
 
   /**

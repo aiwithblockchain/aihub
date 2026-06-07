@@ -220,6 +220,103 @@ GET  /api/v1/feed/user/123/            # 获取用户 Feed
 | 认证流程 | 模拟登录 | 复用浏览器会话 |
 | CSRF Token | 自动提取 | 从 Cookie 读取 |
 
+**结论：** 签名算法可直接复用，Headers 可简化（移除设备模拟相关）。
+
+---
+
+## 五、实际实现总结（2026-06-07）
+
+### 5.1 已完成 API
+
+| API | 实现方式 | 关键发现 |
+|-----|---------|---------|
+| **获取媒体详情** | GraphQL API | REST API `/p/{shortcode}/?__a=1` 已废弃，需使用 GraphQL |
+| **取消点赞** | GraphQL Mutation | `usePolarisLikeMediaXIGUnlikeMutation`，doc_id: `26662414810082851` |
+| **点赞** | GraphQL Mutation | 类似 unlike，使用对应的 mutation |
+
+### 5.2 GraphQL API 发现
+
+**Instagram Web 已从 REST API 迁移到 GraphQL API：**
+
+| 功能 | GraphQL Query/Mutation | doc_id |
+|------|----------------------|--------|
+| 获取媒体详情 | `PolarisPostRootQuery` | `26713194205046842` |
+| 取消点赞 | `usePolarisLikeMediaXIGUnlikeMutation` | `26662414810082851` |
+
+**关键请求参数：**
+
+```typescript
+// 必需参数
+{
+  av: '17841427211664125',  // 固定值（不是 0）
+  __d: 'www',
+  __comet_req: '7',
+  fb_dtsg: '...',  // 从页面提取的 CSRF token
+  fb_api_req_friendly_name: 'PolarisPostRootQuery',
+  doc_id: '26713194205046842',
+  variables: { shortcode, ... }
+}
+```
+
+**响应路径：**
+
+```typescript
+// 获取媒体详情
+data.xdt_api__v1__media__shortcode__web_info.items[0]
+
+// 取消点赞
+data.xig_media_unlike.media.has_liked
+```
+
+### 5.3 超时配置
+
+**写操作需要更长超时（因为 smartDelay）：**
+
+| 操作 | Go 服务器超时 | TypeScript smartDelay |
+|------|--------------|---------------------|
+| 点赞/取消点赞 | 30s | 5-15s 随机延迟 |
+| 关注/取关 | 30s | 5-15s 随机延迟 |
+| 评论 | 30s | 5-15s 随机延迟 |
+
+**原因：** `smartDelay(5000, 15000)` + API 请求时间 > 15s 默认超时
+
+### 5.4 工具函数
+
+**已暴露到 `window.igApi`：**
+
+```typescript
+// Shortcode ↔ Media ID 转换
+shortcodeToMediaId(shortcode: string): string
+mediaIdToShortcode(mediaId: string): string
+
+// URL 解析
+extractShortcodeFromUrl(url: string): string | null
+```
+
+**用途：** 在浏览器控制台直接测试和调试
+
+---
+
+## 六、下一步计划
+
+### 6.1 待实现 API
+
+| 优先级 | API | 预计工时 |
+|--------|-----|---------|
+| P1 | 获取主页 Feed | 1 天 |
+| P1 | 搜索内容 | 1 天 |
+| P1 | 获取评论列表 | 0.5 天 |
+| P2 | 获取粉丝/关注列表 | 1 天 |
+
+### 6.2 技术债务
+
+- [ ] 完善 GraphQL 查询参数提取（更多 API 的 doc_id）
+- [ ] 添加错误重试机制
+- [ ] 添加请求频率限制
+- [ ] 完善单元测试
+
+---
+
 **结论：** 我们无需实现登录流程，直接从浏览器 Cookie 读取 `sessionid`、`csrftoken`。
 
 ---
