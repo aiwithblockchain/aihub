@@ -120,6 +120,7 @@ export class LocalBridgeSocket {
   public igFollowUserHandler: ((payload: any) => Promise<any>) | null = null;
   public igUnfollowUserHandler: ((payload: any) => Promise<any>) | null = null;
   public igPostCommentHandler: ((payload: any) => Promise<any>) | null = null;
+  public igGetMediaCommentsHandler: ((payload: any) => Promise<any>) | null = null;
   public startTaskHandler: ((payload: any) => Promise<any>) | null = null;
   public cancelTaskHandler: ((payload: any) => Promise<any>) | null = null;
   
@@ -803,6 +804,9 @@ export class LocalBridgeSocket {
           break;
         case MESSAGE_TYPES.COMMAND_IG_POST_COMMENT:
           this.handleGenericQuery(msg, this.igPostCommentHandler, MESSAGE_TYPES.RESPONSE_IG_POST_COMMENT);
+          break;
+        case MESSAGE_TYPES.COMMAND_IG_GET_MEDIA_COMMENTS:
+          this.handleGenericQuery(msg, this.igGetMediaCommentsHandler, MESSAGE_TYPES.RESPONSE_IG_GET_MEDIA_COMMENTS);
           break;
         case MESSAGE_TYPES.REQUEST_START_TASK:
           if (this.startTaskHandler) this.startTaskHandler(msg.payload);

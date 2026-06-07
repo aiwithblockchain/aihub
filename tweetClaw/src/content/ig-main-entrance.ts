@@ -38,6 +38,9 @@ interface IgGlobalApi {
   getSelfInfo: () => Promise<any>;
   getUserInfo: (userId: string) => Promise<any>;
   searchUser: (username: string) => Promise<any>;
+  getFeed: (maxId?: string) => Promise<any>;
+  getMediaInfo: (shortcode: string) => Promise<any>;
+  getMediaComments: (params: { mediaId: string; minId?: string; sortOrder?: string; canSupportThreading?: boolean; permalinkEnabled?: boolean }) => Promise<any>;
   likeMedia: (params: { mediaId: string; moduleName?: string; userId?: string; username?: string; d?: number }) => Promise<any>;
   unlikeMedia: (mediaId: string) => Promise<any>;
   followUser: (params: { userId: string; moduleName?: string; username?: string }) => Promise<any>;
@@ -61,6 +64,15 @@ const igGlobalApi: IgGlobalApi = {
   },
   searchUser: async (username: string) => {
     return await handleSearchUser({ username });
+  },
+  getFeed: async (maxId?: string) => {
+    return await handleGetFeed({ maxId });
+  },
+  getMediaInfo: async (shortcode: string) => {
+    return await handleGetMedia({ shortcode });
+  },
+  getMediaComments: async (params) => {
+    return await handleGetMediaComments(params);
   },
   likeMedia: async (params) => {
     return await handleLikeMedia(params);

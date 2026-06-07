@@ -95,3 +95,32 @@ class IgService:
             text=text,
             replied_to_comment_id=replied_to_comment_id,
         )
+
+    def get_media_comments(
+        self,
+        media_id: str,
+        min_id: Optional[str] = None,
+        sort_order: Optional[str] = "popular",
+        can_support_threading: bool = True,
+        permalink_enabled: bool = False,
+    ) -> Dict[str, Any]:
+        """
+        Get comments for a media post.
+
+        Args:
+            media_id: The media ID to get comments for
+            min_id: Pagination cursor (JSON encoded)
+            sort_order: Sort order ('popular' or 'chronological')
+            can_support_threading: Whether to support comment replies
+            permalink_enabled: Whether to enable permalinks
+
+        Returns:
+            Comments list and pagination info
+        """
+        return self.transport.get_media_comments_raw(
+            media_id=media_id,
+            min_id=min_id,
+            sort_order=sort_order,
+            can_support_threading=can_support_threading,
+            permalink_enabled=permalink_enabled,
+        )

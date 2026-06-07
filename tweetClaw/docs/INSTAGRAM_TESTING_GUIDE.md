@@ -539,7 +539,7 @@ python3 examples/ig_test_11_get_media_comments.py 3913384059204773903 "" chronol
 python3 examples/ig_test_11_get_media_comments.py 3913384059204773903 '{"cached_comments_cursor":"xxx"}'
 ```
 
-**测试状态：** ⏳ 待测试
+**测试状态：** ✅ 通过 (2026-06-07)
 
 ---
 

@@ -12,24 +12,23 @@ Instagram API 测试：获取媒体评论列表
 
 示例：
   # 获取热门评论
-  python3 ig_test_11_get_media_comments.py 3913384059204773903
+  python3 examples/ig_test_11_get_media_comments.py 3913384059204773903
 
   # 获取时间顺序评论
-  python3 ig_test_11_get_media_comments.py 3913384059204773903 "" chronological
+  python3 examples/ig_test_11_get_media_comments.py 3913384059204773903 "" chronological
 
   # 使用分页游标获取下一页
-  python3 ig_test_11_get_media_comments.py 3913384059204773903 '{"cached_comments_cursor":"18131997424603945","bifilter_token":"xxx"}'
+  python3 examples/ig_test_11_get_media_comments.py 3913384059204773903 '{"cached_comments_cursor":"18131997424603945","bifilter_token":"xxx"}'
 """
 
 import sys
 import os
-import json
 import time
 
 # 添加项目路径
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from clawbot.transport.ig_api import IgApiTransport
+from clawbot import ClawBotClient
 
 
 def format_timestamp(timestamp: int) -> str:
@@ -54,26 +53,21 @@ def main():
     print(f"Sort Order:     {sort_order}")
     print(f"{'='*60}\n")
 
-    # 创建 Transport
-    transport = IgApiTransport()
+    # 创建 Client
+    client = ClawBotClient()
 
     try:
         # 调用 API
         start_time = time.time()
-        result = transport.get_media_comments(
+        result = client.ig.get_media_comments(
             media_id=media_id,
             min_id=min_id,
             sort_order=sort_order
         )
         elapsed_time = time.time() - start_time
 
-        # 检查结果
-        if not result.get('success'):
-            print(f"❌ API 调用失败")
-            print(f"Error: {result.get('error')}")
-            sys.exit(1)
-
-        data = result.get('data', {})
+        # Go REST API 直接返回 payload，不包装 success/data
+        data = result
 
         # 显示帖子文案
         caption = data.get('caption')
