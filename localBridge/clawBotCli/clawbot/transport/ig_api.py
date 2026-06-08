@@ -293,3 +293,33 @@ class IgApiTransport(BaseApiTransport):
             can_support_threading=can_support_threading,
             permalink_enabled=permalink_enabled,
         )
+
+    def search_raw(
+        self,
+        query: str,
+        search_session_id: Optional[str] = None,
+        serp_session_id: Optional[str] = None,
+    ) -> Dict[Any, Any]:
+        """搜索 Instagram 内容
+
+        Args:
+            query: 搜索关键词
+            search_session_id: 搜索会话 ID（可选，自动生成）
+            serp_session_id: 搜索结果页会话 ID（可选，自动生成）
+
+        Returns:
+            搜索结果列表
+        """
+        payload: Dict[str, Any] = {"query": query}
+
+        if search_session_id:
+            payload["searchSessionId"] = search_session_id
+        if serp_session_id:
+            payload["serpSessionId"] = serp_session_id
+
+        # 搜索可能需要更长时间，设置 30 秒超时
+        return self.request_json("POST", "/api/v1/ig/search", json=payload, timeout=30)
+
+    def search(self, query: str) -> Dict[Any, Any]:
+        """搜索 Instagram 内容"""
+        return self.search_raw(query)

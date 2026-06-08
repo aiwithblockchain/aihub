@@ -50,6 +50,9 @@ import type {
   IgGetUserMediaParams,
   IgGetUserMediaResponse,
   IgApiResponse,
+  IgSearchParams,
+  IgSearchResponse,
+  IgSearchResult,
 } from './types';
 
 /**
@@ -1821,6 +1824,213 @@ export class IgApiClient {
       console.error('[IG API] Get user media error:', error);
       throw error;
     }
+  }
+
+  // ============ 搜索 API ============
+
+  /**
+   * 搜索 Instagram 内容（用户、标签、地点等）
+   * API: POST /api/graphql
+   * Query: PolarisKeywordSearchExplorePageRelayQuery
+   *
+   * @param params - 搜索关键词和会话 ID
+   * @returns 搜索结果
+   */
+  public async search(params: IgSearchParams): Promise<IgSearchResponse> {
+    try {
+      // 1. 获取 fb_dtsg token
+      const fbDtsg = await getFbDtsgWithCache();
+      if (!fbDtsg) {
+        throw new Error('fb_dtsg token not found. Please refresh Instagram page.');
+      }
+
+      // 2. 生成会话 ID（如果没有提供）
+      const searchSessionId = params.searchSessionId || this.generateUUID();
+      const serpSessionId = params.serpSessionId || this.generateUUID();
+
+      // 3. 构建 GraphQL 查询参数
+      const variables = {
+        query: params.query,
+        search_session_id: searchSessionId,
+        serp_session_id: serpSessionId,
+      };
+
+      const body = buildGraphQLBody(
+        'PolarisKeywordSearchExplorePageRelayQuery',
+        '27436028659365449',
+        variables,
+        fbDtsg
+      );
+
+      console.log(`[IG API] Searching: query="${params.query}"`);
+
+      // 4. 发送 GraphQL 请求
+      const headers = await this.buildHeaders('POST');
+      headers.set('x-fb-friendly-name', 'PolarisKeywordSearchExplorePageRelayQuery');
+
+      const response = await fetch(`${this.baseUrl}/api/graphql`, {
+        method: 'POST',
+        headers,
+        body,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      // 5. 解析响应
+      const results = this.parseSearchResults(data);
+
+      console.log(`[IG API] Search completed: ${results.length} results`);
+      return {
+        results,
+        hasMore: false, // 搜索结果通常不分页
+        query: params.query,
+      };
+    } catch (error) {
+      console.error('[IG API] Search error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 解析搜索结果
+   *
+   * 实际响应结构（来自抓包）：
+   * {
+   *   "data": {
+   *     "xdt_fbsearch__top_serp_graphql": {
+   *       "edges": [{
+   *         "node": {
+   *           "__typename": "XDTTopSerpMediaGridUnit",
+   *           "items": [{
+   *             "__typename": "XDTMediaDict",
+   *             "pk": "...",
+   *             "code": "...",
+   *             "user": {...}
+   *           }]
+   *         }
+   *       }]
+   *     }
+   *   }
+   * }
+   */
+  private parseSearchResults(data: any): IgSearchResult[] {
+    const results: IgSearchResult[] = [];
+
+    try {
+      // 实际响应路径：xdt_fbsearch__top_serp_graphql
+      const edges = data?.data?.xdt_fbsearch__top_serp_graphql?.edges || [];
+
+      edges.forEach((edge: any, index: number) => {
+        const node = edge.node;
+        const typename = node.__typename;
+
+        // 处理媒体网格单元（最常见）
+        if (typename === 'XDTTopSerpMediaGridUnit') {
+          const items = node.items || [];
+          items.forEach((item: any, itemIndex: number) => {
+            if (item.__typename === 'XDTMediaDict') {
+              // 这是一个媒体帖子
+              const media = item;
+              const user = media.user || {};
+
+              results.push({
+                position: index * 100 + itemIndex, // 保持唯一性
+                media: {
+                  pk: media.pk,
+                  id: media.id,
+                  code: media.code,
+                  media_type: media.media_type,
+                  image_versions: media.image_versions2?.candidates || [],
+                  original_width: media.original_width,
+                  original_height: media.original_height,
+                  taken_at: media.taken_at,
+                  like_count: media.like_count || 0,
+                  comment_count: media.comment_count || 0,
+                  play_count: media.play_count,
+                  caption: media.caption?.text,
+                  user: {
+                    pk: user.pk,
+                    username: user.username,
+                    full_name: user.full_name,
+                    is_private: user.is_private,
+                    is_verified: user.is_verified,
+                    profile_pic_url: user.profile_pic_url,
+                  },
+                },
+              });
+            }
+          });
+        }
+
+        // 用户结果（如果存在）
+        if (node.user) {
+          results.push({
+            position: index,
+            user: {
+              pk: node.user.pk || node.user.id,
+              username: node.user.username,
+              full_name: node.user.full_name,
+              is_private: node.user.is_private,
+              is_verified: node.user.is_verified,
+              profile_pic_url: node.user.profile_pic_url,
+              follower_count: node.user.follower_count || 0,
+              following_count: node.user.following_count || 0,
+              media_count: node.user.media_count || 0,
+              biography: node.user.biography,
+              is_business: node.user.is_business || false,
+            },
+          });
+        }
+
+        // 标签结果（如果存在）
+        if (node.hashtag) {
+          results.push({
+            position: index,
+            hashtag: {
+              id: node.hashtag.id,
+              name: node.hashtag.name,
+              media_count: node.hashtag.media_count || 0,
+            },
+          });
+        }
+
+        // 地点结果（如果存在）
+        if (node.place) {
+          results.push({
+            position: index,
+            place: {
+              location: {
+                pk: node.place.location.pk,
+                name: node.place.location.name,
+                lat: node.place.location.lat,
+                lng: node.place.location.lng,
+              },
+            },
+          });
+        }
+      });
+    } catch (error) {
+      console.error('[IG API] Parse search results error:', error);
+    }
+
+    return results;
+  }
+
+  /**
+   * 生成 UUID
+   */
+  private generateUUID(): string {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
+      const r = (Math.random() * 16) | 0;
+      const v = c === 'x' ? r : (r & 0x3) | 0x8;
+      return v.toString(16);
+    });
   }
 
   // ============ 工具方法 ============

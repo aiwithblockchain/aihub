@@ -125,6 +125,7 @@ export class LocalBridgeSocket {
   public igDeleteMediaHandler: ((payload: any) => Promise<any>) | null = null;
   public igGetUserMediaHandler: ((payload: any) => Promise<any>) | null = null;
   public igGetMediaCommentsHandler: ((payload: any) => Promise<any>) | null = null;
+  public igSearchHandler: ((payload: any) => Promise<any>) | null = null;
   public startTaskHandler: ((payload: any) => Promise<any>) | null = null;
   public cancelTaskHandler: ((payload: any) => Promise<any>) | null = null;
   
@@ -823,6 +824,9 @@ export class LocalBridgeSocket {
           break;
         case MESSAGE_TYPES.COMMAND_IG_GET_MEDIA_COMMENTS:
           this.handleGenericQuery(msg, this.igGetMediaCommentsHandler, MESSAGE_TYPES.RESPONSE_IG_GET_MEDIA_COMMENTS);
+          break;
+        case MESSAGE_TYPES.COMMAND_IG_SEARCH:
+          this.handleGenericQuery(msg, this.igSearchHandler, MESSAGE_TYPES.RESPONSE_IG_SEARCH);
           break;
         case MESSAGE_TYPES.REQUEST_START_TASK:
           if (this.startTaskHandler) this.startTaskHandler(msg.payload);

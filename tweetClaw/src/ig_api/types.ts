@@ -395,6 +395,15 @@ export interface IgPublishParams {
 // ============ 搜索相关 ============
 
 /**
+ * 搜索参数
+ */
+export interface IgSearchParams {
+  query: string;                  // 搜索关键词
+  searchSessionId?: string;       // 搜索会话 ID（可选，自动生成）
+  serpSessionId?: string;         // 搜索结果页会话 ID（可选，自动生成）
+}
+
+/**
  * 搜索结果项
  */
 export interface IgSearchResult {
@@ -413,6 +422,42 @@ export interface IgSearchResult {
       lng: number;
     };
   };
+  // 搜索结果中的媒体（最常见）
+  media?: {
+    pk: string;
+    id: string;
+    code: string;                    // 短代码，用于构建 URL
+    media_type: number;              // 1=图片, 2=视频, 8=轮播
+    image_versions: Array<{
+      url: string;
+      width: number;
+      height: number;
+    }>;
+    original_width: number;
+    original_height: number;
+    taken_at: number;                // 发布时间戳
+    like_count: number;
+    comment_count: number;
+    play_count?: number;             // 视频播放次数
+    caption?: string;                // 文案
+    user: {
+      pk: string;
+      username: string;
+      full_name: string;
+      is_private: boolean;
+      is_verified: boolean;
+      profile_pic_url: string;
+    };
+  };
+}
+
+/**
+ * 搜索响应
+ */
+export interface IgSearchResponse {
+  results: IgSearchResult[];      // 搜索结果列表
+  hasMore: boolean;               // 是否有更多结果
+  query: string;                  // 搜索关键词
 }
 
 // ============ Feed 相关 ============

@@ -216,6 +216,126 @@ function getLsdToken(): string | null {
 }
 
 /**
+ * 从页面提取 __s (session ID)
+ */
+function getSessionId(): string {
+  const scripts = Array.from(document.querySelectorAll('script'));
+  for (const script of scripts) {
+    const text = script.textContent || '';
+    const match = text.match(/["']__s["']\s*:\s*"([^"]+)"/);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return '';
+}
+
+/**
+ * 从页面提取 __hsi (session instance ID)
+ */
+function getSessionInstanceId(): string {
+  const scripts = Array.from(document.querySelectorAll('script'));
+  for (const script of scripts) {
+    const text = script.textContent || '';
+    const match = text.match(/["']__hsi["']\s*:\s*(\d+)/);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return '0';
+}
+
+/**
+ * 从页面提取 __dyn (dynamic configuration)
+ */
+function getDynamicConfig(): string {
+  const scripts = Array.from(document.querySelectorAll('script'));
+  for (const script of scripts) {
+    const text = script.textContent || '';
+    const match = text.match(/["']__dyn["']\s*:\s*"([^"]+)"/);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return '';
+}
+
+/**
+ * 从页面提取 __csr (CSR token)
+ */
+function getCsrToken(): string {
+  const scripts = Array.from(document.querySelectorAll('script'));
+  for (const script of scripts) {
+    const text = script.textContent || '';
+    const match = text.match(/["']__csr["']\s*:\s*"([^"]+)"/);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return '';
+}
+
+/**
+ * 从页面提取 __hs (handshake ID)
+ */
+function getHandshakeId(): string {
+  const scripts = Array.from(document.querySelectorAll('script'));
+  for (const script of scripts) {
+    const text = script.textContent || '';
+    const match = text.match(/["']__hs["']\s*:\s*"([^"]+)"/);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return '20612.HYP:instagram_web_pkg.2.1...0';
+}
+
+/**
+ * 从页面提取 __hsdp (HSDP token)
+ */
+function getHsdpToken(): string {
+  const scripts = Array.from(document.querySelectorAll('script'));
+  for (const script of scripts) {
+    const text = script.textContent || '';
+    const match = text.match(/["']__hsdp["']\s*:\s*"([^"]+)"/);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return '';
+}
+
+/**
+ * 从页面提取 __hblp (HBLP token)
+ */
+function getHblpToken(): string {
+  const scripts = Array.from(document.querySelectorAll('script'));
+  for (const script of scripts) {
+    const text = script.textContent || '';
+    const match = text.match(/["']__hblp["']\s*:\s*"([^"]+)"/);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return '';
+}
+
+/**
+ * 从页面提取 __sjsp (SJSP token)
+ */
+function getSjspToken(): string {
+  const scripts = Array.from(document.querySelectorAll('script'));
+  for (const script of scripts) {
+    const text = script.textContent || '';
+    const match = text.match(/["']__sjsp["']\s*:\s*"([^"]+)"/);
+    if (match && match[1]) {
+      return match[1];
+    }
+  }
+  return '';
+}
+
+/**
  * 从页面提取 __rev (revision)
  */
 function getRevision(): string {
@@ -246,18 +366,18 @@ export function buildGraphQLBody(
   params.append('__d', 'www');
   params.append('__user', '0');
   params.append('__a', '1');
-  params.append('__req', '1');
-  params.append('__hs', '20610.HYP:instagram_web_pkg.2.1...0');
+  params.append('__req', '2'); // 改为 '2'，与实际请求一致
+  params.append('__hs', getHandshakeId());
   params.append('dpr', '2');
   params.append('__ccg', 'MODERATE');
   params.append('__rev', getRevision());
-  params.append('__s', '');
-  params.append('__hsi', '0');
-  params.append('__dyn', '');
-  params.append('__csr', '');
+  params.append('__s', getSessionId());
+  params.append('__hsi', getSessionInstanceId());
+  params.append('__dyn', getDynamicConfig());
+  params.append('__csr', getCsrToken());
   params.append('__comet_req', '7');
   params.append('fb_dtsg', fbDtsg);
-  params.append('jazoest', '25000');
+  params.append('jazoest', '26430'); // 改为 '26430'，与实际请求一致
 
   const lsd = getLsdToken();
   if (lsd) {
@@ -267,6 +387,22 @@ export function buildGraphQLBody(
   params.append('__spin_r', getRevision());
   params.append('__spin_b', 'trunk');
   params.append('__spin_t', Math.floor(Date.now() / 1000).toString());
+
+  // 添加额外的参数（从实际请求中发现）
+  const hsdp = getHsdpToken();
+  if (hsdp) {
+    params.append('__hsdp', hsdp);
+  }
+
+  const hblp = getHblpToken();
+  if (hblp) {
+    params.append('__hblp', hblp);
+  }
+
+  const sjsp = getSjspToken();
+  if (sjsp) {
+    params.append('__sjsp', sjsp);
+  }
 
   // GraphQL 特定参数
   params.append('fb_api_caller_class', 'RelayModern');

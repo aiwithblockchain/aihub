@@ -50,6 +50,7 @@ interface IgGlobalApi {
   postMedia: (params: { imageBase64?: string; imageBytes?: Uint8Array; mimeType?: string; caption: string; disableComments?: boolean; shareToThreads?: boolean; location?: any }) => Promise<any>;
   deleteMedia: (mediaId: string) => Promise<any>;
   getUserMedia: (params: { userId?: string; username?: string; count?: number; after?: string }) => Promise<any>;
+  search: (params: { query: string; searchSessionId?: string; serpSessionId?: string }) => Promise<any>;
   checkLogin: () => Promise<boolean>;
   testConnection: () => Promise<{ success: boolean; userId?: string; error?: string }>;
   // 工具函数
@@ -104,6 +105,9 @@ const igGlobalApi: IgGlobalApi = {
   },
   getUserMedia: async (params) => {
     return await handleGetUserMedia(params);
+  },
+  search: async (params) => {
+    return await handleSearch(params);
   },
   checkLogin: async () => {
     return await handleCheckLogin({});
@@ -368,8 +372,24 @@ async function handleGetMediaComments(params: Record<string, any>): Promise<any>
 }
 
 async function handleSearch(params: Record<string, any>): Promise<any> {
-  // TODO: 实现搜索
-  throw new Error('Not implemented yet: ig_search');
+  const { query, searchSessionId, serpSessionId } = params;
+
+  if (!query) {
+    throw new Error('query is required');
+  }
+
+  const result = await igApi.search({
+    query,
+    searchSessionId,
+    serpSessionId,
+  });
+
+  return {
+    success: true,
+    results: result.results,
+    hasMore: result.hasMore,
+    query: result.query,
+  };
 }
 
 // ============ 写操作 API 实现 ============

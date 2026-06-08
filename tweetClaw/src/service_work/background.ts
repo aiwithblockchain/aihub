@@ -168,6 +168,7 @@ localBridge.igPostMediaHandler = igPostMedia;
 localBridge.igDeleteMediaHandler = igDeleteMedia;
 localBridge.igGetUserMediaHandler = igGetUserMedia;
 localBridge.igGetMediaCommentsHandler = igGetMediaComments;
+localBridge.igSearchHandler = igSearch;
 
 // Initialize Background Task Coordinator
 let taskCoordinator: BackgroundTaskCoordinator | null = null;
@@ -2327,6 +2328,27 @@ export async function igGetMediaComments(payload: Record<string, unknown>): Prom
 
     if (!result?.success) {
         throw new Error(result?.error || 'Failed to get media comments');
+    }
+    return result.data;
+}
+
+export async function igSearch(payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] igSearch called', payload);
+    const tab = await findIgTab();
+    if (!tab?.id) {
+        throw new Error('No Instagram tab found. Please open instagram.com first.');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'command.ig_search',
+        params: payload,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with IG content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to search');
     }
     return result.data;
 }

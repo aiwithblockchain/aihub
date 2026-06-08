@@ -383,3 +383,15 @@ class IgService:
             can_support_threading=can_support_threading,
             permalink_enabled=permalink_enabled,
         )
+
+    def search(self, query: str) -> Dict[str, Any]:
+        """
+        Search Instagram content (users, hashtags, places).
+
+        Args:
+            query: Search keyword
+
+        Returns:
+            Search results containing users, hashtags, and places
+        """
+        return self.transport.search(query)
