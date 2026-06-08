@@ -121,6 +121,8 @@ export class LocalBridgeSocket {
   public igUnfollowUserHandler: ((payload: any) => Promise<any>) | null = null;
   public igPostCommentHandler: ((payload: any) => Promise<any>) | null = null;
   public igDeleteCommentHandler: ((payload: any) => Promise<any>) | null = null;
+  public igPostMediaHandler: ((payload: any) => Promise<any>) | null = null;
+  public igDeleteMediaHandler: ((payload: any) => Promise<any>) | null = null;
   public igGetMediaCommentsHandler: ((payload: any) => Promise<any>) | null = null;
   public startTaskHandler: ((payload: any) => Promise<any>) | null = null;
   public cancelTaskHandler: ((payload: any) => Promise<any>) | null = null;
@@ -808,6 +810,12 @@ export class LocalBridgeSocket {
           break;
         case MESSAGE_TYPES.COMMAND_IG_DELETE_COMMENT:
           this.handleGenericQuery(msg, this.igDeleteCommentHandler, MESSAGE_TYPES.RESPONSE_IG_DELETE_COMMENT);
+          break;
+        case MESSAGE_TYPES.COMMAND_IG_POST_MEDIA:
+          this.handleGenericQuery(msg, this.igPostMediaHandler, MESSAGE_TYPES.RESPONSE_IG_POST_MEDIA);
+          break;
+        case MESSAGE_TYPES.COMMAND_IG_DELETE_MEDIA:
+          this.handleGenericQuery(msg, this.igDeleteMediaHandler, MESSAGE_TYPES.RESPONSE_IG_DELETE_MEDIA);
           break;
         case MESSAGE_TYPES.COMMAND_IG_GET_MEDIA_COMMENTS:
           this.handleGenericQuery(msg, this.igGetMediaCommentsHandler, MESSAGE_TYPES.RESPONSE_IG_GET_MEDIA_COMMENTS);

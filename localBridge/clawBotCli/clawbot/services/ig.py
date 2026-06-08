@@ -112,6 +112,96 @@ class IgService:
             comment_id=comment_id,
         )
 
+    def post_media(
+        self,
+        image_path: str,
+        caption: str,
+        disable_comments: bool = False,
+        share_to_threads: bool = True,
+        location: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
+        """
+        Post a media (image) to Instagram.
+
+        Args:
+            image_path: Path to the image file
+            caption: Caption text
+            disable_comments: Whether to disable comments
+            share_to_threads: Whether to share to Threads
+            location: Location info (optional)
+
+        Returns:
+            Media object
+        """
+        import base64
+        from pathlib import Path
+
+        # Read image file
+        image_path_obj = Path(image_path)
+        if not image_path_obj.exists():
+            raise FileNotFoundError(f"Image file not found: {image_path}")
+
+        with open(image_path_obj, "rb") as f:
+            image_bytes = f.read()
+
+        # Convert to base64
+        image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+
+        # Determine MIME type
+        suffix = image_path_obj.suffix.lower()
+        mime_type_map = {
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+            ".png": "image/png",
+            ".gif": "image/gif",
+            ".webp": "image/webp",
+        }
+        mime_type = mime_type_map.get(suffix, "image/jpeg")
+
+        return self.transport.post_media_raw(
+            image_base64=image_base64,
+            caption=caption,
+            mime_type=mime_type,
+            disable_comments=disable_comments,
+            share_to_threads=share_to_threads,
+            location=location,
+        )
+
+    def delete_media(self, media_id: str) -> Dict[str, Any]:
+        """
+        Delete a media post.
+
+        Args:
+            media_id: The media ID to delete
+
+        Returns:
+            Deletion result
+        """
+        return self.transport.delete_media_raw(media_id=media_id)
+
+    def test_connection(self) -> Dict[str, Any]:
+        """
+        Test API connection and get user info.
+
+        Returns:
+            Connection status and user info
+        """
+        return self.transport.test_connection_raw()
+
+    def check_login(self) -> bool:
+        """
+        Check if user is logged in to Instagram.
+
+        Returns:
+            True if logged in, False otherwise
+        """
+        try:
+            result = self.get_account_info()
+            # 检查 userId 字段（Python 返回的是 camelCase）
+            return bool(result.get('userId') or result.get('pk'))
+        except:
+            return False
+
     def get_media_comments(
         self,
         media_id: str,

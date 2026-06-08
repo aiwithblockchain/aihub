@@ -185,6 +185,72 @@ export interface IgDeleteCommentParams {
   commentId: string;
 }
 
+/**
+ * 发布媒体参数
+ */
+export interface IgPostMediaParams {
+  imageBase64?: string;          // 图片 base64（不含前缀）
+  imageBytes?: Uint8Array;       // 图片二进制数据
+  mimeType?: string;             // MIME 类型，默认 image/jpeg
+  caption: string;               // 文案
+  disableComments?: boolean;     // 是否禁用评论
+  shareToThreads?: boolean;      // 是否分享到 Threads
+  location?: {                   // 位置信息（可选）
+    name: string;
+    lat: number;
+    lng: number;
+    externalId?: string;         // Facebook 位置 ID
+  };
+}
+
+/**
+ * 发布媒体响应
+ */
+export interface IgPostMediaResponse {
+  media: {
+    id: string;                  // 媒体 ID
+    pk: string;                  // 媒体 PK
+    media_type: number;          // 媒体类型：1=图片, 2=视频
+    code: string;                // 短代码
+    taken_at: number;            // 发布时间戳
+    caption: {
+      pk: string;
+      text: string;
+      user: IgUser;
+    };
+    image_versions2?: {
+      candidates: Array<{
+        url: string;
+        width: number;
+        height: number;
+      }>;
+    };
+  };
+}
+
+/**
+ * 上传图片结果
+ */
+export interface IgUploadImageResult {
+  upload_id: string;             // 上传 ID（Instagram API 返回 snake_case）
+  status: string;                // 状态
+}
+
+/**
+ * 删除媒体参数
+ */
+export interface IgDeleteMediaParams {
+  mediaId: string;               // 媒体 ID
+}
+
+/**
+ * 删除媒体响应
+ */
+export interface IgDeleteMediaResponse {
+  did_delete: boolean;           // 是否删除成功
+  status: string;                // 状态
+}
+
 // ============ Feed 相关 ============
 
 /**

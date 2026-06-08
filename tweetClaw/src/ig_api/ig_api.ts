@@ -40,6 +40,11 @@ import type {
   IgGetCommentsParams,
   IgGetCommentsResponse,
   IgComment,
+  IgPostMediaParams,
+  IgPostMediaResponse,
+  IgUploadImageResult,
+  IgDeleteMediaParams,
+  IgDeleteMediaResponse,
   IgApiResponse,
 } from './types';
 
@@ -939,6 +944,312 @@ export class IgApiClient {
       return data;
     } catch (error) {
       console.error('[IG API] Delete comment error:', error);
+      throw error;
+    }
+  }
+
+  // ============ 媒体上传 API ============
+
+  /**
+   * 上传图片到 Instagram 服务器
+   * API: POST https://i.instagram.com/rupload_igphoto/fb_uploader_{upload_id}
+   *
+   * @param imageBytes - 图片二进制数据
+   * @param mimeType - MIME 类型，默认 image/jpeg
+   * @param uploadId - 上传 ID（可选，默认自动生成）
+   * @returns 上传结果
+   */
+  public async uploadImage(
+    imageBytes: Uint8Array,
+    mimeType: string = 'image/jpeg',
+    uploadId?: string
+  ): Promise<IgUploadImageResult> {
+    await smartDelay(MIN_WRITE_DELAY, MAX_WRITE_DELAY);
+
+    try {
+      // 生成上传 ID（时间戳）
+      const finalUploadId = uploadId || Date.now().toString();
+
+      // 获取图片尺寸
+      // 创建 Blob 用于获取尺寸（使用 any 绕过 TypeScript 类型检查）
+      const blob = new Blob([imageBytes as any], { type: mimeType });
+      let width = 0, height = 0;
+
+      try {
+        const bitmap = await createImageBitmap(blob);
+        width = bitmap.width;
+        height = bitmap.height;
+        bitmap.close();
+      } catch (e) {
+        console.warn('[IG API] Could not get image dimensions, using 0x0');
+      }
+
+      // 上传图片不需要 CSRF token，使用简化的 headers
+      const uploadHeaders: Record<string, string> = {
+        'accept': '*/*',
+        'accept-language': 'en-US,en;q=0.9',
+        'content-type': mimeType,
+        'offset': '0',
+        'x-asbd-id': '359341',
+        'x-entity-length': imageBytes.length.toString(),
+        'x-entity-name': `fb_uploader_${finalUploadId}`,
+        'x-entity-type': mimeType,
+        'x-ig-app-id': X_IG_APP_ID,
+        'x-instagram-rupload-params': JSON.stringify({
+          media_type: 1, // 1=图片, 2=视频
+          upload_id: finalUploadId,
+          upload_media_height: height,
+          upload_media_width: width,
+        }),
+      };
+
+      console.log(`[IG API] POST https://i.instagram.com/rupload_igphoto/fb_uploader_${finalUploadId}`);
+      console.log(`[IG API] Image size: ${width}x${height}, bytes: ${imageBytes.length}`);
+
+      const response = await fetch(
+        `https://i.instagram.com/rupload_igphoto/fb_uploader_${finalUploadId}`,
+        {
+          method: 'POST',
+          headers: uploadHeaders,
+          body: imageBytes.buffer as ArrayBuffer,
+          credentials: 'include',
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      if (data.status !== 'ok') {
+        throw new Error('Failed to upload image');
+      }
+
+      console.log(`[IG API] Image uploaded: upload_id=${data.upload_id}`);
+      return data;
+    } catch (error) {
+      console.error('[IG API] Upload image error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 配置媒体（发布）
+   * API: POST /api/v1/media/configure/
+   *
+   * @param uploadId - 上传 ID
+   * @param caption - 文案
+   * @param options - 其他选项
+   * @returns 媒体对象
+   */
+  public async configureMedia(
+    uploadId: string,
+    caption: string,
+    options: {
+      disableComments?: boolean;
+      shareToThreads?: boolean;
+      location?: IgPostMediaParams['location'];
+    } = {}
+  ): Promise<IgPostMediaResponse> {
+    await smartDelay(MIN_WRITE_DELAY, MAX_WRITE_DELAY);
+
+    try {
+      // 获取 fb_dtsg token
+      const fbDtsg = await getFbDtsgWithCache();
+      if (!fbDtsg) {
+        throw new Error('fb_dtsg token not found. Please refresh Instagram page.');
+      }
+
+      // 获取 CSRF token
+      const csrfToken = await getCsrfToken();
+
+      // 构建表单数据
+      const formData = new URLSearchParams();
+      formData.append('archive_only', 'false');
+      formData.append('caption', caption);
+      formData.append('clips_share_preview_to_feed', '1');
+      formData.append('disable_comments', options.disableComments ? '1' : '0');
+      formData.append('disable_oa_reuse', 'false');
+      formData.append('fb_dtsg', fbDtsg);
+      formData.append('igtv_share_preview_to_feed', '1');
+      formData.append('is_meta_only_post', '0');
+      formData.append('is_unified_video', '1');
+      formData.append('jazoest', '22673');
+      formData.append('like_and_view_counts_disabled', '0');
+      formData.append('media_share_flow', 'creation_flow');
+      formData.append('share_to_facebook', '');
+      formData.append('share_to_fb_destination_type', 'USER');
+
+      // Threads 分享参数
+      if (options.shareToThreads !== false) {
+        formData.append('share_to_threads', 'true');
+        formData.append('share_to_threads_destination_id', '17841427211664125');
+        formData.append('share_to_threads_validation_bypass', '["AUTO_CROSSPOST_SETTING"]');
+      } else {
+        formData.append('share_to_threads', 'false');
+      }
+
+      formData.append('source_type', 'library');
+      formData.append('upload_id', uploadId);
+      formData.append('video_subtitles_enabled', '0');
+
+      // 添加位置信息（如果有）
+      if (options.location) {
+        formData.append('location', JSON.stringify({
+          name: options.location.name,
+          lat: options.location.lat,
+          lng: options.location.lng,
+          external_source: options.location.externalId ? 'facebook_places' : '',
+          external_id: options.location.externalId || '',
+        }));
+      }
+
+      console.log(`[IG API] POST /api/v1/media/configure/ upload_id=${uploadId}`);
+
+      const response = await fetch(
+        `${this.baseUrl}/api/v1/media/configure/`,
+        {
+          method: 'POST',
+          headers: {
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'X-CSRFToken': csrfToken,
+            'X-IG-App-ID': X_IG_APP_ID,
+            'X-Requested-With': 'XMLHttpRequest',
+            'Referer': 'https://www.instagram.com/',
+          },
+          body: formData.toString(),
+          credentials: 'include',
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.media) {
+        throw new Error('Failed to configure media');
+      }
+
+      console.log(`[IG API] Media configured: id=${data.media.id}`);
+      return data;
+    } catch (error) {
+      console.error('[IG API] Configure media error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 发布媒体（组合上传 + 配置）
+   *
+   * @param params - 发布参数
+   * @returns 媒体对象
+   */
+  public async postMedia(params: IgPostMediaParams): Promise<IgPostMediaResponse> {
+    try {
+      console.log('[IG API] postMedia called', {
+        hasImageBase64: !!params.imageBase64,
+        hasImageBytes: !!params.imageBytes,
+        caption: params.caption,
+      });
+
+      // 1. 准备图片数据
+      let imageBytes: Uint8Array;
+
+      if (params.imageBytes) {
+        imageBytes = params.imageBytes;
+      } else if (params.imageBase64) {
+        // 解码 base64
+        const binaryStr = atob(params.imageBase64);
+        imageBytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          imageBytes[i] = binaryStr.charCodeAt(i);
+        }
+      } else {
+        throw new Error('Either imageBase64 or imageBytes is required');
+      }
+
+      const mimeType = params.mimeType || 'image/jpeg';
+
+      // 2. 上传图片
+      console.log('[IG API] Step 1: Uploading image...');
+      const uploadResult = await this.uploadImage(imageBytes, mimeType);
+
+      if (uploadResult.status !== 'ok') {
+        throw new Error('Image upload failed');
+      }
+
+      console.log(`[IG API] Image uploaded: upload_id=${uploadResult.upload_id}`);
+
+      // 3. 配置媒体（发布）
+      console.log('[IG API] Step 2: Configuring media...');
+      const mediaResult = await this.configureMedia(
+        uploadResult.upload_id,
+        params.caption,
+        {
+          disableComments: params.disableComments,
+          shareToThreads: params.shareToThreads,
+          location: params.location,
+        }
+      );
+
+      console.log(`[IG API] Media posted: id=${mediaResult.media.id}`);
+
+      return mediaResult;
+    } catch (error) {
+      console.error('[IG API] Post media error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 删除媒体
+   * API: POST /api/v1/web/create/{media_id}/delete/
+   *
+   * @param mediaId - 媒体 ID
+   * @returns 删除结果
+   */
+  public async deleteMedia(mediaId: string): Promise<IgDeleteMediaResponse> {
+    await smartDelay(MIN_WRITE_DELAY, MAX_WRITE_DELAY);
+
+    try {
+      const headers = await this.buildHeaders('POST');
+      headers.set('x-ig-www-claim', 'hmac.AR0WfvuQCL7DQedh15YwL5r8w1EnVqMNDPpLTaXT-bsO97RD');
+      headers.set('x-instagram-ajax', '1041004364');
+      headers.set('x-requested-with', 'XMLHttpRequest');
+
+      console.log(`[IG API] POST /api/v1/web/create/${mediaId}/delete/`);
+
+      const response = await fetch(
+        `${this.baseUrl}/api/v1/web/create/${mediaId}/delete/`,
+        {
+          method: 'POST',
+          headers,
+          credentials: 'include',
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.did_delete) {
+        throw new Error('Failed to delete media');
+      }
+
+      console.log(`[IG API] Media deleted: ${mediaId}`);
+      return data;
+    } catch (error) {
+      console.error('[IG API] Delete media error:', error);
       throw error;
     }
   }

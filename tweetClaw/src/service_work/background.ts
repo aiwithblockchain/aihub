@@ -164,6 +164,8 @@ localBridge.igFollowUserHandler = igFollowUser;
 localBridge.igUnfollowUserHandler = igUnfollowUser;
 localBridge.igPostCommentHandler = igPostComment;
 localBridge.igDeleteCommentHandler = igDeleteComment;
+localBridge.igPostMediaHandler = igPostMedia;
+localBridge.igDeleteMediaHandler = igDeleteMedia;
 localBridge.igGetMediaCommentsHandler = igGetMediaComments;
 
 // Initialize Background Task Coordinator
@@ -2240,6 +2242,48 @@ export async function igDeleteComment(payload: Record<string, unknown>): Promise
 
     if (!result?.success) {
         throw new Error(result?.error || 'Failed to delete comment');
+    }
+    return result.data;
+}
+
+export async function igPostMedia(payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] igPostMedia called', payload);
+    const tab = await findIgTab();
+    if (!tab?.id) {
+        throw new Error('No Instagram tab found. Please open instagram.com first.');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'command.ig_post_media',
+        params: payload,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with IG content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to post media');
+    }
+    return result.data;
+}
+
+export async function igDeleteMedia(payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] igDeleteMedia called', payload);
+    const tab = await findIgTab();
+    if (!tab?.id) {
+        throw new Error('No Instagram tab found. Please open instagram.com first.');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'command.ig_delete_media',
+        params: payload,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with IG content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to delete media');
     }
     return result.data;
 }

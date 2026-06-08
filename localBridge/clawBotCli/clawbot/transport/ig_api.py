@@ -63,6 +63,74 @@ class IgApiTransport(BaseApiTransport):
             json={"mediaId": media_id, "commentId": comment_id}
         )
 
+    def post_media_raw(
+        self,
+        image_base64: str,
+        caption: str,
+        mime_type: str = "image/jpeg",
+        disable_comments: bool = False,
+        share_to_threads: bool = True,
+        location: Optional[Dict[str, Any]] = None,
+    ) -> Dict[Any, Any]:
+        """发布媒体
+
+        Args:
+            image_base64: 图片 base64（不含前缀）
+            caption: 文案
+            mime_type: MIME 类型
+            disable_comments: 是否禁用评论
+            share_to_threads: 是否分享到 Threads
+            location: 位置信息（可选）
+
+        Returns:
+            媒体对象
+        """
+        payload: Dict[str, Any] = {
+            "imageBase64": image_base64,
+            "caption": caption,
+            "mimeType": mime_type,
+            "disableComments": disable_comments,
+            "shareToThreads": share_to_threads,
+        }
+        if location:
+            payload["location"] = location
+        # 媒体发布需要较长时间（上传 + 配置），设置 90 秒超时
+        return self.request_json("POST", "/api/v1/ig/media/post", json=payload, timeout=90)
+
+    def delete_media_raw(self, media_id: str) -> Dict[Any, Any]:
+        """删除媒体
+
+        Args:
+            media_id: 媒体 ID
+
+        Returns:
+            删除结果
+        """
+        return self.request_json(
+            "POST",
+            "/api/v1/ig/media/delete",
+            json={"mediaId": media_id}
+        )
+
+    def test_connection_raw(self) -> Dict[Any, Any]:
+        """测试连接
+
+        Returns:
+            连接状态和用户信息
+        """
+        try:
+            result = self.get_account_info_raw()
+            return {
+                "success": True,
+                "userId": result.get("pk"),
+                "username": result.get("username"),
+            }
+        except Exception as e:
+            return {
+                "success": False,
+                "error": str(e),
+            }
+
     def get_media_comments_raw(
         self,
         media_id: str,

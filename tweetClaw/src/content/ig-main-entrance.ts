@@ -24,6 +24,7 @@ import type {
   IgLikeParams,
   IgFollowParams,
   IgCommentParams,
+  IgPostMediaParams,
 } from '../ig_api/types';
 
 const TAG = '[IgClaw-CS]';
@@ -46,6 +47,8 @@ interface IgGlobalApi {
   unfollowUser: (userId: string) => Promise<any>;
   postComment: (params: { mediaId: string; text: string; repliedToCommentId?: string }) => Promise<any>;
   deleteComment: (params: { mediaId: string; commentId: string }) => Promise<any>;
+  postMedia: (params: { imageBase64?: string; imageBytes?: Uint8Array; mimeType?: string; caption: string; disableComments?: boolean; shareToThreads?: boolean; location?: any }) => Promise<any>;
+  deleteMedia: (mediaId: string) => Promise<any>;
   checkLogin: () => Promise<boolean>;
   testConnection: () => Promise<{ success: boolean; userId?: string; error?: string }>;
   // 工具函数
@@ -91,6 +94,12 @@ const igGlobalApi: IgGlobalApi = {
   },
   deleteComment: async (params) => {
     return await handleDeleteComment(params);
+  },
+  postMedia: async (params) => {
+    return await handlePostMedia(params);
+  },
+  deleteMedia: async (mediaId: string) => {
+    return await handleDeleteMedia({ mediaId });
   },
   checkLogin: async () => {
     return await handleCheckLogin({});
@@ -471,13 +480,70 @@ async function handleDeleteComment(params: Record<string, any>): Promise<any> {
 }
 
 async function handlePostMedia(params: Record<string, any>): Promise<any> {
-  // TODO: 实现发布媒体
-  throw new Error('Not implemented yet: ig_post_media');
+  const { imageBase64, imageBytes, mimeType, caption, disableComments, shareToThreads, location } = params;
+
+  if (!imageBase64 && !imageBytes) {
+    throw new Error('Either imageBase64 or imageBytes is required');
+  }
+
+  if (!caption) {
+    throw new Error('caption is required');
+  }
+
+  // 构建 postMedia 参数
+  const postParams: IgPostMediaParams = {
+    caption,
+    disableComments: disableComments || false,
+    shareToThreads: shareToThreads !== false, // 默认 true
+    mimeType: mimeType || 'image/jpeg',
+  };
+
+  // 处理图片数据
+  if (imageBytes) {
+    // 如果是数组，转换为 Uint8Array
+    if (Array.isArray(imageBytes)) {
+      postParams.imageBytes = new Uint8Array(imageBytes);
+    } else {
+      postParams.imageBytes = imageBytes;
+    }
+  } else if (imageBase64) {
+    postParams.imageBase64 = imageBase64;
+  }
+
+  // 添加位置信息（如果有）
+  if (location) {
+    postParams.location = location;
+  }
+
+  const result = await igApi.postMedia(postParams);
+
+  return {
+    success: true,
+    media: {
+      id: result.media.id,
+      pk: result.media.pk,
+      code: result.media.code,
+      caption: result.media.caption?.text,
+      mediaType: result.media.media_type,
+      takenAt: result.media.taken_at,
+    },
+  };
 }
 
 async function handleDeleteMedia(params: Record<string, any>): Promise<any> {
-  // TODO: 实现删除媒体
-  throw new Error('Not implemented yet: ig_delete_media');
+  const { mediaId } = params;
+
+  if (!mediaId) {
+    throw new Error('mediaId is required');
+  }
+
+  const result = await igApi.deleteMedia(mediaId);
+
+  return {
+    success: true,
+    didDelete: result.did_delete,
+    status: result.status,
+  };
 }
 
 // ============ 工具方法实现 ============
