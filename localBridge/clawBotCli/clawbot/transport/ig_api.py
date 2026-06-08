@@ -299,6 +299,10 @@ class IgApiTransport(BaseApiTransport):
         query: str,
         search_session_id: Optional[str] = None,
         serp_session_id: Optional[str] = None,
+        after: Optional[str] = None,
+        before: Optional[str] = None,
+        first: Optional[int] = None,
+        last: Optional[int] = None,
     ) -> Dict[Any, Any]:
         """搜索 Instagram 内容
 
@@ -306,9 +310,13 @@ class IgApiTransport(BaseApiTransport):
             query: 搜索关键词
             search_session_id: 搜索会话 ID（可选，自动生成）
             serp_session_id: 搜索结果页会话 ID（可选，自动生成）
+            after: 分页游标（向后）
+            before: 分页游标（向前）
+            first: 获取数量（从前往后）
+            last: 获取数量（从后往前）
 
         Returns:
-            搜索结果列表
+            搜索结果列表，包含 results, hasMore, endCursor, startCursor
         """
         payload: Dict[str, Any] = {"query": query}
 
@@ -316,10 +324,25 @@ class IgApiTransport(BaseApiTransport):
             payload["searchSessionId"] = search_session_id
         if serp_session_id:
             payload["serpSessionId"] = serp_session_id
+        if after:
+            payload["after"] = after
+        if before:
+            payload["before"] = before
+        if first is not None:
+            payload["first"] = first
+        if last is not None:
+            payload["last"] = last
 
         # 搜索可能需要更长时间，设置 30 秒超时
         return self.request_json("POST", "/api/v1/ig/search", json=payload, timeout=30)
 
-    def search(self, query: str) -> Dict[Any, Any]:
-        """搜索 Instagram 内容"""
-        return self.search_raw(query)
+    def search(
+        self,
+        query: str,
+        after: Optional[str] = None,
+        before: Optional[str] = None,
+        first: Optional[int] = None,
+        last: Optional[int] = None,
+    ) -> Dict[Any, Any]:
+        """搜索 Instagram 内容（支持分页）"""
+        return self.search_raw(query, after=after, before=before, first=first, last=last)

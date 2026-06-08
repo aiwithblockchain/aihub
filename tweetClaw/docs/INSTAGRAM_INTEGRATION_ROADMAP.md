@@ -127,7 +127,7 @@ tweetClaw/src/
 | P1 | `command.ig_get_user_info` | 获取他人用户信息 | ✅ 已完成 | 2026-06-07 |
 | P1 | `command.ig_get_media` | 获取媒体详情 | ✅ 已完成 | 2026-06-07 |
 | P1 | `command.ig_get_media_comments` | 获取媒体评论 | 待开发 | - |
-| P1 | `command.ig_search` | 搜索内容 | 待开发 | - |
+| P1 | `command.ig_search` | 搜索内容（媒体帖子） | ✅ 已完成 | 2026-06-08 |
 | P1 | `command.ig_search_user` | 搜索用户 | ✅ 已完成 | 2026-06-07 |
 | P1 | `command.ig_get_notifications` | 获取消息通知 | 待开发 | - |
 | P2 | `command.ig_get_user_media` | 获取用户发布内容 | 待开发 | - |
@@ -136,7 +136,7 @@ tweetClaw/src/
 
 **预计工期：** 5-7 个工作日
 
-**实际进度：** 已完成 5/11 个读取 API (45%) - ✅ 测试通过 5/5 (100%)
+**实际进度：** 已完成 6/11 个读取 API (55%) - ✅ 测试通过 6/6 (100%)
 
 ---
 

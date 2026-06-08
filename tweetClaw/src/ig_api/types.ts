@@ -401,6 +401,11 @@ export interface IgSearchParams {
   query: string;                  // 搜索关键词
   searchSessionId?: string;       // 搜索会话 ID（可选，自动生成）
   serpSessionId?: string;         // 搜索结果页会话 ID（可选，自动生成）
+  // 分页支持
+  after?: string;                 // 分页游标（用于获取下一页）
+  before?: string;                // 分页游标（用于获取上一页）
+  first?: number;                 // 每页数量（默认由 Instagram 决定）
+  last?: number;                  // 每页数量（反向分页）
 }
 
 /**
@@ -458,6 +463,9 @@ export interface IgSearchResponse {
   results: IgSearchResult[];      // 搜索结果列表
   hasMore: boolean;               // 是否有更多结果
   query: string;                  // 搜索关键词
+  // 分页游标
+  endCursor?: string | null;      // 下一页游标
+  startCursor?: string | null;    // 上一页游标
 }
 
 // ============ Feed 相关 ============

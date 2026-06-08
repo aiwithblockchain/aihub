@@ -1848,12 +1848,26 @@ export class IgApiClient {
       const searchSessionId = params.searchSessionId || this.generateUUID();
       const serpSessionId = params.serpSessionId || this.generateUUID();
 
-      // 3. 构建 GraphQL 查询参数
-      const variables = {
+      // 3. 构建 GraphQL 查询参数（支持分页）
+      const variables: any = {
         query: params.query,
         search_session_id: searchSessionId,
         serp_session_id: serpSessionId,
       };
+
+      // 添加分页参数
+      if (params.after) {
+        variables.after = params.after;
+      }
+      if (params.before) {
+        variables.before = params.before;
+      }
+      if (params.first) {
+        variables.first = params.first;
+      }
+      if (params.last) {
+        variables.last = params.last;
+      }
 
       const body = buildGraphQLBody(
         'PolarisKeywordSearchExplorePageRelayQuery',
@@ -1862,7 +1876,7 @@ export class IgApiClient {
         fbDtsg
       );
 
-      console.log(`[IG API] Searching: query="${params.query}"`);
+      console.log(`[IG API] Searching: query="${params.query}"${params.after ? ', after=' + params.after : ''}`);
 
       // 4. 发送 GraphQL 请求
       const headers = await this.buildHeaders('POST');
@@ -1882,14 +1896,16 @@ export class IgApiClient {
 
       const data = await response.json();
 
-      // 5. 解析响应
-      const results = this.parseSearchResults(data);
+      // 5. 解析响应（包含分页信息）
+      const { results, pageInfo } = this.parseSearchResultsWithPagination(data);
 
-      console.log(`[IG API] Search completed: ${results.length} results`);
+      console.log(`[IG API] Search completed: ${results.length} results, hasMore=${pageInfo.hasNextPage}`);
       return {
         results,
-        hasMore: false, // 搜索结果通常不分页
+        hasMore: pageInfo.hasNextPage,
         query: params.query,
+        endCursor: pageInfo.endCursor,
+        startCursor: pageInfo.startCursor,
       };
     } catch (error) {
       console.error('[IG API] Search error:', error);
@@ -1898,33 +1914,31 @@ export class IgApiClient {
   }
 
   /**
-   * 解析搜索结果
-   *
-   * 实际响应结构（来自抓包）：
-   * {
-   *   "data": {
-   *     "xdt_fbsearch__top_serp_graphql": {
-   *       "edges": [{
-   *         "node": {
-   *           "__typename": "XDTTopSerpMediaGridUnit",
-   *           "items": [{
-   *             "__typename": "XDTMediaDict",
-   *             "pk": "...",
-   *             "code": "...",
-   *             "user": {...}
-   *           }]
-   *         }
-   *       }]
-   *     }
-   *   }
-   * }
+   * 解析搜索结果（包含分页信息）
    */
-  private parseSearchResults(data: any): IgSearchResult[] {
+  private parseSearchResultsWithPagination(data: any): { results: IgSearchResult[]; pageInfo: any } {
     const results: IgSearchResult[] = [];
+    const pageInfo = {
+      hasNextPage: false,
+      endCursor: null as string | null,
+      startCursor: null as string | null,
+    };
 
     try {
       // 实际响应路径：xdt_fbsearch__top_serp_graphql
-      const edges = data?.data?.xdt_fbsearch__top_serp_graphql?.edges || [];
+      const connection = data?.data?.xdt_fbsearch__top_serp_graphql;
+      const edges = connection?.edges || [];
+
+      // 提取分页信息
+      if (connection?.page_info) {
+        console.log('[IG API] Raw page_info:', JSON.stringify(connection.page_info, null, 2));
+        pageInfo.hasNextPage = connection.page_info.has_next_page || false;
+        pageInfo.endCursor = connection.page_info.end_cursor || null;
+        pageInfo.startCursor = connection.page_info.start_cursor || null;
+        console.log('[IG API] Extracted pagination:', { hasNextPage: pageInfo.hasNextPage, endCursor: pageInfo.endCursor, startCursor: pageInfo.startCursor });
+      } else {
+        console.log('[IG API] No page_info found in connection');
+      }
 
       edges.forEach((edge: any, index: number) => {
         const node = edge.node;
@@ -2019,7 +2033,14 @@ export class IgApiClient {
       console.error('[IG API] Parse search results error:', error);
     }
 
-    return results;
+    return { results, pageInfo };
+  }
+
+  /**
+   * 解析搜索结果（旧方法，保留向后兼容）
+   */
+  private parseSearchResults(data: any): IgSearchResult[] {
+    return this.parseSearchResultsWithPagination(data).results;
   }
 
   /**

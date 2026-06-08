@@ -384,14 +384,29 @@ class IgService:
             permalink_enabled=permalink_enabled,
         )
 
-    def search(self, query: str) -> Dict[str, Any]:
+    def search(
+        self,
+        query: str,
+        after: Optional[str] = None,
+        before: Optional[str] = None,
+        first: Optional[int] = None,
+        last: Optional[int] = None,
+    ) -> Dict[str, Any]:
         """
-        Search Instagram content (users, hashtags, places).
+        Search Instagram content (users, hashtags, places) with pagination support.
 
         Args:
             query: Search keyword
+            after: Pagination cursor (forward)
+            before: Pagination cursor (backward)
+            first: Number of items to fetch (from start)
+            last: Number of items to fetch (from end)
 
         Returns:
-            Search results containing users, hashtags, and places
+            Search results with:
+            - results: List of users, hashtags, places, and media
+            - hasMore: Whether more results exist
+            - endCursor: Cursor for next page
+            - startCursor: Cursor for previous page
         """
-        return self.transport.search(query)
+        return self.transport.search(query, after=after, before=before, first=first, last=last)
