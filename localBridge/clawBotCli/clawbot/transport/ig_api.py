@@ -97,6 +97,51 @@ class IgApiTransport(BaseApiTransport):
         # 媒体发布需要较长时间（上传 + 配置），设置 90 秒超时
         return self.request_json("POST", "/api/v1/ig/media/post", json=payload, timeout=90)
 
+    def post_video_raw(
+        self,
+        video_base64: str,
+        caption: str,
+        mime_type: str = "video/mp4",
+        duration: int = 10000,
+        width: int = 720,
+        height: int = 1280,
+        disable_comments: bool = False,
+        share_to_threads: bool = True,
+        thumbnail_base64: Optional[str] = None,
+    ) -> Dict[Any, Any]:
+        """发布视频
+
+        Args:
+            video_base64: 视频 base64（不含前缀）
+            caption: 文案
+            mime_type: MIME 类型
+            duration: 视频时长（毫秒）
+            width: 视频宽度
+            height: 视频高度
+            disable_comments: 是否禁用评论
+            share_to_threads: 是否分享到 Threads
+            thumbnail_base64: 封面图片 base64（不含前缀，可选）
+
+        Returns:
+            媒体对象
+        """
+        payload: Dict[str, Any] = {
+            "videoBase64": video_base64,
+            "caption": caption,
+            "mimeType": mime_type,
+            "videoDuration": duration,
+            "videoWidth": width,
+            "videoHeight": height,
+            "disableComments": disable_comments,
+            "shareToThreads": share_to_threads,
+        }
+
+        if thumbnail_base64:
+            payload["thumbnailBase64"] = thumbnail_base64
+
+        # 视频发布需要更长时间（上传 + 转码 + 配置），设置 180 秒超时
+        return self.request_json("POST", "/api/v1/ig/media/post", json=payload, timeout=180)
+
     def delete_media_raw(self, media_id: str) -> Dict[Any, Any]:
         """删除媒体
 

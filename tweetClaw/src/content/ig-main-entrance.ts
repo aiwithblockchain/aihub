@@ -490,10 +490,29 @@ async function handleDeleteComment(params: Record<string, any>): Promise<any> {
 }
 
 async function handlePostMedia(params: Record<string, any>): Promise<any> {
-  const { imageBase64, imageBytes, mimeType, caption, disableComments, shareToThreads, location } = params;
+  const {
+    imageBase64,
+    imageBytes,
+    videoBytes,
+    videoBase64,
+    mimeType,
+    caption,
+    disableComments,
+    shareToThreads,
+    location,
+    videoDuration,
+    videoWidth,
+    videoHeight,
+    thumbnailBase64,
+    thumbnailBytes,
+  } = params;
 
-  if (!imageBase64 && !imageBytes) {
-    throw new Error('Either imageBase64 or imageBytes is required');
+  // 检查是否有图片或视频数据
+  const hasImage = imageBase64 || imageBytes;
+  const hasVideo = videoBytes || videoBase64;
+
+  if (!hasImage && !hasVideo) {
+    throw new Error('Either imageBase64/imageBytes or videoBytes/videoBase64 is required');
   }
 
   if (!caption) {
@@ -505,19 +524,56 @@ async function handlePostMedia(params: Record<string, any>): Promise<any> {
     caption,
     disableComments: disableComments || false,
     shareToThreads: shareToThreads !== false, // 默认 true
-    mimeType: mimeType || 'image/jpeg',
+    mimeType: mimeType || (hasVideo ? 'video/mp4' : 'image/jpeg'),
   };
 
-  // 处理图片数据
-  if (imageBytes) {
-    // 如果是数组，转换为 Uint8Array
-    if (Array.isArray(imageBytes)) {
-      postParams.imageBytes = new Uint8Array(imageBytes);
-    } else {
-      postParams.imageBytes = imageBytes;
+  // 处理视频数据
+  if (hasVideo) {
+    if (videoBytes) {
+      // 如果是数组，转换为 Uint8Array
+      if (Array.isArray(videoBytes)) {
+        postParams.videoBytes = new Uint8Array(videoBytes);
+      } else {
+        postParams.videoBytes = videoBytes;
+      }
+    } else if (videoBase64) {
+      // 解码 base64
+      const binaryStr = atob(videoBase64);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+      }
+      postParams.videoBytes = bytes;
     }
-  } else if (imageBase64) {
-    postParams.imageBase64 = imageBase64;
+
+    // 添加视频参数
+    postParams.videoDuration = videoDuration || 10000;
+    postParams.videoWidth = videoWidth || 720;
+    postParams.videoHeight = videoHeight || 1280;
+
+    // 处理封面图片
+    if (thumbnailBytes) {
+      // 如果是数组，转换为 Uint8Array
+      if (Array.isArray(thumbnailBytes)) {
+        postParams.thumbnailBytes = new Uint8Array(thumbnailBytes);
+      } else {
+        postParams.thumbnailBytes = thumbnailBytes;
+      }
+    } else if (thumbnailBase64) {
+      postParams.thumbnailBase64 = thumbnailBase64;
+    }
+  } else if (hasImage) {
+    // 处理图片数据
+    if (imageBytes) {
+      // 如果是数组，转换为 Uint8Array
+      if (Array.isArray(imageBytes)) {
+        postParams.imageBytes = new Uint8Array(imageBytes);
+      } else {
+        postParams.imageBytes = imageBytes;
+      }
+    } else if (imageBase64) {
+      postParams.imageBase64 = imageBase64;
+    }
   }
 
   // 添加位置信息（如果有）

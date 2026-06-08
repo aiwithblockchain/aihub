@@ -191,6 +191,7 @@ export interface IgDeleteCommentParams {
 export interface IgPostMediaParams {
   imageBase64?: string;          // 图片 base64（不含前缀）
   imageBytes?: Uint8Array;       // 图片二进制数据
+  videoBytes?: Uint8Array;       // 视频二进制数据
   mimeType?: string;             // MIME 类型，默认 image/jpeg
   caption: string;               // 文案
   disableComments?: boolean;     // 是否禁用评论
@@ -201,6 +202,13 @@ export interface IgPostMediaParams {
     lng: number;
     externalId?: string;         // Facebook 位置 ID
   };
+  // 视频专用参数
+  videoDuration?: number;        // 视频时长（毫秒）
+  videoWidth?: number;           // 视频宽度
+  videoHeight?: number;          // 视频高度
+  // 视频封面图片（可选）
+  thumbnailBase64?: string;      // 封面图片 base64（不含前缀）
+  thumbnailBytes?: Uint8Array;   // 封面图片二进制数据
 }
 
 /**
@@ -234,6 +242,28 @@ export interface IgPostMediaResponse {
 export interface IgUploadImageResult {
   upload_id: string;             // 上传 ID（Instagram API 返回 snake_case）
   status: string;                // 状态
+}
+
+/**
+ * 上传视频结果
+ */
+export interface IgUploadVideoResult {
+  upload_id: string;             // 上传 ID
+  status: string;                // 状态
+  video_upload_urls?: string[];  // 视频上传 URLs
+}
+
+/**
+ * 视频配置参数
+ */
+export interface IgConfigureVideoParams {
+  uploadId: string;
+  caption: string;
+  duration: number;              // 视频时长（毫秒）
+  width: number;
+  height: number;
+  disableComments?: boolean;
+  shareToThreads?: boolean;
 }
 
 /**

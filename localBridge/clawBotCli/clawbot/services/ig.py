@@ -167,6 +167,133 @@ class IgService:
             location=location,
         )
 
+    def post_video(
+        self,
+        video_path: str,
+        caption: str,
+        duration: Optional[int] = None,
+        width: Optional[int] = None,
+        height: Optional[int] = None,
+        disable_comments: bool = False,
+        share_to_threads: bool = True,
+        thumbnail_path: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Post a video to Instagram.
+
+        Args:
+            video_path: Path to the video file
+            caption: Caption text
+            duration: Video duration in milliseconds (auto-detected if not provided)
+            width: Video width (auto-detected if not provided)
+            height: Video height (auto-detected if not provided)
+            disable_comments: Whether to disable comments
+            share_to_threads: Whether to share to Threads
+            thumbnail_path: Path to custom thumbnail image (optional, auto-generated if not provided)
+
+        Returns:
+            Media object
+        """
+        import base64
+        import subprocess
+        import json
+        from pathlib import Path
+
+        # Read video file
+        video_path_obj = Path(video_path)
+        if not video_path_obj.exists():
+            raise FileNotFoundError(f"Video file not found: {video_path}")
+
+        with open(video_path_obj, "rb") as f:
+            video_bytes = f.read()
+
+        # Convert to base64
+        video_base64 = base64.b64encode(video_bytes).decode("utf-8")
+
+        # Determine MIME type
+        suffix = video_path_obj.suffix.lower()
+        mime_type_map = {
+            ".mp4": "video/mp4",
+            ".mov": "video/quicktime",
+            ".avi": "video/x-msvideo",
+        }
+        mime_type = mime_type_map.get(suffix, "video/mp4")
+
+        # Auto-detect video parameters using ffprobe if not provided
+        if duration is None or width is None or height is None:
+            try:
+                # Use ffprobe to get video metadata
+                cmd = [
+                    "ffprobe",
+                    "-v", "error",
+                    "-select_streams", "v:0",
+                    "-show_entries", "stream=width,height,duration",
+                    "-of", "json",
+                    str(video_path_obj)
+                ]
+                result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
+
+                if result.returncode == 0:
+                    metadata = json.loads(result.stdout)
+                    stream = metadata.get("streams", [{}])[0]
+
+                    if duration is None:
+                        duration_sec = float(stream.get("duration", 10))
+                        duration = int(duration_sec * 1000)  # Convert to milliseconds
+
+                    if width is None:
+                        width = int(stream.get("width", 720))
+
+                    if height is None:
+                        height = int(stream.get("height", 1280))
+
+                    print(f"[IG] Auto-detected video: {width}x{height}, {duration}ms")
+                else:
+                    # ffprobe failed, use defaults
+                    if duration is None:
+                        duration = 10000
+                    if width is None:
+                        width = 720
+                    if height is None:
+                        height = 1280
+                    print(f"[IG] Warning: ffprobe failed, using defaults: {width}x{height}, {duration}ms")
+            except Exception as e:
+                # ffprobe not available or failed, use defaults
+                if duration is None:
+                    duration = 10000
+                if width is None:
+                    width = 720
+                if height is None:
+                    height = 1280
+                print(f"[IG] Warning: Could not auto-detect video params ({e}), using defaults: {width}x{height}, {duration}ms")
+
+        # Handle custom thumbnail
+        thumbnail_base64 = None
+        if thumbnail_path:
+            thumbnail_path_obj = Path(thumbnail_path)
+            if not thumbnail_path_obj.exists():
+                raise FileNotFoundError(f"Thumbnail file not found: {thumbnail_path}")
+
+            with open(thumbnail_path_obj, "rb") as f:
+                thumbnail_bytes = f.read()
+
+            thumbnail_base64 = base64.b64encode(thumbnail_bytes).decode("utf-8")
+            print(f"[IG] Using custom thumbnail: {thumbnail_path}, size={len(thumbnail_bytes)} bytes")
+        else:
+            print(f"[IG] No custom thumbnail provided, will auto-generate")
+
+        return self.transport.post_video_raw(
+            video_base64=video_base64,
+            caption=caption,
+            mime_type=mime_type,
+            duration=duration,
+            width=width,
+            height=height,
+            disable_comments=disable_comments,
+            share_to_threads=share_to_threads,
+            thumbnail_base64=thumbnail_base64,
+        )
+
     def delete_media(self, media_id: str) -> Dict[str, Any]:
         """
         Delete a media post.
