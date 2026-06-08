@@ -166,6 +166,7 @@ localBridge.igPostCommentHandler = igPostComment;
 localBridge.igDeleteCommentHandler = igDeleteComment;
 localBridge.igPostMediaHandler = igPostMedia;
 localBridge.igDeleteMediaHandler = igDeleteMedia;
+localBridge.igGetUserMediaHandler = igGetUserMedia;
 localBridge.igGetMediaCommentsHandler = igGetMediaComments;
 
 // Initialize Background Task Coordinator
@@ -2284,6 +2285,27 @@ export async function igDeleteMedia(payload: Record<string, unknown>): Promise<a
 
     if (!result?.success) {
         throw new Error(result?.error || 'Failed to delete media');
+    }
+    return result.data;
+}
+
+export async function igGetUserMedia(payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] igGetUserMedia called', payload);
+    const tab = await findIgTab();
+    if (!tab?.id) {
+        throw new Error('No Instagram tab found. Please open instagram.com first.');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'command.ig_get_user_media',
+        params: payload,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with IG content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to get user media');
     }
     return result.data;
 }

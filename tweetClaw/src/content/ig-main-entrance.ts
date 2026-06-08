@@ -49,6 +49,7 @@ interface IgGlobalApi {
   deleteComment: (params: { mediaId: string; commentId: string }) => Promise<any>;
   postMedia: (params: { imageBase64?: string; imageBytes?: Uint8Array; mimeType?: string; caption: string; disableComments?: boolean; shareToThreads?: boolean; location?: any }) => Promise<any>;
   deleteMedia: (mediaId: string) => Promise<any>;
+  getUserMedia: (params: { userId?: string; username?: string; count?: number; after?: string }) => Promise<any>;
   checkLogin: () => Promise<boolean>;
   testConnection: () => Promise<{ success: boolean; userId?: string; error?: string }>;
   // 工具函数
@@ -100,6 +101,9 @@ const igGlobalApi: IgGlobalApi = {
   },
   deleteMedia: async (mediaId: string) => {
     return await handleDeleteMedia({ mediaId });
+  },
+  getUserMedia: async (params) => {
+    return await handleGetUserMedia(params);
   },
   checkLogin: async () => {
     return await handleCheckLogin({});
@@ -212,6 +216,12 @@ async function handleMessage(message: IgRequestMessage): Promise<any> {
 
     case 'command.ig_delete_media':
       return await handleDeleteMedia(params);
+
+    case 'command.ig_get_user_media':
+      return await handleGetUserMedia(params);
+
+    case 'command.ig_get_media_comments':
+      return await handleGetMediaComments(params);
 
     // ============ 工具方法 ============
 
@@ -543,6 +553,27 @@ async function handleDeleteMedia(params: Record<string, any>): Promise<any> {
     success: true,
     didDelete: result.did_delete,
     status: result.status,
+  };
+}
+
+async function handleGetUserMedia(params: Record<string, any>): Promise<any> {
+  const { userId, username, count, after } = params;
+
+  if (!userId && !username) {
+    throw new Error('Either userId or username is required');
+  }
+
+  const result = await igApi.getUserMedia({
+    userId,
+    username,
+    count: count || 12,
+    after,
+  });
+
+  return {
+    success: true,
+    items: result.items,
+    pageInfo: result.pageInfo,
   };
 }
 

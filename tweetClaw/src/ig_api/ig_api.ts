@@ -45,6 +45,8 @@ import type {
   IgUploadImageResult,
   IgDeleteMediaParams,
   IgDeleteMediaResponse,
+  IgGetUserMediaParams,
+  IgGetUserMediaResponse,
   IgApiResponse,
 } from './types';
 
@@ -1250,6 +1252,136 @@ export class IgApiClient {
       return data;
     } catch (error) {
       console.error('[IG API] Delete media error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取用户媒体列表
+   * 使用 GraphQL API: POST /graphql/query
+   * 查询: PolarisProfilePostsQuery
+   *
+   * @param params - userId/username, count, after
+   * @returns 媒体列表和分页信息
+   */
+  public async getUserMedia(params: IgGetUserMediaParams): Promise<IgGetUserMediaResponse> {
+    try {
+      // 1. 确定用户名
+      let username = params.username;
+
+      if (!username && params.userId) {
+        // 如果只有 userId，需要先获取用户信息来得到 username
+        const userInfo = await this.getUserInfo(params.userId);
+        username = userInfo.username;
+      }
+
+      if (!username) {
+        throw new Error('Either userId or username is required');
+      }
+
+      // 2. 获取 fb_dtsg token
+      const fbDtsg = await getFbDtsgWithCache();
+      if (!fbDtsg) {
+        throw new Error('fb_dtsg token not found. Please refresh Instagram page.');
+      }
+
+      // 3. 构建 GraphQL 查询参数（使用 username，不是 id）
+      const variables = {
+        data: {
+          count: params.count || 12,
+          include_reel_media_seen_timestamp: true,
+          include_relationship_info: true,
+          latest_besties_reel_media: true,
+          latest_reel_media: true,
+        },
+        username: username,  // ← 使用 username，不是 id
+        after: params.after || null,
+        __relay_internal__pv__PolarisImmersiveFeedChainingEnabledrelayprovider: true,
+        __relay_internal__pv__PolarisAIGMMediaWebLabelEnabledrelayprovider: true,
+        __relay_internal__pv__PolarisAIGMAccountLabelEnabledrelayprovider: false,
+      };
+
+      const body = buildGraphQLBody(
+        'PolarisProfilePostsQuery',
+        '27378030181834840',
+        variables,
+        fbDtsg
+      );
+
+      console.log(`[IG API] Getting user media: username=${username}, count=${params.count || 12}`);
+
+      // 4. 发送 GraphQL 请求
+      const headers = await this.buildHeaders('POST');
+      headers.set('x-fb-friendly-name', 'PolarisProfilePostsQuery');
+      headers.set('x-root-field-name', 'xdt_api__v1__feed__user_timeline_graphql_connection');
+
+      const response = await fetch(`${this.baseUrl}/api/graphql`, {
+        method: 'POST',
+        headers,
+        body,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      // 5. 解析响应
+      const connection = data?.data?.xdt_api__v1__feed__user_timeline_graphql_connection;
+
+      if (!connection) {
+        console.error('[IG API] Invalid response structure:', JSON.stringify(data, null, 2));
+        throw new Error('Invalid response structure');
+      }
+
+      const items: IgGetUserMediaResponse['items'] = connection.edges.map((edge: any) => {
+        const node = edge.node;
+
+        // 提取图片 URL
+        const imageCandidates = node.image_versions2?.candidates || [];
+        const imageUrl = imageCandidates[0]?.url || '';
+
+        // 提取视频 URL（如果有）
+        const videoCandidates = node.video_versions || [];
+        const videoUrl = videoCandidates[0]?.url || undefined;
+
+        return {
+          id: node.id,
+          pk: node.pk,
+          code: node.code,
+          mediaType: node.media_type,
+          imageUrl,
+          videoUrl,
+          caption: node.caption?.text,
+          takenAt: node.taken_at,
+          likeCount: node.like_count || 0,
+          commentCount: node.comment_count || 0,
+          hasLiked: node.has_liked || false,
+          user: {
+            userId: node.user.pk,
+            username: node.user.username,
+            fullName: node.user.full_name,
+            isPrivate: node.user.is_private,
+            isVerified: node.user.is_verified,
+          },
+        };
+      });
+
+      const result: IgGetUserMediaResponse = {
+        items,
+        pageInfo: {
+          hasNextPage: connection.page_info?.has_next_page || false,
+          endCursor: connection.page_info?.end_cursor || null,
+        },
+      };
+
+      console.log(`[IG API] Got ${items.length} media items, hasNext=${result.pageInfo.hasNextPage}`);
+      return result;
+    } catch (error) {
+      console.error('[IG API] Get user media error:', error);
       throw error;
     }
   }

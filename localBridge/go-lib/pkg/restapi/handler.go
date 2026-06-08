@@ -114,6 +114,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/ig/comments/delete", h.igDeleteComment)
 	mux.HandleFunc("/api/v1/ig/media/post", h.igPostMedia)
 	mux.HandleFunc("/api/v1/ig/media/delete", h.igDeleteMedia)
+	mux.HandleFunc("/api/v1/ig/user/media", h.igGetUserMedia)
 	mux.HandleFunc("/api/v1/ig/media/comments", h.igGetMediaComments)
 
 }
@@ -1218,6 +1219,16 @@ func (h *Handler) igDeleteMedia(w http.ResponseWriter, r *http.Request) {
 	}
 	id := newID("http_ig_delete_media")
 	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_delete_media", "tweetClaw", body), 30000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) igGetUserMedia(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	id := newID("http_ig_get_user_media")
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_get_user_media", "tweetClaw", queryToMap(r)), 30000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 

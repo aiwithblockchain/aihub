@@ -179,6 +179,32 @@ class IgService:
         """
         return self.transport.delete_media_raw(media_id=media_id)
 
+    def get_user_media(
+        self,
+        user_id: Optional[str] = None,
+        username: Optional[str] = None,
+        count: int = 12,
+        after: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """
+        Get user's media posts.
+
+        Args:
+            user_id: User ID (optional)
+            username: Username (optional)
+            count: Number of posts to fetch (default 12)
+            after: Pagination cursor
+
+        Returns:
+            Media list and pagination info
+        """
+        return self.transport.get_user_media_raw(
+            user_id=user_id,
+            username=username,
+            count=count,
+            after=after,
+        )
+
     def test_connection(self) -> Dict[str, Any]:
         """
         Test API connection and get user info.

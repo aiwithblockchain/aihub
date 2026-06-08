@@ -251,6 +251,51 @@ export interface IgDeleteMediaResponse {
   status: string;                // 状态
 }
 
+/**
+ * 获取用户媒体参数
+ */
+export interface IgGetUserMediaParams {
+  userId?: string;               // 用户 ID（可选，优先使用）
+  username?: string;             // 用户名（可选）
+  count?: number;                // 获取数量（默认 12）
+  after?: string;                // 分页游标
+}
+
+/**
+ * 用户媒体项
+ */
+export interface IgUserMediaItem {
+  id: string;                    // 媒体 ID
+  pk: string;                    // 媒体 PK
+  code: string;                  // 短代码
+  mediaType: number;             // 媒体类型（1=图片，2=视频，8=轮播）
+  imageUrl: string;              // 图片 URL
+  videoUrl?: string;             // 视频 URL（如果是视频）
+  caption?: string;              // 文案
+  takenAt: number;               // 发布时间戳
+  likeCount: number;             // 点赞数
+  commentCount: number;          // 评论数
+  hasLiked: boolean;             // 是否已点赞
+  user: {
+    userId: string;
+    username: string;
+    fullName: string;
+    isPrivate: boolean;
+    isVerified: boolean;
+  };
+}
+
+/**
+ * 获取用户媒体响应
+ */
+export interface IgGetUserMediaResponse {
+  items: IgUserMediaItem[];      // 媒体列表
+  pageInfo: {
+    hasNextPage: boolean;        // 是否有下一页
+    endCursor: string | null;    // 下一页游标
+  };
+}
+
 // ============ Feed 相关 ============
 
 /**
@@ -463,6 +508,7 @@ export type IgMessageType =
   | 'command.ig_get_feed'
   | 'command.ig_get_media'
   | 'command.ig_get_media_comments'
+  | 'command.ig_get_user_media'
   | 'command.ig_search'
   | 'command.ig_like_media'
   | 'command.ig_unlike_media'

@@ -112,6 +112,34 @@ class IgApiTransport(BaseApiTransport):
             json={"mediaId": media_id}
         )
 
+    def get_user_media_raw(
+        self,
+        user_id: Optional[str] = None,
+        username: Optional[str] = None,
+        count: int = 12,
+        after: Optional[str] = None,
+    ) -> Dict[Any, Any]:
+        """获取用户媒体列表
+
+        Args:
+            user_id: 用户 ID（可选）
+            username: 用户名（可选）
+            count: 获取数量（默认 12）
+            after: 分页游标
+
+        Returns:
+            媒体列表和分页信息
+        """
+        params = {"count": count}
+        if user_id:
+            params["userId"] = user_id
+        if username:
+            params["username"] = username
+        if after:
+            params["after"] = after
+
+        return self.request_json("GET", "/api/v1/ig/user/media", params=params)
+
     def test_connection_raw(self) -> Dict[Any, Any]:
         """测试连接
 

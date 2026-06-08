@@ -100,6 +100,8 @@ export type MessageType =
   | 'response.ig_post_media'
   | 'command.ig_delete_media'
   | 'response.ig_delete_media'
+  | 'command.ig_get_user_media'
+  | 'response.ig_get_user_media'
   | 'command.ig_get_media_comments'
   | 'response.ig_get_media_comments'
   | 'command.query_x_basic_info'
@@ -235,6 +237,8 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_IG_POST_MEDIA: 'response.ig_post_media',
   COMMAND_IG_DELETE_MEDIA: 'command.ig_delete_media',
   RESPONSE_IG_DELETE_MEDIA: 'response.ig_delete_media',
+  COMMAND_IG_GET_USER_MEDIA: 'command.ig_get_user_media',
+  RESPONSE_IG_GET_USER_MEDIA: 'response.ig_get_user_media',
   COMMAND_IG_GET_MEDIA_COMMENTS: 'command.ig_get_media_comments',
   RESPONSE_IG_GET_MEDIA_COMMENTS: 'response.ig_get_media_comments',
   COMMAND_QUERY_X_BASIC_INFO: 'command.query_x_basic_info',
