@@ -170,6 +170,8 @@ localBridge.igGetUserMediaHandler = igGetUserMedia;
 localBridge.igGetMediaCommentsHandler = igGetMediaComments;
 localBridge.igSearchHandler = igSearch;
 localBridge.igGetNotificationsHandler = igGetNotifications;
+localBridge.igGetFollowersHandler = igGetFollowers;
+localBridge.igGetFollowingHandler = igGetFollowing;
 
 // Initialize Background Task Coordinator
 let taskCoordinator: BackgroundTaskCoordinator | null = null;
@@ -2371,6 +2373,48 @@ export async function igGetNotifications(payload: Record<string, unknown>): Prom
 
     if (!result?.success) {
         throw new Error(result?.error || 'Failed to get notifications');
+    }
+    return result.data;
+}
+
+export async function igGetFollowers(payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] igGetFollowers called', payload);
+    const tab = await findIgTab();
+    if (!tab?.id) {
+        throw new Error('No Instagram tab found. Please open instagram.com first.');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'command.ig_get_followers',
+        params: payload,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with IG content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to get followers');
+    }
+    return result.data;
+}
+
+export async function igGetFollowing(payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] igGetFollowing called', payload);
+    const tab = await findIgTab();
+    if (!tab?.id) {
+        throw new Error('No Instagram tab found. Please open instagram.com first.');
+    }
+
+    const result: any = await chrome.tabs.sendMessage(tab.id, {
+        type: 'command.ig_get_following',
+        params: payload,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with IG content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to get following');
     }
     return result.data;
 }

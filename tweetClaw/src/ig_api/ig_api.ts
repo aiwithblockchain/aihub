@@ -57,6 +57,11 @@ import type {
   IgGetNotificationsResponse,
   IgNotification,
   IgNotificationType,
+  IgGetFollowersParams,
+  IgGetFollowersResponse,
+  IgGetFollowingParams,
+  IgGetFollowingResponse,
+  IgFollowUser,
 } from './types';
 
 /**
@@ -2213,6 +2218,109 @@ export class IgApiClient {
       default:
         return 'other';
     }
+  }
+
+  // ============ 关注/粉丝 API ============
+
+  /**
+   * 获取粉丝列表
+   * API: GET /api/v1/friendships/{user_id}/followers/
+   *
+   * @param params - userId 必需，count 和 maxId 可选
+   * @returns 粉丝列表和分页信息
+   */
+  public async getFollowers(params: IgGetFollowersParams): Promise<IgGetFollowersResponse> {
+    try {
+      const { userId, count = 12, maxId, searchSurface = 'follow_list_page' } = params;
+
+      // 构建查询参数
+      const queryParams = new URLSearchParams({
+        count: count.toString(),
+        search_surface: searchSurface,
+      });
+
+      if (maxId) {
+        queryParams.set('max_id', maxId);
+      }
+
+      const response = await this.request<any>(
+        `/api/v1/friendships/${userId}/followers/?${queryParams.toString()}`,
+        'GET'
+      );
+
+      // 解析用户列表
+      const users = (response.users || []).map((u: any) => this.parseFollowUser(u));
+
+      return {
+        users,
+        hasMore: response.has_more || false,
+        nextMaxId: response.next_max_id,
+        pageSize: response.page_size || count,
+      };
+    } catch (error) {
+      console.error('[IG API] Get followers error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 获取关注列表
+   * API: GET /api/v1/friendships/{user_id}/following/
+   *
+   * @param params - userId 必需，count 和 maxId 可选
+   * @returns 关注列表和分页信息
+   */
+  public async getFollowing(params: IgGetFollowingParams): Promise<IgGetFollowingResponse> {
+    try {
+      const { userId, count = 12, maxId } = params;
+
+      // 构建查询参数
+      const queryParams = new URLSearchParams({
+        count: count.toString(),
+      });
+
+      if (maxId) {
+        queryParams.set('max_id', maxId);
+      }
+
+      const response = await this.request<any>(
+        `/api/v1/friendships/${userId}/following/?${queryParams.toString()}`,
+        'GET'
+      );
+
+      // 解析用户列表
+      const users = (response.users || []).map((u: any) => this.parseFollowUser(u));
+
+      return {
+        users,
+        hasMore: response.has_more || false,
+        nextMaxId: response.next_max_id,
+        pageSize: response.page_size || count,
+      };
+    } catch (error) {
+      console.error('[IG API] Get following error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 解析 REST API 用户数据为 IgFollowUser 格式
+   * 用于 followers/following API 返回的用户数据
+   */
+  private parseFollowUser(apiUser: any): IgFollowUser {
+    return {
+      pk: apiUser.pk || apiUser.id || '',
+      username: apiUser.username || '',
+      fullName: apiUser.full_name || '',
+      isPrivate: apiUser.is_private || false,
+      isVerified: apiUser.is_verified || false,
+      profilePicUrl: apiUser.profile_pic_url,
+      profilePicId: apiUser.profile_pic_id,
+      isFavorite: apiUser.is_favorite || false,
+      hasAnonymousProfilePicture: apiUser.has_anonymous_profile_picture || false,
+      latestReelMedia: apiUser.latest_reel_media,
+      accountBadges: apiUser.account_badges || [],
+    };
   }
 
   // ============ 工具方法 ============

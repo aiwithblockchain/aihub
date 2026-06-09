@@ -243,6 +243,52 @@ class IgApiTransport(BaseApiTransport):
         """
         return self.request_json("GET", "/api/v1/ig/notifications")
 
+    def get_followers_raw(
+        self,
+        user_id: str,
+        count: int = 12,
+        max_id: Optional[str] = None,
+        search_surface: str = "follow_list_page",
+    ) -> Dict[Any, Any]:
+        """获取粉丝列表
+
+        Args:
+            user_id: 用户 ID
+            count: 获取数量（默认 12）
+            max_id: 分页游标
+            search_surface: 搜索场景（默认 follow_list_page）
+
+        Returns:
+            粉丝列表和分页信息
+        """
+        params = {"userId": user_id, "count": count, "searchSurface": search_surface}
+        if max_id:
+            params["maxId"] = max_id
+
+        return self.request_json("GET", "/api/v1/ig/followers", params=params)
+
+    def get_following_raw(
+        self,
+        user_id: str,
+        count: int = 12,
+        max_id: Optional[str] = None,
+    ) -> Dict[Any, Any]:
+        """获取关注列表
+
+        Args:
+            user_id: 用户 ID
+            count: 获取数量（默认 12）
+            max_id: 分页游标
+
+        Returns:
+            关注列表和分页信息
+        """
+        params = {"userId": user_id, "count": count}
+        if max_id:
+            params["maxId"] = max_id
+
+        return self.request_json("GET", "/api/v1/ig/following", params=params)
+
     # ============ 高级封装方法 ============
 
     def get_self_info(self) -> Dict[Any, Any]:
@@ -354,3 +400,41 @@ class IgApiTransport(BaseApiTransport):
     ) -> Dict[Any, Any]:
         """搜索 Instagram 内容（支持分页）"""
         return self.search_raw(query, after=after, before=before, first=first, last=last)
+
+    def get_followers(
+        self,
+        user_id: str,
+        count: int = 12,
+        max_id: Optional[str] = None,
+        search_surface: str = "follow_list_page",
+    ) -> Dict[Any, Any]:
+        """获取粉丝列表
+
+        Args:
+            user_id: 用户 ID
+            count: 获取数量（默认 12）
+            max_id: 分页游标
+            search_surface: 搜索场景（默认 follow_list_page）
+
+        Returns:
+            粉丝列表和分页信息
+        """
+        return self.get_followers_raw(user_id, count, max_id, search_surface)
+
+    def get_following(
+        self,
+        user_id: str,
+        count: int = 12,
+        max_id: Optional[str] = None,
+    ) -> Dict[Any, Any]:
+        """获取关注列表
+
+        Args:
+            user_id: 用户 ID
+            count: 获取数量（默认 12）
+            max_id: 分页游标
+
+        Returns:
+            关注列表和分页信息
+        """
+        return self.get_following_raw(user_id, count, max_id)

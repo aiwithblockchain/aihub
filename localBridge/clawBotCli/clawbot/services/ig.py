@@ -74,6 +74,55 @@ class IgService:
         """Unfollow a user."""
         return self.transport.unfollow_user_raw(user_id=user_id)
 
+    # ── Followers & Following ──────────────────────────────────────────────────
+
+    def get_followers(
+        self,
+        user_id: str,
+        count: int = 12,
+        max_id: Optional[str] = None,
+        search_surface: str = "follow_list_page",
+    ) -> Dict[str, Any]:
+        """Get followers list.
+
+        Args:
+            user_id: User ID to get followers for
+            count: Number of followers to fetch (default 12)
+            max_id: Pagination cursor for next page
+            search_surface: Search surface type (default "follow_list_page")
+
+        Returns:
+            Dict with users, hasMore, nextMaxId, pageSize
+        """
+        return self.transport.get_followers_raw(
+            user_id=user_id,
+            count=count,
+            max_id=max_id,
+            search_surface=search_surface,
+        )
+
+    def get_following(
+        self,
+        user_id: str,
+        count: int = 12,
+        max_id: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Get following list.
+
+        Args:
+            user_id: User ID to get following for
+            count: Number of following to fetch (default 12)
+            max_id: Pagination cursor for next page
+
+        Returns:
+            Dict with users, hasMore, nextMaxId, pageSize
+        """
+        return self.transport.get_following_raw(
+            user_id=user_id,
+            count=count,
+            max_id=max_id,
+        )
+
     # ── Comments ──────────────────────────────────────────────────────────────
 
     def post_comment(

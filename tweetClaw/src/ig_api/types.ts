@@ -535,6 +535,67 @@ export interface IgGetNotificationsResponse {
   };
 }
 
+// ============ 关注/粉丝相关 ============
+
+/**
+ * 粉丝/关注用户项
+ */
+export interface IgFollowUser {
+  pk: string;                    // 用户 ID
+  username: string;              // 用户名
+  fullName: string;              // 全名
+  isPrivate: boolean;            // 是否私密账号
+  isVerified: boolean;           // 是否认证
+  profilePicUrl?: string;        // 头像 URL
+  profilePicId?: string;         // 头像 ID
+  isFavorite?: boolean;          // 是否收藏
+  hasAnonymousProfilePicture?: boolean;
+  latestReelMedia?: number;      // 最新 Reel 媒体时间戳
+  accountBadges?: Array<{        // 账号徽章
+    id: string;
+    name: string;
+  }>;
+}
+
+/**
+ * 获取粉丝参数
+ */
+export interface IgGetFollowersParams {
+  userId: string;               // 用户 ID
+  count?: number;                // 获取数量（默认 12）
+  maxId?: string;                // 分页游标
+  searchSurface?: string;        // 搜索场景（默认 follow_list_page）
+}
+
+/**
+ * 获取关注参数
+ */
+export interface IgGetFollowingParams {
+  userId: string;               // 用户 ID
+  count?: number;                // 获取数量（默认 12）
+  maxId?: string;                // 分页游标
+}
+
+/**
+ * 获取粉丝响应
+ */
+export interface IgGetFollowersResponse {
+  users: IgFollowUser[];         // 粉丝列表
+  hasMore: boolean;              // 是否有更多
+  nextMaxId?: string;            // 下一页游标
+  pageSize: number;              // 每页数量
+}
+
+/**
+ * 获取关注响应
+ */
+export interface IgGetFollowingResponse {
+  users: IgFollowUser[];         // 关注列表
+  hasMore: boolean;              // 是否有更多
+  nextMaxId?: string;            // 下一页游标
+  pageSize: number;              // 每页数量
+}
+
 // ============ Feed 相关 ============
 
 /**
@@ -660,6 +721,8 @@ export type IgMessageType =
   | 'command.ig_get_media_comments'
   | 'command.ig_get_user_media'
   | 'command.ig_get_notifications'
+  | 'command.ig_get_followers'
+  | 'command.ig_get_following'
   | 'command.ig_search'
   | 'command.ig_like_media'
   | 'command.ig_unlike_media'

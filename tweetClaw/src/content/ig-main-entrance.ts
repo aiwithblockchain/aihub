@@ -42,6 +42,8 @@ interface IgGlobalApi {
   getMediaInfo: (shortcode: string) => Promise<any>;
   getMediaComments: (params: { mediaId: string; minId?: string; sortOrder?: string; canSupportThreading?: boolean; permalinkEnabled?: boolean }) => Promise<any>;
   getNotifications: () => Promise<any>;
+  getFollowers: (params: { userId: string; count?: number; maxId?: string; searchSurface?: string }) => Promise<any>;
+  getFollowing: (params: { userId: string; count?: number; maxId?: string }) => Promise<any>;
   likeMedia: (params: { mediaId: string; moduleName?: string; userId?: string; username?: string; d?: number }) => Promise<any>;
   unlikeMedia: (mediaId: string) => Promise<any>;
   followUser: (params: { userId: string; moduleName?: string; username?: string }) => Promise<any>;
@@ -82,6 +84,12 @@ const igGlobalApi: IgGlobalApi = {
   },
   getNotifications: async () => {
     return await handleGetNotifications({});
+  },
+  getFollowers: async (params) => {
+    return await handleGetFollowers(params);
+  },
+  getFollowing: async (params) => {
+    return await handleGetFollowing(params);
   },
   likeMedia: async (params) => {
     return await handleLikeMedia(params);
@@ -198,6 +206,12 @@ async function handleMessage(message: IgRequestMessage): Promise<any> {
 
     case 'command.ig_get_notifications':
       return await handleGetNotifications(params);
+
+    case 'command.ig_get_followers':
+      return await handleGetFollowers(params);
+
+    case 'command.ig_get_following':
+      return await handleGetFollowing(params);
 
     case 'command.ig_search':
       return await handleSearch(params);
@@ -415,6 +429,51 @@ async function handleGetNotifications(params: Record<string, any>): Promise<any>
     oldStories: result.oldStories,
     hasMore: result.hasMore,
     partition: result.partition,
+  };
+}
+
+async function handleGetFollowers(params: Record<string, any>): Promise<any> {
+  const { userId, count, maxId, searchSurface } = params;
+
+  if (!userId) {
+    throw new Error('userId is required');
+  }
+
+  const result = await igApi.getFollowers({
+    userId,
+    count: count || 12,
+    maxId,
+    searchSurface,
+  });
+
+  return {
+    success: true,
+    users: result.users,
+    hasMore: result.hasMore,
+    nextMaxId: result.nextMaxId,
+    pageSize: result.pageSize,
+  };
+}
+
+async function handleGetFollowing(params: Record<string, any>): Promise<any> {
+  const { userId, count, maxId } = params;
+
+  if (!userId) {
+    throw new Error('userId is required');
+  }
+
+  const result = await igApi.getFollowing({
+    userId,
+    count: count || 12,
+    maxId,
+  });
+
+  return {
+    success: true,
+    users: result.users,
+    hasMore: result.hasMore,
+    nextMaxId: result.nextMaxId,
+    pageSize: result.pageSize,
   };
 }
 

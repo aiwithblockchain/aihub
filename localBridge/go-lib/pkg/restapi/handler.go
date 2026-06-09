@@ -118,6 +118,8 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/ig/media/comments", h.igGetMediaComments)
 	mux.HandleFunc("/api/v1/ig/search", h.igSearch)
 	mux.HandleFunc("/api/v1/ig/notifications", h.igGetNotifications)
+	mux.HandleFunc("/api/v1/ig/followers", h.igGetFollowers)
+	mux.HandleFunc("/api/v1/ig/following", h.igGetFollowing)
 
 }
 
@@ -1267,6 +1269,26 @@ func (h *Handler) igGetNotifications(w http.ResponseWriter, r *http.Request) {
 	}
 	id := newID("http_ig_notifications")
 	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_get_notifications", "tweetClaw", nil), 30000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) igGetFollowers(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	id := newID("http_ig_followers")
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_get_followers", "tweetClaw", queryToMap(r)), 30000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) igGetFollowing(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	id := newID("http_ig_following")
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_get_following", "tweetClaw", queryToMap(r)), 30000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
