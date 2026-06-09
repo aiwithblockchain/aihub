@@ -106,6 +106,8 @@ export type MessageType =
   | 'response.ig_get_media_comments'
   | 'command.ig_search'
   | 'response.ig_search'
+  | 'command.ig_get_notifications'
+  | 'response.ig_get_notifications'
   | 'command.query_x_basic_info'
   | 'request.open_tab'
   | 'response.open_tab'
@@ -245,6 +247,8 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_IG_GET_MEDIA_COMMENTS: 'response.ig_get_media_comments',
   COMMAND_IG_SEARCH: 'command.ig_search',
   RESPONSE_IG_SEARCH: 'response.ig_search',
+  COMMAND_IG_GET_NOTIFICATIONS: 'command.ig_get_notifications',
+  RESPONSE_IG_GET_NOTIFICATIONS: 'response.ig_get_notifications',
   COMMAND_QUERY_X_BASIC_INFO: 'command.query_x_basic_info',
   REQUEST_OPEN_TAB: 'request.open_tab',
   RESPONSE_OPEN_TAB: 'response.open_tab',
