@@ -21,9 +21,11 @@ export const XHS_API_ENDPOINTS = {
   COMMENT_DELETE: '/api/sns/web/v1/comment/delete',
   INTIMACY_LIST: '/api/sns/web/v1/intimacy/intimacy_list',
   SEARCH_TOPIC: '/web_api/sns/v1/search/topic',
-  NOTIFICATIONS_MENTIONS: '/api/sns/web/v1/you/mentions',  NOTIFICATIONS_LIKES: '/api/sns/web/v1/you/likes',
+  NOTIFICATIONS_MENTIONS: '/api/sns/web/v1/you/mentions',
+  NOTIFICATIONS_LIKES: '/api/sns/web/v1/you/likes',
   UNREAD_COUNT: '/api/sns/web/unread_count',
   CREATOR_PUBLISHED_NOTES: '/api/galaxy/creator/note/user/posted',
+  CREATOR_NOTE_DETAIL_STATS: '/api/galaxy/creator/data/note_detail_new',
   FRIEND_FANS: '/api/sns/capa/servicegw/note_privacy/user/friend_fans',
 } as const;
 
@@ -47,6 +49,7 @@ export const XHS_MSG_TYPE = {
   SEARCH_TOPICS: 'XHS_SEARCH_TOPICS',
   FETCH_NOTIFICATIONS: 'XHS_FETCH_NOTIFICATIONS',
   FETCH_PUBLISHED_NOTES: 'XHS_FETCH_PUBLISHED_NOTES',
+  FETCH_NOTE_DETAIL_STATS: 'XHS_FETCH_NOTE_DETAIL_STATS',
   POST_COMMENT: 'XHS_POST_COMMENT',
   SEARCH_USERS: 'XHS_SEARCH_USERS',
   GET_INTIMACY_LIST: 'XHS_GET_INTIMACY_LIST',

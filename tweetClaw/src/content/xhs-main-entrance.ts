@@ -1174,6 +1174,18 @@ async function fetchPublishedNotes(page: string = '0'): Promise<any> {
   return signedCreatorFetch(`/api/galaxy/v2/creator/note/user/posted?tab=0&page=${encodeURIComponent(page)}`, 'GET');
 }
 
+/**
+ * 获取笔记详细数据统计（7天/30天）
+ * API: GET /api/galaxy/creator/data/note_detail_new?noteId={noteId}
+ */
+async function fetchNoteDetailStats(noteId: string): Promise<any> {
+  console.log(`${TAG} [fetchNoteDetailStats] noteId=${noteId}`);
+  const params = new URLSearchParams({ noteId });
+  const result = await signedCreatorFetch(`/api/galaxy/creator/data/note_detail_new?${params}`, 'GET');
+  console.log(`${TAG} [fetchNoteDetailStats] result success=${result?.success} hasSeven=${!!result?.data?.seven} hasThirty=${!!result?.data?.thirty}`);
+  return result;
+}
+
 async function postComment(noteId: string, content: string, targetCommentId?: string, atUsers: any[] = []): Promise<any> {
   console.log(`${TAG} [postComment] noteId=${noteId} contentLen=${content.length} targetCommentId=${targetCommentId || 'N/A'}`);
   const body: Record<string, any> = {
@@ -1702,6 +1714,22 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     (async () => {
       try {
         const data = await fetchPublishedNotes(String(message.page || '0'));
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === XHS_MSG_TYPE.FETCH_NOTE_DETAIL_STATS) {
+    (async () => {
+      try {
+        if (!message.note_id) {
+          sendResponse({ success: false, error: 'note_id is required' });
+          return;
+        }
+        const data = await fetchNoteDetailStats(String(message.note_id));
         sendResponse({ success: true, data });
       } catch (e: any) {
         sendResponse({ success: false, error: e.message });

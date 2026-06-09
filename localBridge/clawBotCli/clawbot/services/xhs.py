@@ -460,3 +460,26 @@ class XhsService:
             comment_id: The comment ID to delete
         """
         return self.transport.delete_comment_raw(note_id=note_id, comment_id=comment_id)
+
+    # ── Note Statistics ────────────────────────────────────────────────────────
+
+    def get_note_detail_stats(self, note_id: str) -> Dict[str, Any]:
+        """
+        Get detailed statistics for a note (7-day and 30-day data).
+
+        Returns analytics data from XHS Creator Center including:
+        - view_count, like_count, collect_count, comment_count, share_count
+        - home_view_count (首页曝光数)
+        - view_time_avg (平均观看时长)
+        - rise_fans_count (涨粉数)
+        - Daily trend lists (view_list, like_list, etc.)
+        - Growth rates compared to previous period
+        - AI-generated summary
+
+        Args:
+            note_id: The note ID to get statistics for
+
+        Returns:
+            Dict with 'seven' (7-day) and 'thirty' (30-day) period data
+        """
+        return self.transport.get_note_detail_stats_raw(note_id=note_id)

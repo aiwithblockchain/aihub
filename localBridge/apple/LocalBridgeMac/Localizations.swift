@@ -413,6 +413,10 @@ struct Localizations {
             "en": "Xiaohongshu API",
             "zh": "小红书 API"
         ],
+        "tweetclaw.section.ig": [
+            "en": "Instagram API",
+            "zh": "Instagram API"
+        ],
 
         // MARK: - AIClaw Tab
         "aiclaw.title": [

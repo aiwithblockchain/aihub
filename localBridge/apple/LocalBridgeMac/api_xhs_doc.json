@@ -403,5 +403,18 @@
     "curl": "curl -X POST http://127.0.0.1:10088/api/v1/xhs/publish_video_large -H 'Content-Type: application/json' -d '{\"file_path\":\"/path/to/video.mp4\",\"title\":\"视频标题\",\"desc\":\"视频描述\",\"cover_path\":\"/path/to/cover.jpg\",\"privacy_type\":0,\"topics\":[{\"id\":\"topic123\",\"name\":\"话题名称\"}],\"scheduled_publish_time\":1717142400}'",
     "response": "{\"success\":true,\"data\":{\"id\":\"6a202c4e00000000070213b1\",\"score\":10},\"share_link\":\"https://www.xiaohongshu.com/discovery/item/6a202c4e00000000070213b1\"}",
     "request_body": "{\"file_path\":\"/absolute/path/to/video.mp4\",\"title\":\"视频标题\",\"desc\":\"视频描述\",\"cover_path\":\"/absolute/path/to/cover.jpg\",\"privacy_type\":0,\"privacy_user_ids\":[],\"topics\":[{\"id\":\"topic_id\",\"name\":\"话题名称\"}],\"scheduled_publish_time\":1717142400}"
+  },
+  {
+    "id": "get_xhs_note_detail_stats",
+    "name": "Get XHS Note Detail Stats",
+    "name_zh": "获取小红书笔记数据统计",
+    "summary": "Get detailed statistics for a specific Xiaohongshu note, including 7-day and 30-day performance data with daily trends.",
+    "summary_zh": "获取指定小红书笔记的详细数据统计，包括 7 天和 30 天的表现数据及每日趋势。",
+    "method": "GET",
+    "path": "/api/v1/xhs/note_detail_stats",
+    "description": "Fetches comprehensive analytics data for a specific note from Xiaohongshu Creator Center. Requires note_id parameter. Returns two time periods of data: 'seven' (7-day) and 'thirty' (30-day). Each period includes: view_count (浏览量), view_time_avg (平均观看时长), home_view_count (首页曝光数), like_count (点赞数), collect_count (收藏数), comment_count (评论数), share_count (分享数), rise_fans_count (涨粉数), and daily trend lists (view_list, like_list, etc.). Also includes growth rates compared to previous period and AI-generated summary. Essential for content performance analysis and optimization strategies.",
+    "description_zh": "从小红书创作者中心获取指定笔记的完整分析数据。需要 note_id 参数。返回两个时间段的数据：'seven'（7天）和 'thirty'（30天）。每个时段包含：view_count（浏览量）、view_time_avg（平均观看时长）、home_view_count（首页曝光数）、like_count（点赞数）、collect_count（收藏数）、comment_count（评论数）、share_count（分享数）、rise_fans_count（涨粉数）及每日趋势列表（view_list、like_list 等）。还包含相比上一周期的增长率和 AI 生成的摘要。是内容表现分析和优化策略的基础。",
+    "curl": "curl -X GET 'http://127.0.0.1:10088/api/v1/xhs/note_detail_stats?note_id=note123'",
+    "response": "{\"success\":true,\"data\":{\"seven\":{\"view_count\":10000,\"view_time_avg\":15.5,\"home_view_count\":8000,\"like_count\":500,\"collect_count\":200,\"comment_count\":50,\"share_count\":30,\"rise_fans_count\":20,\"view_list\":[{\"date\":1717142400000,\"count\":1500}],\"summary\":\"AI生成的运营建议\"},\"thirty\":{\"view_count\":50000,\"view_time_avg\":16.2,\"like_count\":2500,\"collect_count\":1000,\"comment_count\":250,\"share_count\":150,\"rise_fans_count\":100}}}"
   }
 ]

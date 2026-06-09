@@ -390,9 +390,11 @@ final class TweetClawClawViewController: NSViewController, NSTableViewDelegate, 
     private func loadDocs() {
         let xDocs = loadDocFile(name: "api_docs", candidateURLs: candidateURLs(for: "api_docs"))
         let xhsDocs = loadDocFile(name: "api_xhs_doc", candidateURLs: candidateURLs(for: "api_xhs_doc"))
+        let igDocs = loadDocFile(name: "api_ig_doc", candidateURLs: candidateURLs(for: "api_ig_doc"))
         sections = [
             Section(titleKey: "tweetclaw.section.x", docs: xDocs, isExpanded: true),
-            Section(titleKey: "tweetclaw.section.xhs", docs: xhsDocs, isExpanded: true)
+            Section(titleKey: "tweetclaw.section.xhs", docs: xhsDocs, isExpanded: true),
+            Section(titleKey: "tweetclaw.section.ig", docs: igDocs, isExpanded: true)
         ]
         rebuildRows()
     }
