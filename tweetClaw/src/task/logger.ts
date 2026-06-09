@@ -1,5 +1,7 @@
 export type LogLevel = 'debug' | 'info' | 'warn' | 'error' | 'none';
 
+declare const process: any;
+
 class Logger {
     private level: LogLevel = 'info';
 

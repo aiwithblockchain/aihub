@@ -114,14 +114,14 @@ function showHitModal(h: any) {
             const parsedParams: Record<string, any> = {};
             let hasParams = false;
             
-            for (const [key, value] of params.entries()) {
+            params.forEach((value, key) => {
                 hasParams = true;
                 try {
                     parsedParams[key] = JSON.parse(value);
                 } catch {
                     parsedParams[key] = value;
                 }
-            }
+            });
             
             if (hasParams) {
                 const paramsJson = safeJson(parsedParams);

@@ -62,7 +62,7 @@ describe('xhs-extractor', () => {
 
       const result = extractNote(item);
 
-      expect(result).not.toBeNull();
+      expect(result !== null).toBe(true);
       expect(result?.note_id).toBe('note123');
       expect(result?.title).toBe('测试笔记');
       expect(result?.type).toBe('normal');
@@ -147,7 +147,7 @@ describe('xhs-extractor', () => {
 
       const result = extractUserProfile(apiResponse);
 
-      expect(result).not.toBeNull();
+      expect(result !== null).toBe(true);
       expect(result?.user_id).toBe('user123');
       expect(result?.nickname).toBe('测试用户');
       expect(result?.fans).toBe(1000);
