@@ -53,6 +53,10 @@ import type {
   IgSearchParams,
   IgSearchResponse,
   IgSearchResult,
+  IgGetNotificationsParams,
+  IgGetNotificationsResponse,
+  IgNotification,
+  IgNotificationType,
 } from './types';
 
 /**
@@ -2052,6 +2056,163 @@ export class IgApiClient {
       const v = c === 'x' ? r : (r & 0x3) | 0x8;
       return v.toString(16);
     });
+  }
+
+  // ============ 通知 API ============
+
+  /**
+   * 获取通知列表
+   * API: POST /graphql/query
+   * Query: PolarisActivityFeedStoriesViewQuery
+   *
+   * @param params - 分页参数（可选）
+   * @returns 通知列表
+   */
+  public async getNotifications(params?: IgGetNotificationsParams): Promise<IgGetNotificationsResponse> {
+    try {
+      // 1. 获取 fb_dtsg token
+      const fbDtsg = await getFbDtsgWithCache();
+      if (!fbDtsg) {
+        throw new Error('fb_dtsg token not found. Please refresh Instagram page.');
+      }
+
+      // 2. 构建 GraphQL 查询参数
+      const variables = {
+        inbox_request_data: {},
+        pending_request_data: {},
+      };
+
+      const body = buildGraphQLBody(
+        GRAPHQL_QUERIES.ACTIVITY_FEED.queryName,
+        GRAPHQL_QUERIES.ACTIVITY_FEED.docId,
+        variables,
+        fbDtsg
+      );
+
+      console.log('[IG API] Getting notifications...');
+
+      // 3. 构建 Headers
+      const headers = await this.buildHeaders('POST');
+      headers.set('x-fb-friendly-name', GRAPHQL_QUERIES.ACTIVITY_FEED.queryName);
+      headers.set('x-root-field-name', 'xdt_activity_inbox');
+
+      // 4. 发送请求
+      const response = await fetch(`${this.baseUrl}/graphql/query`, {
+        method: 'POST',
+        headers,
+        body,
+        credentials: 'include',
+      });
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      // 5. 解析响应
+      const activityInbox = data.data?.xdt_activity_inbox;
+      if (!activityInbox) {
+        throw new Error('Invalid response: missing xdt_activity_inbox');
+      }
+
+      // 解析旧通知
+      const oldStories = (activityInbox.old_stories || []).map((story: any) => this.parseNotificationStory(story));
+
+      // 解析新通知
+      const newStories = (activityInbox.new_stories || []).map((story: any) => this.parseNotificationStory(story));
+
+      // 合并所有通知
+      const notifications = [...newStories, ...oldStories];
+
+      const result: IgGetNotificationsResponse = {
+        notifications,
+        newStories,
+        oldStories,
+        hasMore: false, // Instagram 通知 API 不支持分页
+        partition: activityInbox.partition,
+      };
+
+      console.log(`[IG API] Got ${notifications.length} notifications (${newStories.length} new, ${oldStories.length} old)`);
+      return result;
+    } catch (error) {
+      console.error('[IG API] Get notifications error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 解析通知项
+   */
+  private parseNotificationStory(story: any): IgNotification {
+    const args = story.args || {};
+
+    // 解析用户信息
+    let user: IgNotification['user'];
+    if (args.profile_id && args.profile_name) {
+      user = {
+        id: args.profile_id,
+        username: args.profile_name,
+        fullName: args.profile_name,
+        profilePicUrl: args.profile_image || '',
+      };
+    }
+
+    // 解析媒体信息
+    let media: IgNotification['media'];
+    if (args.media) {
+      media = {
+        id: args.media.id,
+        shortcode: args.media.shortcode,
+        imageUrl: args.media.image?.url || '',
+      };
+    }
+
+    // 解析通知类型
+    const typeCode = story.type || 0;
+    const notificationType = this.getNotificationType(typeCode);
+
+    return {
+      id: story.pk,
+      type: notificationType,
+      typeCode,
+      timestamp: args.timestamp ? Math.floor(args.timestamp) : 0,
+      text: args.text || '',
+      user,
+      media,
+      links: args.links,
+      destination: args.destination,
+      isNew: false, // 由 newStories/oldStories 区分
+    };
+  }
+
+  /**
+   * 根据 type code 获取通知类型
+   *
+   * Instagram 通知类型代码：
+   * - 3: 关注通知 (started following you)
+   * - 20: Threads 回复
+   * - 18: 系统通知
+   * - 13: 登录确认
+   * - 101: 关注请求
+   * - 其他: 待确认
+   */
+  private getNotificationType(typeCode: number): IgNotificationType {
+    switch (typeCode) {
+      case 3:
+        return 'follow';
+      case 20:
+        return 'reply';
+      case 18:
+        return 'other';
+      case 13:
+        return 'other';
+      case 101:
+        return 'request';
+      default:
+        return 'other';
+    }
   }
 
   // ============ 工具方法 ============

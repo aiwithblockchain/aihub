@@ -341,6 +341,21 @@ class IgService:
         """
         return self.transport.test_connection_raw()
 
+    def get_notifications(self) -> Dict[str, Any]:
+        """
+        Get Instagram notifications.
+
+        Returns:
+            {
+                'notifications': [...],  # All notifications
+                'newStories': [...],      # New notifications
+                'oldStories': [...],      # Old notifications
+                'hasMore': bool,          # Has more (usually False)
+                'partition': {...},       # Time partition info
+            }
+        """
+        return self.transport.get_notifications_raw()
+
     def check_login(self) -> bool:
         """
         Check if user is logged in to Instagram.

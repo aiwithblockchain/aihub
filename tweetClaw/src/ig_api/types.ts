@@ -468,6 +468,73 @@ export interface IgSearchResponse {
   startCursor?: string | null;    // 上一页游标
 }
 
+// ============ 通知相关 ============
+
+/**
+ * 通知类型
+ */
+export type IgNotificationType =
+  | 'like'           // 点赞
+  | 'comment'        // 评论
+  | 'follow'         // 关注
+  | 'mention'        // 提及
+  | 'tag'            // 标签
+  | 'reply'          // 回复
+  | 'request'        // 关注请求
+  | 'other';         // 其他
+
+/**
+ * 通知项
+ */
+export interface IgNotification {
+  id: string;                    // 通知 ID (pk)
+  type: IgNotificationType;      // 通知类型
+  typeCode: number;              // Instagram 内部类型代码
+  timestamp: number;             // 时间戳
+  text: string;                  // 通知文本
+  user?: {
+    id: string;
+    username: string;
+    fullName: string;
+    profilePicUrl: string;
+  };
+  media?: {
+    id: string;
+    shortcode: string;
+    imageUrl: string;
+  };
+  links?: Array<{
+    start: number;
+    end: number;
+    id: string;
+    type: string;
+    username?: string | null;
+  }>;
+  destination?: string;          // 点击跳转目标
+  isNew: boolean;                // 是否新通知
+}
+
+/**
+ * 获取通知参数
+ */
+export interface IgGetNotificationsParams {
+  maxId?: string;                // 分页游标（可选）
+}
+
+/**
+ * 获取通知响应
+ */
+export interface IgGetNotificationsResponse {
+  notifications: IgNotification[];  // 通知列表
+  newStories: IgNotification[];     // 新通知
+  oldStories: IgNotification[];     // 旧通知
+  hasMore: boolean;                 // 是否有更多
+  partition?: {                     // 时间分区
+    headers: string[];              // ["Yesterday", "This week"]
+    indices: number[];              // 分区索引
+  };
+}
+
 // ============ Feed 相关 ============
 
 /**
@@ -592,6 +659,7 @@ export type IgMessageType =
   | 'command.ig_get_media'
   | 'command.ig_get_media_comments'
   | 'command.ig_get_user_media'
+  | 'command.ig_get_notifications'
   | 'command.ig_search'
   | 'command.ig_like_media'
   | 'command.ig_unlike_media'

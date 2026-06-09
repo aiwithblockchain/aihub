@@ -117,6 +117,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/ig/user/media", h.igGetUserMedia)
 	mux.HandleFunc("/api/v1/ig/media/comments", h.igGetMediaComments)
 	mux.HandleFunc("/api/v1/ig/search", h.igSearch)
+	mux.HandleFunc("/api/v1/ig/notifications", h.igGetNotifications)
 
 }
 
@@ -1256,6 +1257,16 @@ func (h *Handler) igSearch(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_ig_search")
 	// 搜索可能需要更长时间，设置 30 秒超时
 	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_search", "tweetClaw", body), 30000,
+		func(data []byte) { writeRawPayload(w, data) })
+}
+
+func (h *Handler) igGetNotifications(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	id := newID("http_ig_notifications")
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_get_notifications", "tweetClaw", nil), 30000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 

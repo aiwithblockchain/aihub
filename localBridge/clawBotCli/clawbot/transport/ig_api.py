@@ -235,6 +235,14 @@ class IgApiTransport(BaseApiTransport):
 
         return self.request_json("GET", "/api/v1/ig/media/comments", params=params)
 
+    def get_notifications_raw(self) -> Dict[Any, Any]:
+        """获取通知列表
+
+        Returns:
+            通知列表，包含 new_stories 和 old_stories
+        """
+        return self.request_json("GET", "/api/v1/ig/notifications")
+
     # ============ 高级封装方法 ============
 
     def get_self_info(self) -> Dict[Any, Any]:

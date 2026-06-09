@@ -198,6 +198,10 @@ export const GRAPHQL_QUERIES = {
     docId: '26713194205046842',
     queryName: 'PolarisPostRootQuery',
   },
+  ACTIVITY_FEED: {
+    docId: '27008123808810299',
+    queryName: 'PolarisActivityFeedStoriesViewQuery',
+  },
 } as const;
 
 /**

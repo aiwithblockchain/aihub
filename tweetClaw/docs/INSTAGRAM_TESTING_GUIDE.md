@@ -41,6 +41,7 @@ tweetClaw/
 | 关注用户 | `command.ig_follow_user` | ✅ 已实现 | 2026-06-07 |
 | 取消关注 | `command.ig_unfollow_user` | ✅ 已实现 | 2026-06-07 |
 | 发布评论 | `command.ig_post_comment` | ✅ 已实现 | 2026-06-07 |
+| 搜索内容 | `command.ig_search` | ✅ 已实现（支持分页） | 2026-06-08 |
 | 检查登录状态 | `command.ig_check_login` | ✅ 已实现 | - |
 | 测试连接 | `command.ig_test_connection` | ✅ 已实现 | - |
 
@@ -592,6 +593,45 @@ class IgService:
     
     def like_media(self, media_id: str) -> dict:
         return self._t.like_media(media_id)
+
+    def search(self, query: str, after: str = None, before: str = None,
+               first: int = None, last: int = None) -> dict:
+        """搜索内容（支持分页）
+
+        Args:
+            query: 搜索关键词
+            after: 分页游标（向后）
+            before: 分页游标（向前）
+            first: 获取数量（从前往后）
+            last: 获取数量（从后往前）
+
+        Returns:
+            {
+                'results': [...],      # 搜索结果列表
+                'hasMore': bool,       # 是否有更多结果
+                'endCursor': str,      # 下一页游标
+                'startCursor': str,    # 上一页游标
+            }
+        """
+        return self._t.search(query, after=after, before=before,
+                             first=first, last=last)
+```
+
+**使用示例：**
+
+```python
+from clawbot import ClawBotClient
+
+client = ClawBotClient()
+
+# 基础搜索
+result = client.ig.search("sunset", first=10)
+print(f"找到 {len(result['results'])} 条结果")
+
+# 分页获取更多结果
+if result['hasMore']:
+    next_page = client.ig.search("sunset", first=10, after=result['endCursor'])
+    print(f"第二页: {len(next_page['results'])} 条结果")
 ```
 
 ### 7.2 LocalBridge 配置

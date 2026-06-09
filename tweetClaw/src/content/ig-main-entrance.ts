@@ -41,6 +41,7 @@ interface IgGlobalApi {
   getFeed: (maxId?: string) => Promise<any>;
   getMediaInfo: (shortcode: string) => Promise<any>;
   getMediaComments: (params: { mediaId: string; minId?: string; sortOrder?: string; canSupportThreading?: boolean; permalinkEnabled?: boolean }) => Promise<any>;
+  getNotifications: () => Promise<any>;
   likeMedia: (params: { mediaId: string; moduleName?: string; userId?: string; username?: string; d?: number }) => Promise<any>;
   unlikeMedia: (mediaId: string) => Promise<any>;
   followUser: (params: { userId: string; moduleName?: string; username?: string }) => Promise<any>;
@@ -78,6 +79,9 @@ const igGlobalApi: IgGlobalApi = {
   },
   getMediaComments: async (params) => {
     return await handleGetMediaComments(params);
+  },
+  getNotifications: async () => {
+    return await handleGetNotifications({});
   },
   likeMedia: async (params) => {
     return await handleLikeMedia(params);
@@ -191,6 +195,9 @@ async function handleMessage(message: IgRequestMessage): Promise<any> {
 
     case 'command.ig_get_media_comments':
       return await handleGetMediaComments(params);
+
+    case 'command.ig_get_notifications':
+      return await handleGetNotifications(params);
 
     case 'command.ig_search':
       return await handleSearch(params);
@@ -395,6 +402,19 @@ async function handleSearch(params: Record<string, any>): Promise<any> {
     query: result.query,
     endCursor: result.endCursor,
     startCursor: result.startCursor,
+  };
+}
+
+async function handleGetNotifications(params: Record<string, any>): Promise<any> {
+  const result = await igApi.getNotifications(params);
+
+  return {
+    success: true,
+    notifications: result.notifications,
+    newStories: result.newStories,
+    oldStories: result.oldStories,
+    hasMore: result.hasMore,
+    partition: result.partition,
   };
 }
 

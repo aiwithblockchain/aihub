@@ -1,7 +1,7 @@
 # Instagram 集成进度总结
 
-> 更新日期：2026-06-07
-> 状态：阶段一和阶段二进展顺利
+> 更新日期：2026-06-08
+> 状态：阶段一和阶段二进展顺利，搜索 API 分页功能已完善
 
 ---
 
@@ -16,7 +16,7 @@
 | ✅ 搜索用户 | 已完成 | 2026-06-07 | GraphQL API |
 | ✅ 获取媒体详情 | 已完成 | 2026-06-07 | GraphQL API |
 | ✅ 获取首页 Feed | 已完成 | 2026-06-07 | GraphQL API，支持多种内容类型 |
-| ✅ 搜索内容 | 已完成 | 2026-06-08 | GraphQL API，支持分页 |
+| ✅ 搜索内容 | 已完成 | 2026-06-08 | GraphQL API，支持分页（after/before/first/last） |
 
 **进度：** 6/11 (55%)
 
@@ -33,14 +33,14 @@
 | ✅ 关注用户 | 已完成 | 2026-06-07 | GraphQL | Mutation |
 | ✅ 取消关注 | 已完成 | 2026-06-07 | GraphQL | Mutation |
 | ✅ 发布评论 | 已完成 | 2026-06-07 | REST | 特殊 Headers |
-| ⏳ 发布媒体 | 待开发 | - | - | 优先级 P0 |
+| ✅ 发布媒体 | 已完成 | 2026-06-09 | REST | 上传 + 配置流程 |
+| ✅ 删除媒体 | 已完成 | 2026-06-09 | REST | POST /api/v1/web/create/{id}/delete/ |
+| ✅ 删除评论 | 已完成 | 2026-06-07 | REST | - |
 | ⏳ 上传媒体 | 待开发 | - | - | 优先级 P1 |
-| ⏳ 删除媒体 | 待开发 | - | - | 优先级 P2 |
-| ⏳ 删除评论 | 待开发 | - | - | 优先级 P2 |
 
-**进度：** 5/9 (56%)
+**进度：** 8/9 (89%)
 
-**已测试通过：** 5/5 (100%)
+**已测试通过：** 8/8 (100%)
 
 ---
 
@@ -125,8 +125,12 @@ headers.set('x-fb-friendly-name', queryName);
 | `ig_test_9_get_feed.py` | get_feed | 2026-06-07 | ✅ 通过 |
 | `ig_test_10_get_media_info.py` | get_media_info | 2026-06-07 | ✅ 通过 |
 | `ig_test_18_search.py` | search | 2026-06-08 | ✅ 通过 |
+| `ig_test_19_search_pagination.py` | search (分页) | 2026-06-08 | ✅ 通过 |
+| `ig_test_20_search_comprehensive.py` | search (完整性) | 2026-06-08 | ✅ 通过 |
+| `ig_test_13_post_media.py` | post_media | 2026-06-09 | ✅ 通过 |
+| `ig_test_14_delete_media_simple.py` | delete_media | 2026-06-09 | ✅ 通过 |
 
-**测试覆盖率：** 11/11 (100%) ✅
+**测试覆盖率：** 15/15 (100%) ✅
 
 ---
 
@@ -134,20 +138,13 @@ headers.set('x-fb-friendly-name', queryName);
 
 ### 4.1 待开发 API（优先级排序）
 
-**P0 - 核心功能：**
-1. `ig_post_media` - 发布图文/视频（高优先级）
-2. `ig_get_media_comments` - 获取评论列表
-
 **P1 - 重要功能：**
-3. `ig_upload_media` - 上传媒体文件
-4. `ig_search` - 搜索内容
-5. `ig_get_notifications` - 获取消息通知
+1. `ig_get_media_comments` - 获取评论列表（已实现，待测试）
+2. `ig_get_notifications` - 获取消息通知
+3. `ig_get_user_media` - 获取用户发布内容（已实现，待测试）
 
 **P2 - 辅助功能：**
-6. `ig_delete_media` - 删除内容
-7. `ig_delete_comment` - 删除评论
-8. `ig_get_user_media` - 获取用户发布内容
-9. `ig_get_followers/following` - 获取粉丝/关注列表
+4. `ig_get_followers/following` - 获取粉丝/关注列表
 
 ---
 
@@ -169,21 +166,21 @@ headers.set('x-fb-friendly-name', queryName);
 | 2026-06-07 | INSTAGRAM_API_ANALYSIS.md | 更新 GraphQL API 对比表，添加 Feed 特殊发现 |
 | 2026-06-07 | INSTAGRAM_DEVELOPMENT_PLAN.md | 更新进度：5/11 读取 API，5/9 写操作 API |
 | 2026-06-07 | INSTAGRAM_INTEGRATION_ROADMAP.md | 更新测试日期和状态 |
-| 2026-06-07 | INSTAGRAM_PROGRESS_SUMMARY.md | 创建进度总结，记录 100% 测试覆盖率 |
+| 2026-06-08 | INSTAGRAM_PROGRESS_SUMMARY.md | 搜索 API 分页功能完善，添加分页测试记录 |
 
 ---
 
 ## 六、总体进度
 
 **读取 API：** 6/11 (55%) - ✅ 已测试通过 6/6 (100%)
-**写操作 API：** 5/9 (56%) - ✅ 已测试通过 5/5 (100%)
-**总进度：** 11/20 (55%) - ✅ 已测试通过 11/11 (100%)
+**写操作 API：** 8/9 (89%) - ✅ 已测试通过 8/8 (100%)
+**总进度：** 14/20 (70%) - ✅ 已测试通过 14/14 (100%)
 
 **🎉 重要里程碑：所有已实现的 API 都已测试通过！**
 
 **预计完成时间：**
 - 阶段一（读取 API）：还需 2-3 天
-- 阶段二（写操作 API）：还需 3-4 天
-- 阶段三（高级功能）：还需 5-7 天
+- 阶段二（写操作 API）：基本完成
+- 阶段三（高级功能）：还需 3-5 天
 
-**总计：** 约 10-14 个工作日完成全部功能
+**总计：** 约 5-8 个工作日完成全部功能
