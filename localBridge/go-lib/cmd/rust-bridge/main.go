@@ -264,7 +264,7 @@ func rustBridgeAPIDocsCandidates() []string {
 }
 
 func registerRustBridgeRoutes(mux *http.ServeMux) {
-	mux.HandleFunc("/api/v1/x/docs", restapi.NewAPIDocsHandler(rustBridgeAPIDocsCandidates()))
+	mux.HandleFunc("/api/v1/docs", restapi.NewAPIDocsHandler(rustBridgeAPIDocsCandidates()))
 	mux.HandleFunc("/api/v1/x/oauth/access-token", handleXOAuthAccessToken)
 	mux.HandleFunc("/oauth/callback", handleXOAuthCallback)
 	mux.HandleFunc("/oauth/google/callback", handleGoogleOAuthCallback)
