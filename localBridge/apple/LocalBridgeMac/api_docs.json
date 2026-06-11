@@ -393,7 +393,7 @@
     "path": "/api/v1/tasks/{taskId}/input/{partIndex}",
     "description": "Uploads a binary chunk of the task input. The part_index starts at 0 and increments by 1 for each chunk. The Content-Type header must be 'application/octet-stream'. Each part can be up to 5MB. After all parts are uploaded, call the seal endpoint.",
     "description_zh": "上传任务输入的二进制分片。part_index 从 0 开始，每次递增 1。Content-Type 头必须为 'application/octet-stream'。每个分片最大 5MB。所有分片上传完成后，调用封包接口。",
-    "curl": "curl -X PUT http://127.0.0.1:10088/api/v1/tasks/task_abc123/input/0 \\\n     -H 'Content-Type: application/octet-stream' \\\n     --data-binary @chunk0.bin",
+    "curl": "curl -X PUT http://127.0.0.1:10088/api/v1/tasks/task_abc123/input/0 -H 'Content-Type: application/octet-stream' --data-binary @chunk0.bin",
     "response": "{\"success\":true,\"partIndex\":0,\"bytesReceived\":5242880}",
     "platform": "通用"
   },
