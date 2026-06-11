@@ -1254,7 +1254,7 @@ class LocalBridgeWebSocketServer {
                     self.handleGenericQueryHttpRequest(connection, requestData: data, type: .requestQueryUserProfile, parsedRequest: parsedRequest)
                 } else if request.contains("GET /api/v1/x/search") {
                     self.handleGenericQueryHttpRequest(connection, requestData: data, type: .requestQuerySearchTimeline, parsedRequest: parsedRequest)
-                } else if request.contains("GET /api/v1/x/instances") {
+                } else if request.contains("GET /api/v1/instances") {
                     self.handleInstancesHttpRequest(connection)
                 } else if request.contains("GET /api/v1/x/docs") {
                     print("[LocalBridgeMac] ===== Matched /api/v1/x/docs route =====")
@@ -2027,8 +2027,7 @@ class LocalBridgeWebSocketServer {
                     "instanceId": instanceId,
                     "connectedAt": formatter.string(from: session.connectedAt),
                     "lastSeenAt": formatter.string(from: session.lastSeenAt),
-                    "clientVersion": session.clientVersion,
-                    "capabilities": session.capabilities
+                    "clientVersion": session.clientVersion
                 ]
                 if let instanceName = session.instanceName {
                     item["instanceName"] = instanceName
