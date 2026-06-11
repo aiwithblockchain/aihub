@@ -4,7 +4,7 @@
 
 本文档聚焦 `LocalBridgeMCP` 的第一条真实可运行链路：
 
-> **通过 MCP 暴露 `list_x_instances` tool，并将其路由到 LocalBridge 现有的 `GET /api/v1/x/instances` REST API。**
+> **通过 MCP 暴露 `list_x_instances` tool，并将其路由到 LocalBridge 现有的 `GET /api/v1/instances` REST API。**
 
 这条链路的意义不是功能复杂，而是它最适合作为首个端到端验证目标，因为它同时覆盖了：
 
@@ -52,7 +52,7 @@
 MCP Client
   -> LocalBridgeMCP tool: list_x_instances
   -> XApiAdapter.listInstances()
-  -> LocalBridgeClient.get('/api/v1/x/instances')
+  -> LocalBridgeClient.get('/api/v1/instances')
   -> LocalBridge REST API
   -> 返回实例列表
   -> MCP 统一结果包装

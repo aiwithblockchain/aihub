@@ -222,7 +222,6 @@ MCP 层对外暴露稳定错误码，而不是直接透出内部错误文本。
         "instanceName": "mac-pro-main",
         "clientName": "tweetClaw",
         "clientVersion": "0.3.17",
-        "capabilities": ["query_x_tabs_status", "query_x_basic_info"],
         "connectedAt": "2025-01-01T10:00:00Z",
         "lastSeenAt": "2025-01-01T10:05:00Z",
         "isTemporary": false
@@ -238,7 +237,7 @@ MCP 层对外暴露稳定错误码，而不是直接透出内部错误文本。
 ```
 
 ## 对应现有能力
-- `GET /api/v1/x/instances`
+- `GET /api/v1/instances`
 
 ## 典型错误
 - `LOCALBRIDGE_NOT_READY`
@@ -837,7 +836,7 @@ MCP 层对外暴露稳定错误码，而不是直接透出内部错误文本。
 
 | MCP Tool | LocalBridge REST API |
 |---|---|
-| `list_x_instances` | `GET /api/v1/x/instances` |
+| `list_x_instances` | `GET /api/v1/instances` |
 | `get_x_status` | `GET /api/v1/x/status` |
 | `get_x_basic_info` | `GET /api/v1/x/basic_info` |
 | `get_home_timeline` | `GET /api/v1/x/timeline` |
