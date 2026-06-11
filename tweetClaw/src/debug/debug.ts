@@ -415,12 +415,9 @@ chrome.runtime.onMessage.addListener((message) => {
 async function checkBridge(): Promise<void> {
     if (selectedTabId === null) { bridgeOnline = false; return; }
     try {
-        const resp: any = await new Promise(r => {
-            chrome.tabs.sendMessage(selectedTabId!, { type: 'TC_PING' }, res => {
-                if (chrome.runtime.lastError) r({ ok: false });
-                else r(res || { ok: false });
-            });
-        });
+        // Manifest V3: 使用 Promise 风格
+        const resp: any = await chrome.tabs.sendMessage(selectedTabId, { type: 'TC_PING' })
+            .catch(() => ({ ok: false }));
         bridgeOnline = !!(resp?.ok);
     } catch {
         bridgeOnline = false;

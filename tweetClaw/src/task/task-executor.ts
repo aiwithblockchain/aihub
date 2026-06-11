@@ -6,6 +6,7 @@ import { ErrorHandler } from './error-handler';
 import { logger } from './logger';
 import { ResultUploaderImpl, TaskExecutorConfig } from './result-uploader';
 import { BackgroundTaskParams, StartTaskRequest, TaskContext } from './types';
+import { sendMessageToTab } from '../utils/message-utils';
 
 function base64ToUint8Array(base64: string): Uint8Array {
   const binary = atob(base64);
@@ -41,7 +42,7 @@ export class BackgroundTaskCoordinator {
     for (const [taskId, context] of this.runningTasks) {
       context.cancellationToken.cancel();
       if (context.tabId) {
-        void chrome.tabs.sendMessage(context.tabId, {
+        void sendMessageToTab(context.tabId, {
           type: 'CANCEL_CONTENT_TASK',
           taskId
         }).catch(() => {});
@@ -118,7 +119,7 @@ export class BackgroundTaskCoordinator {
 
       logger.info(`[BackgroundTaskCoordinator] Sending message to content, taskId=${taskId}, messageType=${messageType}, session=${session.sessionId}, chunks=${session.transferChunkCount}, bytes=${session.totalBytes}`);
 
-      const startResponse = await chrome.tabs.sendMessage(tabId, {
+      const startResponse = await sendMessageToTab(tabId, {
         type: messageType,
         taskId,
         uploadSessionId: session.sessionId,
@@ -126,8 +127,6 @@ export class BackgroundTaskCoordinator {
         totalBytes: session.totalBytes,
         transferChunkCount: session.transferChunkCount,
         params
-      }).catch((error: any) => {
-        throw new Error(`Failed to start content task: ${error?.message || String(error)}`);
       });
 
       cancellationToken.check();
@@ -160,7 +159,7 @@ export class BackgroundTaskCoordinator {
     context.cancellationToken.cancel();
 
     if (context.tabId) {
-      await chrome.tabs.sendMessage(context.tabId, {
+      await sendMessageToTab(context.tabId, {
         type: 'CANCEL_CONTENT_TASK',
         taskId
       }).catch(error => {

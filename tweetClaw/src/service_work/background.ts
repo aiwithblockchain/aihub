@@ -19,6 +19,7 @@ import { BackgroundTaskCoordinator } from '../task/task-executor';
 import { BackgroundSessionStore } from '../task/background-session-store';
 import { getOrCreateInstanceId } from '../bridge/instance-id';
 import { logger } from '../task/logger';
+import { sendMessageToTab } from '../utils/message-utils';
 
 // ── Type Definitions ──────────────────────────────────────────────────
 interface TwitterResponse {
@@ -563,7 +564,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             try {
                 const tab = await findXhsTab();
                 if (!tab?.id) throw new Error('No Xiaohongshu tab found');
-                const result = await chrome.tabs.sendMessage(tab.id, {
+                const result = await sendMessageToTab(tab.id, {
                     type: 'XHS_SIGN_TEST',
                     url: message.url || '/api/sns/web/v1/homefeed',
                     data: message.data || '',
@@ -676,7 +677,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     sendResponse({ success: false, error: 'No www.xiaohongshu.com tab found' });
                     return;
                 }
-                const resp: any = await chrome.tabs.sendMessage(wwwTabs[0].id, {
+                const resp: any = await sendMessageToTab(wwwTabs[0].id, {
                     type: 'XHS_CALC_RAP_PARAM',
                     apiPath: message.apiPath,
                     body: message.body,
@@ -698,7 +699,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
                     sendResponse({ success: false, error: 'No www.xiaohongshu.com tab found' });
                     return;
                 }
-                const resp: any = await chrome.tabs.sendMessage(wwwTabs[0].id, {
+                const resp: any = await sendMessageToTab(wwwTabs[0].id, {
                     type: 'XHS_CALC_SIGN',
                     apiPath: message.apiPath,
                     body: message.body,
@@ -771,10 +772,8 @@ export async function queryXBasicInfo() {
     }
 
     // 委托 Content Script 调用推特 API 并返回原始响应
-    const result: any = await chrome.tabs.sendMessage(targetTab.id, {
+    const result: any = await sendMessageToTab(targetTab.id, {
         type: 'FETCH_SETTINGS_AND_PROFILE',
-    }).catch((e: any) => {
-        throw new Error(`Failed to communicate with content script: ${e?.message}`);
     });
 
     if (!result?.success) {
@@ -799,9 +798,7 @@ async function findXhsTab(): Promise<chrome.tabs.Tab | null> {
 /** 向小红书 content script 发消息，返回 result.data 或抛错 */
 async function sendXhsMessage(tab: chrome.tabs.Tab, msg: Record<string, any>): Promise<any> {
     if (!tab.id) throw new Error('No valid Xiaohongshu tab');
-    const result: any = await chrome.tabs.sendMessage(tab.id, msg).catch((e: any) => {
-        throw new Error(`Content script communication failed: ${e?.message}`);
-    });
+    const result: any = await sendMessageToTab(tab.id, msg);
     if (!result?.success) {
         throw new Error(result?.error || `XHS command failed: ${msg.type}`);
     }
@@ -828,7 +825,7 @@ export async function queryXhsAccountInfo() {
         throw new Error('No Xiaohongshu tab found');
     }
 
-    const result: any = await chrome.tabs.sendMessage(targetTab.id, {
+    const result: any = await sendMessageToTab(targetTab.id, {
         type: 'XHS_FETCH_CURRENT_USER',
     }).catch((e: any) => {
         throw new Error(`Failed to communicate with content script: ${e?.message}`);
@@ -852,7 +849,7 @@ export async function queryXhsFeed(payload: Record<string, unknown> = {}) {
         throw new Error('No Xiaohongshu tab found');
     }
 
-    const result: any = await chrome.tabs.sendMessage(targetTab.id, {
+    const result: any = await sendMessageToTab(targetTab.id, {
         type: 'XHS_FETCH_FEED',
         ...payload,
     }).catch((e: any) => {
@@ -979,7 +976,7 @@ export async function execAction(payload: ExecActionPayload): Promise<TwitterRes
     }
 
     // 委托 Content Script 执行操作并返回推特原始响应
-    const result = await chrome.tabs.sendMessage(targetTabId, {
+    const result = await sendMessageToTab(targetTabId, {
         type: MsgType.EXECUTE_ACTION,
         ...payload,
     }).catch((e: any) => {
@@ -1005,7 +1002,7 @@ export async function queryHomeTimeline(payload: QueryTimelinePayload): Promise<
     }
 
     // 委托 Content Script 调用推特 API 并返回原始响应
-    const result = await chrome.tabs.sendMessage(targetTabId, {
+    const result = await sendMessageToTab(targetTabId, {
         type: 'FETCH_HOME_TIMELINE'
     }).catch((e: any) => {
         throw new Error(`Failed to fetch timeline: ${e?.message}`);
@@ -1035,7 +1032,7 @@ export async function queryTweetReplies(payload: QueryTweetRepliesPayload): Prom
     }
 
     // 委托 Content Script 调用推特 API 并返回原始响应
-    const result = await chrome.tabs.sendMessage(targetTabId, {
+    const result = await sendMessageToTab(targetTabId, {
         type: 'FETCH_TWEET_REPLIES',
         tweetId,
         cursor
@@ -1065,7 +1062,7 @@ export async function queryTweetDetail(payload: QueryTweetPayload): Promise<Twit
     }
 
     // 委托 Content Script 调用推特 API 并返回原始响应
-    const result = await chrome.tabs.sendMessage(targetTabId, {
+    const result = await sendMessageToTab(targetTabId, {
         type: 'FETCH_TWEET_DETAIL',
         tweetId
     });
@@ -1094,7 +1091,7 @@ export async function queryUserProfile(payload: QueryUserProfilePayload): Promis
     }
 
     // 委托 Content Script 调用推特 API 并返回原始响应
-    const result = await chrome.tabs.sendMessage(targetTabId, {
+    const result = await sendMessageToTab(targetTabId, {
         type: 'FETCH_USER_PROFILE',
         screenName
     });
@@ -1120,7 +1117,7 @@ export async function querySearchTimeline(payload: QuerySearchTimelinePayload): 
     }
 
     // 委托 Content Script 调用推特 API 并返回原始响应
-    const result = await chrome.tabs.sendMessage(targetTabId, {
+    const result = await sendMessageToTab(targetTabId, {
         type: 'FETCH_SEARCH_TIMELINE',
         query,
         cursor,
@@ -1148,7 +1145,7 @@ export async function queryUserTweets(payload: QueryUserTweetsPayload): Promise<
     }
 
     // 委托 Content Script 调用推特 API 并返回原始响应
-    const result = await chrome.tabs.sendMessage(targetTabId, {
+    const result = await sendMessageToTab(targetTabId, {
         type: 'FETCH_USER_TWEETS',
         userId,
         cursor,
@@ -1174,7 +1171,7 @@ export async function queryFollowers(payload: QueryFollowersPayload): Promise<Tw
     }
     if (!targetTabId) throw new Error('No x.com tab found');
 
-    const result = await chrome.tabs.sendMessage(targetTabId, {
+    const result = await sendMessageToTab(targetTabId, {
         type: 'FETCH_FOLLOWERS_PAGE',
         userId,
         cursor,
@@ -1199,7 +1196,7 @@ export async function queryFollowing(payload: QueryFollowingPayload): Promise<Tw
     }
     if (!targetTabId) throw new Error('No x.com tab found');
 
-    const result = await chrome.tabs.sendMessage(targetTabId, {
+    const result = await sendMessageToTab(targetTabId, {
         type: 'FETCH_FOLLOWING_PAGE',
         userId,
         cursor,
@@ -1224,7 +1221,7 @@ export async function queryBlueVerifiedFollowers(payload: QueryBlueVerifiedFollo
     }
     if (!targetTabId) throw new Error('No x.com tab found');
 
-    const result = await chrome.tabs.sendMessage(targetTabId, {
+    const result = await sendMessageToTab(targetTabId, {
         type: 'FETCH_BLUE_VERIFIED_FOLLOWERS_PAGE',
         userId,
         cursor,
@@ -1256,7 +1253,7 @@ export async function queryXhsSearch(payload: Record<string, unknown> = {}) {
         throw new Error('No Xiaohongshu tab found');
     }
 
-    const result: any = await chrome.tabs.sendMessage(targetTab.id, {
+    const result: any = await sendMessageToTab(targetTab.id, {
         type: 'XHS_SEARCH_NOTES',
         ...payload,
     }).catch((e: any) => {
@@ -1281,7 +1278,7 @@ export async function queryXhsUserNotes(payload: Record<string, unknown> = {}) {
         throw new Error('No Xiaohongshu tab found');
     }
 
-    const result: any = await chrome.tabs.sendMessage(targetTab.id, {
+    const result: any = await sendMessageToTab(targetTab.id, {
         type: 'XHS_FETCH_USER_NOTES',
         ...payload,
     }).catch((e: any) => {
@@ -1324,7 +1321,7 @@ async function getOrOpenCreatorTab(): Promise<number> {
         // 阶段一：content script 响应 PING
         if (!pingOk) {
             try {
-                const pong: any = await chrome.tabs.sendMessage(tabId, { type: 'XHS_PING' });
+                const pong: any = await sendMessageToTab(tabId, { type: 'XHS_PING' });
                 if (pong?.ok) {
                     pingOk = true;
                     console.log(`[TweetClaw-BG] creator tab content script ready: tabId=${tabId}`);
@@ -1337,7 +1334,7 @@ async function getOrOpenCreatorTab(): Promise<number> {
         // 阶段二：签名函数 _webmsxyw 就绪（通过 SIGN_TEST 验证）
         if (pingOk) {
             try {
-                const signResult: any = await chrome.tabs.sendMessage(tabId, {
+                const signResult: any = await sendMessageToTab(tabId, {
                     type: 'XHS_SIGN_TEST',
                     url: '/api/sns/web/v2/user/me',
                     data: '',
@@ -1371,7 +1368,7 @@ export async function publishXhsImageNote(payload: Record<string, unknown> = {})
     // x-rap-param 通过 background 转发给 www.xiaohongshu.com tab 计算
     const tabId = await getOrOpenCreatorTab();
 
-    const result: any = await chrome.tabs.sendMessage(tabId, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'XHS_PUBLISH_IMAGE_NOTE',
         ...payload,
     }).catch((e: any) => {
@@ -1394,7 +1391,7 @@ export async function publishXhsVideoNote(payload: Record<string, unknown> = {})
 
     const tabId = await getOrOpenCreatorTab();
 
-    const result: any = await chrome.tabs.sendMessage(tabId, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'XHS_PUBLISH_VIDEO_NOTE',
         ...payload,
     }).catch((e: any) => {
@@ -1434,7 +1431,7 @@ export async function checkXhsSignHealth(_payload?: any): Promise<{
             console.log(`[TweetClaw-BG] checkXhsSignHealth: auto-opened creator tab tabId=${newTabId}, re-checking health...`);
 
             // 重新发健康检查消息
-            const retryResult: any = await chrome.tabs.sendMessage(newTabId, {
+            const retryResult: any = await sendMessageToTab(newTabId, {
                 type: 'XHS_CHECK_SIGN_HEALTH',
             }).catch((e: any) => ({
                 success: false,
@@ -1461,7 +1458,7 @@ export async function checkXhsSignHealth(_payload?: any): Promise<{
 
     console.log(`[TweetClaw-BG] checkXhsSignHealth: found creator tab tabId=${tab.id}, url=${tab.url}`);
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'XHS_CHECK_SIGN_HEALTH',
     }).catch((e: any) => ({
         success: false,
@@ -1497,7 +1494,7 @@ export async function getXhsNoteComments(payload: Record<string, unknown>): Prom
         throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'XHS_FETCH_NOTE_COMMENTS',
         ...payload,
     }).catch((e: any) => {
@@ -1521,7 +1518,7 @@ export async function getXhsUserInfo(payload: Record<string, unknown>): Promise<
         throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'XHS_FETCH_USER_INFO',
         ...payload,
     }).catch((e: any) => {
@@ -1542,7 +1539,7 @@ export async function searchXhsTopics(payload: Record<string, unknown>): Promise
     console.log('[TweetClaw-BG] searchXhsTopics called', payload);
     const tabId = await getOrOpenCreatorTab();
 
-    const result: any = await chrome.tabs.sendMessage(tabId, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'XHS_SEARCH_TOPICS',
         ...payload,
     }).catch((e: any) => {
@@ -1566,7 +1563,7 @@ export async function getXhsNotifications(payload: Record<string, unknown>): Pro
         throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'XHS_FETCH_NOTIFICATIONS',
         ...payload,
     }).catch((e: any) => {
@@ -1590,7 +1587,7 @@ export async function getXhsPublishedNotes(payload: Record<string, unknown>): Pr
     const tabId = await getOrOpenCreatorTab();
 
     console.log(`[TweetClaw-BG] Sending XHS_FETCH_PUBLISHED_NOTES to creator tab ${tabId}`);
-    const result: any = await chrome.tabs.sendMessage(tabId, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'XHS_FETCH_PUBLISHED_NOTES',
         page: payload.page,
     }).catch((e: any) => {
@@ -1612,7 +1609,7 @@ export async function getXhsSearchFilter(payload: Record<string, unknown>): Prom
         throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'XHS_SEARCH_FILTER',
         ...payload,
     }).catch((e: any) => {
@@ -1634,7 +1631,7 @@ export async function postXhsComment(payload: Record<string, unknown>): Promise<
         throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'XHS_POST_COMMENT',
         ...payload,
     }).catch((e: any) => {
@@ -1656,7 +1653,7 @@ export async function searchXhsUsers(payload: Record<string, unknown>): Promise<
         throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'XHS_SEARCH_USERS',
         ...payload,
     }).catch((e: any) => {
@@ -1679,7 +1676,7 @@ export async function followXhsUser(payload: Record<string, unknown>): Promise<a
     }
     console.log('[TweetClaw-BG] followXhsUser using tab', { tabId: tab.id, url: tab.url });
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'XHS_FOLLOW_USER',
         ...payload,
     }).catch((e: any) => {
@@ -1708,7 +1705,7 @@ export async function unfollowXhsUser(payload: Record<string, unknown>): Promise
     }
     console.log('[TweetClaw-BG] unfollowXhsUser using tab', { tabId: tab.id, url: tab.url });
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'XHS_UNFOLLOW_USER',
         ...payload,
     }).catch((e: any) => {
@@ -1737,7 +1734,7 @@ export async function deleteXhsNote(payload: Record<string, unknown>): Promise<a
     }
     console.log('[TweetClaw-BG] deleteXhsNote using tab', { tabId: tab.id, url: tab.url });
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'XHS_DELETE_NOTE',
         ...payload,
     }).catch((e: any) => {
@@ -1766,7 +1763,7 @@ export async function collectXhsNote(payload: Record<string, unknown>): Promise<
     }
     console.log('[TweetClaw-BG] collectXhsNote using tab', { tabId: tab.id, url: tab.url });
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'XHS_COLLECT_NOTE',
         ...payload,
     }).catch((e: any) => {
@@ -1795,7 +1792,7 @@ export async function getXhsIntimacyList(payload: Record<string, unknown> = {}):
     }
     console.log('[TweetClaw-BG] getXhsIntimacyList using tab', { tabId: tab.id, url: tab.url });
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'XHS_GET_INTIMACY_LIST',
         ...payload,
     }).catch((e: any) => {
@@ -1824,7 +1821,7 @@ export async function deleteXhsComment(payload: Record<string, unknown>): Promis
     }
     console.log('[TweetClaw-BG] deleteXhsComment using tab', { tabId: tab.id, url: tab.url });
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'XHS_DELETE_COMMENT',
         ...payload,
     }).catch((e: any) => {
@@ -1853,7 +1850,7 @@ export async function unlikeXhsNote(payload: Record<string, unknown>): Promise<a
     }
     console.log('[TweetClaw-BG] unlikeXhsNote using tab', { tabId: tab.id, url: tab.url });
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'XHS_UNLIKE_NOTE',
         ...payload,
     }).catch((e: any) => {
@@ -1882,7 +1879,7 @@ export async function likeXhsNote(payload: Record<string, unknown>): Promise<any
     }
     console.log('[TweetClaw-BG] likeXhsNote using tab', { tabId: tab.id, url: tab.url });
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'XHS_LIKE_NOTE',
         ...payload,
     }).catch((e: any) => {
@@ -1908,7 +1905,7 @@ export async function getXhsFriendFans(payload: Record<string, unknown> = {}): P
     const tabId = await getOrOpenCreatorTab();
     if (!tabId) throw new Error('No Xiaohongshu creator tab found.');
 
-    const result: any = await chrome.tabs.sendMessage(tabId, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'XHS_GET_FRIEND_FANS',
         ...payload,
     }).catch((e: any) => { throw new Error(`Content script communication failed: ${e?.message}`); });
@@ -1921,7 +1918,7 @@ export async function createXhsCollection(payload: Record<string, unknown>): Pro
     const tabId = await getOrOpenCreatorTab();
     if (!tabId) throw new Error('No Xiaohongshu creator tab found.');
 
-    const result: any = await chrome.tabs.sendMessage(tabId, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'XHS_CREATE_COLLECTION',
         ...payload,
     }).catch((e: any) => { throw new Error(`Content script communication failed: ${e?.message}`); });
@@ -1934,7 +1931,7 @@ export async function listXhsCollections(payload: Record<string, unknown> = {}):
     const tabId = await getOrOpenCreatorTab();
     if (!tabId) throw new Error('No Xiaohongshu creator tab found.');
 
-    const result: any = await chrome.tabs.sendMessage(tabId, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'XHS_LIST_COLLECTIONS',
         ...payload,
     }).catch((e: any) => { throw new Error(`Content script communication failed: ${e?.message}`); });
@@ -1947,7 +1944,7 @@ export async function listXhsCollectionNotes(payload: Record<string, unknown>): 
     const tabId = await getOrOpenCreatorTab();
     if (!tabId) throw new Error('No Xiaohongshu creator tab found.');
 
-    const result: any = await chrome.tabs.sendMessage(tabId, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'XHS_LIST_COLLECTION_NOTES',
         ...payload,
     }).catch((e: any) => { throw new Error(`Content script communication failed: ${e?.message}`); });
@@ -1960,7 +1957,7 @@ export async function updateXhsCollection(payload: Record<string, unknown>): Pro
     const tabId = await getOrOpenCreatorTab();
     if (!tabId) throw new Error('No Xiaohongshu creator tab found.');
 
-    const result: any = await chrome.tabs.sendMessage(tabId, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'XHS_UPDATE_COLLECTION',
         ...payload,
     }).catch((e: any) => { throw new Error(`Content script communication failed: ${e?.message}`); });
@@ -1975,7 +1972,7 @@ export async function getXhsNoteDetailStats(payload: Record<string, unknown>): P
     const tabId = await getOrOpenCreatorTab();
 
     console.log(`[TweetClaw-BG] Sending XHS_FETCH_NOTE_DETAIL_STATS to creator tab ${tabId}`);
-    const result: any = await chrome.tabs.sendMessage(tabId, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'XHS_FETCH_NOTE_DETAIL_STATS',
         note_id: payload.note_id,
     }).catch((e: any) => {
@@ -2006,7 +2003,7 @@ export async function igCheckLogin(payload: Record<string, unknown>): Promise<an
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'command.ig_check_login',
         params: payload,
     }).catch((e: any) => {
@@ -2027,7 +2024,7 @@ export async function igGetSelfInfo(payload: Record<string, unknown>): Promise<a
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'command.ig_get_self_info',
         params: payload,
     }).catch((e: any) => {
@@ -2048,7 +2045,7 @@ export async function igGetUserInfo(payload: Record<string, unknown>): Promise<a
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'command.ig_get_user_info',
         params: payload,
     }).catch((e: any) => {
@@ -2069,7 +2066,7 @@ export async function igSearchUser(payload: Record<string, unknown>): Promise<an
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'command.ig_search_user',
         params: payload,
     }).catch((e: any) => {
@@ -2090,7 +2087,7 @@ export async function igGetFeed(payload: Record<string, unknown>): Promise<any> 
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'command.ig_get_feed',
         params: payload,
     }).catch((e: any) => {
@@ -2111,7 +2108,7 @@ export async function igGetMedia(payload: Record<string, unknown>): Promise<any>
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'command.ig_get_media',
         params: payload,
     }).catch((e: any) => {
@@ -2132,7 +2129,7 @@ export async function igLikeMedia(payload: Record<string, unknown>): Promise<any
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'command.ig_like_media',
         params: payload,
     }).catch((e: any) => {
@@ -2153,7 +2150,7 @@ export async function igUnlikeMedia(payload: Record<string, unknown>): Promise<a
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'command.ig_unlike_media',
         params: payload,
     }).catch((e: any) => {
@@ -2174,7 +2171,7 @@ export async function igFollowUser(payload: Record<string, unknown>): Promise<an
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'command.ig_follow_user',
         params: payload,
     }).catch((e: any) => {
@@ -2195,7 +2192,7 @@ export async function igUnfollowUser(payload: Record<string, unknown>): Promise<
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'command.ig_unfollow_user',
         params: payload,
     }).catch((e: any) => {
@@ -2216,7 +2213,7 @@ export async function igPostComment(payload: Record<string, unknown>): Promise<a
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'command.ig_post_comment',
         params: payload,
     }).catch((e: any) => {
@@ -2237,7 +2234,7 @@ export async function igDeleteComment(payload: Record<string, unknown>): Promise
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'command.ig_delete_comment',
         params: payload,
     }).catch((e: any) => {
@@ -2258,7 +2255,7 @@ export async function igPostMedia(payload: Record<string, unknown>): Promise<any
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'command.ig_post_media',
         params: payload,
     }).catch((e: any) => {
@@ -2279,7 +2276,7 @@ export async function igDeleteMedia(payload: Record<string, unknown>): Promise<a
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'command.ig_delete_media',
         params: payload,
     }).catch((e: any) => {
@@ -2300,7 +2297,7 @@ export async function igGetUserMedia(payload: Record<string, unknown>): Promise<
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'command.ig_get_user_media',
         params: payload,
     }).catch((e: any) => {
@@ -2321,7 +2318,7 @@ export async function igGetMediaComments(payload: Record<string, unknown>): Prom
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'command.ig_get_media_comments',
         params: payload,
     }).catch((e: any) => {
@@ -2342,7 +2339,7 @@ export async function igSearch(payload: Record<string, unknown>): Promise<any> {
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'command.ig_search',
         params: payload,
     }).catch((e: any) => {
@@ -2363,7 +2360,7 @@ export async function igGetNotifications(payload: Record<string, unknown>): Prom
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'command.ig_get_notifications',
         params: payload,
     }).catch((e: any) => {
@@ -2384,7 +2381,7 @@ export async function igGetFollowers(payload: Record<string, unknown>): Promise<
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'command.ig_get_followers',
         params: payload,
     }).catch((e: any) => {
@@ -2405,7 +2402,7 @@ export async function igGetFollowing(payload: Record<string, unknown>): Promise<
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await chrome.tabs.sendMessage(tab.id, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'command.ig_get_following',
         params: payload,
     }).catch((e: any) => {
