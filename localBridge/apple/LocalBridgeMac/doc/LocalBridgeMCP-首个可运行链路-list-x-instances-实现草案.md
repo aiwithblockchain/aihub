@@ -211,7 +211,7 @@ listInstances(): Promise<...>
 因为如果 tool 直接写：
 
 ```ts
-client.get('/api/v1/x/instances')
+client.get('/api/v1/instances')
 ```
 
 那么以后每个 tool 都会：
@@ -233,7 +233,6 @@ export interface XInstance {
   instanceId: string;
   instanceName?: string | null;
   clientVersion?: string;
-  capabilities?: string[];
   connectedAt?: string;
   lastSeenAt?: string;
   isTemporary?: boolean;
@@ -255,7 +254,7 @@ export class XApiAdapter {
   constructor(private readonly deps: XApiAdapterDeps) {}
 
   async listInstances(): Promise<XInstance[]> {
-    return this.deps.client.get<XInstance[]>('/api/v1/x/instances');
+    return this.deps.client.get<XInstance[]>('/api/v1/instances');
   }
 }
 ```
@@ -358,7 +357,6 @@ errorResult(error, meta)
         "instanceId": "a1b2c3",
         "instanceName": "mac-pro-main",
         "clientVersion": "0.3.17",
-        "capabilities": ["query_x_tabs_status"],
         "connectedAt": "2025-01-01T10:00:00Z",
         "lastSeenAt": "2025-01-01T10:05:00Z",
         "isTemporary": false
@@ -520,7 +518,7 @@ export function registerTools(server: McpServer, deps: AppDeps): void {
 先确认：
 
 ```bash
-curl http://127.0.0.1:10088/api/v1/x/instances
+curl http://127.0.0.1:10088/api/v1/instances
 ```
 
 返回正常。
@@ -609,4 +607,4 @@ curl http://127.0.0.1:10088/api/v1/x/instances
 
 ## 18. 一句话总结
 
-> `list_x_instances` 是 LocalBridgeMCP 最适合作为首个端到端验证目标的 tool：它应通过 `listXInstances.ts -> XApiAdapter.listInstances() -> LocalBridgeClient.get('/api/v1/x/instances')` 这条最小链路打通 MCP、adapter 与现有 LocalBridge REST 能力，并用统一结果结构证明整个外挂式 MCP 架构已经成立。
+> `list_x_instances` 是 LocalBridgeMCP 最适合作为首个端到端验证目标的 tool：它应通过 `listXInstances.ts -> XApiAdapter.listInstances() -> LocalBridgeClient.get('/api/v1/instances')` 这条最小链路打通 MCP、adapter 与现有 LocalBridge REST 能力，并用统一结果结构证明整个外挂式 MCP 架构已经成立。
