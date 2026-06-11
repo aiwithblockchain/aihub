@@ -39,7 +39,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	// X (tweetClaw) 端点
 	mux.HandleFunc("/api/v1/x/status", h.xStatus)
 	mux.HandleFunc("/api/v1/x/basic_info", h.xBasicInfo)
-	mux.HandleFunc("/api/v1/x/instances", h.instances)
+	mux.HandleFunc("/api/v1/instances", h.instances)
 	mux.HandleFunc("/api/v1/x/timeline", h.timeline)
 	mux.HandleFunc("/api/v1/x/search", h.searchTimeline)
 	mux.HandleFunc("/api/v1/x/users", h.userProfile)
@@ -481,13 +481,13 @@ func (h *Handler) navigateTab(w http.ResponseWriter, r *http.Request) {
 func (h *Handler) instances(w http.ResponseWriter, _ *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 	allInstances := h.ws.GetInstances()
-	xInstances := make([]websocket.InstanceSnapshot, 0, len(allInstances))
+	instances := make([]websocket.InstanceSnapshot, 0, len(allInstances))
 	for _, instance := range allInstances {
 		if instance.ClientName == "tweetClaw" {
-			xInstances = append(xInstances, instance)
+			instances = append(instances, instance)
 		}
 	}
-	json.NewEncoder(w).Encode(xInstances)
+	json.NewEncoder(w).Encode(instances)
 }
 
 // NewAPIDocsHandler 返回一个 /api/v1/x/docs 的 http.HandlerFunc。
@@ -1405,4 +1405,3 @@ func mergeAction(body json.RawMessage, action string) map[string]interface{} {
 
 func newID(prefix string) string { return prefix + "_" + shortID() }
 func shortID() string            { return uuid.New().String()[:8] }
-

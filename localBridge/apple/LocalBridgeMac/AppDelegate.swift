@@ -194,7 +194,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func fetchInstances() {
-        goServer.sendRESTRequest(method: "GET", path: "/api/v1/x/instances", notificationName: "GetInstancesReceived")
+        goServer.sendRESTRequest(method: "GET", path: "/api/v1/instances", notificationName: "GetInstancesReceived")
     }
 
     func clearBridgeLogs() {

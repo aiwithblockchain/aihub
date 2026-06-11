@@ -81,7 +81,6 @@ type InstanceSnapshot struct {
 	InstanceID    string    `json:"instanceId"`
 	InstanceName  string    `json:"instanceName,omitempty"`
 	ClientVersion string    `json:"clientVersion"`
-	Capabilities  []string  `json:"capabilities"`
 	ConnectedAt   time.Time `json:"connectedAt"`
 	LastSeenAt    time.Time `json:"lastSeenAt"`
 	XScreenName   string    `json:"xScreenName,omitempty"`
@@ -599,7 +598,6 @@ func (s *Server) GetInstances() []InstanceSnapshot {
 				InstanceID:    instanceID,
 				InstanceName:  sess.InstanceName,
 				ClientVersion: sess.ClientVersion,
-				Capabilities:  sess.Capabilities,
 				ConnectedAt:   sess.ConnectedAt,
 				LastSeenAt:    sess.LastSeenAt,
 				XScreenName:   sess.XScreenName,
