@@ -7,18 +7,18 @@
 /**
  * 安全地向 content script 发送消息，带重试机制
  *
- * Manifest V3 兼容性修复：
+ * 重试逻辑直接覆盖 content script 未就绪的情况：
  * - 检查 tab 是否有效且已加载
- * - 使用 PING 消息验证 content script 是否就绪
  * - 失败时自动重试（最多 3 次）
+ * - content script 未注入时，sendMessage 会抛错，进入外层重试
  * - 提供清晰的错误信息
  */
 export async function sendMessageToTab<T = any>(
     tabId: number,
     message: any,
-    options: { maxRetries?: number; retryDelay?: number; skipPing?: boolean } = {}
+    options: { maxRetries?: number; retryDelay?: number } = {}
 ): Promise<T> {
-    const { maxRetries = 3, retryDelay = 500, skipPing = false } = options;
+    const { maxRetries = 3, retryDelay = 500 } = options;
     const messageType = message.type || 'UNKNOWN';
 
     for (let attempt = 1; attempt <= maxRetries; attempt++) {
@@ -30,38 +30,7 @@ export async function sendMessageToTab<T = any>(
                 throw new Error(`Tab ${tabId} no longer exists - cannot retry`);
             }
 
-            // 验证 content script 是否就绪（除非是 PING 消息本身或显式跳过）
-            if (!skipPing && message.type !== 'TC_PING') {
-                try {
-                    // PING 消息带简单重试（最多 2 次）
-                    let pingSuccess = false;
-                    for (let pingAttempt = 1; pingAttempt <= 2; pingAttempt++) {
-                        try {
-                            await chrome.tabs.sendMessage(tabId, { type: 'TC_PING' });
-                            pingSuccess = true;
-                            break;
-                        } catch (pingError) {
-                            if (pingAttempt === 2) throw pingError;
-                            await new Promise(resolve => setTimeout(resolve, 200));
-                        }
-                    }
-
-                    if (!pingSuccess && attempt < maxRetries) {
-                        console.warn(`[sendMessageToTab] Content script not ready on attempt ${attempt}, retrying...`);
-                        await new Promise(resolve => setTimeout(resolve, retryDelay));
-                        continue;
-                    }
-                } catch (pingError) {
-                    if (attempt < maxRetries) {
-                        console.warn(`[sendMessageToTab] Ping failed on attempt ${attempt}, content script may not be ready`);
-                        await new Promise(resolve => setTimeout(resolve, retryDelay));
-                        continue;
-                    }
-                    throw pingError;
-                }
-            }
-
-            // 发送实际消息
+            // 直接发送消息；如果 content script 未就绪，会抛错进入外层重试
             const response = await chrome.tabs.sendMessage(tabId, message);
             return response as T;
 
@@ -84,7 +53,7 @@ export async function sendMessageToTab<T = any>(
                 );
             }
 
-            // 等待后重试
+            // 等待后重试（content script 可能正在注入或页面正在加载）
             await new Promise(resolve => setTimeout(resolve, retryDelay));
         }
     }
