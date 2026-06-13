@@ -10,7 +10,7 @@ final class LocalBridgeGoManager {
         let instanceId: String
         let instanceName: String?
         let clientVersion: String
-        let capabilities: [String]
+        let capabilities: [String]?
         let connectedAt: Date
         let lastSeenAt: Date
         let xScreenName: String?

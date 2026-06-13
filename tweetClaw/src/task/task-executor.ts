@@ -74,7 +74,7 @@ export class BackgroundTaskCoordinator {
     this.runningTasks.set(taskId, context);
 
     try {
-      const SUPPORTED_TASK_KINDS = ['x.media_upload', 'xhs.publish_video'] as const;
+      const SUPPORTED_TASK_KINDS = ['x.media_upload', 'xhs.publish_video', 'ig.publish_video'] as const;
       type SupportedTaskKind = typeof SUPPORTED_TASK_KINDS[number];
 
       if (!SUPPORTED_TASK_KINDS.includes(request.taskKind as SupportedTaskKind)) {
@@ -115,6 +115,8 @@ export class BackgroundTaskCoordinator {
 
       const messageType = request.taskKind === 'xhs.publish_video'
         ? 'START_XHS_PUBLISH_VIDEO_TASK'
+        : request.taskKind === 'ig.publish_video'
+        ? 'START_IG_PUBLISH_VIDEO_TASK'
         : 'START_TASK_UPLOAD_FROM_BG_SESSION';
 
       logger.info(`[BackgroundTaskCoordinator] Sending message to content, taskId=${taskId}, messageType=${messageType}, session=${session.sessionId}, chunks=${session.transferChunkCount}, bytes=${session.totalBytes}`);
@@ -255,6 +257,15 @@ export class BackgroundTaskCoordinator {
       const targetTab = xhsTabs.find(tab => tab.active) || xhsTabs[0];
       if (!targetTab?.id) {
         throw new Error('No xiaohongshu.com tab found for task execution');
+      }
+      return targetTab.id;
+    }
+
+    if (taskKind === 'ig.publish_video') {
+      const igTabs = await chrome.tabs.query({ url: ['*://www.instagram.com/*', '*://instagram.com/*'] });
+      const targetTab = igTabs.find(tab => tab.active) || igTabs[0];
+      if (!targetTab?.id) {
+        throw new Error('No instagram.com tab found for task execution');
       }
       return targetTab.id;
     }

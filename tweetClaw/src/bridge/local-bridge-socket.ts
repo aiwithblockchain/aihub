@@ -370,6 +370,7 @@ export class LocalBridgeSocket {
     this.isConnecting = false;
     this.clearReconnectAlarm();
     this.desiredActive = true;
+    this.connectionGeneration += 1;
     if (this.ws) {
       this.ws.onclose = null; // prevent standard reconnect loop
       this.ws.onerror = null;
@@ -378,12 +379,12 @@ export class LocalBridgeSocket {
       this.ws = null;
     }
     this.reconnectAttempts = 0;
-    void this.connect('manual reconnect');
+    void this.connect('manual reconnect', { host, port });
   }
 
   private isConnecting = false;
 
-  public async connect(reason: string = 'connect called') {
+  public async connect(reason: string = 'connect called', explicit?: { host: string; port: number }) {
     await this.bootstrapLifecycleTrail();
     await this.ensureIdentityLoaded();
 
@@ -418,7 +419,9 @@ export class LocalBridgeSocket {
 
     // Check dynamic host and port
     try {
-      if (typeof chrome !== 'undefined' && chrome.storage) {
+      if (explicit) {
+        this.WS_URL = `ws://${explicit.host}:${explicit.port}/ws`;
+      } else if (typeof chrome !== 'undefined' && chrome.storage) {
         const res = await chrome.storage.local.get(['wsHost', 'wsPort']);
         const host = res.wsHost || '127.0.0.1';
         const port = res.wsPort || DEFAULT_WS_PORT;

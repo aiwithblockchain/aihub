@@ -26,6 +26,7 @@ import type {
   IgCommentParams,
   IgPostMediaParams,
 } from '../ig_api/types';
+import { X_IG_APP_ID } from '../ig_api/constants';
 
 const TAG = '[IgClaw-CS]';
 
@@ -147,8 +148,20 @@ console.log(`${TAG} Usage: await window.igApi.getSelfInfo()`);
 
 // ── 消息监听器 ─────────────────────────────────────────────────────────────
 
-chrome.runtime.onMessage.addListener((message: IgRequestMessage, sender, sendResponse) => {
-  // 只处理 Instagram 相关消息
+chrome.runtime.onMessage.addListener((message: any, sender, sendResponse) => {
+  // 处理分片视频上传任务（来自 background task coordinator）
+  if (message.type === 'START_IG_PUBLISH_VIDEO_TASK') {
+    console.log(`${TAG} Received START_IG_PUBLISH_VIDEO_TASK taskId=${message.taskId}`);
+    handlePublishVideoTask(message).then(() => {
+      sendResponse({ success: true });
+    }).catch((e: any) => {
+      console.error(`${TAG} START_IG_PUBLISH_VIDEO_TASK rejected:`, e?.message || String(e));
+      sendResponse({ success: false, error: e?.message || String(e) });
+    });
+    return true;
+  }
+
+  // 只处理 Instagram command 消息
   if (!message.type || !message.type.startsWith('command.ig_')) {
     return false;
   }
@@ -156,7 +169,7 @@ chrome.runtime.onMessage.addListener((message: IgRequestMessage, sender, sendRes
   console.log(`${TAG} Received message:`, message.type, message.params);
 
   // 异步处理消息
-  handleMessage(message)
+  handleMessage(message as IgRequestMessage)
     .then((result) => {
       console.log(`${TAG} Success:`, message.type, result);
       sendResponse({
@@ -781,3 +794,153 @@ async function handleTestConnection(params: Record<string, any>): Promise<any> {
     console.error(`${TAG} ❌ Initialization error:`, error.message);
   }
 })();
+
+// ============ IG 分片视频上传 Task Handler ============
+
+export async function handlePublishVideoTask(message: any): Promise<void> {
+  const { taskId, uploadSessionId, mimeType, totalBytes, transferChunkCount, params } = message;
+
+  console.log(`${TAG} [START_IG_PUBLISH_VIDEO_TASK] START taskId=${taskId} mimeType=${mimeType} totalBytes=${totalBytes} chunks=${transferChunkCount}`);
+
+  // 立即发送初始进度，告知 background 任务已开始
+  chrome.runtime.sendMessage({
+    type: 'TASK_PROGRESS_FROM_CONTENT',
+    taskId,
+    phase: 'init_upload',
+    progress: 0.05,
+  });
+
+  try {
+    const uploadId = Date.now().toString();
+    const duration = Number(params?.videoDuration || params?.upload_media_duration_ms || 10000);
+    const width = Number(params?.videoWidth || params?.upload_media_width || 720);
+    const height = Number(params?.videoHeight || params?.upload_media_height || 1280);
+
+    console.log(`${TAG} [START_IG_PUBLISH_VIDEO_TASK] upload_id=${uploadId} duration=${duration} ${width}x${height}`);
+
+    // 每个 transfer chunk 是多少字节
+    const transferChunkBytes = Math.ceil(totalBytes / transferChunkCount);
+
+    // 累积缓冲区：用于按需拼装 IG 10MB 分片
+    let buffer = new Uint8Array(0);
+    let fetchedChunks = 0;
+
+    // getChunk 回调：按 offset+size 从 bg session 拉取数据
+    // IG 的每个 chunk 是 10MB，bg session 的每个 transfer chunk 约 5MB
+    // 需要动态从 bg 拉取，累积够 10MB 再上传
+    const getChunk = async (offset: number, size: number): Promise<Uint8Array> => {
+      // 从缓冲区消耗 size 字节，不够时继续从 bg 拉取
+      while (buffer.length < size && fetchedChunks < transferChunkCount) {
+        const resp = await chrome.runtime.sendMessage({
+          type: 'GET_UPLOAD_SESSION_CHUNK',
+          uploadSessionId,
+          chunkIndex: fetchedChunks,
+        });
+
+        if (!resp?.success || !resp.chunkBase64) {
+          throw new Error(resp?.error || `Failed to get chunk ${fetchedChunks}`);
+        }
+
+        const binary = atob(resp.chunkBase64);
+        const chunkBytes = new Uint8Array(binary.length);
+        for (let j = 0; j < binary.length; j++) chunkBytes[j] = binary.charCodeAt(j);
+
+        const merged = new Uint8Array(buffer.length + chunkBytes.length);
+        merged.set(buffer, 0);
+        merged.set(chunkBytes, buffer.length);
+        buffer = merged;
+        fetchedChunks++;
+
+        console.log(`${TAG} [START_IG_PUBLISH_VIDEO_TASK] fetched bg chunk ${fetchedChunks}/${transferChunkCount} bufferSize=${buffer.length}`);
+      }
+
+      const result = buffer.slice(0, size);
+      buffer = buffer.slice(size);
+      return result;
+    };
+
+    // 上传视频（分片）
+    await igApi.uploadVideoChunked(
+      getChunk,
+      totalBytes,
+      uploadId,
+      duration,
+      width,
+      height,
+      (progress) => {
+        chrome.runtime.sendMessage({
+          type: 'TASK_PROGRESS_FROM_CONTENT',
+          taskId,
+          phase: 'uploading',
+          progress: 0.1 + progress * 0.6,
+        });
+      }
+    );
+
+    chrome.runtime.sendMessage({
+      type: 'TASK_PROGRESS_FROM_CONTENT',
+      taskId,
+      phase: 'upload_thumbnail',
+      progress: 0.72,
+    });
+
+    // 上传封面图（thumbnail）
+    const thumbnailBase64: string | undefined = params?.thumbnailBase64;
+    const thumbnailBytes: number[] | undefined = params?.thumbnailBytes;
+
+    let thumbBytes: Uint8Array;
+    if (thumbnailBytes) {
+      thumbBytes = new Uint8Array(thumbnailBytes);
+    } else if (thumbnailBase64) {
+      const bin = atob(thumbnailBase64);
+      thumbBytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) thumbBytes[i] = bin.charCodeAt(i);
+    } else {
+      thumbBytes = igApi.generateDefaultThumbnailPublic(width, height);
+    }
+
+    await igApi.uploadVideoThumbnail(uploadId, thumbBytes, width, height);
+    console.log(`${TAG} [START_IG_PUBLISH_VIDEO_TASK] thumbnail uploaded`);
+
+    chrome.runtime.sendMessage({
+      type: 'TASK_PROGRESS_FROM_CONTENT',
+      taskId,
+      phase: 'configuring',
+      progress: 0.85,
+    });
+
+    // configure_to_clips（轮询直到转码完成）
+    const caption: string = params?.caption || '';
+    const disableComments: boolean = params?.disableComments || params?.disable_comments || false;
+    const shareToThreads: boolean = params?.shareToThreads ?? params?.share_to_threads ?? true;
+
+    const result = await igApi.configureVideo({
+      uploadId,
+      caption,
+      duration,
+      width,
+      height,
+      disableComments,
+      shareToThreads,
+    });
+
+    console.log(`${TAG} [START_IG_PUBLISH_VIDEO_TASK] configured media id=${result.media?.id}`);
+
+    // 上报完成
+    await chrome.runtime.sendMessage({
+      type: 'TASK_COMPLETED_FROM_CONTENT',
+      taskId,
+      contentType: 'application/json',
+      resultBase64: btoa(JSON.stringify(result)),
+    });
+  } catch (e: any) {
+    console.error(`${TAG} [START_IG_PUBLISH_VIDEO_TASK] error:`, e.message);
+    await chrome.runtime.sendMessage({
+      type: 'TASK_FAILED_FROM_CONTENT',
+      taskId,
+      phase: 'publish',
+      errorCode: 'PUBLISH_FAILED',
+      errorMessage: e?.message || String(e),
+    });
+  }
+}

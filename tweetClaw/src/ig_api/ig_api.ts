@@ -1052,16 +1052,8 @@ export class IgApiClient {
   }
 
   /**
-   * 上传视频
-   * API: POST https://i.instagram.com/rupload_igvideo/fb_uploader_{upload_id}
-   *
-   * @param videoBytes - 视频二进制数据
-   * @param mimeType - MIME 类型
-   * @param uploadId - 上传 ID
-   * @param duration - 视频时长（毫秒）
-   * @param width - 视频宽度
-   * @param height - 视频高度
-   * @returns 上传结果
+   * 上传视频（一次性，小文件用，内部供 postMedia 调用）
+   * 对于大文件请使用 uploadVideoChunked
    */
   public async uploadVideo(
     videoBytes: Uint8Array,
@@ -1076,85 +1068,104 @@ export class IgApiClient {
     try {
       console.log(`[IG API] Uploading video: upload_id=${uploadId}, size=${videoBytes.length}, duration=${duration}ms`);
 
-      // 步骤 1: 预检查（GET）
-      const checkHeaders: Record<string, string> = {
-        'accept': '*/*',
-        'accept-language': 'en-US,en;q=0.9',
-        'x-asbd-id': '359341',
-        'x-ig-app-id': X_IG_APP_ID,
-        'x-ig-max-touch-points': '0',
-      };
+      const ruploadParams = this.buildRuploadParams(uploadId, duration, width, height);
 
-      const checkResponse = await fetch(
-        `https://i.instagram.com/rupload_igvideo/fb_uploader_${uploadId}`,
-        {
-          method: 'GET',
-          headers: checkHeaders,
-          credentials: 'include',
-        }
-      );
+      // GET 查询当前进度
+      const offset = await this.queryUploadOffset(uploadId);
+      console.log(`[IG API] Video pre-check offset=${offset}`);
 
-      if (!checkResponse.ok) {
-        const errorText = await checkResponse.text();
-        throw new Error(`Video pre-check failed: HTTP ${checkResponse.status}: ${errorText}`);
-      }
-
-      const checkData = await checkResponse.json();
-      console.log(`[IG API] Video pre-check passed:`, checkData);
-
-      // 步骤 2: 上传视频（POST）
-      const uploadHeaders: Record<string, string> = {
-        'accept': '*/*',
-        'accept-language': 'en-US,en;q=0.9',
-        'content-type': mimeType,
-        'offset': '0',
-        'x-asbd-id': '359341',
-        'x-entity-length': videoBytes.length.toString(),
-        'x-entity-name': `fb_uploader_${uploadId}`,
-        'x-entity-type': mimeType,
-        'x-ig-app-id': X_IG_APP_ID,
-        'x-ig-max-touch-points': '0',
-        'x-instagram-ajax': '1041007766',
-        'x-instagram-rupload-params': JSON.stringify({
-          'client-passthrough': '1',
-          'is_clips_video': '1',
-          'is_sidecar': '0',
-          'media_type': 2,
-          'for_album': false,
-          'video_format': '',
-          'upload_id': uploadId,
-          'upload_media_duration_ms': duration,
-          'upload_media_height': height,
-          'upload_media_width': width,
-          'video_transform': null,
-          'video_edit_params': {
-            'crop_height': height,
-            'crop_width': width,
-            'crop_x1': 0,
-            'crop_y1': 0,
-            'mute': false,
-            'trim_end': duration / 1000,
-            'trim_start': 0,
-          },
-        }),
-      };
-
-      console.log(`[IG API] POST https://i.instagram.com/rupload_igvideo/fb_uploader_${uploadId}`);
-
-      // 将 Uint8Array 转换为 ArrayBuffer
+      // POST 上传（一次性）
       const arrayBuffer = videoBytes.buffer.slice(
         videoBytes.byteOffset,
         videoBytes.byteOffset + videoBytes.byteLength
       ) as ArrayBuffer;
 
+      const uploadHeaders: Record<string, string> = {
+        'accept': '*/*',
+        'accept-language': 'en-US,en;q=0.9',
+        'offset': String(offset),
+        'x-asbd-id': '359341',
+        'x-entity-length': videoBytes.length.toString(),
+        'x-entity-name': `fb_uploader_${uploadId}`,
+        'x-ig-app-id': X_IG_APP_ID,
+        'x-ig-max-touch-points': '0',
+        'x-instagram-ajax': '1041354847',
+        'x-instagram-rupload-params': ruploadParams,
+      };
+
       const response = await fetch(
         `https://i.instagram.com/rupload_igvideo/fb_uploader_${uploadId}`,
-        {
-          method: 'POST',
-          headers: uploadHeaders,
-          body: arrayBuffer,
-          credentials: 'include',
-        }
+        { method: 'POST', headers: uploadHeaders, body: arrayBuffer, credentials: 'include' }
+      );
+
+      const data = await response.json();
+
+      if (!data.media_id && data.debug_info?.type === 'PartialRequestError') {
+        throw new Error('Video upload incomplete (PartialRequestError). Use uploadVideoChunked for large files.');
+      }
+
+      console.log(`[IG API] Video uploaded: upload_id=${uploadId}`);
+      return { upload_id: uploadId, status: 'ok' };
+    } catch (error) {
+      console.error('[IG API] Upload video error:', error);
+      throw error;
+    }
+  }
+
+  /**
+   * 分片上传视频（大文件，抓包验证的真实流程）
+   *
+   * 流程：GET offset → POST chunk → 循环直到 response 含 media_id
+   *
+   * @param getChunk - 回调函数，按 offset 和 size 返回该段的 Uint8Array
+   * @param totalBytes - 视频总大小
+   * @param uploadId - 上传 ID
+   * @param duration - 视频时长（毫秒）
+   * @param width - 视频宽度
+   * @param height - 视频高度
+   * @param onProgress - 进度回调（0~1）
+   * @returns upload_id
+   */
+  public async uploadVideoChunked(
+    getChunk: (offset: number, size: number) => Promise<Uint8Array>,
+    totalBytes: number,
+    uploadId: string,
+    duration: number,
+    width: number,
+    height: number,
+    onProgress?: (progress: number) => void
+  ): Promise<string> {
+    const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB，与抓包一致
+    const ruploadParams = this.buildRuploadParams(uploadId, duration, width, height);
+
+    console.log(`[IG API] uploadVideoChunked start upload_id=${uploadId} totalBytes=${totalBytes}`);
+
+    let offset = await this.queryUploadOffset(uploadId);
+    console.log(`[IG API] Starting from offset=${offset}`);
+
+    while (offset < totalBytes) {
+      const chunkSize = Math.min(CHUNK_SIZE, totalBytes - offset);
+      const chunk = await getChunk(offset, chunkSize);
+
+      const uploadHeaders: Record<string, string> = {
+        'accept': '*/*',
+        'accept-language': 'en-US,en;q=0.9',
+        'offset': String(offset),
+        'x-asbd-id': '359341',
+        'x-entity-length': String(totalBytes),
+        'x-entity-name': `fb_uploader_${uploadId}`,
+        'x-ig-app-id': X_IG_APP_ID,
+        'x-ig-max-touch-points': '0',
+        'x-instagram-ajax': '1041354847',
+        'x-instagram-rupload-params': ruploadParams,
+      };
+
+      console.log(`[IG API] POST chunk offset=${offset} size=${chunk.length}`);
+
+      const arrayBuffer = chunk.buffer.slice(chunk.byteOffset, chunk.byteOffset + chunk.byteLength) as ArrayBuffer;
+      const response = await fetch(
+        `https://i.instagram.com/rupload_igvideo/fb_uploader_${uploadId}`,
+        { method: 'POST', headers: uploadHeaders, body: arrayBuffer, credentials: 'include' }
       );
 
       if (!response.ok) {
@@ -1164,23 +1175,73 @@ export class IgApiClient {
 
       const data = await response.json();
 
-      if (data.status !== 'ok') {
-        throw new Error('Failed to upload video');
+      if (data.media_id) {
+        // 最后一片上传完成
+        console.log(`[IG API] Video upload complete media_id=${data.media_id}`);
+        onProgress?.(1);
+        return uploadId;
       }
 
-      // 使用响应中的 upload_id，如果没有则使用传入的 uploadId
-      const returnedUploadId = data.upload_id || uploadId;
+      if (data.debug_info?.type !== 'PartialRequestError') {
+        throw new Error(`Unexpected response: ${JSON.stringify(data)}`);
+      }
 
-      console.log(`[IG API] Video uploaded: upload_id=${returnedUploadId}`);
-
-      return {
-        upload_id: returnedUploadId,
-        status: data.status,
-      };
-    } catch (error) {
-      console.error('[IG API] Upload video error:', error);
-      throw error;
+      // 上传成功但还有更多分片，查询服务端确认 offset
+      offset = await this.queryUploadOffset(uploadId);
+      console.log(`[IG API] Next offset=${offset}`);
+      onProgress?.(offset / totalBytes);
     }
+
+    console.log(`[IG API] uploadVideoChunked loop ended upload_id=${uploadId}`);
+    return uploadId;
+  }
+
+  private buildRuploadParams(uploadId: string, duration: number, width: number, height: number): string {
+    return JSON.stringify({
+      'client-passthrough': '1',
+      'is_clips_video': '1',
+      'is_sidecar': '0',
+      'media_type': 2,
+      'for_album': false,
+      'video_format': '',
+      'upload_id': uploadId,
+      'upload_media_duration_ms': duration,
+      'upload_media_height': height,
+      'upload_media_width': width,
+      'video_transform': null,
+      'video_edit_params': {
+        'crop_height': height,
+        'crop_width': width,
+        'crop_x1': 0,
+        'crop_y1': 0,
+        'mute': false,
+        'trim_end': duration / 1000,
+        'trim_start': 0,
+      },
+    });
+  }
+
+  private async queryUploadOffset(uploadId: string): Promise<number> {
+    const response = await fetch(
+      `https://i.instagram.com/rupload_igvideo/fb_uploader_${uploadId}`,
+      {
+        method: 'GET',
+        headers: {
+          'accept': '*/*',
+          'accept-language': 'en-US,en;q=0.9',
+          'x-asbd-id': '359341',
+          'x-ig-app-id': X_IG_APP_ID,
+          'x-ig-max-touch-points': '0',
+        },
+        credentials: 'include',
+      }
+    );
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`queryUploadOffset failed: HTTP ${response.status}: ${errorText}`);
+    }
+    const data = await response.json();
+    return Number(data.offset ?? 0);
   }
 
   /**
@@ -1312,6 +1373,13 @@ export class IgApiClient {
 
     console.log(`[IG API] Generated default thumbnail: ${width}x${height}, size=${bytes.length}`);
     return bytes;
+  }
+
+  /**
+   * 生成默认视频封面图片（公开方法，供 content script 使用）
+   */
+  public generateDefaultThumbnailPublic(width: number, height: number): Uint8Array {
+    return this.generateDefaultThumbnail(width, height);
   }
 
   /**
