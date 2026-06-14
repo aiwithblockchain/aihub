@@ -2191,7 +2191,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           type: 'TASK_COMPLETED_FROM_CONTENT',
           taskId,
           contentType: 'application/json',
-          resultBase64: btoa(JSON.stringify(result)),
+          resultBase64: btoa(unescape(encodeURIComponent(JSON.stringify(result)))),
         });
       } catch (e: any) {
         console.error(`${TAG} [START_XHS_PUBLISH_VIDEO_TASK] error:`, e.message);
