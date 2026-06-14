@@ -18,33 +18,24 @@ interface RunningContentTask {
 }
 
 interface ContentTaskRunnerDeps {
-  getUploadSessionChunk?: (uploadSessionId: string, chunkIndex: number) => Promise<string>;
+  getUploadSessionChunk?: (uploadSessionId: string, chunkIndex: number) => Promise<Blob>;
   sendMessage?: (message: any) => Promise<any>;
   sleep?: (ms: number) => Promise<void>;
 }
 
-function base64ToBlob(base64: string, mimeType: string): Blob {
-  const byteString = atob(base64);
-  const buffer = new ArrayBuffer(byteString.length);
-  const bytes = new Uint8Array(buffer);
-  for (let i = 0; i < byteString.length; i++) {
-    bytes[i] = byteString.charCodeAt(i);
-  }
-  return new Blob([buffer], { type: mimeType });
-}
-
-async function defaultGetUploadSessionChunk(uploadSessionId: string, chunkIndex: number): Promise<string> {
+async function defaultGetUploadSessionChunk(uploadSessionId: string, chunkIndex: number): Promise<Blob> {
   const response = await chrome.runtime.sendMessage({
     type: 'GET_UPLOAD_SESSION_CHUNK',
     uploadSessionId,
     chunkIndex
   });
 
-  if (!response?.success || !response.chunkBase64) {
+  if (!response?.success || !response.chunkData) {
     throw new Error(response?.error || `Failed to get upload session chunk ${chunkIndex}`);
   }
 
-  return response.chunkBase64 as string;
+  // chunkData 是 number[]（JSON 序列化），需要重建 Uint8Array
+  return new Blob([new Uint8Array(response.chunkData)], { type: response.mimeType });
 }
 
 async function defaultSendMessage(message: any): Promise<any> {
@@ -76,7 +67,7 @@ function isRetryableError(error: unknown): boolean {
 
 export class ContentTaskRunner {
   private runningTasks = new Map<string, RunningContentTask>();
-  private getUploadSessionChunk: (uploadSessionId: string, chunkIndex: number) => Promise<string>;
+  private getUploadSessionChunk: (uploadSessionId: string, chunkIndex: number) => Promise<Blob>;
   private sendMessage: (message: any) => Promise<any>;
   private sleep: (ms: number) => Promise<void>;
 
@@ -120,28 +111,7 @@ export class ContentTaskRunner {
     const startedAt = Date.now();
 
     try {
-      const session = this.sessionStore.createSession(
-        message.taskId,
-        message.mimeType,
-        message.totalBytes,
-        message.transferChunkCount
-      );
-      logger.info(`[ContentTaskRunner] start, taskId=${message.taskId}, totalBytes=${message.totalBytes}, chunkCount=${message.transferChunkCount}`);
-
-      for (let chunkIndex = 0; chunkIndex < message.transferChunkCount; chunkIndex++) {
-        task.cancellationToken.check();
-        const chunkBase64 = await this.fetchChunkWithRetry(message, chunkIndex, task.cancellationToken);
-        this.sessionStore.appendChunk(message.taskId, chunkIndex, base64ToBlob(chunkBase64, message.mimeType));
-        this.reportProgress({
-          type: 'TASK_PROGRESS_FROM_CONTENT',
-          taskId: message.taskId,
-          phase: 'receiving_input',
-          progress: 0.15 * ((chunkIndex + 1) / Math.max(message.transferChunkCount, 1))
-        });
-      }
-
-      this.sessionStore.markReady(message.taskId);
-      logger.info(`[ContentTaskRunner] content session ready, taskId=${message.taskId}, receivedBytes=${session.receivedBytes}, elapsedMs=${Date.now() - startedAt}`);
+      logger.info(`[ContentTaskRunner] start streaming upload, taskId=${message.taskId}, totalBytes=${message.totalBytes}, chunkCount=${message.transferChunkCount}`);
 
       const callbacks = {
         onProgress: (phase: string, progress: number) => {
@@ -154,14 +124,47 @@ export class ContentTaskRunner {
         },
         checkCancellation: () => task.cancellationToken.check(),
         onChunkUploaded: (chunkIndex: number, releasedBytes: number) => {
-          this.sessionStore.releaseChunk(message.taskId, chunkIndex);
-          logger.debug(`[ContentTaskRunner] released uploaded chunk, taskId=${message.taskId}, chunkIndex=${chunkIndex}, releasedBytes=${releasedBytes}`);
+          logger.debug(`[ContentTaskRunner] uploaded chunk, taskId=${message.taskId}, chunkIndex=${chunkIndex}, releasedBytes=${releasedBytes}`);
         }
       };
 
-      const resultData = session.totalBytes <= DIRECT_UPLOAD_THRESHOLD_BYTES
-        ? await this.uploadExecutor.executeDirectUpload(session, callbacks)
-        : await this.uploadExecutor.executeFromContentSession(session, message.params || {}, callbacks);
+      const getChunk = async (chunkIndex: number): Promise<Blob> => {
+        this.reportProgress({
+          type: 'TASK_PROGRESS_FROM_CONTENT',
+          taskId: message.taskId,
+          phase: 'receiving_input',
+          progress: 0.15 * ((chunkIndex + 1) / Math.max(message.transferChunkCount, 1))
+        });
+        return await this.fetchChunkWithRetry(message, chunkIndex, task.cancellationToken);
+      };
+
+      let resultData: Uint8Array;
+
+      if (message.totalBytes <= DIRECT_UPLOAD_THRESHOLD_BYTES) {
+        const session = this.sessionStore.createSession(
+          message.taskId,
+          message.mimeType,
+          message.totalBytes,
+          message.transferChunkCount
+        );
+        for (let chunkIndex = 0; chunkIndex < message.transferChunkCount; chunkIndex++) {
+          task.cancellationToken.check();
+          const chunkBlob = await getChunk(chunkIndex);
+          this.sessionStore.appendChunk(message.taskId, chunkIndex, chunkBlob);
+        }
+        this.sessionStore.markReady(message.taskId);
+        resultData = await this.uploadExecutor.executeDirectUpload(session, callbacks);
+      } else {
+        resultData = await this.uploadExecutor.executeStreaming(
+          message.totalBytes,
+          message.mimeType,
+          message.transferChunkCount,
+          message.taskId,
+          message.params || {},
+          callbacks,
+          getChunk
+        );
+      }
 
       task.cancellationToken.check();
 
@@ -205,7 +208,7 @@ export class ContentTaskRunner {
     message: StartTaskUploadFromBgSessionMessage,
     chunkIndex: number,
     cancellationToken: CancellationToken
-  ): Promise<string> {
+  ): Promise<Blob> {
     const retryCount = toNumberOrDefault(message.params?.contentChunkRetryCount, 3);
     const retryDelayMs = toNumberOrDefault(message.params?.contentChunkRetryDelayMs, 500);
 

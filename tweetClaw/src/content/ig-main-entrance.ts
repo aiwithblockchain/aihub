@@ -837,13 +837,11 @@ export async function handlePublishVideoTask(message: any): Promise<void> {
           chunkIndex: fetchedChunks,
         });
 
-        if (!resp?.success || !resp.chunkBase64) {
+        if (!resp?.success || !resp.chunkData) {
           throw new Error(resp?.error || `Failed to get chunk ${fetchedChunks}`);
         }
 
-        const binary = atob(resp.chunkBase64);
-        const chunkBytes = new Uint8Array(binary.length);
-        for (let j = 0; j < binary.length; j++) chunkBytes[j] = binary.charCodeAt(j);
+        const chunkBytes = new Uint8Array(resp.chunkData);
 
         const merged = new Uint8Array(buffer.length + chunkBytes.length);
         merged.set(buffer, 0);
@@ -851,7 +849,7 @@ export async function handlePublishVideoTask(message: any): Promise<void> {
         buffer = merged;
         fetchedChunks++;
 
-        console.log(`${TAG} [START_IG_PUBLISH_VIDEO_TASK] fetched bg chunk ${fetchedChunks}/${transferChunkCount} bufferSize=${buffer.length}`);
+        console.log(`${TAG} [START_IG_PUBLISH_VIDEO_TASK] fetched bg chunk ${fetchedChunks}/${transferChunkCount} chunkDataLength=${chunkBytes.length} bufferSize=${buffer.length}`);
       }
 
       const result = buffer.slice(0, size);

@@ -3,7 +3,6 @@ import { logger } from '../task/logger';
 import {
   getAuthHeader,
   getCsrfToken,
-  uploadMedia,
   MEDIA_APPEND_CHUNK_SIZE_BYTES
 } from '../x_api/twitter_api';
 import { getTransactionIdFor } from '../x_api/txid';
@@ -25,7 +24,6 @@ type PageUploadProxy = (payload: any) => Promise<any>;
 
 interface ContentUploadExecutorDeps {
   pageUploadProxy?: PageUploadProxy;
-  uploadMediaFn?: typeof uploadMedia;
   getAuthHeaderFn?: typeof getAuthHeader;
   getCsrfTokenFn?: typeof getCsrfToken;
   getTransactionIdForFn?: typeof getTransactionIdFor;
@@ -71,19 +69,6 @@ function createPageUploadProxy(): PageUploadProxy {
   };
 }
 
-async function blobToBase64(blob: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onerror = () => reject(reader.error || new Error('Failed to read blob as base64'));
-    reader.onload = () => {
-      const result = typeof reader.result === 'string' ? reader.result : '';
-      const commaIndex = result.indexOf(',');
-      resolve(commaIndex >= 0 ? result.slice(commaIndex + 1) : result);
-    };
-    reader.readAsDataURL(blob);
-  });
-}
-
 function buildTaskResult(mediaId: string): Uint8Array {
   return new TextEncoder().encode(JSON.stringify({ mediaId }));
 }
@@ -103,14 +88,12 @@ function splitBlobIntoSegments(blob: Blob, segmentBytes: number, mimeType: strin
 
 export class ContentUploadExecutor {
   private pageUploadProxy: PageUploadProxy;
-  private uploadMediaFn: typeof uploadMedia;
   private getAuthHeaderFn: typeof getAuthHeader;
   private getCsrfTokenFn: typeof getCsrfToken;
   private getTransactionIdForFn: typeof getTransactionIdFor;
 
   constructor(deps: ContentUploadExecutorDeps = {}) {
     this.pageUploadProxy = deps.pageUploadProxy || createPageUploadProxy();
-    this.uploadMediaFn = deps.uploadMediaFn || uploadMedia;
     this.getAuthHeaderFn = deps.getAuthHeaderFn || getAuthHeader;
     this.getCsrfTokenFn = deps.getCsrfTokenFn || getCsrfToken;
     this.getTransactionIdForFn = deps.getTransactionIdForFn || getTransactionIdFor;
@@ -127,16 +110,127 @@ export class ContentUploadExecutor {
     callbacks.onProgress('prepare_small_upload', 0.2);
 
     const mergedBlob = new Blob(session.chunks, { type: session.mimeType });
-    const mediaBase64 = await blobToBase64(mergedBlob);
+    logger.info(`[ContentUploadExecutor] direct upload: blob merged, taskId=${session.taskId}, bytes=${mergedBlob.size}, elapsedMs=${Date.now() - startedAt}`);
 
     for (let chunkIndex = 0; chunkIndex < session.chunks.length; chunkIndex++) {
       callbacks.onChunkUploaded?.(chunkIndex, session.chunks[chunkIndex].size);
     }
 
     callbacks.checkCancellation();
-    callbacks.onProgress('direct_upload', 0.6);
+    callbacks.onProgress('init', 0.3);
 
-    const mediaId = await this.uploadMediaFn(mediaBase64, session.mimeType);
+    // Use page upload proxy for better performance instead of Content Script fetch()
+    const bearer = await this.getAuthHeaderFn();
+    const csrf = await this.getCsrfTokenFn();
+    const isVideo = session.mimeType.startsWith('video/');
+    const mediaCategory = isVideo ? 'tweet_video' : 'tweet_image';
+
+    const uploadStartTime = Date.now();
+    logger.info(`[ContentUploadExecutor] direct upload: starting via page proxy, taskId=${session.taskId}, bytes=${mergedBlob.size}`);
+
+    // INIT
+    const initUrl = `https://upload.x.com/i/media/upload.json?command=INIT&total_bytes=${mergedBlob.size}&media_type=${encodeURIComponent(session.mimeType)}&media_category=${mediaCategory}`;
+    const initTxid = await this.getTransactionIdForFn('POST', '/i/media/upload.json');
+    const initStartTime = Date.now();
+
+    const initResult = await this.pageUploadProxy({
+      kind: 'raw',
+      url: initUrl,
+      method: 'POST',
+      headers: {
+        authorization: bearer,
+        'x-csrf-token': csrf,
+        'x-client-transaction-id': initTxid,
+        'x-twitter-auth-type': 'OAuth2Session'
+      }
+    });
+
+    if (!initResult.ok) {
+      throw new Error(`Media upload INIT failed: ${initResult.status} ${initResult.text || ''}`);
+    }
+
+    const mediaId = initResult.json?.media_id_string;
+    if (!mediaId) {
+      throw new Error('Media upload INIT did not return media_id_string');
+    }
+
+    logger.info(`[ContentUploadExecutor] direct upload: INIT success, mediaId=${mediaId}, elapsedMs=${Date.now() - initStartTime}`);
+
+    callbacks.checkCancellation();
+    callbacks.onProgress('append', 0.5);
+
+    // APPEND
+    const totalSegments = Math.max(1, Math.ceil(mergedBlob.size / MEDIA_APPEND_CHUNK_SIZE_BYTES));
+    logger.info(`[ContentUploadExecutor] direct upload: APPEND start, segments=${totalSegments}`);
+
+    for (let segmentIndex = 0; segmentIndex < totalSegments; segmentIndex++) {
+      callbacks.checkCancellation();
+
+      const start = segmentIndex * MEDIA_APPEND_CHUNK_SIZE_BYTES;
+      const end = Math.min(start + MEDIA_APPEND_CHUNK_SIZE_BYTES, mergedBlob.size);
+      const chunk = mergedBlob.slice(start, end, session.mimeType);
+
+      const appendTxid = await this.getTransactionIdForFn('POST', '/i/media/upload.json');
+      const appendStartTime = Date.now();
+
+      const appendResult = await this.pageUploadProxy({
+        kind: 'append',
+        url: 'https://upload.x.com/i/media/upload.json',
+        method: 'POST',
+        headers: {
+          authorization: bearer,
+          'x-csrf-token': csrf,
+          'x-client-transaction-id': appendTxid,
+          'x-twitter-auth-type': 'OAuth2Session'
+        },
+        command: 'APPEND',
+        mediaId,
+        segmentIndex,
+        mimeType: session.mimeType,
+        chunkBlob: chunk,
+        timeoutMs: DEFAULT_APPEND_TIMEOUT_MS
+      });
+
+      if (!appendResult.ok) {
+        throw new Error(`Media upload APPEND failed at segment ${segmentIndex}: ${appendResult.status} ${appendResult.text || ''}`);
+      }
+
+      const appendElapsedMs = Date.now() - appendStartTime;
+      logger.info(`[ContentUploadExecutor] direct upload: APPEND segment=${segmentIndex + 1}/${totalSegments} success, bytes=${chunk.size}, elapsedMs=${appendElapsedMs}`);
+      callbacks.onProgress('append', 0.5 + (0.35 * (segmentIndex + 1) / totalSegments));
+    }
+
+    callbacks.checkCancellation();
+    callbacks.onProgress('finalize', 0.9);
+
+    // FINALIZE
+    const finalizeUrl = `https://upload.x.com/i/media/upload.json?command=FINALIZE&media_id=${mediaId}`;
+    const finalizeTxid = await this.getTransactionIdForFn('POST', '/i/media/upload.json');
+    const finalizeStartTime = Date.now();
+
+    const finalizeResult = await this.pageUploadProxy({
+      kind: 'raw',
+      url: finalizeUrl,
+      method: 'POST',
+      headers: {
+        authorization: bearer,
+        'x-csrf-token': csrf,
+        'x-client-transaction-id': finalizeTxid,
+        'x-twitter-auth-type': 'OAuth2Session'
+      }
+    });
+
+    if (!finalizeResult.ok) {
+      throw new Error(`Media upload FINALIZE failed: ${finalizeResult.status} ${finalizeResult.text || ''}`);
+    }
+
+    logger.info(`[ContentUploadExecutor] direct upload: FINALIZE success, elapsedMs=${Date.now() - finalizeStartTime}`);
+
+    // Wait for video processing if needed
+    await this.waitForVideoProcessingIfNeeded(mediaId, isVideo, bearer, csrf, {}, callbacks);
+
+    const uploadElapsedMs = Date.now() - uploadStartTime;
+    logger.info(`[ContentUploadExecutor] direct upload: page proxy upload completed, taskId=${session.taskId}, mediaId=${mediaId}, uploadElapsedMs=${uploadElapsedMs}`);
     logger.info(`[ContentUploadExecutor] direct upload completed, taskId=${session.taskId}, bytes=${session.totalBytes}, elapsedMs=${Date.now() - startedAt}`);
 
     callbacks.onProgress('done', 1);
@@ -203,7 +297,6 @@ export class ContentUploadExecutor {
       for (const appendSegment of appendSegments) {
         callbacks.checkCancellation();
         const appendTxid = await this.getTransactionIdForFn('POST', '/i/media/upload.json');
-        const chunkBase64 = await blobToBase64(appendSegment);
         const appendStartedAt = Date.now();
 
         const appendResult = await this.pageUploadProxy({
@@ -220,7 +313,7 @@ export class ContentUploadExecutor {
           mediaId,
           segmentIndex: appendSegmentIndex,
           mimeType: session.mimeType,
-          chunkBase64,
+          chunkBlob: appendSegment,
           timeoutMs: appendTimeoutMs
         });
 
@@ -276,6 +369,123 @@ export class ContentUploadExecutor {
     if (session.receivedChunkCount !== session.expectedChunkCount) {
       throw new Error(`Content session chunk count mismatch: expected ${session.expectedChunkCount} chunks but received ${session.receivedChunkCount}`);
     }
+  }
+
+  async executeStreaming(
+    totalBytes: number,
+    mimeType: string,
+    expectedChunkCount: number,
+    taskId: string,
+    params: Record<string, unknown>,
+    callbacks: ExecutorCallbacks,
+    getChunk: (chunkIndex: number) => Promise<Blob>
+  ): Promise<Uint8Array> {
+    const startedAt = Date.now();
+    const bearer = await this.getAuthHeaderFn();
+    const csrf = await this.getCsrfTokenFn();
+    const isVideo = mimeType.startsWith('video/');
+    const mediaCategory = isVideo ? 'tweet_video' : 'tweet_image';
+    const appendTimeoutMs = toNumberOrDefault(params.appendTimeoutMs, DEFAULT_APPEND_TIMEOUT_MS);
+    const appendChunkBytes = Math.max(1, toNumberOrDefault(params.appendChunkBytes, MEDIA_APPEND_CHUNK_SIZE_BYTES));
+
+    logger.info(`[ContentUploadExecutor] streaming upload start, taskId=${taskId}, bytes=${totalBytes}, expectedChunks=${expectedChunkCount}, mimeType=${mimeType}`);
+
+    callbacks.checkCancellation();
+    callbacks.onProgress('init', 0.2);
+
+    const initUrl = `https://upload.x.com/i/media/upload.json?command=INIT&total_bytes=${totalBytes}&media_type=${encodeURIComponent(mimeType)}&media_category=${mediaCategory}`;
+    const initTxid = await this.getTransactionIdForFn('POST', '/i/media/upload.json');
+    const initResult = await this.pageUploadProxy({
+      kind: 'raw',
+      url: initUrl,
+      method: 'POST',
+      headers: {
+        authorization: bearer,
+        'x-csrf-token': csrf,
+        'x-client-transaction-id': initTxid,
+        'x-twitter-auth-type': 'OAuth2Session'
+      }
+    });
+
+    if (!initResult.ok) {
+      throw new Error(`Media upload INIT failed: ${initResult.status} ${initResult.text || ''}`);
+    }
+
+    const mediaId = initResult.json?.media_id_string;
+    if (!mediaId) {
+      throw new Error('Media upload INIT did not return media_id_string');
+    }
+
+    let appendSegmentIndex = 0;
+    let totalSegments = 0;
+
+    for (let chunkIndex = 0; chunkIndex < expectedChunkCount; chunkIndex++) {
+      callbacks.checkCancellation();
+
+      const chunk = await getChunk(chunkIndex);
+      const appendSegments = splitBlobIntoSegments(chunk, appendChunkBytes, mimeType);
+      totalSegments += appendSegments.length;
+
+      for (const appendSegment of appendSegments) {
+        callbacks.checkCancellation();
+        const appendTxid = await this.getTransactionIdForFn('POST', '/i/media/upload.json');
+
+        const appendResult = await this.pageUploadProxy({
+          kind: 'append',
+          url: 'https://upload.x.com/i/media/upload.json',
+          method: 'POST',
+          headers: {
+            authorization: bearer,
+            'x-csrf-token': csrf,
+            'x-client-transaction-id': appendTxid,
+            'x-twitter-auth-type': 'OAuth2Session'
+          },
+          command: 'APPEND',
+          mediaId,
+          segmentIndex: appendSegmentIndex,
+          mimeType,
+          chunkBlob: appendSegment,
+          timeoutMs: appendTimeoutMs
+        });
+
+        if (!appendResult.ok) {
+          throw new Error(`Media upload APPEND failed at segment ${appendSegmentIndex}: ${appendResult.status} ${appendResult.text || ''}`);
+        }
+
+        appendSegmentIndex += 1;
+        const estimatedTotal = Math.max(totalSegments, Math.ceil(expectedChunkCount * appendSegmentIndex / (chunkIndex + 1)));
+        callbacks.onProgress('append', 0.2 + (0.7 * appendSegmentIndex / estimatedTotal));
+      }
+
+      callbacks.onChunkUploaded?.(chunkIndex, chunk.size);
+    }
+
+    callbacks.checkCancellation();
+    callbacks.onProgress('finalize', 0.92);
+
+    const finalizeUrl = `https://upload.x.com/i/media/upload.json?command=FINALIZE&media_id=${mediaId}`;
+    const finalizeTxid = await this.getTransactionIdForFn('POST', '/i/media/upload.json');
+    const finalizeResult = await this.pageUploadProxy({
+      kind: 'raw',
+      url: finalizeUrl,
+      method: 'POST',
+      headers: {
+        authorization: bearer,
+        'x-csrf-token': csrf,
+        'x-client-transaction-id': finalizeTxid,
+        'x-twitter-auth-type': 'OAuth2Session'
+      }
+    });
+
+    if (!finalizeResult.ok) {
+      throw new Error(`Media upload FINALIZE failed: ${finalizeResult.status} ${finalizeResult.text || ''}`);
+    }
+
+    await this.waitForVideoProcessingIfNeeded(mediaId, isVideo, bearer, csrf, params, callbacks);
+
+    logger.info(`[ContentUploadExecutor] streaming upload completed, taskId=${taskId}, mediaId=${mediaId}, elapsedMs=${Date.now() - startedAt}`);
+    callbacks.onProgress('done', 1);
+    return buildTaskResult(mediaId);
   }
 
   private async waitForVideoProcessingIfNeeded(

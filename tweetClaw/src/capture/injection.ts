@@ -206,27 +206,20 @@ import { watchedOps, isGuestHandle } from './consts';
         (window as any).__tc_original_xhr = OrgXHR;
     }
 
-    function base64ToBlob(base64: string, mimeType: string): Blob {
-        const byteString = atob(base64);
-        const buffer = new ArrayBuffer(byteString.length);
-        const bytes = new Uint8Array(buffer);
-        for (let i = 0; i < byteString.length; i++) {
-            bytes[i] = byteString.charCodeAt(i);
-        }
-        return new Blob([buffer], { type: mimeType });
-    }
-
     function dispatchUploadProxyResponse(detail: Record<string, any>) {
         document.dispatchEvent(new CustomEvent('tweetclaw:upload-proxy-response', { detail }));
     }
 
     function sendAppendViaXHR(requestId: string, payload: any) {
-        const chunkBlob = base64ToBlob(payload.chunkBase64, payload.mimeType);
+        if (!payload.chunkBlob) {
+            throw new Error('chunkBlob is required for APPEND');
+        }
+
         const formData = new FormData();
         formData.append('command', payload.command || 'APPEND');
         formData.append('media_id', payload.mediaId);
         formData.append('segment_index', String(payload.segmentIndex));
-        formData.append('media', chunkBlob, `chunk-${payload.segmentIndex}`);
+        formData.append('media', payload.chunkBlob, `chunk-${payload.segmentIndex}`);
 
         const xhr = new XMLHttpRequest();
         const startedAt = Date.now();
@@ -337,7 +330,7 @@ import { watchedOps, isGuestHandle } from './consts';
             });
         };
 
-        console.log(`${TAG} Upload proxy XHR send: requestId=${requestId}, segmentIndex=${payload.segmentIndex}, chunkBase64Length=${payload.chunkBase64?.length || 0}, chunkBlobSize=${chunkBlob.size}, mimeType=${payload.mimeType}, online=${navigator.onLine}, userAgent=${navigator.userAgent}`);
+        console.log(`${TAG} Upload proxy XHR send: requestId=${requestId}, segmentIndex=${payload.segmentIndex}, chunkBlobSize=${payload.chunkBlob.size}, mimeType=${payload.mimeType}, online=${navigator.onLine}, userAgent=${navigator.userAgent}`);
         xhr.send(formData);
     }
 

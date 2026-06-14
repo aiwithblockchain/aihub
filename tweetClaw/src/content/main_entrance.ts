@@ -90,17 +90,7 @@ window.addEventListener('message', (event) => {
     }
 });
 
-function base64ToBlob(base64: string, mimeType: string): Blob {
-    const byteString = atob(base64);
-    const buffer = new ArrayBuffer(byteString.length);
-    const bytes = new Uint8Array(buffer);
-    for (let i = 0; i < byteString.length; i++) {
-        bytes[i] = byteString.charCodeAt(i);
-    }
-    return new Blob([buffer], { type: mimeType });
-}
-
-async function getUploadSessionChunk(uploadSessionId: string, chunkIndex: number): Promise<string> {
+async function getUploadSessionChunk(uploadSessionId: string, chunkIndex: number): Promise<Blob> {
     console.log(`[TweetClaw-CS] requesting upload chunk, sessionId=${uploadSessionId}, chunkIndex=${chunkIndex}`);
     const response = await chrome.runtime.sendMessage({
         type: 'GET_UPLOAD_SESSION_CHUNK',
@@ -108,13 +98,13 @@ async function getUploadSessionChunk(uploadSessionId: string, chunkIndex: number
         chunkIndex
     });
 
-    if (!response?.success || !response.chunkBase64) {
+    if (!response?.success || !response.chunkData) {
         console.error(`[TweetClaw-CS] upload chunk failed, sessionId=${uploadSessionId}, chunkIndex=${chunkIndex}, error=${response?.error || 'unknown'}`);
         throw new Error(response?.error || 'Failed to get upload session chunk');
     }
 
-    console.log(`[TweetClaw-CS] upload chunk received, sessionId=${uploadSessionId}, chunkIndex=${chunkIndex}, chunkBase64Length=${response.chunkBase64.length}`);
-    return response.chunkBase64 as string;
+    console.log(`[TweetClaw-CS] upload chunk received, sessionId=${uploadSessionId}, chunkIndex=${chunkIndex}, chunkDataLength=${response.chunkData.length}`);
+    return new Blob([new Uint8Array(response.chunkData)], { type: response.mimeType });
 }
 
 async function releaseUploadSession(uploadSessionId: string): Promise<void> {
@@ -537,32 +527,6 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         })();
         return true;
     }
-
-    if (message.type === 'UPLOAD_MEDIA') {
-        (async () => {
-            try {
-                const mediaData = message.mediaData as string;
-                const mimeType = message.mimeType as string;
-
-                if (!mediaData || !mimeType) {
-                    throw new Error('mediaData and mimeType are required');
-                }
-
-                console.log(`[TweetClaw-CS] UPLOAD_MEDIA start, mimeType=${mimeType}`);
-
-                const { uploadMedia } = await import('../x_api/twitter_api');
-                const mediaId = await uploadMedia(mediaData, mimeType);
-
-                console.log(`[TweetClaw-CS] UPLOAD_MEDIA success, media_id=${mediaId}`);
-                sendResponse({ success: true, media_id: mediaId });
-            } catch (e: any) {
-                console.error(`[TweetClaw-CS] UPLOAD_MEDIA failed:`, e);
-                sendResponse({ success: false, error: e.message });
-            }
-        })();
-        return true;
-    }
-
 
     if (message.type === 'START_TASK_UPLOAD_FROM_BG_SESSION') {
         try {

@@ -340,24 +340,16 @@ interface MediaUploadFinalizeResponse {
 export const MEDIA_APPEND_CHUNK_SIZE_BYTES = 4 * 1024 * 1024;
 
 /**
- * 上传媒体文件(图片)
- * @param mediaData Base64 编码的媒体数据
- * @param mimeType MIME 类型,如 image/png, image/jpeg
+ * 上传媒体文件(图片/视频)
+ * @param mediaBlob Blob 对象，包含媒体二进制数据
+ * @param mimeType MIME 类型,如 image/png, image/jpeg, video/mp4
  * @returns media_id_string
  */
-export async function uploadMedia(mediaData: string, mimeType: string): Promise<string> {
+export async function uploadMedia(mediaBlob: Blob, mimeType: string): Promise<string> {
     const bearer = await getAuthHeader();
     const csrf = await getCsrfToken();
 
-    // 将 base64 转换为 Blob
-    const byteString = atob(mediaData);
-    const ab = new ArrayBuffer(byteString.length);
-    const ia = new Uint8Array(ab);
-    for (let i = 0; i < byteString.length; i++) {
-        ia[i] = byteString.charCodeAt(i);
-    }
-    const blob = new Blob([ab], { type: mimeType });
-    const totalBytes = blob.size;
+    const totalBytes = mediaBlob.size;
 
     // 根据 MIME 类型确定 media_category
     const isVideo = mimeType.startsWith('video/');
@@ -368,6 +360,9 @@ export async function uploadMedia(mediaData: string, mimeType: string): Promise<
     const initUrl = `https://upload.x.com/i/media/upload.json?command=INIT&total_bytes=${totalBytes}&media_type=${mediaType}&media_category=${mediaCategory}`;
 
     const initTxid = await getTransactionIdFor('POST', '/i/media/upload.json');
+
+    const initStartTime = Date.now();
+    console.log(`[TwitterAPI] Media upload INIT start, totalBytes=${totalBytes}, mimeType=${mimeType}, category=${mediaCategory}`);
 
     const initResponse = await fetch(initUrl, {
         method: 'POST',
@@ -388,7 +383,7 @@ export async function uploadMedia(mediaData: string, mimeType: string): Promise<
     const initData: MediaUploadInitResponse = await initResponse.json();
     const mediaId = initData.media_id_string;
 
-    console.log(`[TwitterAPI] Media upload INIT success, media_id=${mediaId}`);
+    console.log(`[TwitterAPI] Media upload INIT success, media_id=${mediaId}, elapsedMs=${Date.now() - initStartTime}`);
 
     // 步骤 2: APPEND
     const totalSegments = Math.max(1, Math.ceil(totalBytes / MEDIA_APPEND_CHUNK_SIZE_BYTES));
@@ -397,10 +392,11 @@ export async function uploadMedia(mediaData: string, mimeType: string): Promise<
     for (let segmentIndex = 0; segmentIndex < totalSegments; segmentIndex++) {
         const start = segmentIndex * MEDIA_APPEND_CHUNK_SIZE_BYTES;
         const end = Math.min(start + MEDIA_APPEND_CHUNK_SIZE_BYTES, totalBytes);
-        const chunk = blob.slice(start, end, mimeType);
+        const chunk = mediaBlob.slice(start, end, mimeType);
         const appendUrl = 'https://upload.x.com/i/media/upload.json';
         const appendTxid = await getTransactionIdFor('POST', '/i/media/upload.json');
 
+        const formDataStartTime = Date.now();
         const formData = new FormData();
         // Keep APPEND control fields in the multipart body.
         // This matches X's browser-side usage more closely than query-only params.
@@ -408,6 +404,10 @@ export async function uploadMedia(mediaData: string, mimeType: string): Promise<
         formData.append('media_id', mediaId);
         formData.append('segment_index', String(segmentIndex));
         formData.append('media', chunk, `chunk-${segmentIndex}`);
+        const formDataElapsedMs = Date.now() - formDataStartTime;
+
+        const fetchStartTime = Date.now();
+        console.log(`[TwitterAPI] Media upload APPEND segment=${segmentIndex + 1}/${totalSegments} start, bytes=${chunk.size}, formDataMs=${formDataElapsedMs}`);
 
         const appendResponse = await fetch(appendUrl, {
             method: 'POST',
@@ -426,12 +426,16 @@ export async function uploadMedia(mediaData: string, mimeType: string): Promise<
             throw new Error(`Media upload APPEND failed at segment ${segmentIndex}/${totalSegments - 1}: ${appendResponse.status} ${text}`);
         }
 
-        console.log(`[TwitterAPI] Media upload APPEND success, segment=${segmentIndex + 1}/${totalSegments}, bytes=${chunk.size}`);
+        const fetchElapsedMs = Date.now() - fetchStartTime;
+        console.log(`[TwitterAPI] Media upload APPEND success, segment=${segmentIndex + 1}/${totalSegments}, bytes=${chunk.size}, elapsedMs=${fetchElapsedMs}`);
     }
 
     // 步骤 3: FINALIZE
     const finalizeUrl = `https://upload.x.com/i/media/upload.json?command=FINALIZE&media_id=${mediaId}`;
     const finalizeTxid = await getTransactionIdFor('POST', '/i/media/upload.json');
+
+    const finalizeStartTime = Date.now();
+    console.log(`[TwitterAPI] Media upload FINALIZE start, media_id=${mediaId}`);
 
     const finalizeResponse = await fetch(finalizeUrl, {
         method: 'POST',
@@ -450,7 +454,7 @@ export async function uploadMedia(mediaData: string, mimeType: string): Promise<
     }
 
     const finalizeData: MediaUploadFinalizeResponse = await finalizeResponse.json();
-    console.log(`[TwitterAPI] Media upload FINALIZE success, media_id=${finalizeData.media_id_string}`);
+    console.log(`[TwitterAPI] Media upload FINALIZE success, media_id=${finalizeData.media_id_string}, elapsedMs=${Date.now() - finalizeStartTime}`);
 
     // 步骤 4: 如果是视频,需要轮询 STATUS 等待处理完成
     if (isVideo) {

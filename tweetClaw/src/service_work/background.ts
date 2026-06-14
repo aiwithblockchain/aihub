@@ -506,8 +506,16 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             sendResponse({ success: false, error: 'Upload session chunk not found' });
             return true;
         }
-        console.log(`[TweetClaw-BG] chunk response, sessionId=${uploadSessionId}, chunkIndex=${chunkIndex}, chunkBase64Length=${chunk.chunkBase64.length}`);
-        sendResponse({ success: true, ...chunk });
+        console.log(`[TweetClaw-BG] chunk response, sessionId=${uploadSessionId}, chunkIndex=${chunkIndex}, byteLength=${chunk.chunkData.byteLength}`);
+
+        // sendResponse 走 JSON 序列化，Uint8Array 必须转成 number[] 才能正确还原
+        sendResponse({
+            success: true,
+            chunkData: Array.from(chunk.chunkData),
+            totalBytes: chunk.totalBytes,
+            mimeType: chunk.mimeType,
+            transferChunkCount: chunk.transferChunkCount
+        });
         return true;
     }
 

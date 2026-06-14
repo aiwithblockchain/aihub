@@ -2067,15 +2067,13 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
             uploadSessionId,
             chunkIndex: chunkIndex,
           });
-          if (!resp?.success || !resp.chunkBase64) {
+          if (!resp?.success || !resp.chunkData) {
             throw new Error(resp?.error || `Failed to get chunk ${chunkIndex}`);
           }
 
-          // 解码 chunk
-          const binary = atob(resp.chunkBase64);
-          const chunkBytes = new Uint8Array(binary.length);
-          for (let j = 0; j < binary.length; j++) chunkBytes[j] = binary.charCodeAt(j);
-          console.log(`${TAG} [START_XHS_PUBLISH_VIDEO_TASK] Chunk ${chunkIndex} fetched, size=${chunkBytes.length}`);
+          // 从 number[] 重建 Uint8Array
+          const chunkBytes = new Uint8Array(resp.chunkData);
+          console.log(`${TAG} [START_XHS_PUBLISH_VIDEO_TASK] Chunk ${chunkIndex} fetched, chunkDataLength=${chunkBytes.length}`);
 
           // 合并到当前 part buffer
           const newBuffer = new Uint8Array(currentPartData.length + chunkBytes.length);

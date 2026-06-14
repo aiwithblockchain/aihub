@@ -27,7 +27,7 @@ export interface BackgroundTaskParams extends Record<string, any> {
 export interface PreparedTaskInput {
   mimeType: string;
   totalBytes: number;
-  transferChunks: string[];
+  transferChunks: Uint8Array[];
   transferChunkCount: number;
 }
 
@@ -37,7 +37,7 @@ export interface BackgroundTaskSession {
   mimeType: string;
   totalBytes: number;
   transferChunkCount: number;
-  transferChunks: string[];
+  transferChunks: Uint8Array[];
   createdAt: number;
 }
 

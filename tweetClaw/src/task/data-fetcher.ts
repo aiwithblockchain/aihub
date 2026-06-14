@@ -109,19 +109,24 @@ export class DataFetcher {
     onProgress?: (phase: string, progress: number) => void
   ): Promise<PreparedTaskInput> {
     const reader = this.createInputReader(taskId, metadata);
-    const transferChunks: string[] = [];
-    let buffered: Uint8Array<any> = new Uint8Array(0);
+    const transferChunks: Uint8Array[] = [];
     let downloadedBytes = 0;
+    let buffer = new Uint8Array(0);
 
     for (let partIndex = 0; partIndex < metadata.totalParts; partIndex++) {
       const part = await reader.readPart(partIndex);
+      logger.info(`[DataFetcher] Read part ${partIndex}, size=${part.length}, buffer before=${buffer.length}`);
       downloadedBytes += part.length;
-      buffered = concatUint8Arrays(buffered, part);
+      buffer = concatUint8Arrays(buffer, part);
+      logger.info(`[DataFetcher] After concat, buffer size=${buffer.length}`);
 
-      while (buffered.length >= BACKGROUND_TO_CONTENT_TRANSFER_CHUNK_BYTES) {
-        const chunk = buffered.slice(0, BACKGROUND_TO_CONTENT_TRANSFER_CHUNK_BYTES);
-        transferChunks.push(uint8ArrayToBase64(chunk));
-        buffered = buffered.slice(BACKGROUND_TO_CONTENT_TRANSFER_CHUNK_BYTES);
+      while (buffer.length >= BACKGROUND_TO_CONTENT_TRANSFER_CHUNK_BYTES) {
+        const chunkView = buffer.subarray(0, BACKGROUND_TO_CONTENT_TRANSFER_CHUNK_BYTES);
+        const chunkCopy = new Uint8Array(chunkView);
+        logger.info(`[DataFetcher] Created chunk #${transferChunks.length}, size=${chunkCopy.length}, byteLength=${chunkCopy.byteLength}, buffer.byteLength=${chunkCopy.buffer.byteLength}`);
+        transferChunks.push(chunkCopy);
+        buffer = buffer.subarray(BACKGROUND_TO_CONTENT_TRANSFER_CHUNK_BYTES);
+        logger.info(`[DataFetcher] Buffer remaining=${buffer.length}`);
       }
 
       const progress = metadata.totalBytes > 0
@@ -130,8 +135,10 @@ export class DataFetcher {
       onProgress?.('fetch_input', progress);
     }
 
-    if (buffered.length > 0) {
-      transferChunks.push(uint8ArrayToBase64(buffered));
+    if (buffer.length > 0) {
+      const finalChunk = new Uint8Array(buffer);
+      logger.info(`[DataFetcher] Final chunk #${transferChunks.length}, size=${finalChunk.length}, byteLength=${finalChunk.byteLength}, buffer.byteLength=${finalChunk.buffer.byteLength}`);
+      transferChunks.push(finalChunk);
     }
 
     if (metadata.totalBytes > 0 && downloadedBytes !== metadata.totalBytes) {
