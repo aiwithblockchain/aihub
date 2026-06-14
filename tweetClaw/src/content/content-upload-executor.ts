@@ -2,14 +2,37 @@ import { ExecutorCallbacks, ContentUploadSession } from '../task/types';
 import { logger } from '../task/logger';
 import {
   getAuthHeader,
-  getCsrfToken,
-  MEDIA_APPEND_CHUNK_SIZE_BYTES
+  getCsrfToken
 } from '../x_api/twitter_api';
 import { getTransactionIdFor } from '../x_api/txid';
+import SparkMD5 from 'spark-md5';
 
 export const DIRECT_UPLOAD_THRESHOLD_BYTES = 64 * 1024 * 1024;
 export const DEFAULT_APPEND_TIMEOUT_MS = 120000;
 export const DEFAULT_RAW_REQUEST_TIMEOUT_MS = 30000;
+export const NATIVE_APPEND_CHUNK_SIZE_BYTES = 8 * 1024 * 1024;
+
+async function computeBlobMd5(blob: Blob): Promise<string> {
+  const arrayBuffer = await blob.arrayBuffer();
+  return SparkMD5.ArrayBuffer.hash(arrayBuffer);
+}
+
+async function getVideoDurationMs(blob: Blob, mimeType: string): Promise<number | undefined> {
+  if (!mimeType.startsWith('video/')) return undefined;
+  return new Promise((resolve) => {
+    const video = document.createElement('video');
+    video.preload = 'metadata';
+    video.onloadedmetadata = () => {
+      URL.revokeObjectURL(video.src);
+      resolve(Math.round(video.duration * 1000));
+    };
+    video.onerror = () => {
+      URL.revokeObjectURL(video.src);
+      resolve(undefined);
+    };
+    video.src = URL.createObjectURL(blob);
+  });
+}
 
 function toNumberOrDefault(value: unknown, defaultValue: number): number {
   if (value === null || value === undefined || value === '') {
@@ -123,13 +146,17 @@ export class ContentUploadExecutor {
     const bearer = await this.getAuthHeaderFn();
     const csrf = await this.getCsrfTokenFn();
     const isVideo = session.mimeType.startsWith('video/');
-    const mediaCategory = isVideo ? 'tweet_video' : 'tweet_image';
+    const mediaCategory = isVideo ? 'amplify_video' : 'tweet_image';
+    const videoDurationMs = isVideo ? await getVideoDurationMs(mergedBlob, session.mimeType) : undefined;
 
     const uploadStartTime = Date.now();
     logger.info(`[ContentUploadExecutor] direct upload: starting via page proxy, taskId=${session.taskId}, bytes=${mergedBlob.size}`);
 
     // INIT
-    const initUrl = `https://upload.x.com/i/media/upload.json?command=INIT&total_bytes=${mergedBlob.size}&media_type=${encodeURIComponent(session.mimeType)}&media_category=${mediaCategory}`;
+    let initUrl = `https://upload.x.com/i/media/upload.json?command=INIT&total_bytes=${mergedBlob.size}&media_type=${encodeURIComponent(session.mimeType)}&media_category=${mediaCategory}`;
+    if (videoDurationMs !== undefined) {
+      initUrl += `&video_duration_ms=${videoDurationMs}`;
+    }
     const initTxid = await this.getTransactionIdForFn('POST', '/i/media/upload.json');
     const initStartTime = Date.now();
 
@@ -160,22 +187,25 @@ export class ContentUploadExecutor {
     callbacks.onProgress('append', 0.5);
 
     // APPEND
-    const totalSegments = Math.max(1, Math.ceil(mergedBlob.size / MEDIA_APPEND_CHUNK_SIZE_BYTES));
+    const totalSegments = Math.max(1, Math.ceil(mergedBlob.size / NATIVE_APPEND_CHUNK_SIZE_BYTES));
     logger.info(`[ContentUploadExecutor] direct upload: APPEND start, segments=${totalSegments}`);
 
     for (let segmentIndex = 0; segmentIndex < totalSegments; segmentIndex++) {
       callbacks.checkCancellation();
 
-      const start = segmentIndex * MEDIA_APPEND_CHUNK_SIZE_BYTES;
-      const end = Math.min(start + MEDIA_APPEND_CHUNK_SIZE_BYTES, mergedBlob.size);
+      const start = segmentIndex * NATIVE_APPEND_CHUNK_SIZE_BYTES;
+      const end = Math.min(start + NATIVE_APPEND_CHUNK_SIZE_BYTES, mergedBlob.size);
       const chunk = mergedBlob.slice(start, end, session.mimeType);
 
       const appendTxid = await this.getTransactionIdForFn('POST', '/i/media/upload.json');
       const appendStartTime = Date.now();
 
+      const mediaMd5 = await computeBlobMd5(chunk);
+      const appendUrl = `https://upload.x.com/i/media/upload.json?command=APPENDMULTI&media_id=${mediaId}&segment_indexes=${segmentIndex}&max_segment_size=${NATIVE_APPEND_CHUNK_SIZE_BYTES}&media_md5=${mediaMd5}`;
+
       const appendResult = await this.pageUploadProxy({
         kind: 'append',
-        url: 'https://upload.x.com/i/media/upload.json',
+        url: appendUrl,
         method: 'POST',
         headers: {
           authorization: bearer,
@@ -183,7 +213,7 @@ export class ContentUploadExecutor {
           'x-client-transaction-id': appendTxid,
           'x-twitter-auth-type': 'OAuth2Session'
         },
-        command: 'APPEND',
+        command: 'APPENDMULTI',
         mediaId,
         segmentIndex,
         mimeType: session.mimeType,
@@ -192,11 +222,11 @@ export class ContentUploadExecutor {
       });
 
       if (!appendResult.ok) {
-        throw new Error(`Media upload APPEND failed at segment ${segmentIndex}: ${appendResult.status} ${appendResult.text || ''}`);
+        throw new Error(`Media upload APPENDMULTI failed at segment ${segmentIndex}: ${appendResult.status} ${appendResult.text || ''}`);
       }
 
       const appendElapsedMs = Date.now() - appendStartTime;
-      logger.info(`[ContentUploadExecutor] direct upload: APPEND segment=${segmentIndex + 1}/${totalSegments} success, bytes=${chunk.size}, elapsedMs=${appendElapsedMs}`);
+      logger.info(`[ContentUploadExecutor] direct upload: APPENDMULTI segment=${segmentIndex + 1}/${totalSegments} success, bytes=${chunk.size}, elapsedMs=${appendElapsedMs}`);
       callbacks.onProgress('append', 0.5 + (0.35 * (segmentIndex + 1) / totalSegments));
     }
 
@@ -204,7 +234,7 @@ export class ContentUploadExecutor {
     callbacks.onProgress('finalize', 0.9);
 
     // FINALIZE
-    const finalizeUrl = `https://upload.x.com/i/media/upload.json?command=FINALIZE&media_id=${mediaId}`;
+    const finalizeUrl = `https://upload.x.com/i/media/upload.json?command=FINALIZE&media_id=${mediaId}&allow_async=true`;
     const finalizeTxid = await this.getTransactionIdForFn('POST', '/i/media/upload.json');
     const finalizeStartTime = Date.now();
 
@@ -248,11 +278,13 @@ export class ContentUploadExecutor {
     const bearer = await this.getAuthHeaderFn();
     const csrf = await this.getCsrfTokenFn();
     const isVideo = session.mimeType.startsWith('video/');
-    const mediaCategory = isVideo ? 'tweet_video' : 'tweet_image';
+    const mediaCategory = isVideo ? 'amplify_video' : 'tweet_image';
+    const firstChunkForDuration = isVideo && session.chunks.length > 0 ? session.chunks[0] : undefined;
+    const videoDurationMs = firstChunkForDuration ? await getVideoDurationMs(firstChunkForDuration, session.mimeType) : undefined;
     const appendTimeoutMs = toNumberOrDefault(params.appendTimeoutMs, DEFAULT_APPEND_TIMEOUT_MS);
     const appendChunkBytes = Math.max(
       1,
-      toNumberOrDefault(params.appendChunkBytes, MEDIA_APPEND_CHUNK_SIZE_BYTES)
+      toNumberOrDefault(params.appendChunkBytes, NATIVE_APPEND_CHUNK_SIZE_BYTES)
     );
     const appendSegmentCount = session.chunks.reduce(
       (total, chunk) => total + Math.max(1, Math.ceil(chunk.size / appendChunkBytes)),
@@ -265,7 +297,10 @@ export class ContentUploadExecutor {
     callbacks.checkCancellation();
     callbacks.onProgress('init', 0.2);
 
-    const initUrl = `https://upload.x.com/i/media/upload.json?command=INIT&total_bytes=${session.totalBytes}&media_type=${encodeURIComponent(session.mimeType)}&media_category=${mediaCategory}`;
+    let initUrl = `https://upload.x.com/i/media/upload.json?command=INIT&total_bytes=${session.totalBytes}&media_type=${encodeURIComponent(session.mimeType)}&media_category=${mediaCategory}`;
+    if (videoDurationMs !== undefined) {
+      initUrl += `&video_duration_ms=${videoDurationMs}`;
+    }
     const initTxid = await this.getTransactionIdForFn('POST', '/i/media/upload.json');
     const initResult = await this.pageUploadProxy({
       kind: 'raw',
@@ -299,9 +334,12 @@ export class ContentUploadExecutor {
         const appendTxid = await this.getTransactionIdForFn('POST', '/i/media/upload.json');
         const appendStartedAt = Date.now();
 
+        const mediaMd5 = await computeBlobMd5(appendSegment);
+        const appendUrl = `https://upload.x.com/i/media/upload.json?command=APPENDMULTI&media_id=${mediaId}&segment_indexes=${appendSegmentIndex}&max_segment_size=${appendChunkBytes}&media_md5=${mediaMd5}`;
+
         const appendResult = await this.pageUploadProxy({
           kind: 'append',
-          url: 'https://upload.x.com/i/media/upload.json',
+          url: appendUrl,
           method: 'POST',
           headers: {
             authorization: bearer,
@@ -309,7 +347,7 @@ export class ContentUploadExecutor {
             'x-client-transaction-id': appendTxid,
             'x-twitter-auth-type': 'OAuth2Session'
           },
-          command: 'APPEND',
+          command: 'APPENDMULTI',
           mediaId,
           segmentIndex: appendSegmentIndex,
           mimeType: session.mimeType,
@@ -318,13 +356,13 @@ export class ContentUploadExecutor {
         });
 
         if (!appendResult.ok) {
-          throw new Error(`Media upload APPEND failed at segment ${appendSegmentIndex}: ${appendResult.status} ${appendResult.text || ''}`);
+          throw new Error(`Media upload APPENDMULTI failed at segment ${appendSegmentIndex}: ${appendResult.status} ${appendResult.text || ''}`);
         }
 
         appendSegmentIndex += 1;
         callbacks.onProgress('append', 0.2 + (0.7 * appendSegmentIndex / appendSegmentCount));
         logger.debug(
-          `[ContentUploadExecutor] append complete, taskId=${session.taskId}, segment=${appendSegmentIndex}/${appendSegmentCount}, bytes=${appendSegment.size}, sourceChunk=${chunkIndex + 1}/${session.chunks.length}, elapsedMs=${Date.now() - appendStartedAt}`
+          `[ContentUploadExecutor] APPENDMULTI complete, taskId=${session.taskId}, segment=${appendSegmentIndex}/${appendSegmentCount}, bytes=${appendSegment.size}, sourceChunk=${chunkIndex + 1}/${session.chunks.length}, elapsedMs=${Date.now() - appendStartedAt}`
         );
       }
 
@@ -334,7 +372,7 @@ export class ContentUploadExecutor {
     callbacks.checkCancellation();
     callbacks.onProgress('finalize', 0.92);
 
-    const finalizeUrl = `https://upload.x.com/i/media/upload.json?command=FINALIZE&media_id=${mediaId}`;
+    const finalizeUrl = `https://upload.x.com/i/media/upload.json?command=FINALIZE&media_id=${mediaId}&allow_async=true`;
     const finalizeTxid = await this.getTransactionIdForFn('POST', '/i/media/upload.json');
     const finalizeResult = await this.pageUploadProxy({
       kind: 'raw',
@@ -384,16 +422,20 @@ export class ContentUploadExecutor {
     const bearer = await this.getAuthHeaderFn();
     const csrf = await this.getCsrfTokenFn();
     const isVideo = mimeType.startsWith('video/');
-    const mediaCategory = isVideo ? 'tweet_video' : 'tweet_image';
+    const mediaCategory = isVideo ? 'amplify_video' : 'tweet_image';
+    const streamingVideoDurationMs = isVideo ? toNumberOrDefault(params.videoDurationMs, 0) || undefined : undefined;
     const appendTimeoutMs = toNumberOrDefault(params.appendTimeoutMs, DEFAULT_APPEND_TIMEOUT_MS);
-    const appendChunkBytes = Math.max(1, toNumberOrDefault(params.appendChunkBytes, MEDIA_APPEND_CHUNK_SIZE_BYTES));
+    const appendChunkBytes = Math.max(1, toNumberOrDefault(params.appendChunkBytes, NATIVE_APPEND_CHUNK_SIZE_BYTES));
 
     logger.info(`[ContentUploadExecutor] streaming upload start, taskId=${taskId}, bytes=${totalBytes}, expectedChunks=${expectedChunkCount}, mimeType=${mimeType}`);
 
     callbacks.checkCancellation();
     callbacks.onProgress('init', 0.2);
 
-    const initUrl = `https://upload.x.com/i/media/upload.json?command=INIT&total_bytes=${totalBytes}&media_type=${encodeURIComponent(mimeType)}&media_category=${mediaCategory}`;
+    let initUrl = `https://upload.x.com/i/media/upload.json?command=INIT&total_bytes=${totalBytes}&media_type=${encodeURIComponent(mimeType)}&media_category=${mediaCategory}`;
+    if (streamingVideoDurationMs !== undefined) {
+      initUrl += `&video_duration_ms=${streamingVideoDurationMs}`;
+    }
     const initTxid = await this.getTransactionIdForFn('POST', '/i/media/upload.json');
     const initResult = await this.pageUploadProxy({
       kind: 'raw',
@@ -430,9 +472,12 @@ export class ContentUploadExecutor {
         callbacks.checkCancellation();
         const appendTxid = await this.getTransactionIdForFn('POST', '/i/media/upload.json');
 
+        const mediaMd5 = await computeBlobMd5(appendSegment);
+        const appendUrl = `https://upload.x.com/i/media/upload.json?command=APPENDMULTI&media_id=${mediaId}&segment_indexes=${appendSegmentIndex}&max_segment_size=${appendChunkBytes}&media_md5=${mediaMd5}`;
+
         const appendResult = await this.pageUploadProxy({
           kind: 'append',
-          url: 'https://upload.x.com/i/media/upload.json',
+          url: appendUrl,
           method: 'POST',
           headers: {
             authorization: bearer,
@@ -440,7 +485,7 @@ export class ContentUploadExecutor {
             'x-client-transaction-id': appendTxid,
             'x-twitter-auth-type': 'OAuth2Session'
           },
-          command: 'APPEND',
+          command: 'APPENDMULTI',
           mediaId,
           segmentIndex: appendSegmentIndex,
           mimeType,
@@ -449,7 +494,7 @@ export class ContentUploadExecutor {
         });
 
         if (!appendResult.ok) {
-          throw new Error(`Media upload APPEND failed at segment ${appendSegmentIndex}: ${appendResult.status} ${appendResult.text || ''}`);
+          throw new Error(`Media upload APPENDMULTI failed at segment ${appendSegmentIndex}: ${appendResult.status} ${appendResult.text || ''}`);
         }
 
         appendSegmentIndex += 1;
@@ -463,7 +508,7 @@ export class ContentUploadExecutor {
     callbacks.checkCancellation();
     callbacks.onProgress('finalize', 0.92);
 
-    const finalizeUrl = `https://upload.x.com/i/media/upload.json?command=FINALIZE&media_id=${mediaId}`;
+    const finalizeUrl = `https://upload.x.com/i/media/upload.json?command=FINALIZE&media_id=${mediaId}&allow_async=true`;
     const finalizeTxid = await this.getTransactionIdForFn('POST', '/i/media/upload.json');
     const finalizeResult = await this.pageUploadProxy({
       kind: 'raw',
