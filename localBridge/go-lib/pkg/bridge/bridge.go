@@ -25,12 +25,11 @@ func NewWithRESTRegistrar(cfg config.Config, registrar restapi.RouteRegistrar) *
 	return &Bridge{
 		cfg:        cfg,
 		wsServer:   ws,
-		restServer: restapi.NewServerWithRegistrar(restAddresses, ws, registrar),
+		restServer: restapi.NewServerWithRegistrar(restAddresses, ws, registrar, cfg),
 	}
 }
 
 func (b *Bridge) Start() error {
-	// 合并 TweetClaw 和 AIClaw 的地址一起启动 WebSocket 服务器
 	wsAddresses := convertToWSAddresses(b.cfg.TweetClawWS.Addresses)
 	wsAddresses = append(wsAddresses, convertToWSAddresses(b.cfg.AIClawWS.Addresses)...)
 
@@ -49,7 +48,6 @@ func (b *Bridge) GetInstances() []websocket.InstanceSnapshot {
 	return b.wsServer.GetInstances()
 }
 
-// 转换配置格式
 func convertToWSAddresses(addrs []config.ListenAddress) []websocket.ListenAddress {
 	result := make([]websocket.ListenAddress, len(addrs))
 	for i, addr := range addrs {
@@ -76,12 +74,8 @@ func convertToRESTAddresses(addrs []config.ListenAddress) []restapi.ListenAddres
 
 // 包级单例方法，供 CGo export 层调用
 
-func StartDefault() error {
-	return StartDefaultWithRESTRegistrar(nil)
-}
-
-func StartDefaultWithRESTRegistrar(registrar restapi.RouteRegistrar) error {
-	cfg := config.Load()
+func StartWithConfigJSON(configJSON string, registrar restapi.RouteRegistrar) error {
+	cfg := config.FromJSON(configJSON)
 	global = NewWithRESTRegistrar(cfg, registrar)
 	return global.Start()
 }

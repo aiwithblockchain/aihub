@@ -29,14 +29,23 @@ final class LocalBridgeGoManager {
     private var isPollingLogs = false
 
     func start() {
-        // 加载配置并保存到 Go 的配置文件
         let config = BridgeConfig.load()
-        saveConfigToGoConfigFile(config)
 
-        // 启动服务（端口参数已不再使用，从配置文件读取）
-        let code = LocalBridgeStart(0, 0)
+        // 将配置编码为 JSON 字符串传给 Go 层
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.sortedKeys]
+        guard let configData = try? encoder.encode(config),
+              let configJSON = String(data: configData, encoding: .utf8) else {
+            BridgeLogger.shared.log("[LocalBridgeMac] Failed to encode config JSON")
+            return
+        }
+
+        let code = configJSON.withCString { ptr in
+            LocalBridgeStartWithConfig(UnsafeMutablePointer(mutating: ptr))
+        }
+        BridgeLogger.shared.log("[LocalBridgeMac] Config JSON sent to Go: \(configJSON)")
         if code != 0 {
-            BridgeLogger.shared.log("[LocalBridgeMac] LocalBridgeStart failed with code \(code)")
+            BridgeLogger.shared.log("[LocalBridgeMac] LocalBridgeStartWithConfig failed with code \(code)")
         }
 
         pollQueue.async { [weak self] in
@@ -50,29 +59,6 @@ final class LocalBridgeGoManager {
         }
 
         startLogPolling()
-    }
-
-    private func saveConfigToGoConfigFile(_ config: BridgeConfig) {
-        let encoder = JSONEncoder()
-        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
-
-        guard let jsonData = try? encoder.encode(config),
-              let jsonString = String(data: jsonData, encoding: .utf8) else {
-            BridgeLogger.shared.log("[LocalBridgeMac] Failed to encode config")
-            return
-        }
-
-        let homeDir = FileManager.default.homeDirectoryForCurrentUser
-        let configDir = homeDir.appendingPathComponent(".config/localbridge")
-        let configFile = configDir.appendingPathComponent("config.json")
-
-        do {
-            try FileManager.default.createDirectory(at: configDir, withIntermediateDirectories: true)
-            try jsonString.write(to: configFile, atomically: true, encoding: .utf8)
-            BridgeLogger.shared.log("[LocalBridgeMac] Config saved to \(configFile.path)")
-        } catch {
-            BridgeLogger.shared.log("[LocalBridgeMac] Failed to save config: \(error)")
-        }
     }
 
     func stop(completion: (() -> Void)? = nil) {

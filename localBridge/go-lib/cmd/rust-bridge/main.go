@@ -507,9 +507,12 @@ func writeHTML(w http.ResponseWriter, status int, body string) {
 	_, _ = w.Write([]byte(body))
 }
 
-//export LocalBridgeStart
-func LocalBridgeStart() C.int {
-	if err := bridge.StartDefaultWithRESTRegistrar(registerRustBridgeRoutes); err != nil {
+// LocalBridgeStartWithConfig 使用 JSON 配置字符串启动桥接服务
+//
+//export LocalBridgeStartWithConfig
+func LocalBridgeStartWithConfig(configJSON *C.char) C.int {
+	configJSONStr := C.GoString(configJSON)
+	if err := bridge.StartWithConfigJSON(configJSONStr, registerRustBridgeRoutes); err != nil {
 		setLastErr(err.Error())
 		return -1
 	}
@@ -517,6 +520,8 @@ func LocalBridgeStart() C.int {
 	return 0
 }
 
+// LocalBridgeStop 停止全部服务并释放资源
+//
 //export LocalBridgeStop
 func LocalBridgeStop() {
 	bridge.StopDefault()

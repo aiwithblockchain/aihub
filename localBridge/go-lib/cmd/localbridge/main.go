@@ -6,6 +6,7 @@ package main
 import "C"
 import (
 	"encoding/json"
+	"fmt"
 	"log"
 	"net/http"
 	"os"
@@ -47,7 +48,6 @@ func init() {
 	log.SetOutput(bridgeLogWriter{})
 }
 
-
 // apiDocsCandidates 返回 localbridge 专属的 api_docs.json 候选路径（按优先级排列）
 func apiDocsCandidates() []string {
 	execPath, err := os.Executable()
@@ -73,11 +73,14 @@ func registerLocalBridgeRoutes(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/x/docs", restapi.NewAPIDocsHandler(apiDocsCandidates()))
 }
 
-// LocalBridgeStart 启动桥接服务（tweetClawPort/aiClawPort 传 0 则读配置文件默认值）
+// LocalBridgeStartWithConfig 使用 JSON 配置字符串启动桥接服务
 //
-//export LocalBridgeStart
-func LocalBridgeStart(tweetClawPort C.int, aiClawPort C.int) C.int {
-	if err := bridge.StartDefaultWithRESTRegistrar(registerLocalBridgeRoutes); err != nil {
+//export LocalBridgeStartWithConfig
+func LocalBridgeStartWithConfig(configJSON *C.char) C.int {
+	configJSONStr := C.GoString(configJSON)
+	line := fmt.Sprintf("[LocalBridge] Received config JSON: %s", configJSONStr)
+	bridgeLogWriter{}.Write([]byte(line))
+	if err := bridge.StartWithConfigJSON(configJSONStr, registerLocalBridgeRoutes); err != nil {
 		return -1
 	}
 	return 0

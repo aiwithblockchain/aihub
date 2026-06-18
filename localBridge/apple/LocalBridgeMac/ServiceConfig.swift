@@ -14,6 +14,9 @@ struct BridgeConfig: Codable, Equatable {
     var tweetClawWS: ServiceConfig
     var aiClawWS: ServiceConfig
     var restAPI: ServiceConfig
+    var timeoutMs: Int
+    var publishTimeoutMs: Int
+    var syncIntervalMs: Int
 }
 
 extension BridgeConfig {
@@ -27,7 +30,10 @@ extension BridgeConfig {
             ]),
             restAPI: ServiceConfig(addresses: [
                 ListenAddress(ip: "127.0.0.1", port: 10088, enabled: true)
-            ])
+            ]),
+            timeoutMs: 30000,
+            publishTimeoutMs: 300000,
+            syncIntervalMs: 60000
         )
     }
 
@@ -55,7 +61,10 @@ extension BridgeConfig {
                 ]),
                 restAPI: ServiceConfig(addresses: [
                     ListenAddress(ip: "127.0.0.1", port: restApiPort > 0 ? restApiPort : 10088, enabled: true)
-                ])
+                ]),
+                timeoutMs: 30000,
+                publishTimeoutMs: 300000,
+                syncIntervalMs: 60000
             )
         }
 

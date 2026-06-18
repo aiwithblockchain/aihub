@@ -1,10 +1,6 @@
 package config
 
-import (
-	"encoding/json"
-	"os"
-	"path/filepath"
-)
+import "encoding/json"
 
 type ListenAddress struct {
 	IP      string `json:"ip"`
@@ -17,9 +13,12 @@ type ServiceConfig struct {
 }
 
 type Config struct {
-	TweetClawWS ServiceConfig `json:"tweetClawWS"`
-	AIClawWS    ServiceConfig `json:"aiClawWS"`
-	RestAPI     ServiceConfig `json:"restAPI"`
+	TweetClawWS      ServiceConfig `json:"tweetClawWS"`
+	AIClawWS         ServiceConfig `json:"aiClawWS"`
+	RestAPI          ServiceConfig `json:"restAPI"`
+	TimeoutMs        int           `json:"timeoutMs"`
+	PublishTimeoutMs int           `json:"publishTimeoutMs"`
+	SyncIntervalMs   int           `json:"syncIntervalMs"`
 }
 
 func DefaultConfig() Config {
@@ -39,22 +38,30 @@ func DefaultConfig() Config {
 				{IP: "127.0.0.1", Port: 10088, Enabled: true},
 			},
 		},
+		TimeoutMs:        30000,
+		PublishTimeoutMs: 300000,
+		SyncIntervalMs:   60000,
 	}
 }
 
-func configPath() string {
-	home, _ := os.UserHomeDir()
-	return filepath.Join(home, ".config", "localbridge", "config.json")
-}
-
-// Load 从磁盘读取配置，文件不存在时返回默认值
-func Load() Config {
+// FromJSON 从 JSON 字符串解析配置，解析失败或字段缺失时回退到默认值
+func FromJSON(data string) Config {
 	cfg := DefaultConfig()
-	data, err := os.ReadFile(configPath())
-	if err != nil {
+	if len(data) == 0 {
 		return cfg
 	}
-	_ = json.Unmarshal(data, &cfg)
+	_ = json.Unmarshal([]byte(data), &cfg)
+
+	// 兜底：如果解析出的 timeout 字段为 0，回退到默认值
+	if cfg.TimeoutMs <= 0 {
+		cfg.TimeoutMs = DefaultConfig().TimeoutMs
+	}
+	if cfg.PublishTimeoutMs <= 0 {
+		cfg.PublishTimeoutMs = DefaultConfig().PublishTimeoutMs
+	}
+	if cfg.SyncIntervalMs <= 0 {
+		cfg.SyncIntervalMs = DefaultConfig().SyncIntervalMs
+	}
 
 	// 确保至少有一个启用的地址
 	if len(cfg.TweetClawWS.Addresses) == 0 {
@@ -70,9 +77,12 @@ func Load() Config {
 	return cfg
 }
 
+// Load 保留旧函数签名供兼容，但不再读取文件，直接返回默认配置
+func Load() Config {
+	return DefaultConfig()
+}
+
+// Save 保留旧函数签名供兼容，但不再操作文件
 func Save(cfg Config) error {
-	p := configPath()
-	_ = os.MkdirAll(filepath.Dir(p), 0755)
-	data, _ := json.MarshalIndent(cfg, "", "  ")
-	return os.WriteFile(p, data, 0644)
+	return nil
 }

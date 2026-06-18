@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/hyperorchid/localbridge/pkg/config"
 	"github.com/hyperorchid/localbridge/pkg/websocket"
 )
 
@@ -60,7 +61,7 @@ func TestWithCORSPassesThroughNonPreflight(t *testing.T) {
 
 func TestRegisterSharesTaskStateAcrossMuxes(t *testing.T) {
 	ws := websocket.NewServer()
-	handler := NewHandler(ws)
+	handler := NewHandler(ws, config.DefaultConfig())
 
 	mux1 := http.NewServeMux()
 	mux2 := http.NewServeMux()

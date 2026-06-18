@@ -5,6 +5,7 @@ import (
 	"log"
 	"net/http"
 
+	"github.com/hyperorchid/localbridge/pkg/config"
 	"github.com/hyperorchid/localbridge/pkg/websocket"
 )
 
@@ -44,11 +45,11 @@ func withCORS(next http.Handler) http.Handler {
 }
 
 func NewServer(addresses []ListenAddress, ws *websocket.Server) *Server {
-	return NewServerWithRegistrar(addresses, ws, nil)
+	return NewServerWithRegistrar(addresses, ws, nil, config.DefaultConfig())
 }
 
-func NewServerWithRegistrar(addresses []ListenAddress, ws *websocket.Server, registrar RouteRegistrar) *Server {
-	h := NewHandler(ws)
+func NewServerWithRegistrar(addresses []ListenAddress, ws *websocket.Server, registrar RouteRegistrar, cfg config.Config) *Server {
+	h := NewHandler(ws, cfg)
 	var servers []*http.Server
 
 	seen := map[string]bool{}

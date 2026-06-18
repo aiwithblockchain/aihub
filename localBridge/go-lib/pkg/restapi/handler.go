@@ -11,18 +11,19 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/hyperorchid/localbridge/pkg/config"
 	"github.com/hyperorchid/localbridge/pkg/task"
 	"github.com/hyperorchid/localbridge/pkg/types"
 	"github.com/hyperorchid/localbridge/pkg/websocket"
 )
 
-const defaultTaskTimeoutMs = 210_000 // 与 Swift defaultExecuteTaskTimeoutMs 一致
 
 type Handler struct {
 	ws          *websocket.Server
 	taskManager *task.Manager
 	dataStore   *task.DataStore
 	resultStore *task.ResultStore
+	cfg         config.Config
 }
 
 func (h *Handler) Register(mux *http.ServeMux) {
@@ -123,7 +124,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 
 }
 
-func NewHandler(ws *websocket.Server) *Handler {
+func NewHandler(ws *websocket.Server, cfg config.Config) *Handler {
 	baseDir := os.ExpandEnv("$HOME/Library/Application Support/AIHub/tasks")
 	taskManager := task.NewManager()
 	dataStore := task.NewDataStore(baseDir)
@@ -139,6 +140,7 @@ func NewHandler(ws *websocket.Server) *Handler {
 		taskManager: taskManager,
 		dataStore:   dataStore,
 		resultStore: resultStore,
+		cfg:         cfg,
 	}
 }
 
@@ -190,7 +192,7 @@ func (h *Handler) pluginInvoke(w http.ResponseWriter, r *http.Request) {
 	}
 	timeoutMs := req.TimeoutMs
 	if timeoutMs <= 0 {
-		timeoutMs = 5000
+		timeoutMs = h.cfg.TimeoutMs
 	}
 
 	// 封装消息（payload 不解析，原始 JSON 透传）
@@ -254,7 +256,7 @@ func (h *Handler) bridge(
 		return
 	}
 	if timeoutMs <= 0 {
-		timeoutMs = 5000
+		timeoutMs = h.cfg.TimeoutMs
 	}
 	done := make(chan struct{}, 1)
 	h.ws.RegisterCallback(msgID, sess, func(data []byte) {
@@ -334,19 +336,19 @@ func instanceIDFromRawPayload(payload json.RawMessage) string {
 
 func (h *Handler) xStatus(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_x_status")
-	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_x_tabs_status", "tweetClaw", types.EmptyPayload{}), 5000,
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_x_tabs_status", "tweetClaw", types.EmptyPayload{}), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) xBasicInfo(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_x_basic")
-	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_x_basic_info", "tweetClaw", types.EmptyPayload{}), 5000,
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.query_x_basic_info", "tweetClaw", types.EmptyPayload{}), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) timeline(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_timeline")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_home_timeline", "tweetClaw", queryToMap(r)), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_home_timeline", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -358,11 +360,11 @@ func (h *Handler) tweetsDispatch(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 		id := newID("http_exec")
-		h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "request.exec_action", "tweetClaw", body), 8000,
+		h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "request.exec_action", "tweetClaw", body), h.cfg.TimeoutMs,
 			func(data []byte) { writeRawPayload(w, data) })
 	} else {
 		id := newID("http_tweet_detail")
-		h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_tweet_detail", "tweetClaw", queryToMap(r)), 8000,
+		h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_tweet_detail", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 			func(data []byte) { writeRawPayload(w, data) })
 	}
 }
@@ -387,11 +389,11 @@ func (h *Handler) tweetResourceDispatch(w http.ResponseWriter, r *http.Request) 
 	switch {
 	case len(parts) == 1:
 		id := newID("http_tweet")
-		h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_tweet_detail", "tweetClaw", payload), 8000,
+		h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_tweet_detail", "tweetClaw", payload), h.cfg.TimeoutMs,
 			func(data []byte) { writeRawPayload(w, data) })
 	case len(parts) == 2 && parts[1] == "replies":
 		id := newID("http_tweet_replies")
-		h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_tweet_replies", "tweetClaw", payload), 8000,
+		h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_tweet_replies", "tweetClaw", payload), h.cfg.TimeoutMs,
 			func(data []byte) { writeRawPayload(w, data) })
 	default:
 		jsonErr(w, 404, "not_found")
@@ -400,37 +402,37 @@ func (h *Handler) tweetResourceDispatch(w http.ResponseWriter, r *http.Request) 
 
 func (h *Handler) userProfile(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_user_profile")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_user_profile", "tweetClaw", queryToMap(r)), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_user_profile", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) searchTimeline(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_search")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_search_timeline", "tweetClaw", queryToMap(r)), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_search_timeline", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) userTweets(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_user_tweets")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_user_tweets", "tweetClaw", queryToMap(r)), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_user_tweets", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) followers(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_followers")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_followers", "tweetClaw", queryToMap(r)), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_followers", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) following(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_following")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_following", "tweetClaw", queryToMap(r)), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_following", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
 func (h *Handler) blueVerifiedFollowers(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_blue_verified_followers")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_blue_verified_followers", "tweetClaw", queryToMap(r)), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.query_blue_verified_followers", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -441,7 +443,7 @@ func (h *Handler) execAction(w http.ResponseWriter, r *http.Request, action stri
 		return
 	}
 	id := newID("http_exec")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.exec_action", "tweetClaw", mergeAction(body, action)), 15000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "request.exec_action", "tweetClaw", mergeAction(body, action)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -452,7 +454,7 @@ func (h *Handler) openTab(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_open_tab")
-	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.open_tab", "tweetClaw", req), 5000,
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.open_tab", "tweetClaw", req), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -463,7 +465,7 @@ func (h *Handler) closeTab(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_close_tab")
-	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.close_tab", "tweetClaw", req), 5000,
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.close_tab", "tweetClaw", req), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -474,7 +476,7 @@ func (h *Handler) navigateTab(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_nav_tab")
-	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.navigate_tab", "tweetClaw", req), 5000,
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "request.navigate_tab", "tweetClaw", req), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -532,7 +534,7 @@ func (h *Handler) xhsAccountInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_xhs_account")
-	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "command.query_xhs_account_info", "tweetClaw", types.EmptyPayload{}), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "command.query_xhs_account_info", "tweetClaw", types.EmptyPayload{}), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -542,7 +544,7 @@ func (h *Handler) xhsHomefeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_xhs_homefeed")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.query_xhs_homefeed", "tweetClaw", queryToMap(r)), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.query_xhs_homefeed", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -552,7 +554,7 @@ func (h *Handler) xhsFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_xhs_feed")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.query_xhs_feed", "tweetClaw", queryToMap(r)), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.query_xhs_feed", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -567,7 +569,7 @@ func (h *Handler) xhsSearch(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_xhs_search")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.query_xhs_search", "tweetClaw", body), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.query_xhs_search", "tweetClaw", body), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -577,7 +579,7 @@ func (h *Handler) xhsUserNotes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_xhs_user_notes")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.query_xhs_user_notes", "tweetClaw", queryToMap(r)), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.query_xhs_user_notes", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -592,7 +594,7 @@ func (h *Handler) xhsPublish(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_xhs_publish")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_publish_image_note", "tweetClaw", body), 30000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_publish_image_note", "tweetClaw", body), h.cfg.PublishTimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -602,7 +604,7 @@ func (h *Handler) xhsComments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_xhs_comments")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_note_comments", "tweetClaw", queryToMap(r)), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_note_comments", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -612,7 +614,7 @@ func (h *Handler) xhsUserInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_xhs_user_info")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_user_info", "tweetClaw", queryToMap(r)), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_user_info", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -622,7 +624,7 @@ func (h *Handler) xhsTopics(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_xhs_topics")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_search_topics", "tweetClaw", queryToMap(r)), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_search_topics", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -632,7 +634,7 @@ func (h *Handler) xhsNotifications(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_xhs_notifications")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_notifications", "tweetClaw", queryToMap(r)), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_notifications", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -642,7 +644,7 @@ func (h *Handler) xhsPublishedNotes(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_xhs_published_notes")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_published_notes", "tweetClaw", queryToMap(r)), 35000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_published_notes", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -658,7 +660,7 @@ func (h *Handler) xhsPublishVideo(w http.ResponseWriter, r *http.Request) {
 	}
 	id := newID("http_xhs_publish_video")
 	// 视频上传耗时较长，timeout 设为 120 秒
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_publish_video_note", "tweetClaw", body), 120000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_publish_video_note", "tweetClaw", body), h.cfg.PublishTimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -668,7 +670,7 @@ func (h *Handler) xhsSearchFilter(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_xhs_search_filter")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_search_filter", "tweetClaw", queryToMap(r)), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_search_filter", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -687,7 +689,7 @@ func (h *Handler) xhsPostComment(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[xhsPostComment] raw body: %s", string(body))
 	id := newID("http_xhs_post_comment")
 	log.Printf("[xhsPostComment] sending to tweetClaw: id=%s", id)
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_post_comment", "tweetClaw", body), 15000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_post_comment", "tweetClaw", body), h.cfg.TimeoutMs,
 		func(data []byte) {
 			log.Printf("[xhsPostComment] received response len=%d", len(data))
 			writeRawPayload(w, data)
@@ -702,7 +704,7 @@ func (h *Handler) xhsSearchUsers(w http.ResponseWriter, r *http.Request) {
 	}
 	id := newID("http_xhs_search_users")
 	log.Printf("[xhsSearchUsers] sending to tweetClaw: id=%s query=%v", id, r.URL.Query())
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_search_users", "tweetClaw", queryToMap(r)), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_search_users", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) {
 			log.Printf("[xhsSearchUsers] received response len=%d", len(data))
 			writeRawPayload(w, data)
@@ -717,7 +719,7 @@ func (h *Handler) xhsIntimacyList(w http.ResponseWriter, r *http.Request) {
 	}
 	id := newID("http_xhs_intimacy_list")
 	log.Printf("[xhsIntimacyList] sending to tweetClaw: id=%s", id)
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_intimacy_list", "tweetClaw", nil), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_intimacy_list", "tweetClaw", nil), h.cfg.TimeoutMs,
 		func(data []byte) {
 			log.Printf("[xhsIntimacyList] received response len=%d", len(data))
 			writeRawPayload(w, data)
@@ -739,7 +741,7 @@ func (h *Handler) xhsLikeNote(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[xhsLikeNote] raw body: %s", string(body))
 	id := newID("http_xhs_like_note")
 	log.Printf("[xhsLikeNote] sending to tweetClaw: id=%s", id)
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_like_note", "tweetClaw", body), 15000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_like_note", "tweetClaw", body), h.cfg.TimeoutMs,
 		func(data []byte) {
 			log.Printf("[xhsLikeNote] received response len=%d", len(data))
 			writeRawPayload(w, data)
@@ -761,7 +763,7 @@ func (h *Handler) xhsUnlikeNote(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[xhsUnlikeNote] raw body: %s", string(body))
 	id := newID("http_xhs_unlike_note")
 	log.Printf("[xhsUnlikeNote] sending to tweetClaw: id=%s", id)
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_unlike_note", "tweetClaw", body), 15000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_unlike_note", "tweetClaw", body), h.cfg.TimeoutMs,
 		func(data []byte) {
 			log.Printf("[xhsUnlikeNote] received response len=%d", len(data))
 			writeRawPayload(w, data)
@@ -783,7 +785,7 @@ func (h *Handler) xhsFollowUser(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[xhsFollowUser] raw body: %s", string(body))
 	id := newID("http_xhs_follow_user")
 	log.Printf("[xhsFollowUser] sending to tweetClaw: id=%s", id)
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_follow_user", "tweetClaw", body), 15000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_follow_user", "tweetClaw", body), h.cfg.TimeoutMs,
 		func(data []byte) {
 			log.Printf("[xhsFollowUser] received response len=%d", len(data))
 			writeRawPayload(w, data)
@@ -805,7 +807,7 @@ func (h *Handler) xhsUnfollowUser(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[xhsUnfollowUser] raw body: %s", string(body))
 	id := newID("http_xhs_unfollow_user")
 	log.Printf("[xhsUnfollowUser] sending to tweetClaw: id=%s", id)
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_unfollow_user", "tweetClaw", body), 15000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_unfollow_user", "tweetClaw", body), h.cfg.TimeoutMs,
 		func(data []byte) {
 			log.Printf("[xhsUnfollowUser] received response len=%d", len(data))
 			writeRawPayload(w, data)
@@ -827,7 +829,7 @@ func (h *Handler) xhsCollectNote(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[xhsCollectNote] raw body: %s", string(body))
 	id := newID("http_xhs_collect_note")
 	log.Printf("[xhsCollectNote] sending to tweetClaw: id=%s", id)
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_collect_note", "tweetClaw", body), 15000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_collect_note", "tweetClaw", body), h.cfg.TimeoutMs,
 		func(data []byte) {
 			log.Printf("[xhsCollectNote] received response len=%d", len(data))
 			writeRawPayload(w, data)
@@ -849,7 +851,7 @@ func (h *Handler) xhsDeleteNote(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[xhsDeleteNote] raw body: %s", string(body))
 	id := newID("http_xhs_delete_note")
 	log.Printf("[xhsDeleteNote] sending to tweetClaw: id=%s", id)
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_delete_note", "tweetClaw", body), 15000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_delete_note", "tweetClaw", body), h.cfg.TimeoutMs,
 		func(data []byte) {
 			log.Printf("[xhsDeleteNote] received response len=%d", len(data))
 			writeRawPayload(w, data)
@@ -871,7 +873,7 @@ func (h *Handler) xhsDeleteComment(w http.ResponseWriter, r *http.Request) {
 	log.Printf("[xhsDeleteComment] raw body: %s", string(body))
 	id := newID("http_xhs_delete_comment")
 	log.Printf("[xhsDeleteComment] sending to tweetClaw: id=%s", id)
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_delete_comment", "tweetClaw", body), 15000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_delete_comment", "tweetClaw", body), h.cfg.TimeoutMs,
 		func(data []byte) {
 			log.Printf("[xhsDeleteComment] received response len=%d", len(data))
 			writeRawPayload(w, data)
@@ -884,7 +886,7 @@ func (h *Handler) xhsGetFriendFans(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_xhs_get_friend_fans")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_friend_fans", "tweetClaw", queryToMap(r)), 15000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_friend_fans", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -899,7 +901,7 @@ func (h *Handler) xhsCreateCollection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_xhs_create_collection")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_create_collection", "tweetClaw", body), 30000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_create_collection", "tweetClaw", body), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -914,7 +916,7 @@ func (h *Handler) xhsListCollections(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_xhs_list_collections")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_list_collections", "tweetClaw", body), 15000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_list_collections", "tweetClaw", body), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -924,7 +926,7 @@ func (h *Handler) xhsListCollectionNotes(w http.ResponseWriter, r *http.Request)
 		return
 	}
 	id := newID("http_xhs_list_collection_notes")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_list_collection_notes", "tweetClaw", queryToMap(r)), 15000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_list_collection_notes", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -939,7 +941,7 @@ func (h *Handler) xhsUpdateCollection(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_xhs_update_collection")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_update_collection", "tweetClaw", body), 15000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_update_collection", "tweetClaw", body), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -950,7 +952,7 @@ func (h *Handler) xhsNoteDetailStats(w http.ResponseWriter, r *http.Request) {
 	}
 	id := newID("http_xhs_note_detail_stats")
 	// 30s 超时，因为 getOrOpenCreatorTab 最多需要 30s 等待签名链路就绪
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_note_detail_stats", "tweetClaw", queryToMap(r)), 30000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_get_note_detail_stats", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -958,7 +960,7 @@ func (h *Handler) xhsNoteDetailStats(w http.ResponseWriter, r *http.Request) {
 
 func (h *Handler) aiStatus(w http.ResponseWriter, r *http.Request) {
 	id := newID("http_ai_status")
-	h.bridge(w, r, "aiClaw", id, buildMsg(id, "request.query_ai_tabs_status", "aiClaw", types.EmptyPayload{}), 5000,
+	h.bridge(w, r, "aiClaw", id, buildMsg(id, "request.query_ai_tabs_status", "aiClaw", types.EmptyPayload{}), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -978,7 +980,7 @@ func (h *Handler) sendMessage(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, 400, err.Error())
 		return
 	}
-	timeoutMs := defaultTaskTimeoutMs
+	timeoutMs := h.cfg.PublishTimeoutMs
 	if req.TimeoutMs != nil && *req.TimeoutMs > 1000 {
 		timeoutMs = *req.TimeoutMs
 	}
@@ -1007,7 +1009,7 @@ func (h *Handler) newConversation(w http.ResponseWriter, r *http.Request) {
 		jsonErr(w, 400, err.Error())
 		return
 	}
-	timeoutMs := 30_000
+	timeoutMs := h.cfg.TimeoutMs
 	if req.TimeoutMs != nil && *req.TimeoutMs > 1000 {
 		timeoutMs = *req.TimeoutMs
 	}
@@ -1040,7 +1042,7 @@ func (h *Handler) navigateToPlatform(w http.ResponseWriter, r *http.Request) {
 	}
 	id := newID("http_navigate")
 	payload := types.NavigateToPlatformPayload{Platform: req.Platform}
-	h.bridge(w, r, "aiClaw", id, buildMsg(id, "request.navigate_to_platform", "aiClaw", payload), 5000,
+	h.bridge(w, r, "aiClaw", id, buildMsg(id, "request.navigate_to_platform", "aiClaw", payload), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -1052,7 +1054,7 @@ func (h *Handler) igStatus(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_status")
-	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "command.ig_check_login", "tweetClaw", types.EmptyPayload{}), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "command.ig_check_login", "tweetClaw", types.EmptyPayload{}), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -1062,7 +1064,7 @@ func (h *Handler) igAccountInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_account")
-	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "command.ig_get_self_info", "tweetClaw", types.EmptyPayload{}), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildMsg(id, "command.ig_get_self_info", "tweetClaw", types.EmptyPayload{}), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -1072,7 +1074,7 @@ func (h *Handler) igFeed(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_feed")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_get_feed", "tweetClaw", queryToMap(r)), 10000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_get_feed", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -1082,7 +1084,7 @@ func (h *Handler) igGetMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_get_media")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_get_media", "tweetClaw", queryToMap(r)), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_get_media", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -1092,7 +1094,7 @@ func (h *Handler) igUserInfo(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_user_info")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_get_user_info", "tweetClaw", queryToMap(r)), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_get_user_info", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -1102,7 +1104,7 @@ func (h *Handler) igSearchUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_search_user")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_search_user", "tweetClaw", queryToMap(r)), 8000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_search_user", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -1117,7 +1119,7 @@ func (h *Handler) igLikeMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_like")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_like_media", "tweetClaw", body), 30000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_like_media", "tweetClaw", body), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -1132,7 +1134,7 @@ func (h *Handler) igUnlikeMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_unlike")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_unlike_media", "tweetClaw", body), 30000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_unlike_media", "tweetClaw", body), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -1147,7 +1149,7 @@ func (h *Handler) igFollowUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_follow")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_follow_user", "tweetClaw", body), 30000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_follow_user", "tweetClaw", body), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -1162,7 +1164,7 @@ func (h *Handler) igUnfollowUser(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_unfollow")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_unfollow_user", "tweetClaw", body), 30000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_unfollow_user", "tweetClaw", body), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -1177,7 +1179,7 @@ func (h *Handler) igPostComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_comment")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_post_comment", "tweetClaw", body), 30000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_post_comment", "tweetClaw", body), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -1192,7 +1194,7 @@ func (h *Handler) igDeleteComment(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_delete_comment")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_delete_comment", "tweetClaw", body), 30000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_delete_comment", "tweetClaw", body), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -1207,7 +1209,7 @@ func (h *Handler) igPostMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_post_media")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_post_media", "tweetClaw", body), 180000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_post_media", "tweetClaw", body), h.cfg.PublishTimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -1222,7 +1224,7 @@ func (h *Handler) igDeleteMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_delete_media")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_delete_media", "tweetClaw", body), 30000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_delete_media", "tweetClaw", body), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -1232,7 +1234,7 @@ func (h *Handler) igGetUserMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_get_user_media")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_get_user_media", "tweetClaw", queryToMap(r)), 30000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_get_user_media", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -1242,7 +1244,7 @@ func (h *Handler) igGetMediaComments(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_get_media_comments")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_get_media_comments", "tweetClaw", queryToMap(r)), 15000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_get_media_comments", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -1258,7 +1260,7 @@ func (h *Handler) igSearch(w http.ResponseWriter, r *http.Request) {
 	}
 	id := newID("http_ig_search")
 	// 搜索可能需要更长时间，设置 30 秒超时
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_search", "tweetClaw", body), 30000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_search", "tweetClaw", body), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -1268,7 +1270,7 @@ func (h *Handler) igGetNotifications(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_notifications")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_get_notifications", "tweetClaw", nil), 30000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_get_notifications", "tweetClaw", nil), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -1278,7 +1280,7 @@ func (h *Handler) igGetFollowers(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_followers")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_get_followers", "tweetClaw", queryToMap(r)), 30000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_get_followers", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
@@ -1288,7 +1290,7 @@ func (h *Handler) igGetFollowing(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_following")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_get_following", "tweetClaw", queryToMap(r)), 30000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.ig_get_following", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 
