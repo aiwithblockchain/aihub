@@ -47,7 +47,7 @@ def main():
         print(f"📸 步骤 1: 发布媒体...")
         start_time = time.time()
         result = client.ig.post_media(
-            image_path=image_path,
+            image_paths=image_path,
             caption=caption,
             disable_comments=False,
             share_to_threads=True,

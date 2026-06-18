@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from .base import BaseApiTransport
 
@@ -65,17 +65,19 @@ class IgApiTransport(BaseApiTransport):
 
     def post_media_raw(
         self,
-        image_base64: str,
-        caption: str,
+        image_base64: Optional[str] = None,
+        image_base64_list: Optional[List[str]] = None,
+        caption: str = "",
         mime_type: str = "image/jpeg",
         disable_comments: bool = False,
         share_to_threads: bool = True,
         location: Optional[Dict[str, Any]] = None,
     ) -> Dict[Any, Any]:
-        """发布媒体
+        """发布媒体（单图或多图）
 
         Args:
-            image_base64: 图片 base64（不含前缀）
+            image_base64: 单图 base64（不含前缀），与 image_base64_list 二选一
+            image_base64_list: 多图 base64 列表（不含前缀），与 image_base64 二选一
             caption: 文案
             mime_type: MIME 类型
             disable_comments: 是否禁用评论
@@ -85,17 +87,23 @@ class IgApiTransport(BaseApiTransport):
         Returns:
             媒体对象
         """
+        if (image_base64 and image_base64_list) or (not image_base64 and not image_base64_list):
+            raise ValueError("必须且只能提供 image_base64 或 image_base64_list 中的一个")
+
         payload: Dict[str, Any] = {
-            "imageBase64": image_base64,
             "caption": caption,
             "mimeType": mime_type,
             "disableComments": disable_comments,
             "shareToThreads": share_to_threads,
         }
+        if image_base64:
+            payload["imageBase64"] = image_base64
+        elif image_base64_list:
+            payload["imageBase64List"] = image_base64_list
         if location:
             payload["location"] = location
-        # 媒体发布需要较长时间（上传 + 配置），设置 90 秒超时
-        return self.request_json("POST", "/api/v1/ig/media/post", json=payload, timeout=90)
+        # 媒体发布需要较长时间（上传 + 配置），设置 180 秒超时
+        return self.request_json("POST", "/api/v1/ig/media/post", json=payload, timeout=180)
 
     def post_video_raw(
         self,

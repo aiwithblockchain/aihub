@@ -1586,6 +1586,116 @@ export class IgApiClient {
   }
 
   /**
+   * 配置轮播图（多图发布）
+   * API: POST /api/v1/media/configure_sidecar/
+   *
+   * @param uploadIds - 上传 ID 列表
+   * @param caption - 文案
+   * @param options - 其他选项
+   * @returns 媒体对象
+   */
+  public async configureSidecar(
+    uploadIds: string[],
+    caption: string,
+    options: {
+      disableComments?: boolean;
+      shareToThreads?: boolean;
+      location?: IgPostMediaParams['location'];
+    } = {}
+  ): Promise<IgPostMediaResponse> {
+    await smartDelay(MIN_WRITE_DELAY, MAX_WRITE_DELAY);
+
+    try {
+      // 获取 fb_dtsg token
+      const fbDtsg = await getFbDtsgWithCache();
+      if (!fbDtsg) {
+        throw new Error('fb_dtsg token not found. Please refresh Instagram page.');
+      }
+
+      // 获取 CSRF token
+      const csrfToken = await getCsrfToken();
+
+      // 生成 client_sidecar_id
+      const clientSidecarId = Date.now().toString();
+
+      // 构建 JSON body（与单图不同，轮播图使用 JSON）
+      const body: Record<string, any> = {
+        archive_only: false,
+        caption,
+        children_metadata: uploadIds.map((id) => ({ upload_id: id })),
+        client_sidecar_id: clientSidecarId,
+        disable_comments: options.disableComments ? '1' : '0',
+        is_meta_only_post: false,
+        is_open_to_public_submission: false,
+        like_and_view_counts_disabled: 0,
+        media_share_flow: 'creation_flow',
+        share_to_facebook: '',
+        share_to_fb_destination_type: 'USER',
+        source_type: 'library',
+        jazoest: '22673',
+        fb_dtsg: fbDtsg,
+      };
+
+      // Threads 分享参数
+      if (options.shareToThreads !== false) {
+        body.share_to_threads = 'true';
+        body.share_to_threads_destination_id = '17841427211664125';
+        body.share_to_threads_validation_bypass = '["AUTO_CROSSPOST_SETTING"]';
+      } else {
+        body.share_to_threads = 'false';
+      }
+
+      // 添加位置信息（如果有）
+      if (options.location) {
+        body.location = JSON.stringify({
+          name: options.location.name,
+          lat: options.location.lat,
+          lng: options.location.lng,
+          external_source: options.location.externalId ? 'facebook_places' : '',
+          external_id: options.location.externalId || '',
+        });
+      }
+
+      console.log(`[IG API] POST /api/v1/media/configure_sidecar/ upload_ids=[${uploadIds.join(', ')}]`);
+
+      const response = await fetch(
+        `${this.baseUrl}/api/v1/media/configure_sidecar/`,
+        {
+          method: 'POST',
+          headers: {
+            'Accept': '*/*',
+            'Accept-Language': 'en-US,en;q=0.9',
+            'Content-Type': 'application/json',
+            'X-CSRFToken': csrfToken,
+            'X-IG-App-ID': X_IG_APP_ID,
+            'X-Requested-With': 'XMLHttpRequest',
+            'Referer': 'https://www.instagram.com/',
+          },
+          body: JSON.stringify(body),
+          credentials: 'include',
+        }
+      );
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(`HTTP ${response.status}: ${errorText}`);
+      }
+
+      const data = await response.json();
+
+      if (!data.media) {
+        throw new Error('Failed to configure sidecar');
+      }
+
+      console.log(`[IG API] Sidecar configured: id=${data.media.id}, carousel_media_count=${data.media.carousel_media_count || uploadIds.length}`);
+      return data;
+    } catch (error) {
+      console.error('[IG API] Configure sidecar error:', error);
+      throw error;
+    }
+  }
+
+  /**
    * 发布媒体（组合上传 + 配置）
    * 支持图片和视频
    *
@@ -1676,48 +1786,89 @@ export class IgApiClient {
 
       } else {
         // === 图片发布流程 ===
-        let imageBytes: Uint8Array;
+        // 判断是单图还是多图
+        const isMultiImage = Array.isArray(params.imageBytes) && params.imageBytes.length > 1;
 
-        if (params.imageBytes) {
-          imageBytes = params.imageBytes;
-        } else if (params.imageBase64) {
-          // 解码 base64
-          const binaryStr = atob(params.imageBase64);
-          imageBytes = new Uint8Array(binaryStr.length);
-          for (let i = 0; i < binaryStr.length; i++) {
-            imageBytes[i] = binaryStr.charCodeAt(i);
+        if (isMultiImage) {
+          // === 多图（轮播图）发布流程 ===
+          const imageList = params.imageBytes as Uint8Array[];
+          const mimeType = params.mimeType || 'image/jpeg';
+
+          console.log(`[IG API] Step 1: Uploading ${imageList.length} images...`);
+
+          const uploadIds: string[] = [];
+          for (let i = 0; i < imageList.length; i++) {
+            console.log(`[IG API] Uploading image ${i + 1}/${imageList.length}...`);
+            const uploadResult = await this.uploadImage(imageList[i], mimeType);
+            if (uploadResult.status !== 'ok') {
+              throw new Error(`Image ${i + 1} upload failed`);
+            }
+            uploadIds.push(uploadResult.upload_id);
+            console.log(`[IG API] Image ${i + 1} uploaded: upload_id=${uploadResult.upload_id}`);
           }
+
+          console.log(`[IG API] All ${uploadIds.length} images uploaded`);
+
+          // 2. 配置轮播图
+          console.log('[IG API] Step 2: Configuring sidecar...');
+          const mediaResult = await this.configureSidecar(
+            uploadIds,
+            params.caption,
+            {
+              disableComments: params.disableComments,
+              shareToThreads: params.shareToThreads,
+              location: params.location,
+            }
+          );
+
+          console.log(`[IG API] Carousel posted: id=${mediaResult.media.id}`);
+          return mediaResult;
+
         } else {
-          throw new Error('Either imageBase64/imageBytes or videoBytes is required');
-        }
+          // === 单图发布流程 ===
+          let imageBytes: Uint8Array;
 
-        const mimeType = params.mimeType || 'image/jpeg';
-
-        // 1. 上传图片
-        console.log('[IG API] Step 1: Uploading image...');
-        const uploadResult = await this.uploadImage(imageBytes, mimeType);
-
-        if (uploadResult.status !== 'ok') {
-          throw new Error('Image upload failed');
-        }
-
-        console.log(`[IG API] Image uploaded: upload_id=${uploadResult.upload_id}`);
-
-        // 2. 配置媒体（发布）
-        console.log('[IG API] Step 2: Configuring media...');
-        const mediaResult = await this.configureMedia(
-          uploadResult.upload_id,
-          params.caption,
-          {
-            disableComments: params.disableComments,
-            shareToThreads: params.shareToThreads,
-            location: params.location,
+          if (params.imageBytes) {
+            imageBytes = Array.isArray(params.imageBytes) ? params.imageBytes[0] : params.imageBytes;
+          } else if (params.imageBase64) {
+            // 解码 base64
+            const binaryStr = atob(params.imageBase64);
+            imageBytes = new Uint8Array(binaryStr.length);
+            for (let i = 0; i < binaryStr.length; i++) {
+              imageBytes[i] = binaryStr.charCodeAt(i);
+            }
+          } else {
+            throw new Error('Either imageBase64/imageBytes or videoBytes is required');
           }
-        );
 
-        console.log(`[IG API] Media posted: id=${mediaResult.media.id}`);
+          const mimeType = params.mimeType || 'image/jpeg';
 
-        return mediaResult;
+          // 1. 上传图片
+          console.log('[IG API] Step 1: Uploading image...');
+          const uploadResult = await this.uploadImage(imageBytes, mimeType);
+
+          if (uploadResult.status !== 'ok') {
+            throw new Error('Image upload failed');
+          }
+
+          console.log(`[IG API] Image uploaded: upload_id=${uploadResult.upload_id}`);
+
+          // 2. 配置媒体（发布）
+          console.log('[IG API] Step 2: Configuring media...');
+          const mediaResult = await this.configureMedia(
+            uploadResult.upload_id,
+            params.caption,
+            {
+              disableComments: params.disableComments,
+              shareToThreads: params.shareToThreads,
+              location: params.location,
+            }
+          );
+
+          console.log(`[IG API] Media posted: id=${mediaResult.media.id}`);
+
+          return mediaResult;
+        }
       }
     } catch (error) {
       console.error('[IG API] Post media error:', error);

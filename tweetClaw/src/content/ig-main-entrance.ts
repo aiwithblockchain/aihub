@@ -51,7 +51,7 @@ interface IgGlobalApi {
   unfollowUser: (userId: string) => Promise<any>;
   postComment: (params: { mediaId: string; text: string; repliedToCommentId?: string }) => Promise<any>;
   deleteComment: (params: { mediaId: string; commentId: string }) => Promise<any>;
-  postMedia: (params: { imageBase64?: string; imageBytes?: Uint8Array; mimeType?: string; caption: string; disableComments?: boolean; shareToThreads?: boolean; location?: any }) => Promise<any>;
+  postMedia: (params: { imageBase64?: string; imageBytes?: Uint8Array | Uint8Array[]; mimeType?: string; caption: string; disableComments?: boolean; shareToThreads?: boolean; location?: any }) => Promise<any>;
   deleteMedia: (mediaId: string) => Promise<any>;
   getUserMedia: (params: { userId?: string; username?: string; count?: number; after?: string }) => Promise<any>;
   search: (params: { query: string; searchSessionId?: string; serpSessionId?: string }) => Promise<any>;
@@ -611,6 +611,7 @@ async function handlePostMedia(params: Record<string, any>): Promise<any> {
   const {
     imageBase64,
     imageBytes,
+    imageBase64List,
     videoBytes,
     videoBase64,
     mimeType,
@@ -626,7 +627,7 @@ async function handlePostMedia(params: Record<string, any>): Promise<any> {
   } = params;
 
   // 检查是否有图片或视频数据
-  const hasImage = imageBase64 || imageBytes;
+  const hasImage = imageBase64 || imageBytes || imageBase64List;
   const hasVideo = videoBytes || videoBase64;
 
   if (!hasImage && !hasVideo) {
@@ -682,10 +683,28 @@ async function handlePostMedia(params: Record<string, any>): Promise<any> {
     }
   } else if (hasImage) {
     // 处理图片数据
-    if (imageBytes) {
-      // 如果是数组，转换为 Uint8Array
+    if (imageBase64List) {
+      // 多图：base64 字符串列表 -> Uint8Array[]
+      postParams.imageBytes = imageBase64List.map((b64: string) => {
+        const binaryStr = atob(b64);
+        const bytes = new Uint8Array(binaryStr.length);
+        for (let i = 0; i < binaryStr.length; i++) {
+          bytes[i] = binaryStr.charCodeAt(i);
+        }
+        return bytes;
+      });
+    } else if (imageBytes) {
       if (Array.isArray(imageBytes)) {
-        postParams.imageBytes = new Uint8Array(imageBytes);
+        // 判断是单图数组还是多图数组
+        if (imageBytes.length > 0 && Array.isArray(imageBytes[0])) {
+          // 多图：number[][] -> Uint8Array[]
+          postParams.imageBytes = (imageBytes as number[][]).map(
+            (arr) => new Uint8Array(arr)
+          );
+        } else {
+          // 单图：number[] -> Uint8Array
+          postParams.imageBytes = new Uint8Array(imageBytes as number[]);
+        }
       } else {
         postParams.imageBytes = imageBytes;
       }

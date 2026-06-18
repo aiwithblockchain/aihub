@@ -1207,7 +1207,7 @@ func (h *Handler) igPostMedia(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	id := newID("http_ig_post_media")
-	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_post_media", "tweetClaw", body), 60000,
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.ig_post_media", "tweetClaw", body), 180000,
 		func(data []byte) { writeRawPayload(w, data) })
 }
 

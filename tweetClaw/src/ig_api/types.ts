@@ -190,7 +190,7 @@ export interface IgDeleteCommentParams {
  */
 export interface IgPostMediaParams {
   imageBase64?: string;          // 图片 base64（不含前缀）
-  imageBytes?: Uint8Array;       // 图片二进制数据
+  imageBytes?: Uint8Array | Uint8Array[];  // 图片二进制数据（单图或数组）
   videoBytes?: Uint8Array;       // 视频二进制数据
   mimeType?: string;             // MIME 类型，默认 image/jpeg
   caption: string;               // 文案

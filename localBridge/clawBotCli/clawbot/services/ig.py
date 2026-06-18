@@ -2,7 +2,8 @@
 
 from __future__ import annotations
 
-from typing import Any, Dict, Optional
+from pathlib import Path
+from typing import Any, Dict, List, Optional, Union
 
 from clawbot.transport.ig_api import IgApiTransport
 
@@ -163,17 +164,17 @@ class IgService:
 
     def post_media(
         self,
-        image_path: str,
+        image_paths: Union[str, List[str]],
         caption: str,
         disable_comments: bool = False,
         share_to_threads: bool = True,
         location: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """
-        Post a media (image) to Instagram.
+        Post a media (single image or carousel) to Instagram.
 
         Args:
-            image_path: Path to the image file
+            image_paths: Single image path or a list of image paths for multi-image post
             caption: Caption text
             disable_comments: Whether to disable comments
             share_to_threads: Whether to share to Threads
@@ -183,38 +184,68 @@ class IgService:
             Media object
         """
         import base64
-        from pathlib import Path
 
-        # Read image file
-        image_path_obj = Path(image_path)
-        if not image_path_obj.exists():
-            raise FileNotFoundError(f"Image file not found: {image_path}")
+        paths: List[str] = [image_paths] if isinstance(image_paths, str) else image_paths
+        if not paths:
+            raise ValueError("At least one image path is required")
 
-        with open(image_path_obj, "rb") as f:
-            image_bytes = f.read()
+        # Validate all paths exist
+        for p in paths:
+            if not Path(p).exists():
+                raise FileNotFoundError(f"Image file not found: {p}")
 
-        # Convert to base64
-        image_base64 = base64.b64encode(image_bytes).decode("utf-8")
+        if len(paths) == 1:
+            # Single image: use base64 for backward compatibility
+            image_path_obj = Path(paths[0])
+            with open(image_path_obj, "rb") as f:
+                image_bytes = f.read()
+            image_base64 = base64.b64encode(image_bytes).decode("utf-8")
 
-        # Determine MIME type
-        suffix = image_path_obj.suffix.lower()
-        mime_type_map = {
-            ".jpg": "image/jpeg",
-            ".jpeg": "image/jpeg",
-            ".png": "image/png",
-            ".gif": "image/gif",
-            ".webp": "image/webp",
-        }
-        mime_type = mime_type_map.get(suffix, "image/jpeg")
+            suffix = image_path_obj.suffix.lower()
+            mime_type_map = {
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".png": "image/png",
+                ".gif": "image/gif",
+                ".webp": "image/webp",
+            }
+            mime_type = mime_type_map.get(suffix, "image/jpeg")
 
-        return self.transport.post_media_raw(
-            image_base64=image_base64,
-            caption=caption,
-            mime_type=mime_type,
-            disable_comments=disable_comments,
-            share_to_threads=share_to_threads,
-            location=location,
-        )
+            return self.transport.post_media_raw(
+                image_base64=image_base64,
+                caption=caption,
+                mime_type=mime_type,
+                disable_comments=disable_comments,
+                share_to_threads=share_to_threads,
+                location=location,
+            )
+        else:
+            # Multi-image: use imageBase64List (list of base64 strings)
+            image_base64_list: List[str] = []
+            for p in paths:
+                with open(p, "rb") as f:
+                    data = f.read()
+                image_base64_list.append(base64.b64encode(data).decode("utf-8"))
+
+            # Use MIME type of first image for the request
+            suffix = Path(paths[0]).suffix.lower()
+            mime_type_map = {
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".png": "image/png",
+                ".gif": "image/gif",
+                ".webp": "image/webp",
+            }
+            mime_type = mime_type_map.get(suffix, "image/jpeg")
+
+            return self.transport.post_media_raw(
+                image_base64_list=image_base64_list,
+                caption=caption,
+                mime_type=mime_type,
+                disable_comments=disable_comments,
+                share_to_threads=share_to_threads,
+                location=location,
+            )
 
     def post_video(
         self,
