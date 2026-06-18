@@ -85,4 +85,41 @@
 
 ---
 
+## 需求 3：Go LocalBridge 超时时间可配置化
+
+### 背景
+当前 Go LocalBridge 桥接层的 REST API Handler 中，各端点的 WebSocket 转发超时时间均为硬编码（例如 `igPostMedia` 固定为 60 秒、默认端点为 30 秒）。实际业务中，某些平台操作（如 Instagram 多图轮播上传、视频发布）因包含多次图片上传、智能延迟和 API 调用，耗时可能超过 60 秒，导致 Python 客户端收到 `504 Gateway Timeout` 错误，而扩展端实际已成功完成操作。
+
+目前 Python 层的 `requests` 超时可通过参数调整，但 Go 桥接层作为 WebSocket 转发代理，其内部 `time.After(timeoutMs)` 才是 504 的真正来源，Python 侧的超时设置无法覆盖它。
+
+### 目标平台
+- Go LocalBridge（`localBridge/go-lib/pkg/restapi/handler.go`）
+
+### 需求描述
+将 Go LocalBridge 中的端点超时时间从硬编码改为可通过配置注入，使入口层（`main.go`）加载的配置能够向下透传并影响 Handler 行为。
+
+### 技术考量
+- **配置链路现状**：
+  - `config.Load()` 已加载 `~/.config/localbridge/config.json`，但 Config 结构体目前仅包含 WebSocket/REST 的 `Addresses` 字段。
+  - `bridge.go` 接收 `cfg` 后仅提取地址列表，未将 `cfg` 本身透传给 `restapi.NewServerWithRegistrar()`。
+  - `server.go` 创建 `Handler` 时只传入 `ws`，未传入任何配置或超时值。
+  - 因此 `handler.go` 中的超时只能硬编码，无法从外部配置。
+
+- **建议方案**：
+  1. **Config 扩展**：在 `config.Config`（或 `ServiceConfig`）中增加超时相关字段，例如 `DefaultTimeoutMs` 或按业务模块划分的超时配置。
+  2. **桥接层透传**：修改 `bridge.NewWithRESTRegistrar()` 和 `restapi.NewServerWithRegistrar()` 的签名，将超时配置（或整个 `cfg` 对象）传递至 RESTAPI 层。
+  3. **Handler 改造**：`NewHandler()` 接收超时配置并存入结构体；各端点函数（`igPostMedia`、`igPostVideo` 等）引用该配置值，替代现有的硬编码字面量。
+  4. **向后兼容**：若配置文件中未指定超时，则使用与当前硬编码一致的默认值（如媒体发布 180s、普通操作 30s），确保现有部署不受影响。
+
+### 优先级
+中
+
+### 验收标准
+1. `main.go` 入口点加载的配置能够影响 `handler.go` 中端点的超时行为。
+2. `igPostMedia`、`igPostVideo` 等长耗时端点的超时时间不再以字面量形式写死在 Handler 中。
+3. 配置文件未指定超时时，系统行为与当前硬编码值完全一致，保证向后兼容。
+4. 重新编译并启动 LocalBridge 后，Python 客户端的多图/视频发布不再因 Go 层 60s 超时触发 504（前提是实际业务耗时在配置允许范围内）。
+
+---
+
 > 本文档用于记录 TweetClaw 二期迭代中的各项需求，按序号递增排列。
