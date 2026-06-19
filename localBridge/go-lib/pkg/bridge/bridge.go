@@ -75,7 +75,10 @@ func convertToRESTAddresses(addrs []config.ListenAddress) []restapi.ListenAddres
 // 包级单例方法，供 CGo export 层调用
 
 func StartWithConfigJSON(configJSON string, registrar restapi.RouteRegistrar) error {
-	cfg := config.FromJSON(configJSON)
+	cfg, err := config.FromJSON(configJSON)
+	if err != nil {
+		return err
+	}
 	global = NewWithRESTRegistrar(cfg, registrar)
 	return global.Start()
 }

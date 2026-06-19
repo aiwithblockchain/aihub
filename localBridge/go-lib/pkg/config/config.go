@@ -1,6 +1,9 @@
 package config
 
-import "encoding/json"
+import (
+	"encoding/json"
+	"fmt"
+)
 
 type ListenAddress struct {
 	IP      string `json:"ip"`
@@ -44,45 +47,34 @@ func DefaultConfig() Config {
 	}
 }
 
-// FromJSON 从 JSON 字符串解析配置，解析失败或字段缺失时回退到默认值
-func FromJSON(data string) Config {
-	cfg := DefaultConfig()
+// FromJSON 从 JSON 字符串严格解析配置，解析失败或字段缺失时返回错误
+func FromJSON(data string) (Config, error) {
+	var cfg Config
 	if len(data) == 0 {
-		return cfg
+		return Config{}, fmt.Errorf("config JSON is empty")
 	}
-	_ = json.Unmarshal([]byte(data), &cfg)
+	if err := json.Unmarshal([]byte(data), &cfg); err != nil {
+		return Config{}, fmt.Errorf("invalid config JSON: %w", err)
+	}
 
-	// 兜底：如果解析出的 timeout 字段为 0，回退到默认值
 	if cfg.TimeoutMs <= 0 {
-		cfg.TimeoutMs = DefaultConfig().TimeoutMs
+		return Config{}, fmt.Errorf("timeoutMs must be > 0")
 	}
 	if cfg.PublishTimeoutMs <= 0 {
-		cfg.PublishTimeoutMs = DefaultConfig().PublishTimeoutMs
+		return Config{}, fmt.Errorf("publishTimeoutMs must be > 0")
 	}
 	if cfg.SyncIntervalMs <= 0 {
-		cfg.SyncIntervalMs = DefaultConfig().SyncIntervalMs
+		return Config{}, fmt.Errorf("syncIntervalMs must be > 0")
 	}
-
-	// 确保至少有一个启用的地址
 	if len(cfg.TweetClawWS.Addresses) == 0 {
-		cfg.TweetClawWS = DefaultConfig().TweetClawWS
+		return Config{}, fmt.Errorf("tweetClawWS.addresses is required")
 	}
 	if len(cfg.AIClawWS.Addresses) == 0 {
-		cfg.AIClawWS = DefaultConfig().AIClawWS
+		return Config{}, fmt.Errorf("aiClawWS.addresses is required")
 	}
 	if len(cfg.RestAPI.Addresses) == 0 {
-		cfg.RestAPI = DefaultConfig().RestAPI
+		return Config{}, fmt.Errorf("restAPI.addresses is required")
 	}
 
-	return cfg
-}
-
-// Load 保留旧函数签名供兼容，但不再读取文件，直接返回默认配置
-func Load() Config {
-	return DefaultConfig()
-}
-
-// Save 保留旧函数签名供兼容，但不再操作文件
-func Save(cfg Config) error {
-	return nil
+	return cfg, nil
 }
