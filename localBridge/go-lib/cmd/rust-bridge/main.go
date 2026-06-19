@@ -512,6 +512,8 @@ func writeHTML(w http.ResponseWriter, status int, body string) {
 //export LocalBridgeStartWithConfig
 func LocalBridgeStartWithConfig(configJSON *C.char) C.int {
 	configJSONStr := C.GoString(configJSON)
+	log.Printf("[rust-bridge] LocalBridgeStartWithConfig called, config JSON length=%d", len(configJSONStr))
+	log.Printf("[rust-bridge] config JSON payload: %s", configJSONStr)
 	if err := bridge.StartWithConfigJSON(configJSONStr, registerRustBridgeRoutes); err != nil {
 		setLastErr(err.Error())
 		return -1
