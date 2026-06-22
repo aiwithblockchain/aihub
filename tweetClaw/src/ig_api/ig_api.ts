@@ -17,9 +17,11 @@ import {
   buildUserSearchVariables,
   buildHomeFeedVariables,
   buildMediaInfoVariables,
+  buildUserProfileVariables,
   buildGraphQLBody,
   parseSearchResponse,
   parseFeedResponse,
+  parseUserProfileResponse,
   GRAPHQL_QUERIES,
 } from './graphql-helper';
 import type {
@@ -234,7 +236,8 @@ export class IgApiClient {
 
   /**
    * 获取当前用户信息
-   * 使用 REST API: GET /api/v1/users/{user_id}/info/
+   * 优先走 GraphQL (PolarisProfilePageContentQuery)，REST /info/ 作为降级
+   * REST 端点容易被 feedback_required 限流，GraphQL 在浏览器页面上下文里更稳
    */
   public async getSelfInfo(): Promise<IgUser> {
     // 从 cookie 获取当前用户 ID
@@ -244,24 +247,75 @@ export class IgApiClient {
       throw new Error('Not logged in: ds_user_id not found');
     }
 
-    const response = await this.request<IgUserInfoResponse>(
-      `/api/v1/users/${userId}/info/`,
-      'GET'
-    );
-
-    return this.parseUser(response.user);
+    return this.getUserInfo(userId);
   }
 
   /**
    * 获取用户信息
-   * API: GET /api/v1/users/{user_id}/info/
+   * 优先 GraphQL: POST /api/graphql (PolarisProfilePageContentQuery)
+   * 降级 REST: GET /api/v1/users/{user_id}/info/
    */
   public async getUserInfo(userId: string): Promise<IgUser> {
+    // 1. 先试 GraphQL
+    try {
+      return await this.getUserInfoViaGraphQL(userId);
+    } catch (graphqlErr) {
+      console.warn(`[IG API] GraphQL getUserInfo failed, falling back to REST:`, graphqlErr);
+    }
+
+    // 2. 降级 REST
     const response = await this.request<IgUserInfoResponse>(
       `/api/v1/users/${userId}/info/`,
       'GET'
     );
     return this.parseUser(response.user);
+  }
+
+  /**
+   * 通过 GraphQL 获取用户信息
+   * 查询: PolarisProfilePageContentQuery
+   * 需要 fb_dtsg token（从页面提取）
+   */
+  private async getUserInfoViaGraphQL(userId: string): Promise<IgUser> {
+    const fbDtsg = await getFbDtsgWithCache();
+    if (!fbDtsg) {
+      throw new Error('fb_dtsg token not found. Please refresh Instagram page.');
+    }
+
+    const variables = buildUserProfileVariables(userId);
+    const body = buildGraphQLBody(
+      GRAPHQL_QUERIES.USER_PROFILE.queryName,
+      GRAPHQL_QUERIES.USER_PROFILE.docId,
+      variables,
+      fbDtsg
+    );
+
+    const headers = await this.buildHeaders('POST');
+    headers.set('x-fb-friendly-name', GRAPHQL_QUERIES.USER_PROFILE.queryName);
+
+    console.log(`[IG API] getUserInfo via GraphQL: userId=${userId}`);
+
+    const response = await fetch(`${this.baseUrl}/api/graphql`, {
+      method: 'POST',
+      headers,
+      body,
+      credentials: 'include',
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      throw new Error(`HTTP ${response.status}: ${errorText}`);
+    }
+
+    const data = await response.json();
+
+    // 检查 feedback_required / spam 限流
+    if (data?.status === 'fail' || data?.message === 'feedback_required') {
+      throw new Error(`GraphQL feedback_required: ${data?.feedback_message || 'rate limited'}`);
+    }
+
+    const parsed = parseUserProfileResponse(data);
+    return this.parseUser(parsed);
   }
 
   /**

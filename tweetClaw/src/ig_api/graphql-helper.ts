@@ -146,6 +146,21 @@ export function buildMediaInfoVariables(shortcode: string): any {
 }
 
 /**
+ * 构建 User Profile GraphQL 变量
+ * 对应 PolarisProfilePageContentQuery，用用户 pk(id) 查询完整资料
+ */
+export function buildUserProfileVariables(userId: string): any {
+  return {
+    enable_integrity_filters: true,
+    id: userId,
+    __relay_internal__pv__PolarisCannesGuardianExperienceEnabledrelayprovider: true,
+    __relay_internal__pv__PolarisCASB976ProfileEnabledrelayprovider: false,
+    __relay_internal__pv__PolarisWebSchoolsEnabledrelayprovider: false,
+    __relay_internal__pv__PolarisRepostsConsumptionEnabledrelayprovider: false,
+  };
+}
+
+/**
  * 生成设备 ID
  */
 function generateDeviceId(): string {
@@ -201,6 +216,10 @@ export const GRAPHQL_QUERIES = {
   ACTIVITY_FEED: {
     docId: '27008123808810299',
     queryName: 'PolarisActivityFeedStoriesViewQuery',
+  },
+  USER_PROFILE: {
+    docId: '26672929172408668',
+    queryName: 'PolarisProfilePageContentQuery',
   },
 } as const;
 
@@ -614,5 +633,76 @@ export function parseFeedResponse(response: GraphQLFeedResponse): {
   return {
     items,
     nextMaxId: pageInfo?.end_cursor || null,
+  };
+}
+
+/**
+ * GraphQL User Profile 响应（PolarisProfilePageContentQuery）
+ * 字段对齐 2.log 中实际抓到的响应
+ */
+export interface GraphQLUserProfileResponse {
+  data: {
+    user: {
+      pk: string;
+      username: string;
+      full_name: string;
+      is_private: boolean;
+      is_verified: boolean;
+      profile_pic_url?: string;
+      hd_profile_pic_url_info?: { url: string };
+      biography?: string;
+      bio_links?: Array<{ url: string }>;
+      external_url?: string;
+      follower_count?: number;
+      following_count?: number;
+      media_count?: number;
+      is_business?: boolean;
+      category?: string | null;
+      account_type?: number;
+      id: string;
+    } | null;
+  };
+}
+
+/**
+ * 解析 PolarisProfilePageContentQuery 响应为 IgUser
+ * 字段名与 REST /api/v1/users/{id}/info/ 不同，需要做映射
+ */
+export function parseUserProfileResponse(response: GraphQLUserProfileResponse): {
+  pk: string;
+  username: string;
+  full_name: string;
+  is_private: boolean;
+  is_verified: boolean;
+  profile_pic_url?: string;
+  biography?: string;
+  external_url?: string;
+  follower_count: number;
+  following_count: number;
+  media_count: number;
+  is_business: boolean;
+  category_enum?: string | null;
+} {
+  const u = response?.data?.user;
+  if (!u) {
+    throw new Error('Invalid user profile response: missing data.user');
+  }
+
+  const externalUrl = u.bio_links?.find((l) => l.url)?.url || u.external_url || '';
+
+  return {
+    pk: u.pk || u.id,
+    username: u.username || '',
+    full_name: u.full_name || '',
+    is_private: u.is_private || false,
+    is_verified: u.is_verified || false,
+    profile_pic_url: u.profile_pic_url || u.hd_profile_pic_url_info?.url,
+    biography: u.biography,
+    external_url: externalUrl,
+    follower_count: u.follower_count || 0,
+    following_count: u.following_count || 0,
+    media_count: u.media_count || 0,
+    is_business: u.is_business || false,
+    category_enum: u.category ?? undefined,
   };
 }
