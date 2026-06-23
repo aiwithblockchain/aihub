@@ -10,27 +10,36 @@ const FALLBACK_BEARER_TOKEN = 'Bearer AAAAAAAAAAAAAAAAAAAAANRILgAAAAAAnNwIzUejRC
  */
 
 export async function getAuthHeader(): Promise<string> {
-    const res = await chrome.storage.local.get(__DBK_bearer_token);
-    const harvested = res[__DBK_bearer_token] as string | undefined;
-    if (harvested && harvested.startsWith('Bearer ')) {
-        return harvested;
-    }
+    // Twitter web app bearer token 是公开常量，永远不变。
+    // 之前从 fetch 请求中 harvest 的 token 可能是 guest token 或其他 app 的 token，
+    // 导致 UserByScreenName 等接口 401 code 32。直接使用常量最可靠。
     return FALLBACK_BEARER_TOKEN;
 }
 
 export async function getCsrfToken(): Promise<string> {
     // Content script: read from document.cookie
     // Background: read from chrome.cookies
+    let csrf = '';
+    let source = '';
     if (typeof document !== 'undefined' && document.cookie) {
         const match = document.cookie.match(/(?:^|;\s*)ct0=([^;]+)/);
-        if (match) return match[1];
+        if (match) {
+            csrf = match[1];
+            source = 'document.cookie';
+        }
     }
-    
-    return new Promise((resolve) => {
-        chrome.cookies.get({ url: 'https://x.com', name: 'ct0' }, (cookie) => {
-            resolve(cookie ? cookie.value : "");
+
+    if (!csrf) {
+        source = 'chrome.cookies';
+        csrf = await new Promise<string>((resolve) => {
+            chrome.cookies.get({ url: 'https://x.com', name: 'ct0' }, (cookie) => {
+                resolve(cookie ? cookie.value : "");
+            });
         });
-    });
+    }
+
+    console.log(`[TwitterAPI] getCsrfToken: source=${source}, csrf=${csrf ? `present(len=${csrf.length}, prefix=${csrf.slice(0, 8)}...)` : 'MISSING'}`);
+    return csrf;
 }
 
 async function getUrlWithQueryId(op: string): Promise<{ url: string, path: string } | null> {
@@ -183,17 +192,27 @@ export async function fetchUserByScreenName(screenName: string): Promise<any> {
     // CSRF Token（仅限内容脚本上下文，document.cookie 可访问）
     const csrfToken = await getCsrfToken();
 
-    console.log(`[TwitterAPI] fetchUserByScreenName: bearer=${bearer ? 'present' : 'MISSING'}, csrf=${csrfToken ? 'present' : 'MISSING'}`);
+    // txid: X 改版后所有 GraphQL 请求都需要 x-client-transaction-id
+    const txid = await getTransactionIdFor('GET', `/i/api/graphql/${STABLE_HASH}/UserByScreenName`);
+
+    const isHarvested = bearer !== FALLBACK_BEARER_TOKEN;
+    console.log(`[TwitterAPI] fetchUserByScreenName: screenName=${screenName}, bearer=${isHarvested ? 'HARVESTED' : 'FALLBACK'}, csrf=${csrfToken ? `present(len=${csrfToken.length})` : 'MISSING'}, txid=${txid ? `present(len=${txid.length})` : 'MISSING'}`);
+    console.log(`[TwitterAPI] fetchUserByScreenName: url=${url}`);
+    console.log(`[TwitterAPI] fetchUserByScreenName: cookie available=${typeof document !== 'undefined' && document.cookie ? `yes(len=${document.cookie.length})` : 'no'}, cookie keys=${typeof document !== 'undefined' && document.cookie ? document.cookie.split(';').map(c => c.trim().split('=')[0]).join(',') : 'N/A'}`);
 
     const headers: Record<string, string> = {
         'authorization': bearer,
         'x-csrf-token': csrfToken,
+        'x-client-transaction-id': txid,
         'content-type': 'application/json',
         'x-twitter-active-user': 'yes',
+        'x-twitter-auth-type': 'OAuth2Session',
         'x-twitter-client-language': 'en',
         'referer': 'https://x.com/',
         'accept': '*/*'
     };
+
+    console.log(`[TwitterAPI] fetchUserByScreenName: headers keys=${Object.keys(headers).join(',')}`);
 
     console.log('[TwitterAPI] fetchUserByScreenName: sending fetch...');
     let response: Response;
@@ -212,7 +231,12 @@ export async function fetchUserByScreenName(screenName: string): Promise<any> {
 
     if (!response.ok) {
         const errText = await response.text();
-        console.error(`[TwitterAPI] fetchUserByScreenName: ${response.status}`, errText.slice(0, 200));
+        console.error(`[TwitterAPI] fetchUserByScreenName: ${response.status}`, errText.slice(0, 500));
+        try {
+            const respHdrs: string[] = [];
+            response.headers.forEach((v: string, k: string) => respHdrs.push(`${k}=${v}`));
+            console.log(`[TwitterAPI] fetchUserByScreenName: response headers:`, respHdrs.join(', '));
+        } catch (e) {}
         throw new Error(`UserByScreenName failed: ${response.status}`);
     }
 
