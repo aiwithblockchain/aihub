@@ -265,13 +265,18 @@ function getPlatformCode(platform: string): number {
   }
 }
 
-// ── 等待 _webmsxyw 可用 ────────────────────────────────────────────────────────
+// ── 等待签名函数可用（mnsv2 或 _webmsxyw，任一就绪即可）───────────────────────
 
 let signReady = false;
 
+function signFnAvailable(): boolean {
+  return typeof (window as any).mnsv2 === 'function'
+    || typeof (window as any)._webmsxyw === 'function';
+}
+
 function waitForSignFn(): Promise<void> {
   return new Promise((resolve) => {
-    if (typeof (window as any)._webmsxyw === 'function') {
+    if (signFnAvailable()) {
       signReady = true;
       resolve();
       return;
@@ -279,13 +284,13 @@ function waitForSignFn(): Promise<void> {
     let attempts = 0;
     const timer = setInterval(() => {
       attempts++;
-      if (typeof (window as any)._webmsxyw === 'function') {
+      if (signFnAvailable()) {
         clearInterval(timer);
         signReady = true;
         resolve();
       } else if (attempts >= 75) { // 最多等 15s
         clearInterval(timer);
-        console.error(`${TAG} _webmsxyw not available after 15s`);
+        console.error(`${TAG} sign function (mnsv2/_webmsxyw) not available after 15s`);
         resolve();
       }
     }, 200);
@@ -336,6 +341,9 @@ async function handleSignRequest(event: MessageEvent) {
     const a1 = getCookieValue('a1');
     if (!a1) throw new Error('a1 cookie not found. Please ensure you are logged in.');
 
+    // 等待签名函数就绪（mnsv2 或 _webmsxyw），避免页面刚加载时两者都未注入
+    if (!signReady) await signFnReady;
+
     let xs: string;
     let xt: number;
 
@@ -345,7 +353,6 @@ async function handleSignRequest(event: MessageEvent) {
       xt = Date.now();
     } else if (typeof (window as any)._webmsxyw === 'function') {
       // 兜底：mnsv2 不可用时用 _webmsxyw (XYW_ 格式)
-      if (!signReady) await signFnReady;
       const signFn = (window as any)._webmsxyw;
       const signResult = signFn(url, data, a1);
       xs = signResult['X-s'] || signResult['x-s'] || '';
@@ -818,6 +825,9 @@ async function handleSignedFetch(event: MessageEvent) {
     const a1 = getCookieValue('a1');
     if (!a1) throw new Error('a1 cookie not found');
 
+    // 等待签名函数就绪（mnsv2 或 _webmsxyw），避免页面刚加载时两者都未注入
+    if (!signReady) await signFnReady;
+
     let xs: string;
     let xt: number;
     let xsCommon = '';
@@ -827,7 +837,6 @@ async function handleSignedFetch(event: MessageEvent) {
       xt = Date.now();
       xsCommon = calcXsCommon(a1, xs, xt, signPath);
     } else if (typeof (window as any)._webmsxyw === 'function') {
-      if (!signReady) await signFnReady;
       const signFn = (window as any)._webmsxyw;
       const signResult = signFn(signPath, bodyStr, a1);
       xs = signResult['X-s'] || signResult['x-s'] || '';
