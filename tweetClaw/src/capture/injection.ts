@@ -321,6 +321,104 @@ import { watchedOps, isGuestHandle } from './consts';
         }
     });
 
+    // ===== txid bridge: 在 page context 调用 X 自己的 txid 生成函数 =====
+    // X 前端 webpack 模块导出 kc(host, path, method) → Promise<txid>
+    // content script (isolated world) 无法直接访问 webpackRequire，
+    // 通过 CustomEvent 桥接：content script 发 tweetclaw:txid-request，
+    // 这里调用 kc 生成 txid 后用 tweetclaw:txid-response 返回。
+    //
+    // 不硬编码模块 ID 或导出 key（webpack 打包后都会变），
+    // 而是两步查找：
+    //   1. 先用 feature flag 字符串定位包含 fetch filter (Ay) 的模块
+    //   2. 在同一模块内通过 jf.x.com + btoa 特征找 txid 生成函数 (kc)
+    // 直接返回函数本身，不依赖导出 key 名。
+    let __wpRequire: any = null;
+    let __txidGenFn: any = null;
+
+    function getWebpackRequire(): any {
+        if (__wpRequire) return __wpRequire;
+        const chunkKeys = Object.getOwnPropertyNames(window).filter(k =>
+            k.startsWith('webpackChunk') || k.includes('__webpack')
+        );
+        for (const key of chunkKeys) {
+            const chunks = (window as any)[key];
+            if (!Array.isArray(chunks)) continue;
+            try {
+                chunks.push([[0], {}, function (require: any) { __wpRequire = require; }]);
+            } catch (e) { /* ignore */ }
+        }
+        return __wpRequire;
+    }
+
+    function findTxidGenFn(wr: any): any {
+        if (__txidGenFn) return __txidGenFn;
+        const cache = wr.c || {};
+        for (const id of Object.keys(cache)) {
+            const mod = cache[id];
+            const exports = mod?.exports;
+            if (!exports || typeof exports !== 'object') continue;
+            try {
+                // Step 1: 确认此模块包含 fetch filter (Ay)
+                // Ay 函数源码包含 feature flag 名和 header 名，是稳定的语义字符串
+                let hasFetchFilter = false;
+                for (const key of Object.keys(exports)) {
+                    const val = exports[key];
+                    if (typeof val !== 'function') continue;
+                    const fnStr = val.toString();
+                    if (fnStr.includes('rweb_client_transaction_id_enabled') &&
+                        fnStr.includes('x-client-transaction-id')) {
+                        hasFetchFilter = true;
+                        break;
+                    }
+                }
+                if (!hasFetchFilter) continue;
+                // Step 2: 在同一模块内找 txid 生成函数 (kc)
+                // kc 函数特征：async，处理 jf.x.com 特例，错误时用 btoa 编码
+                for (const key of Object.keys(exports)) {
+                    const val = exports[key];
+                    if (typeof val !== 'function') continue;
+                    const fnStr = val.toString();
+                    if (fnStr.includes('jf.x.com') && fnStr.includes('btoa')) {
+                        __txidGenFn = val;
+                        console.log(`${TAG} txid gen fn found (id=${id}, key=${key})`);
+                        return val;
+                    }
+                }
+            } catch (e) { /* skip inaccessible module */ }
+        }
+        return null;
+    }
+
+    document.addEventListener('tweetclaw:txid-request', async (event: Event) => {
+        const detail = (event as CustomEvent).detail;
+        if (!detail || !detail.requestId) return;
+
+        try {
+            const wr = getWebpackRequire();
+            if (!wr) {
+                document.dispatchEvent(new CustomEvent('tweetclaw:txid-response', {
+                    detail: { requestId: detail.requestId, ok: false, error: 'webpackRequire not available' }
+                }));
+                return;
+            }
+            const fn = findTxidGenFn(wr);
+            if (!fn) {
+                document.dispatchEvent(new CustomEvent('tweetclaw:txid-response', {
+                    detail: { requestId: detail.requestId, ok: false, error: 'txid gen function not found in webpack cache' }
+                }));
+                return;
+            }
+            const txid = await fn(detail.host || 'api.twitter.com', detail.path, detail.method || 'GET');
+            document.dispatchEvent(new CustomEvent('tweetclaw:txid-response', {
+                detail: { requestId: detail.requestId, ok: true, txid }
+            }));
+        } catch (e: any) {
+            document.dispatchEvent(new CustomEvent('tweetclaw:txid-response', {
+                detail: { requestId: detail.requestId, ok: false, error: e?.message || String(e) }
+            }));
+        }
+    });
+
     function printHealthLog() {
         const isFetchActive = !!(window as any).__tc_fetch_patched;
         const isXHRActive = !!(window as any).__tc_xhr_patched;
