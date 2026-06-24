@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from typing import Optional
 
-from clawbot.domain.models import ActionResult, AIMessageResult, XTweet, XUser
+from clawbot.domain.models import ActionResult, AIMessageResult, XUser
 from clawbot.errors import ParseError
 from clawbot.services.ai_chat import AIChatService
 from clawbot.services.media import MediaService

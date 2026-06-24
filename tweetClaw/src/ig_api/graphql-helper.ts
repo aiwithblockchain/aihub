@@ -11,7 +11,7 @@
  * fb_dtsg token 是 Instagram/Facebook 的 CSRF token
  * 必须从页面 HTML 中提取，会定期过期
  */
-export async function getFbDtsg(): Promise<string | null> {
+export async function getFbDtsg(silent: boolean = false): Promise<string | null> {
   try {
     // 方法 1: 从 meta 标签提取
     const metaTag = document.querySelector('meta[name="fb_dtsg"]') as HTMLMetaElement;
@@ -39,7 +39,10 @@ export async function getFbDtsg(): Promise<string | null> {
       }
     }
 
-    console.warn('[IG GraphQL] fb_dtsg not found on page');
+    // 静默模式（重试中）不打 warn，避免日志噪音
+    if (!silent) {
+      console.warn('[IG GraphQL] fb_dtsg not found on page');
+    }
     return null;
   } catch (error) {
     console.error('[IG GraphQL] Error extracting fb_dtsg:', error);
@@ -55,7 +58,11 @@ let cacheTimestamp: number = 0;
 const CACHE_TTL = 5 * 60 * 1000; // 5 分钟缓存
 
 /**
- * 获取 fb_dtsg token（带缓存）
+ * 获取 fb_dtsg token（带缓存 + 重试等待）
+ *
+ * 页面刚加载时含 DTSGInitialData 的 script 标签可能尚未解析，
+ * 此时同步扫描会失败。这里加短重试（3 次 × 500ms）等待 DOM 就绪，
+ * 避免初始 testConnection 阶段误报 "fb_dtsg not found"。
  */
 export async function getFbDtsgWithCache(): Promise<string | null> {
   const now = Date.now();
@@ -65,8 +72,20 @@ export async function getFbDtsgWithCache(): Promise<string | null> {
     return cachedFbDtsg;
   }
 
-  // 重新提取
-  const token = await getFbDtsg();
+  // 重试等待 script 标签就绪（页面初始加载时需要）
+  const MAX_RETRIES = 3;
+  const RETRY_DELAY_MS = 500;
+  let token: string | null = null;
+  for (let i = 0; i < MAX_RETRIES; i++) {
+    // 静默重试：只在最后一次失败时才打 warn（由 getFbDtsg 内部处理）
+    const isLastRetry = i === MAX_RETRIES - 1;
+    token = await getFbDtsg(!isLastRetry);
+    if (token) break;
+    if (!isLastRetry) {
+      await new Promise(resolve => setTimeout(resolve, RETRY_DELAY_MS));
+    }
+  }
+
   if (token) {
     cachedFbDtsg = token;
     cacheTimestamp = now;

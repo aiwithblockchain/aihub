@@ -2007,37 +2007,77 @@ export class IgApiClient {
         throw new Error('fb_dtsg token not found. Please refresh Instagram page.');
       }
 
-      // 3. 构建 GraphQL 查询参数（使用 username，不是 id）
-      const variables = {
-        data: {
-          count: params.count || 12,
-          include_reel_media_seen_timestamp: true,
-          include_relationship_info: true,
-          latest_besties_reel_media: true,
-          latest_reel_media: true,
-        },
-        username: username,  // ← 使用 username，不是 id
-        after: params.after || null,
-        __relay_internal__pv__PolarisImmersiveFeedChainingEnabledrelayprovider: true,
-        __relay_internal__pv__PolarisAIGMMediaWebLabelEnabledrelayprovider: true,
-        __relay_internal__pv__PolarisAIGMAccountLabelEnabledrelayprovider: false,
-      };
+      // 3. 构建 GraphQL 查询参数
+      // 翻页时 Instagram 会切换到不同的 query：
+      // - 第 1 页（无 after）: PolarisProfilePostsQuery, doc_id=27378030181834840
+      // - 第 2 页+（有 after）: PolarisProfilePostsTabContentQuery_connection, doc_id=27839684308962379
+      //   此时 `after` 必须放在 variables 顶层（与 first/last/before 同级），
+      //   `data` 对象保留 count 等参数。
+      // 参考：5.log 浏览器真实翻页请求
+      const hasAfter = !!params.after;
+      const queryName = hasAfter
+        ? 'PolarisProfilePostsTabContentQuery_connection'
+        : 'PolarisProfilePostsQuery';
+      const docId = hasAfter
+        ? '27839684308962379'
+        : '27378030181834840';
+
+      let variables: any;
+      if (hasAfter) {
+        // 第 2 页+: after 在顶层，含 first/last/before
+        // 必须包含 PolarisReelsRecoDebugOverlayEnabledrelayprovider，否则 Instagram
+        // 返回 "execution error, CRITICAL"（5.log 真实请求验证）
+        variables = {
+          after: params.after,
+          before: null,
+          data: {
+            count: params.count || 12,
+            include_reel_media_seen_timestamp: true,
+            include_relationship_info: true,
+            latest_besties_reel_media: true,
+            latest_reel_media: true,
+          },
+          first: params.count || 12,
+          last: null,
+          username: username,
+          __relay_internal__pv__PolarisImmersiveFeedChainingEnabledrelayprovider: true,
+          __relay_internal__pv__PolarisAIGMMediaWebLabelEnabledrelayprovider: true,
+          __relay_internal__pv__PolarisAIGMAccountLabelEnabledrelayprovider: false,
+          __relay_internal__pv__PolarisReelsRecoDebugOverlayEnabledrelayprovider: false,
+        };
+      } else {
+        // 第 1 页: 无 after
+        variables = {
+          data: {
+            count: params.count || 12,
+            include_reel_media_seen_timestamp: true,
+            include_relationship_info: true,
+            latest_besties_reel_media: true,
+            latest_reel_media: true,
+          },
+          username: username,
+          __relay_internal__pv__PolarisImmersiveFeedChainingEnabledrelayprovider: true,
+          __relay_internal__pv__PolarisAIGMMediaWebLabelEnabledrelayprovider: true,
+          __relay_internal__pv__PolarisAIGMAccountLabelEnabledrelayprovider: false,
+          __relay_internal__pv__PolarisReelsRecoDebugOverlayEnabledrelayprovider: false,
+        };
+      }
 
       const body = buildGraphQLBody(
-        'PolarisProfilePostsQuery',
-        '27378030181834840',
+        queryName,
+        docId,
         variables,
         fbDtsg
       );
 
-      console.log(`[IG API] Getting user media: username=${username}, count=${params.count || 12}`);
+      console.log(`[IG API] Getting user media: username=${username}, count=${params.count || 12}${hasAfter ? ', after=' + params.after : ''}`);
 
-      // 4. 发送 GraphQL 请求
+      // 4. 发送 GraphQL 请求（浏览器实际用 /graphql/query，不是 /api/graphql）
       const headers = await this.buildHeaders('POST');
-      headers.set('x-fb-friendly-name', 'PolarisProfilePostsQuery');
+      headers.set('x-fb-friendly-name', queryName);
       headers.set('x-root-field-name', 'xdt_api__v1__feed__user_timeline_graphql_connection');
 
-      const response = await fetch(`${this.baseUrl}/api/graphql`, {
+      const response = await fetch(`${this.baseUrl}/graphql/query`, {
         method: 'POST',
         headers,
         body,
