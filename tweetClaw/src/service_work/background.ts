@@ -676,7 +676,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         return true;
     }
 
-    // x-rap-param 跨 tab 转发：creator tab 请求 → background → www tab 计算 → 返回
+    // x-rap-param 跨 tab 转发：调用方请求 → background → www tab 计算 → 返回
     if (message.type === 'XHS_GET_RAP_PARAM') {
         (async () => {
             try {
@@ -698,7 +698,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         return true;
     }
 
-    // x-s/x-t/x-s-common 跨 tab 转发：creator tab 请求 → background → www tab 计算 → 返回
+    // x-s/x-t/x-s-common 跨 tab 转发：调用方请求 → background → www tab 计算 → 返回
     if (message.type === 'XHS_GET_SIGN') {
         (async () => {
             try {
@@ -767,20 +767,89 @@ export async function queryXTabsStatus() {
     };
 }
 
+// ── 平台 tab 保活工具 ──────────────────────────────────────────────────────────
+
+/**
+ * 等待指定 tabId 加载到 status === 'complete'，带超时兜底。
+ * 用于在导航/刷新后确保页面就绪，再向 content script 发消息。
+ */
+function waitForTabComplete(tabId: number, timeoutMs = 15000): Promise<void> {
+    return new Promise((resolve, reject) => {
+        let settled = false;
+        const listener = (updatedTabId: number, info: chrome.tabs.OnUpdatedInfo) => {
+            if (settled || updatedTabId !== tabId) return;
+            if (info.status === 'complete') {
+                settled = true;
+                chrome.tabs.onUpdated.removeListener(listener);
+                clearTimeout(timer);
+                resolve();
+            }
+        };
+        chrome.tabs.onUpdated.addListener(listener);
+
+        const timer = setTimeout(() => {
+            if (settled) return;
+            settled = true;
+            chrome.tabs.onUpdated.removeListener(listener);
+            reject(new Error(`Tab ${tabId} did not reach 'complete' within ${timeoutMs}ms`));
+        }, timeoutMs);
+    });
+}
+
+/**
+ * 确保存在一个指定平台的标签页，并刷新到首页，等待加载完成后再返回 tabId。
+ *
+ * 反页面过时策略：
+ * - 无该平台 tab → 新建 inactive 标签页打开 homeUrl（session 存在则自动登录）
+ * - 已有 tab → 一律刷新到 homeUrl：已在 home 则 reload 强制激活，否则导航到 home
+ *
+ * @param urlPatterns chrome.tabs.query 的 url 匹配模式
+ * @param homeUrl     目标首页 URL
+ * @returns 就绪后的 tabId
+ */
+async function ensurePlatformTabReady(
+    urlPatterns: string[],
+    homeUrl: string,
+    timeoutMs = 15000
+): Promise<number> {
+    const tabs = await chrome.tabs.query({ url: urlPatterns });
+
+    // 优先复用非活动标签页，避免抢占用户当前正在浏览的 tab；
+    // 只有当平台仅存在一个活动 tab 时才回退到它。
+    const inactiveTab = tabs.find(t => !t.active);
+    const tab = inactiveTab || tabs[0] || null;
+
+    let tabId: number;
+    if (!tab?.id) {
+        const created = await chrome.tabs.create({ url: homeUrl, active: false });
+        tabId = created.id!;
+    } else {
+        tabId = tab.id;
+        const normalize = (u: string) => u.split('#')[0].split('?')[0];
+        if (normalize(tab.url || '') === normalize(homeUrl)) {
+            await chrome.tabs.reload(tabId);
+        } else {
+            await chrome.tabs.update(tabId, { url: homeUrl });
+        }
+    }
+
+    await waitForTabComplete(tabId, timeoutMs);
+    return tabId;
+}
+
 /**
  * 查询当前登录账号基本信息 - 返回推特原始 GraphQL 响应
  */
 export async function queryXBasicInfo() {
     console.log('[TweetClaw-BG] queryXBasicInfo called');
 
-    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    const targetTab = xTabs.find(t => t.active) || xTabs[0];
-    if (!targetTab?.id) {
-        throw new Error('No active x.com tab found');
-    }
+    const tabId = await ensurePlatformTabReady(
+        ['*://x.com/*', '*://twitter.com/*'],
+        'https://x.com/home'
+    );
 
     // 委托 Content Script 调用推特 API 并返回原始响应
-    const result: any = await sendMessageToTab(targetTab.id, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'FETCH_SETTINGS_AND_PROFILE',
     });
 
@@ -828,12 +897,12 @@ export async function queryXhsHomefeed(payload: Record<string, unknown> = {}) {
 export async function queryXhsAccountInfo() {
     console.log('[TweetClaw-BG] queryXhsAccountInfo called');
 
-    const targetTab = await findXhsTab();
-    if (!targetTab?.id) {
-        throw new Error('No Xiaohongshu tab found');
-    }
+    const tabId = await ensurePlatformTabReady(
+        ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*'],
+        'https://www.xiaohongshu.com/explore'
+    );
 
-    const result: any = await sendMessageToTab(targetTab.id, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'XHS_FETCH_CURRENT_USER',
     }).catch((e: any) => {
         throw new Error(`Failed to communicate with content script: ${e?.message}`);
@@ -1300,24 +1369,29 @@ export async function queryXhsUserNotes(payload: Record<string, unknown> = {}) {
     return result.data;
 }
 
-/** 找到或打开 creator.xiaohongshu.com 标签页，等待签名链路就绪后返回 tabId */
+/** 找到或打开 www.xiaohongshu.com 标签页，等待签名链路就绪后返回 tabId。
+ *  不再使用 creator.xiaohongshu.com（/home 为死链，根目录需登录且无意义），
+ *  统一复用/创建 www.xiaohongshu.com 标签页。content-xhs.js 在 *.xiaohongshu.com 下均注入，
+ *  签名函数 _webmsxyw 在 www 域同样可用，且发布流程已验证不依赖 creator 子域名。
+ */
 async function getOrOpenCreatorTab(): Promise<number> {
-    const CREATOR_URL = 'https://creator.xiaohongshu.com/home';
+    const XHS_URL = 'https://www.xiaohongshu.com';
 
-    // 1. 优先找已有的 creator 标签页
-    const creatorTabs = await chrome.tabs.query({ url: '*://creator.xiaohongshu.com/*' });
-    let tab = creatorTabs[0] || null;
+    // 1. 优先复用已有的 www.xiaohongshu.com 标签页（active 优先）
+    const tabs = await chrome.tabs.query({
+        url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*']
+    });
+    let tab = tabs.find(t => t.active) || tabs[0] || null;
 
     if (!tab) {
-        console.log('[TweetClaw-BG] No creator tab found, opening one...');
-        tab = await chrome.tabs.create({ url: CREATOR_URL, active: false });
+        console.log('[TweetClaw-BG] No xiaohongshu tab found, opening one...');
+        tab = await chrome.tabs.create({ url: XHS_URL, active: false });
     }
 
     const tabId = tab.id!;
 
     // 2. 轮询等待签名链路就绪（_webmsxyw 可用）
     //    分两阶段：先等 content script PING 通，再等 XHS_SIGN_TEST 成功
-    //    creator 页面加载较慢，给 30s
     const MAX_WAIT_MS = 30000;
     const POLL_MS = 800;
     const deadline = Date.now() + MAX_WAIT_MS;
@@ -1332,7 +1406,7 @@ async function getOrOpenCreatorTab(): Promise<number> {
                 const pong: any = await sendMessageToTab(tabId, { type: 'XHS_PING' });
                 if (pong?.ok) {
                     pingOk = true;
-                    console.log(`[TweetClaw-BG] creator tab content script ready: tabId=${tabId}`);
+                    console.log(`[TweetClaw-BG] xiaohongshu tab content script ready: tabId=${tabId}`);
                 }
             } catch {
                 continue; // content script 还没注入
@@ -1348,18 +1422,18 @@ async function getOrOpenCreatorTab(): Promise<number> {
                     data: '',
                 });
                 if (signResult?.success && signResult?.data?.['x-s'] && signResult?.data?.['x-s-common']) {
-                    console.log(`[TweetClaw-BG] creator tab sign+x-s-common ready: tabId=${tabId}`);
+                    console.log(`[TweetClaw-BG] xiaohongshu tab sign+x-s-common ready: tabId=${tabId}`);
                     return tabId;
                 }
                 const missing = !signResult?.success ? 'sign failed' : (!signResult?.data?.['x-s'] ? 'x-s missing' : 'x-s-common missing');
-                console.log(`[TweetClaw-BG] creator tab not ready (${missing}), retrying...`);
+                console.log(`[TweetClaw-BG] xiaohongshu tab not ready (${missing}), retrying...`);
             } catch {
                 // 继续等
             }
         }
     }
 
-    throw new Error('creator.xiaohongshu.com tab sign function not ready within 30s');
+    throw new Error('xiaohongshu.com tab sign function not ready within 30s');
 }
 
 export async function publishXhsImageNote(payload: Record<string, unknown> = {}) {
@@ -1372,7 +1446,7 @@ export async function publishXhsImageNote(payload: Record<string, unknown> = {})
         throw new Error('images array is required');
     }
 
-    // 发布流程必须从 creator.xiaohongshu.com 发出（origin 正确）
+    // 发布流程通过 content script 在 xiaohongshu.com 域下执行（origin 正确）
     // x-rap-param 通过 background 转发给 www.xiaohongshu.com tab 计算
     const tabId = await getOrOpenCreatorTab();
 
@@ -1414,7 +1488,7 @@ export async function publishXhsVideoNote(payload: Record<string, unknown> = {})
 }
 
 /**
- * 检查 creator.xiaohongshu.com 上 window.mnsv2 签名函数的健康状态
+ * 检查 www.xiaohongshu.com 上 window.mnsv2 签名函数的健康状态
  * 供 tweetpilot 通过 REST API 主动查询（command.xhs_check_sign_health）
  */
 export async function checkXhsSignHealth(_payload?: any): Promise<{
@@ -1428,15 +1502,15 @@ export async function checkXhsSignHealth(_payload?: any): Promise<{
 }> {
     console.log('[TweetClaw-BG] checkXhsSignHealth called');
 
-    const creatorTabs = await chrome.tabs.query({ url: '*://creator.xiaohongshu.com/*' });
-    const tab = creatorTabs[0] || null;
+    const xhsTabs = await chrome.tabs.query({ url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*'] });
+    const tab = xhsTabs.find(t => t.active) || xhsTabs[0] || null;
 
     if (!tab?.id) {
-        console.warn('[TweetClaw-BG] checkXhsSignHealth: no creator tab found, auto-opening one...');
+        console.warn('[TweetClaw-BG] checkXhsSignHealth: no xiaohongshu tab found, auto-opening one...');
         try {
-            // 自动打开 creator tab 并等待签名链路就绪（最多 30s）
+            // 自动打开 xiaohongshu tab 并等待签名链路就绪（最多 30s）
             const newTabId = await getOrOpenCreatorTab();
-            console.log(`[TweetClaw-BG] checkXhsSignHealth: auto-opened creator tab tabId=${newTabId}, re-checking health...`);
+            console.log(`[TweetClaw-BG] checkXhsSignHealth: auto-opened xiaohongshu tab tabId=${newTabId}, re-checking health...`);
 
             // 重新发健康检查消息
             const retryResult: any = await sendMessageToTab(newTabId, {
@@ -1458,13 +1532,13 @@ export async function checkXhsSignHealth(_payload?: any): Promise<{
             console.error(`[TweetClaw-BG] checkXhsSignHealth: auto-open failed: ${openErr.message}`);
             return {
                 ok: false, mnsv2_present: false, sign_format_ok: false,
-                reason: 'no_creator_tab',
+                reason: 'no_xiaohongshu_tab',
                 tab_found: false, checked_at: Date.now(),
             };
         }
     }
 
-    console.log(`[TweetClaw-BG] checkXhsSignHealth: found creator tab tabId=${tab.id}, url=${tab.url}`);
+    console.log(`[TweetClaw-BG] checkXhsSignHealth: found xiaohongshu tab tabId=${tab.id}, url=${tab.url}`);
 
     const result: any = await sendMessageToTab(tab.id, {
         type: 'XHS_CHECK_SIGN_HEALTH',
@@ -1551,7 +1625,7 @@ export async function searchXhsTopics(payload: Record<string, unknown>): Promise
         type: 'XHS_SEARCH_TOPICS',
         ...payload,
     }).catch((e: any) => {
-        console.error('[TweetClaw-BG] Failed to communicate with creator content script:', e);
+        console.error('[TweetClaw-BG] Failed to communicate with xiaohongshu content script:', e);
         throw new Error(`Content script communication failed: ${e?.message}`);
     });
 
@@ -1590,16 +1664,16 @@ export async function getXhsNotifications(payload: Record<string, unknown>): Pro
 
 export async function getXhsPublishedNotes(payload: Record<string, unknown>): Promise<any> {
     console.log('[TweetClaw-BG] getXhsPublishedNotes called');
-    // /api/galaxy/v2/creator/note/user/posted 必须从 creator.xiaohongshu.com 发出（CORS）
-    // 找到已有 creator tab 或自动打开，等待 content script 就绪后返回
+    // /api/galaxy/v2/creator/note/user/posted 通过 xiaohongshu.com tab 的 content script 发出
+    // 找到已有 xiaohongshu tab 或自动打开，等待 content script 就绪后返回
     const tabId = await getOrOpenCreatorTab();
 
-    console.log(`[TweetClaw-BG] Sending XHS_FETCH_PUBLISHED_NOTES to creator tab ${tabId}`);
+    console.log(`[TweetClaw-BG] Sending XHS_FETCH_PUBLISHED_NOTES to xiaohongshu tab ${tabId}`);
     const result: any = await sendMessageToTab(tabId, {
         type: 'XHS_FETCH_PUBLISHED_NOTES',
         page: payload.page,
     }).catch((e: any) => {
-        console.error('[TweetClaw-BG] Failed to communicate with creator content script:', e);
+        console.error('[TweetClaw-BG] Failed to communicate with xiaohongshu content script:', e);
         throw new Error(`Content script communication failed: ${e?.message}`);
     });
 
@@ -1911,7 +1985,7 @@ export async function likeXhsNote(payload: Record<string, unknown>): Promise<any
 
 export async function getXhsFriendFans(payload: Record<string, unknown> = {}): Promise<any> {
     const tabId = await getOrOpenCreatorTab();
-    if (!tabId) throw new Error('No Xiaohongshu creator tab found.');
+    if (!tabId) throw new Error('No Xiaohongshu tab found.');
 
     const result: any = await sendMessageToTab(tabId, {
         type: 'XHS_GET_FRIEND_FANS',
@@ -1924,7 +1998,7 @@ export async function getXhsFriendFans(payload: Record<string, unknown> = {}): P
 
 export async function createXhsCollection(payload: Record<string, unknown>): Promise<any> {
     const tabId = await getOrOpenCreatorTab();
-    if (!tabId) throw new Error('No Xiaohongshu creator tab found.');
+    if (!tabId) throw new Error('No Xiaohongshu tab found.');
 
     const result: any = await sendMessageToTab(tabId, {
         type: 'XHS_CREATE_COLLECTION',
@@ -1937,7 +2011,7 @@ export async function createXhsCollection(payload: Record<string, unknown>): Pro
 
 export async function listXhsCollections(payload: Record<string, unknown> = {}): Promise<any> {
     const tabId = await getOrOpenCreatorTab();
-    if (!tabId) throw new Error('No Xiaohongshu creator tab found.');
+    if (!tabId) throw new Error('No Xiaohongshu tab found.');
 
     const result: any = await sendMessageToTab(tabId, {
         type: 'XHS_LIST_COLLECTIONS',
@@ -1950,7 +2024,7 @@ export async function listXhsCollections(payload: Record<string, unknown> = {}):
 
 export async function listXhsCollectionNotes(payload: Record<string, unknown>): Promise<any> {
     const tabId = await getOrOpenCreatorTab();
-    if (!tabId) throw new Error('No Xiaohongshu creator tab found.');
+    if (!tabId) throw new Error('No Xiaohongshu tab found.');
 
     const result: any = await sendMessageToTab(tabId, {
         type: 'XHS_LIST_COLLECTION_NOTES',
@@ -1963,7 +2037,7 @@ export async function listXhsCollectionNotes(payload: Record<string, unknown>): 
 
 export async function updateXhsCollection(payload: Record<string, unknown>): Promise<any> {
     const tabId = await getOrOpenCreatorTab();
-    if (!tabId) throw new Error('No Xiaohongshu creator tab found.');
+    if (!tabId) throw new Error('No Xiaohongshu tab found.');
 
     const result: any = await sendMessageToTab(tabId, {
         type: 'XHS_UPDATE_COLLECTION',
@@ -1976,15 +2050,15 @@ export async function updateXhsCollection(payload: Record<string, unknown>): Pro
 
 export async function getXhsNoteDetailStats(payload: Record<string, unknown>): Promise<any> {
     console.log('[TweetClaw-BG] getXhsNoteDetailStats called', payload);
-    // /api/galaxy/creator/data/note_detail_new 必须从 creator.xiaohongshu.com 发出（CORS）
+    // /api/galaxy/creator/data/note_detail_new 通过 xiaohongshu.com tab 的 content script 发出
     const tabId = await getOrOpenCreatorTab();
 
-    console.log(`[TweetClaw-BG] Sending XHS_FETCH_NOTE_DETAIL_STATS to creator tab ${tabId}`);
+    console.log(`[TweetClaw-BG] Sending XHS_FETCH_NOTE_DETAIL_STATS to xiaohongshu tab ${tabId}`);
     const result: any = await sendMessageToTab(tabId, {
         type: 'XHS_FETCH_NOTE_DETAIL_STATS',
         note_id: payload.note_id,
     }).catch((e: any) => {
-        console.error('[TweetClaw-BG] Failed to communicate with creator content script:', e);
+        console.error('[TweetClaw-BG] Failed to communicate with xiaohongshu content script:', e);
         throw new Error(`Content script communication failed: ${e?.message}`);
     });
 
@@ -2027,12 +2101,12 @@ export async function igCheckLogin(payload: Record<string, unknown>): Promise<an
 
 export async function igGetSelfInfo(payload: Record<string, unknown>): Promise<any> {
     console.log('[TweetClaw-BG] igGetSelfInfo called', payload);
-    const tab = await findIgTab();
-    if (!tab?.id) {
-        throw new Error('No Instagram tab found. Please open instagram.com first.');
-    }
+    const tabId = await ensurePlatformTabReady(
+        ['*://www.instagram.com/*'],
+        'https://www.instagram.com/'
+    );
 
-    const result: any = await sendMessageToTab(tab.id, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'command.ig_get_self_info',
         params: payload,
     }).catch((e: any) => {
