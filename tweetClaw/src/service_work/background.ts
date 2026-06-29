@@ -991,8 +991,10 @@ export async function closeXTab(payload: CloseTabRequestPayload): Promise<CloseT
                 return;
             }
 
+            // 空 URL = 正在导航过渡中（chrome.tabs.update 后 tab.url 可能短暂为空/about:blank），
+            // 此时仍应允许 close；仅当 URL 明确非 x.com/twitter.com 时才拒绝。
             const url = tab.url || "";
-            if (!url.includes("x.com") && !url.includes("twitter.com")) {
+            if (url && !url.includes("x.com") && !url.includes("twitter.com")) {
                 resolve({ success: false, reason: "not_found" });
                 return;
             }
