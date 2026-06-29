@@ -897,6 +897,19 @@ export async function queryXhsHomefeed(payload: Record<string, unknown> = {}) {
 export async function queryXhsAccountInfo() {
     console.log('[TweetClaw-BG] queryXhsAccountInfo called');
 
+    // 并行确保 home 和 creator 两个 tab 都打开：
+    //   - home  (www.xiaohongshu.com/explore)   → 账号信息查询所需，等待加载完成
+    //   - creator (creator.xiaohongshu.com/...)  → 后续 published_notes 等同域请求所需，
+    //     后台打开即可，失败不阻塞账号查询（下次 getOrOpenCreatorTab 会再补开）
+    const creatorOpenPromise = ensurePlatformTabReady(
+        ['*://creator.xiaohongshu.com/*'],
+        'https://creator.xiaohongshu.com/new/note-manager?source=official'
+    ).then(id => {
+        console.log(`[TweetClaw-BG] creator tab ensured in background: tabId=${id}`);
+    }).catch(e => {
+        console.warn(`[TweetClaw-BG] creator tab open failed (non-fatal): ${e?.message}`);
+    });
+
     const tabId = await ensurePlatformTabReady(
         ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*'],
         'https://www.xiaohongshu.com/explore'
@@ -911,6 +924,9 @@ export async function queryXhsAccountInfo() {
     if (!result?.success) {
         throw new Error(result?.error || 'Failed to fetch current user info from Xiaohongshu API');
     }
+
+    // 账号信息已拿到，creator tab 仍在后台并行打开中，不阻塞返回
+    void creatorOpenPromise;
 
     return result.data;
 }
@@ -1375,62 +1391,92 @@ export async function queryXhsUserNotes(payload: Record<string, unknown> = {}) {
  *  签名函数 _webmsxyw 在 www 域同样可用，且发布流程已验证不依赖 creator 子域名。
  */
 async function getOrOpenCreatorTab(): Promise<number> {
+    const CREATOR_URL = 'https://creator.xiaohongshu.com/new/note-manager?source=official';
     const XHS_URL = 'https://www.xiaohongshu.com';
+    const MAX_WAIT_MS = 30000;
+    const POLL_MS = 800;
 
-    // 1. 优先复用已有的 www.xiaohongshu.com 标签页（active 优先）
+    // 等待指定 tab 的签名链路就绪
+    async function waitSignReady(tabId: number, label: string): Promise<boolean> {
+        const deadline = Date.now() + MAX_WAIT_MS;
+        let pingOk = false;
+        while (Date.now() < deadline) {
+            await new Promise(r => setTimeout(r, POLL_MS));
+            // 阶段一：content script 响应 PING
+            if (!pingOk) {
+                try {
+                    const pong: any = await sendMessageToTab(tabId, { type: 'XHS_PING' });
+                    if (pong?.ok) {
+                        pingOk = true;
+                        console.log(`[TweetClaw-BG] ${label} tab content script ready: tabId=${tabId}`);
+                    }
+                } catch {
+                    continue; // content script 还没注入
+                }
+            }
+            // 阶段二：签名函数就绪
+            if (pingOk) {
+                try {
+                    const signResult: any = await sendMessageToTab(tabId, {
+                        type: 'XHS_SIGN_TEST',
+                        url: '/api/sns/web/v2/user/me',
+                        data: '',
+                    });
+                    if (signResult?.success && signResult?.data?.['x-s'] && signResult?.data?.['x-s-common']) {
+                        console.log(`[TweetClaw-BG] ${label} tab sign+x-s-common ready: tabId=${tabId}`);
+                        return true;
+                    }
+                    const missing = !signResult?.success ? 'sign failed' : (!signResult?.data?.['x-s'] ? 'x-s missing' : 'x-s-common missing');
+                    console.log(`[TweetClaw-BG] ${label} tab not ready (${missing}), retrying...`);
+                } catch {
+                    // 继续等
+                }
+            }
+        }
+        return false;
+    }
+
+    // 1. 优先复用已有的 creator.xiaohongshu.com 标签页（同域，无 CORS）
+    const creatorTabs = await chrome.tabs.query({
+        url: ['*://creator.xiaohongshu.com/*']
+    });
+    let creatorTab = creatorTabs.find(t => t.active) || creatorTabs[0] || null;
+
+    if (creatorTab?.id) {
+        console.log(`[TweetClaw-BG] Reusing existing creator tab: ${creatorTab.id}`);
+        if (await waitSignReady(creatorTab.id, 'creator')) {
+            return creatorTab.id;
+        }
+        // 签名未就绪：刷新后重试一次（可能登录过期）
+        console.log(`[TweetClaw-BG] Creator tab sign not ready, reloading...`);
+        await chrome.tabs.reload(creatorTab.id, { bypassCache: true });
+        await new Promise(r => setTimeout(r, 3000)); // 等待 reload 完成
+        if (await waitSignReady(creatorTab.id, 'creator(reloaded)')) {
+            return creatorTab.id;
+        }
+    }
+
+    // 2. 没有现有 creator 标签页：新建一个
+    //    测试已确认：在 www 已登录状态下，直接打开 creator URL 可自动登录
+    console.log('[TweetClaw-BG] No creator tab found, opening new one...');
+    const newTab = await chrome.tabs.create({ url: CREATOR_URL, active: false });
+    const tabId = newTab.id!;
+    if (await waitSignReady(tabId, 'creator(new)')) {
+        return tabId;
+    }
+
+    // 3. 兜底：回退到 www.xiaohongshu.com（保留原有行为，但 published_notes 会 CORS 失败）
     const tabs = await chrome.tabs.query({
         url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*']
     });
     let tab = tabs.find(t => t.active) || tabs[0] || null;
-
     if (!tab) {
-        console.log('[TweetClaw-BG] No xiaohongshu tab found, opening one...');
+        console.log('[TweetClaw-BG] No xiaohongshu tab found, opening www...');
         tab = await chrome.tabs.create({ url: XHS_URL, active: false });
     }
-
-    const tabId = tab.id!;
-
-    // 2. 轮询等待签名链路就绪（_webmsxyw 可用）
-    //    分两阶段：先等 content script PING 通，再等 XHS_SIGN_TEST 成功
-    const MAX_WAIT_MS = 30000;
-    const POLL_MS = 800;
-    const deadline = Date.now() + MAX_WAIT_MS;
-
-    let pingOk = false;
-    while (Date.now() < deadline) {
-        await new Promise(r => setTimeout(r, POLL_MS));
-
-        // 阶段一：content script 响应 PING
-        if (!pingOk) {
-            try {
-                const pong: any = await sendMessageToTab(tabId, { type: 'XHS_PING' });
-                if (pong?.ok) {
-                    pingOk = true;
-                    console.log(`[TweetClaw-BG] xiaohongshu tab content script ready: tabId=${tabId}`);
-                }
-            } catch {
-                continue; // content script 还没注入
-            }
-        }
-
-        // 阶段二：签名函数 _webmsxyw 就绪（通过 SIGN_TEST 验证）
-        if (pingOk) {
-            try {
-                const signResult: any = await sendMessageToTab(tabId, {
-                    type: 'XHS_SIGN_TEST',
-                    url: '/api/sns/web/v2/user/me',
-                    data: '',
-                });
-                if (signResult?.success && signResult?.data?.['x-s'] && signResult?.data?.['x-s-common']) {
-                    console.log(`[TweetClaw-BG] xiaohongshu tab sign+x-s-common ready: tabId=${tabId}`);
-                    return tabId;
-                }
-                const missing = !signResult?.success ? 'sign failed' : (!signResult?.data?.['x-s'] ? 'x-s missing' : 'x-s-common missing');
-                console.log(`[TweetClaw-BG] xiaohongshu tab not ready (${missing}), retrying...`);
-            } catch {
-                // 继续等
-            }
-        }
+    const wwwTabId = tab.id!;
+    if (await waitSignReady(wwwTabId, 'www')) {
+        return wwwTabId;
     }
 
     throw new Error('xiaohongshu.com tab sign function not ready within 30s');
