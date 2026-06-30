@@ -304,14 +304,14 @@ async function signedXhrFetch(apiPath: string, method: 'GET' | 'POST', body?: st
 const CREATOR = 'https://creator.xiaohongshu.com';
 const UPLOAD_URL = 'https://ros-upload.xiaohongshu.com';
 
-async function signedCreatorFetch(apiPath: string, method: 'GET' | 'POST', body?: string): Promise<any> {
+async function signedCreatorFetch(apiPath: string, method: 'GET' | 'POST', body?: string, referer?: string): Promise<any> {
   const bodyStr = body || '';
   const signHeaders = await requestSign(apiPath, bodyStr);
 
   const headers: Record<string, string> = {
     'accept': 'application/json, text/plain, */*',
     'origin': 'https://creator.xiaohongshu.com',
-    'referer': 'https://creator.xiaohongshu.com/',
+    'referer': referer || 'https://creator.xiaohongshu.com/',
     'x-s': signHeaders['x-s'],
     'x-t': signHeaders['x-t'],
   };
@@ -1171,7 +1171,8 @@ async function fetchNotifications(type: 'mentions' | 'likes', cursor: string = '
 }
 
 async function fetchPublishedNotes(page: string = '0'): Promise<any> {
-  return signedCreatorFetch(`/api/galaxy/v2/creator/note/user/posted?tab=0&page=${encodeURIComponent(page)}`, 'GET');
+  const path = `${XHS_API_ENDPOINTS.CREATOR_PUBLISHED_NOTES}?tab=0&page=${encodeURIComponent(page)}`;
+  return signedCreatorFetch(path, 'GET', undefined, 'https://creator.xiaohongshu.com/new/note-manager?source=official');
 }
 
 /**

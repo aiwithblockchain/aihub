@@ -24,7 +24,7 @@ export const XHS_API_ENDPOINTS = {
   NOTIFICATIONS_MENTIONS: '/api/sns/web/v1/you/mentions',
   NOTIFICATIONS_LIKES: '/api/sns/web/v1/you/likes',
   UNREAD_COUNT: '/api/sns/web/unread_count',
-  CREATOR_PUBLISHED_NOTES: '/api/galaxy/creator/note/user/posted',
+  CREATOR_PUBLISHED_NOTES: '/api/galaxy/v2/creator/note/user/posted',
   CREATOR_NOTE_DETAIL_STATS: '/api/galaxy/creator/data/note_detail_new',
   FRIEND_FANS: '/api/sns/capa/servicegw/note_privacy/user/friend_fans',
 } as const;
