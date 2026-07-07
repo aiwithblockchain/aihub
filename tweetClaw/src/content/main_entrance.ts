@@ -160,6 +160,37 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         return true;
     }
 
+    if (message.type === 'CHECK_LOGIN') {
+        console.log('[TweetClaw-CS][A41] CHECK_LOGIN received, tabId=', message.tabId);
+        try {
+            const btn = document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]');
+            console.log('[TweetClaw-CS][A41] Twitter SideNav_AccountSwitcher_Button found=', !!btn);
+            if (!btn) {
+                sendResponse({ loggedIn: false, platform: 'twitter', tabId: message.tabId ?? null });
+                return true;
+            }
+            // 限定在 btn 子树内，避免命中 feed 流里其他用户的同名 testid 容器
+            const avatarContainer = btn.querySelector('[data-testid^="UserAvatar-Container-"]');
+            const username = avatarContainer
+                ?.getAttribute('data-testid')
+                ?.replace('UserAvatar-Container-', '') || null;
+            const img = btn.querySelector('img[alt][src*="pbs.twimg.com/profile_images"]');
+            const displayName = img?.getAttribute('alt') || null;
+            const avatarUrl = img?.getAttribute('src') || null;
+            console.log('[TweetClaw-CS][A41] Twitter logged_in, username=', username, 'displayName=', displayName);
+            sendResponse({
+                loggedIn: true,
+                platform: 'twitter',
+                tabId: message.tabId ?? null,
+                account: { username, displayName, avatarUrl },
+            });
+        } catch (e: any) {
+            console.warn('[TweetClaw-CS][A41] Twitter CHECK_LOGIN error:', e?.message || String(e));
+            sendResponse({ loggedIn: false, platform: 'twitter', tabId: message.tabId ?? null, error: String(e) });
+        }
+        return true;
+    }
+
     if (message.type === MsgType.EXECUTE_ACTION) {
         let op = '';
         let vars: any = { tweet_id: message.tweetId };

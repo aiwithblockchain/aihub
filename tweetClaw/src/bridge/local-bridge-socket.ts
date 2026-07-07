@@ -13,6 +13,20 @@ interface LifecycleTrailEntry {
   extra?: Record<string, unknown>;
 }
 
+export interface AccountStatusResult {
+  platform: 'twitter' | 'instagram' | 'xiaohongshu';
+  status: 'logged_in' | 'logged_out';
+  tabId: number | null;
+  lastCheckedAt: number;
+  account?: {
+    username?: string | null;
+    userId?: string | null;
+    displayName?: string | null;
+    avatarUrl?: string | null;
+  };
+  error?: string;
+}
+
 const CONSOLE_LIFECYCLE_EVENTS = new Set([
   'sw_boot',
   'runtime_startup',
@@ -46,6 +60,8 @@ export class LocalBridgeSocket {
   private serverInfo: ServerHelloAckPayload | null = null;
   private lastPongTimestamp = 0;
   private lastServerMessageTimestamp = 0;
+  private lastAccountCheckAt = 0;
+  private static readonly ACCOUNT_CHECK_INTERVAL_MS = 60000;
   private instanceId: string = '';
   private instanceName: string = '';
   private desiredActive = false;
@@ -98,6 +114,7 @@ export class LocalBridgeSocket {
   public openTabHandler: ((payload: any) => Promise<any>) | null = null;
   public closeTabHandler: ((payload: any) => Promise<any>) | null = null;
   public navigateTabHandler: ((payload: any) => Promise<any>) | null = null;
+  public collectAccountStatusesHandler: (() => Promise<AccountStatusResult[]>) | null = null;
   public execActionHandler: ((payload: any) => Promise<any>) | null = null;
   public queryHomeTimelineHandler: ((payload: any) => Promise<any>) | null = null;
   public queryTweetRepliesHandler: ((payload: any) => Promise<any>) | null = null;
@@ -1228,7 +1245,7 @@ export class LocalBridgeSocket {
   
   private startHeartbeat(interval: number) {
     this.stopHeartbeat();
-    this.heartbeatInterval = setInterval(() => {
+    this.heartbeatInterval = setInterval(async () => {
       // Check for timeout (60 seconds)
       const now = Date.now();
       const sinceLastPong = this.lastPongTimestamp > 0 ? now - this.lastPongTimestamp : Number.POSITIVE_INFINITY;
@@ -1238,6 +1255,22 @@ export class LocalBridgeSocket {
         this.ws?.close();
         return;
       }
+
+      // A41 账号状态采集：60s 节流，复用心跳节奏
+      // 采集失败 = logged_out，由 background 侧 try/catch 兜底
+      const sinceLastCheck = now - this.lastAccountCheckAt;
+      if (this.collectAccountStatusesHandler && (this.lastAccountCheckAt === 0 || sinceLastCheck >= LocalBridgeSocket.ACCOUNT_CHECK_INTERVAL_MS)) {
+        console.log(`[tweetClaw][A41] collection triggered (sinceLastCheck=${this.lastAccountCheckAt === 0 ? 'first-run' : sinceLastCheck + 'ms'}, interval=${LocalBridgeSocket.ACCOUNT_CHECK_INTERVAL_MS}ms)`);
+        this.lastAccountCheckAt = now;
+        try {
+          const results = await this.collectAccountStatusesHandler();
+          // A41 阶段：只打印日志，不塞进 ping payload，不发往 LocalBridge
+          console.log(`[tweetClaw][A41] collection done:`, JSON.stringify(results, null, 2));
+        } catch (e: any) {
+          console.warn(`[tweetClaw][A41] collection failed: ${e?.message || String(e)}`);
+        }
+      }
+
       this.sendPing();
     }, interval);
   }

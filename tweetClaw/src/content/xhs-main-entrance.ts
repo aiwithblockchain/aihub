@@ -1378,6 +1378,33 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'CHECK_LOGIN') {
+    console.log('[XHS-CS][A41] CHECK_LOGIN received, tabId=', message.tabId);
+    try {
+      const link = document.querySelector('li.user.side-bar-component a[href^="/user/profile/"]') as HTMLAnchorElement | null;
+      console.log('[XHS-CS][A41] XHS profile link found=', !!link);
+      if (!link) {
+        sendResponse({ loggedIn: false, platform: 'xiaohongshu', tabId: message.tabId ?? null });
+        return true;
+      }
+      const href = link.href;
+      const userId = href.split('/user/profile/')[1]?.split('/')[0] || null;
+      const img = link.querySelector('img.reds-img');
+      const avatarUrl = img?.getAttribute('src') || null;
+      console.log('[XHS-CS][A41] XHS logged_in, userId=', userId, 'avatarUrl=', avatarUrl);
+      sendResponse({
+        loggedIn: true,
+        platform: 'xiaohongshu',
+        tabId: message.tabId ?? null,
+        account: { userId, displayName: null, avatarUrl },
+      });
+    } catch (e: any) {
+      console.warn('[XHS-CS][A41] XHS CHECK_LOGIN error:', e?.message || String(e));
+      sendResponse({ loggedIn: false, platform: 'xiaohongshu', tabId: message.tabId ?? null, error: String(e) });
+    }
+    return true;
+  }
+
   if (message.type === 'XHS_SCROLL_PAGE') {
     window.scrollBy(0, message.pixels || 800);
     sendResponse({ ok: true });

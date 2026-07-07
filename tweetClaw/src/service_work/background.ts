@@ -6,7 +6,7 @@
 
 import { MsgType, __DBK_query_id_map, __DBK_bearer_token, defaultQueryKeyMap } from '../capture/consts';
 import { DEFAULT_WS_PORT, DEFAULT_REST_PORT } from '../config';
-import { LocalBridgeSocket } from '../bridge/local-bridge-socket';
+import { LocalBridgeSocket, AccountStatusResult } from '../bridge/local-bridge-socket';
 import {
     OpenTabRequestPayload,
     OpenTabResponsePayload,
@@ -173,6 +173,7 @@ localBridge.igSearchHandler = igSearch;
 localBridge.igGetNotificationsHandler = igGetNotifications;
 localBridge.igGetFollowersHandler = igGetFollowers;
 localBridge.igGetFollowingHandler = igGetFollowing;
+localBridge.collectAccountStatusesHandler = collectAccountStatuses;
 
 // Initialize Background Task Coordinator
 let taskCoordinator: BackgroundTaskCoordinator | null = null;
@@ -859,6 +860,86 @@ export async function queryXBasicInfo() {
 
     // 直接返回推特原始响应，不做任何解析
     return result.raw;
+}
+
+// ── A41 账号状态采集 ──────────────────────────────────────────────────────────
+//
+// 复用 WS 心跳节奏（60s 节流在 LocalBridgeSocket.startHeartbeat 里做）。
+// 本函数只负责"查 tab + sendMessage 给 content script"，三平台并行。
+// 采集失败 = logged_out（content script 未注入 / tab 不存在 / selector 未命中 都算 logged_out）。
+// 阶段一：只打印日志，不塞进 ping payload，不发往 LocalBridge。
+
+interface CheckLoginResponse {
+    loggedIn: boolean;
+    platform: 'twitter' | 'instagram' | 'xiaohongshu';
+    tabId: number | null;
+    account?: {
+        username?: string | null;
+        userId?: string | null;
+        displayName?: string | null;
+        avatarUrl?: string | null;
+    };
+    error?: string;
+}
+
+const PLATFORM_TAB_CONFIG: Array<{
+    platform: 'twitter' | 'instagram' | 'xiaohongshu';
+    urlPatterns: string[];
+}> = [
+    { platform: 'twitter', urlPatterns: ['*://x.com/*', '*://twitter.com/*'] },
+    { platform: 'instagram', urlPatterns: ['*://www.instagram.com/*', '*://instagram.com/*'] },
+    { platform: 'xiaohongshu', urlPatterns: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*'] },
+];
+
+async function checkPlatformLogin(
+    platform: 'twitter' | 'instagram' | 'xiaohongshu',
+    urlPatterns: string[]
+): Promise<AccountStatusResult> {
+    const tabs = await chrome.tabs.query({ url: urlPatterns });
+    if (tabs.length === 0) {
+        console.log(`[tweetClaw][A41] ${platform}: no tab open → logged_out`);
+        return {
+            platform,
+            status: 'logged_out',
+            tabId: null,
+            lastCheckedAt: Date.now(),
+        };
+    }
+    // 优先用非活动 tab，避免打扰用户当前浏览
+    const tab = tabs.find(t => !t.active) || tabs[0];
+    console.log(`[tweetClaw][A41] ${platform}: ${tabs.length} tab(s) open, querying tabId=${tab.id} active=${tab.active} url=${tab.url}`);
+    try {
+        const resp = await sendMessageToTab<CheckLoginResponse>(tab.id!, {
+            type: 'CHECK_LOGIN',
+            tabId: tab.id,
+        });
+        console.log(`[tweetClaw][A41] ${platform}: content script replied`, JSON.stringify(resp));
+        return {
+            platform,
+            status: resp?.loggedIn ? 'logged_in' : 'logged_out',
+            tabId: tab.id ?? null,
+            lastCheckedAt: Date.now(),
+            account: resp?.account,
+            error: resp?.error,
+        };
+    } catch (e: any) {
+        // sendMessage 失败（content script 未注入 / tab 正在导航）= logged_out
+        console.warn(`[tweetClaw][A41] ${platform}: sendMessage failed → logged_out, error=${e?.message || String(e)}`);
+        return {
+            platform,
+            status: 'logged_out',
+            tabId: tab.id ?? null,
+            lastCheckedAt: Date.now(),
+            error: e?.message || String(e),
+        };
+    }
+}
+
+async function collectAccountStatuses(): Promise<AccountStatusResult[]> {
+    const results = await Promise.all(
+        PLATFORM_TAB_CONFIG.map(cfg => checkPlatformLogin(cfg.platform, cfg.urlPatterns))
+    );
+    return results;
 }
 
 // ── XHS 工具函数 ──────────────────────────────────────────────────────────────
