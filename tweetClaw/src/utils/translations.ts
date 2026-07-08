@@ -12,10 +12,8 @@ export const translations: Record<'zh' | 'en', Translations> = {
     'platforms.title': '平台',
     'platform.x.name': 'X (Twitter)',
     'platform.x.status': '活跃桥接',
-    'platform.reddit.name': 'Reddit',
-    'platform.reddit.status': '即将推出',
-    'platform.discord.name': 'Discord',
-    'platform.discord.status': '即将推出',
+    'platform.instagram.name': 'Instagram',
+    'platform.instagram.status': '活跃桥接',
     'platform.xiaohongshu.name': '小红书',
     'platform.xiaohongshu.status': '活跃桥接',
 
@@ -71,6 +69,13 @@ export const translations: Record<'zh' | 'en', Translations> = {
     'capabilities.xhs.actions': '执行操作(点赞、收藏、评论、发帖)',
     'capabilities.xhs.save': '通过本地桥接节省 AI token 成本',
 
+    // Instagram Capabilities
+    'capabilities.ig.bind': '将 Instagram 会话绑定到本地 AI 代理',
+    'capabilities.ig.read': '读取首页和探索结果',
+    'capabilities.ig.profile': '获取用户资料信息',
+    'capabilities.ig.actions': '执行操作(点赞、评论、关注、发帖)',
+    'capabilities.ig.save': '通过本地桥接节省 AI token 成本',
+
     // Alerts
     'alert.invalid_ip': '请输入 IP 地址',
     'alert.invalid_port': '无效的端口号(必须在 1024 – 65535 之间)',
@@ -88,10 +93,8 @@ export const translations: Record<'zh' | 'en', Translations> = {
     'platforms.title': 'Platforms',
     'platform.x.name': 'X (Twitter)',
     'platform.x.status': 'Active Bridge',
-    'platform.reddit.name': 'Reddit',
-    'platform.reddit.status': 'Coming Soon',
-    'platform.discord.name': 'Discord',
-    'platform.discord.status': 'Coming Soon',
+    'platform.instagram.name': 'Instagram',
+    'platform.instagram.status': 'Active Bridge',
     'platform.xiaohongshu.name': 'Xiaohongshu',
     'platform.xiaohongshu.status': 'Active Bridge',
 
@@ -146,6 +149,13 @@ export const translations: Record<'zh' | 'en', Translations> = {
     'capabilities.xhs.profile': 'Fetch user profile information',
     'capabilities.xhs.actions': 'Execute actions (like, collect, comment, post)',
     'capabilities.xhs.save': 'Saves AI token costs via local bridging',
+
+    // Instagram Capabilities
+    'capabilities.ig.bind': 'Bind Instagram session to local AI agents',
+    'capabilities.ig.read': 'Read feed & explore results',
+    'capabilities.ig.profile': 'Fetch user profile information',
+    'capabilities.ig.actions': 'Execute actions (like, comment, follow, post)',
+    'capabilities.ig.save': 'Saves AI token costs via local bridging',
 
     // Alerts
     'alert.invalid_ip': 'Please enter an IP address',

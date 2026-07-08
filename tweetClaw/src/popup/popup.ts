@@ -10,14 +10,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const globalSettingsView = document.getElementById('globalSettingsView') as HTMLDivElement;
     const xDetailsView = document.getElementById('xDetailsView') as HTMLDivElement;
     const xhsDetailsView = document.getElementById('xhsDetailsView') as HTMLDivElement;
+    const igDetailsView = document.getElementById('igDetailsView') as HTMLDivElement;
 
     // ── Navigation Buttons ────────────────────────────────────────
     const btnSettings = document.getElementById('btnSettings') as HTMLButtonElement;
     const btnBackFromSettings = document.getElementById('btnBackFromSettings') as HTMLButtonElement;
     const btnBackFromX = document.getElementById('btnBackFromX') as HTMLButtonElement;
     const btnBackFromXHS = document.getElementById('btnBackFromXHS') as HTMLButtonElement;
+    const btnBackFromIG = document.getElementById('btnBackFromIG') as HTMLButtonElement;
     const platformX = document.getElementById('platformX') as HTMLDivElement;
     const platformXHS = document.getElementById('platformXHS') as HTMLDivElement;
+    const platformIG = document.getElementById('platformIG') as HTMLDivElement;
 
     // ── Main View Status Elements ─────────────────────────────────
     const mainStatusCard = document.getElementById('mainStatusCard') as HTMLDivElement;
@@ -25,6 +28,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const mainStatusLabel = document.getElementById('mainStatusLabel') as HTMLDivElement;
     const mainStatusUrl = document.getElementById('mainStatusUrl') as HTMLDivElement;
     const mainStatusVersion = document.getElementById('mainStatusVersion') as HTMLDivElement;
+    const btnMainConnect = document.getElementById('btnMainConnect') as HTMLButtonElement;
 
     // ── Settings View Elements ────────────────────────────────────
     const settingsIp = document.getElementById('settingsIp') as HTMLInputElement;
@@ -38,7 +42,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // ── View Switching Helper ─────────────────────────────────────
     function showView(viewId: string) {
-        [mainView, globalSettingsView, xDetailsView, xhsDetailsView].forEach(v => v.classList.add('hidden'));
+        [mainView, globalSettingsView, xDetailsView, xhsDetailsView, igDetailsView].forEach(v => v.classList.add('hidden'));
         const target = document.getElementById(viewId);
         if (target) target.classList.remove('hidden');
     }
@@ -49,17 +53,14 @@ document.addEventListener('DOMContentLoaded', () => {
         refreshSettingsStatus();
     });
 
-    btnBackFromSettings.addEventListener('click', () => {
-        showView('mainView');
-    });
+    btnBackFromSettings.addEventListener('click', () => showView('mainView'));
+    btnBackFromX.addEventListener('click', () => showView('mainView'));
+    btnBackFromXHS.addEventListener('click', () => showView('mainView'));
+    btnBackFromIG.addEventListener('click', () => showView('mainView'));
 
-    btnBackFromX.addEventListener('click', () => {
-        showView('mainView');
-    });
-
-    btnBackFromXHS.addEventListener('click', () => {
-        showView('mainView');
-    });
+    platformX.addEventListener('click', () => showView('xDetailsView'));
+    platformXHS.addEventListener('click', () => showView('xhsDetailsView'));
+    platformIG.addEventListener('click', () => showView('igDetailsView'));
 
     // ── Load saved config ──────────────────────────────────────────
     chrome.storage.local.get(['wsHost', 'wsPort', 'restPort', 'bridge.instanceName']).then(res => {
@@ -85,14 +86,43 @@ document.addEventListener('DOMContentLoaded', () => {
 
                 const version = res.serverInfo?.serverVersion ? `v${res.serverInfo.serverVersion}` : '';
                 mainStatusVersion.textContent = version;
+
+                // 仅在未连接时显示 Connect 按钮
+                if (connected) {
+                    btnMainConnect.classList.add('hidden');
+                } else {
+                    btnMainConnect.classList.remove('hidden');
+                }
             }
         }).catch(() => {
             mainStatusCard.className = 'status-card disconnected';
             mainStatusDot.className = 'status-dot disconnected';
             mainStatusLabel.textContent = t('status.unreachable');
             mainStatusVersion.textContent = '';
+            btnMainConnect.classList.remove('hidden');
         });
     }
+
+    // ── Connect button (main view) ─────────────────────────────────
+    btnMainConnect.addEventListener('click', () => {
+        btnMainConnect.textContent = 'Connecting…';
+        btnMainConnect.disabled = true;
+        chrome.storage.local.get(['wsHost', 'wsPort', 'restPort']).then(res => {
+            const host = (res.wsHost as string) || '127.0.0.1';
+            const port = (res.wsPort as number) || DEFAULT_WS_PORT;
+            const restPort = (res.restPort as number) || DEFAULT_REST_PORT;
+            chrome.runtime.sendMessage({ type: 'UPDATE_WS_CONFIG', host, port, restPort }).then(() => {
+                setTimeout(() => {
+                    btnMainConnect.textContent = 'Connect';
+                    btnMainConnect.disabled = false;
+                    refreshMainStatus();
+                }, 1500);
+            }).catch(() => {
+                btnMainConnect.textContent = 'Connect';
+                btnMainConnect.disabled = false;
+            });
+        });
+    });
 
     // ── Refresh Settings View Status ───────────────────────────────
     function refreshSettingsStatus() {
