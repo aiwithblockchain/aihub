@@ -298,6 +298,25 @@ localBridge.handleReconnectAlarm = function(windowCount?: number) {
     return originalHandleReconnect(windowCount);
 };
 
+// ── Home refresh alarm (A41 stage 4) ──────────────────────────────
+//
+// 每 30 分钟把 online 账号的非活动 tab 刷新到平台首页，保活登录 session。
+// "长时间无操作" 的低成本代理：非 active tab = 用户切走后未再操作。
+// 只刷新已存在的 tab，不新建 tab；跳过 active tab 避免打断用户浏览。
+const HOME_REFRESH_ALARM_NAME = 'tweetclaw-home-refresh';
+const HOME_REFRESH_INTERVAL_MINUTES = 30;
+
+// 用 alarms.get 检查避免每次 SW 启动都重置计时器（SW 可能频繁启停）
+chrome.alarms.get(HOME_REFRESH_ALARM_NAME, (existing) => {
+    if (!existing) {
+        chrome.alarms.create(HOME_REFRESH_ALARM_NAME, {
+            delayInMinutes: HOME_REFRESH_INTERVAL_MINUTES,
+            periodInMinutes: HOME_REFRESH_INTERVAL_MINUTES,
+        });
+        console.log(`[tweetClaw][A41][home-refresh] alarm created (interval=${HOME_REFRESH_INTERVAL_MINUTES}min)`);
+    }
+});
+
 // ── Listen for reconnect alarms ──────────────────────────────────
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'tweetclaw-reconnect') {
@@ -331,6 +350,14 @@ chrome.alarms.onAlarm.addListener((alarm) => {
                 windowCount
             });
         })().catch((e) => console.warn('[TweetClaw-BG] failed to reconcile bridge on alarm', e));
+        return;
+    }
+    if (alarm.name === HOME_REFRESH_ALARM_NAME) {
+        void (async () => {
+            console.log('[tweetClaw][A41][home-refresh] alarm fired');
+            await refreshOnlineAccountsHome();
+        })().catch((e) => console.warn('[tweetClaw][A41][home-refresh] failed', e));
+        return;
     }
 });
 
@@ -940,6 +967,85 @@ async function collectAccountStatuses(): Promise<AccountStatusResult[]> {
         PLATFORM_TAB_CONFIG.map(cfg => checkPlatformLogin(cfg.platform, cfg.urlPatterns))
     );
     return results;
+}
+
+// ── A41 stage 4: Home refresh ─────────────────────────────────────
+//
+// 把已登录账号的非活动 tab 刷新到平台首页，保活 session。
+// "长时间无操作" 的低成本代理：
+//   - 非 active tab：用户切到了同窗口的另一个 tab → 无操作
+//   - active 但窗口失焦：用户离开浏览器（如切到 VS Code）→ 无操作
+//   - active 且窗口有焦点：用户可能正在看 → 跳过，避免打断
+// 只刷新已存在的 tab，不新建。
+
+async function refreshTabsToHome(urlPatterns: string[], homeUrl: string): Promise<number> {
+    const tabs = await chrome.tabs.query({ url: urlPatterns });
+    if (tabs.length === 0) return 0;
+
+    // 查询每个 tab 所在窗口是否拥有 OS 焦点
+    const windowFocused = new Map<number, boolean>();
+    for (const t of tabs) {
+        if (t.windowId != null && !windowFocused.has(t.windowId)) {
+            try {
+                const win = await chrome.windows.get(t.windowId);
+                windowFocused.set(t.windowId, !!win.focused);
+            } catch {
+                windowFocused.set(t.windowId, false);
+            }
+        }
+    }
+
+    // 只跳过"active 且窗口有焦点"的 tab（用户真的可能在看）
+    const inactiveTabs = tabs.filter(t => t.id && !(t.active && windowFocused.get(t.windowId)));
+    if (inactiveTabs.length === 0) {
+        console.log(`[tweetClaw][A41][home-refresh] all tabs active+focused, skipping (patterns=${JSON.stringify(urlPatterns)})`);
+        return 0;
+    }
+
+    const normalize = (u: string) => u.split('#')[0].split('?')[0];
+    let refreshed = 0;
+    for (const tab of inactiveTabs) {
+        try {
+            if (normalize(tab.url || '') === normalize(homeUrl)) {
+                await chrome.tabs.reload(tab.id!);
+            } else {
+                await chrome.tabs.update(tab.id!, { url: homeUrl });
+            }
+            refreshed++;
+        } catch (e: any) {
+            console.warn(`[tweetClaw][A41][home-refresh] failed tabId=${tab.id}`, e?.message || String(e));
+        }
+    }
+    return refreshed;
+}
+
+async function refreshOnlineAccountsHome(): Promise<void> {
+    const statuses = await collectAccountStatuses();
+    const online = statuses.filter(s => s.status === 'logged_in');
+    if (online.length === 0) {
+        console.log('[tweetClaw][A41][home-refresh] no online accounts, skip');
+        return;
+    }
+
+    for (const s of online) {
+        if (s.platform === 'twitter') {
+            const n = await refreshTabsToHome(['*://x.com/*', '*://twitter.com/*'], 'https://x.com/home');
+            console.log(`[tweetClaw][A41][home-refresh] twitter: refreshed ${n} tab(s)`);
+        } else if (s.platform === 'instagram') {
+            const n = await refreshTabsToHome(['*://www.instagram.com/*', '*://instagram.com/*'], 'https://www.instagram.com/');
+            console.log(`[tweetClaw][A41][home-refresh] instagram: refreshed ${n} tab(s)`);
+        } else if (s.platform === 'xiaohongshu') {
+            const n1 = await refreshTabsToHome(
+                ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*'],
+                'https://www.xiaohongshu.com/explore'
+            );
+            const n2 = await refreshTabsToHome(
+                ['*://creator.xiaohongshu.com/*'],
+                'https://creator.xiaohongshu.com/new/home?source=official'
+            );
+            console.log(`[tweetClaw][A41][home-refresh] xiaohongshu: refreshed ${n1} main + ${n2} creator tab(s)`);
+        }
+    }
 }
 
 // ── XHS 工具函数 ──────────────────────────────────────────────────────────────

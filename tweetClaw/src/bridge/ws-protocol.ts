@@ -334,6 +334,20 @@ export interface ServerHelloAckPayload {
 
 export interface PingPayload {
   heartbeatIntervalMs: number;
+  // A41: 账号状态随 ping 上报，null = 尚未采集过
+  accounts?: Array<{
+    platform: 'twitter' | 'instagram' | 'xiaohongshu';
+    status: 'logged_in' | 'logged_out';
+    tabId: number | null;
+    lastCheckedAt: number;
+    account?: {
+      username?: string | null;
+      userId?: string | null;
+      displayName?: string | null;
+      avatarUrl?: string | null;
+    };
+    error?: string;
+  }> | null;
 }
 
 export interface QueryXTabsStatusResponsePayload {

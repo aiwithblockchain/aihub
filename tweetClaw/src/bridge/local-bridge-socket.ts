@@ -61,7 +61,8 @@ export class LocalBridgeSocket {
   private lastPongTimestamp = 0;
   private lastServerMessageTimestamp = 0;
   private lastAccountCheckAt = 0;
-  private static readonly ACCOUNT_CHECK_INTERVAL_MS = 60000;
+  private lastAccountStatuses: AccountStatusResult[] | null = null;
+  private static readonly ACCOUNT_CHECK_INTERVAL_MS = 30000;
   private instanceId: string = '';
   private instanceName: string = '';
   private desiredActive = false;
@@ -1264,9 +1265,10 @@ export class LocalBridgeSocket {
         this.lastAccountCheckAt = now;
         try {
           const results = await this.collectAccountStatusesHandler();
-          // A41 阶段：只打印日志，不塞进 ping payload，不发往 LocalBridge
+          this.lastAccountStatuses = results;
           console.log(`[tweetClaw][A41] collection done:`, JSON.stringify(results, null, 2));
         } catch (e: any) {
+          this.lastAccountStatuses = null;
           console.warn(`[tweetClaw][A41] collection failed: ${e?.message || String(e)}`);
         }
       }
@@ -1290,10 +1292,12 @@ export class LocalBridgeSocket {
       target: 'LocalBridgeMac',
       timestamp: Date.now(),
       payload: {
-        heartbeatIntervalMs: 20000
+        heartbeatIntervalMs: 20000,
+        // A41: 随 ping 上报账号状态。null = 采集未触发或采集失败
+        accounts: this.lastAccountStatuses,
       }
     };
-    console.log(`[tweetClaw] sending ping: id=${ping.id}, ${this.identityLabel()}`);
+    console.log(`[tweetClaw] sending ping: id=${ping.id}, ${this.identityLabel()}, accounts=${this.lastAccountStatuses ? this.lastAccountStatuses.length + ' entries' : 'null'}`);
     this.send(ping);
   }
   
