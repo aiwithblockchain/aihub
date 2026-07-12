@@ -497,6 +497,68 @@ async function uploadImage(imageBase64: string, mimeType = 'image/jpeg'): Promis
   return { fileId, width, height, fileSize, mimeType };
 }
 
+/**
+ * Upload image from raw bytes (skip base64 decode). Reuses uploadImage() logic.
+ * Used by chunked task handler to avoid base64 overhead.
+ */
+async function uploadImageFromBytes(fileBytes: Uint8Array, mimeType = 'image/jpeg'): Promise<ImageUploadResult> {
+  // 1. 获取 permit
+  const permit = await getUploadPermit('image');
+  const { fileId, expireTime, token, uploadHost, xt } = permit;
+  const message = `${xt};${expireTime}`;
+
+  const fileSize = fileBytes.length;
+
+  // 2. 获取图片尺寸（用 createImageBitmap）
+  const blob = new Blob([fileBytes as any], { type: mimeType });
+  let width = 0, height = 0;
+  try {
+    const bitmap = await createImageBitmap(blob);
+    width = bitmap.width;
+    height = bitmap.height;
+    bitmap.close();
+    if (width > 2 * height) height = Math.floor(width / 2);
+  } catch (e) {
+    console.warn(`${TAG} Could not get image dimensions, using 0x0`);
+  }
+  // ⚠️ 宽高为 0 会导致 publish payload 的 imagePayload 携带 0x0，XHS 服务端可能拒绝
+  if (width === 0 || height === 0) {
+    console.warn(`${TAG} [uploadImageFromBytes] ⚠️ 图片宽高为 ${width}x${height}（createImageBitmap 失败或 mimeType 不支持），publish 可能被 XHS 拒绝; fileSize=${fileSize} mimeType=${mimeType}`);
+  }
+
+  // 3. 计算 COS 签名
+  const signature = await getUploadSignature(message, fileId, fileSize, uploadHost);
+  const authHeader = `q-sign-algorithm=sha1&q-ak=null&q-sign-time=${message}&q-key-time=${message}&q-header-list=content-length;host&q-url-param-list=&q-signature=${signature}`;
+
+  const uploadHost_full = uploadHost.startsWith('http') ? uploadHost : `https://${uploadHost}`;
+  const uploadApiUrl = `${uploadHost_full}/spectrum/${fileId}`;
+
+  // 4. PUT 上传到 COS
+  const putResponse = await fetch(uploadApiUrl, {
+    method: 'PUT',
+    headers: {
+      'accept': '*/*',
+      'authorization': authHeader,
+      'origin': 'https://creator.xiaohongshu.com',
+      'referer': 'https://creator.xiaohongshu.com/',
+      'x-cos-security-token': token,
+    },
+    body: fileBytes as any,
+    credentials: 'omit',
+  });
+
+  if (!putResponse.ok && putResponse.status !== 409) {
+    const text = await putResponse.text();
+    throw new Error(`COS upload ${putResponse.status}: ${text.slice(0, 200)}`);
+  }
+  if (putResponse.status === 409) {
+    console.warn(`${TAG} COS 409 file already exists, treating as success: fileId=${fileId}`);
+  }
+
+  console.log(`${TAG} [uploadImageFromBytes] done fileId=${fileId} ${width}x${height} size=${fileSize}`);
+  return { fileId, width, height, fileSize, mimeType };
+}
+
 // ── 视频上传流程（COS 分片上传）────────────────────────────────────────────────
 
 interface VideoUploadResult {
@@ -632,7 +694,9 @@ export interface PublishImageNoteParams {
   title: string;
   desc: string;
   /** base64 编码的图片列表（不含 data: 前缀），最多 15 张 */
-  images: Array<{ base64: string; mimeType?: string }>;
+  images?: Array<{ base64: string; mimeType?: string }>;
+  /** 已通过 Task API 分片上传的图片元信息（与 images 互斥，优先使用） */
+  imageFileInfos?: Array<{ fileId: string; width: number; height: number; fileSize: number; mimeType: string }>;
   /** 0=公开 1=仅自己可见 3=指定人可见 4=好友可见，默认 0 */
   privacyType?: number;
   /** type=3 时指定可见的用户 ID 列表 */
@@ -644,17 +708,36 @@ export interface PublishImageNoteParams {
 }
 
 async function publishImageNote(params: PublishImageNoteParams): Promise<any> {
-  const { title, desc, images, privacyType = 0, privacyUserIds = [], topics = [], scheduledPublishTime } = params;
+  const { title, desc, images, imageFileInfos, privacyType = 0, privacyUserIds = [], topics = [], scheduledPublishTime } = params;
   const topicSuffix = topics.length > 0 ? ' ' + topics.map(t => `#${t.name}[话题]#`).join(' ') : '';
   const fullDesc = desc + topicSuffix;
 
-  if (!images || images.length === 0) throw new Error('images array is empty');
-
-  // 1. 逐张上传图片
-  const fileInfos: ImageUploadResult[] = [];
-  for (let i = 0; i < images.length; i++) {
-    const result = await uploadImage(images[i].base64, images[i].mimeType || 'image/jpeg');
-    fileInfos.push(result);
+  // 1. 获取图片元信息：优先用已上传的 imageFileInfos，否则从 base64 上传
+  let fileInfos: ImageUploadResult[];
+  if (imageFileInfos && imageFileInfos.length > 0) {
+    console.log(`${TAG} [publishImageNote] using ${imageFileInfos.length} pre-uploaded image(s) from Task API`);
+    // ⚠️ 校验 imageFileInfos 字段完整性：缺 fileId/width/height/fileSize/mimeType 会导致 publish payload 残缺
+    imageFileInfos.forEach((f, i) => {
+      if (!f.fileId) console.warn(`${TAG} [publishImageNote] ⚠️ imageFileInfos[${i}] 缺少 fileId`);
+      if (!f.width || !f.height) console.warn(`${TAG} [publishImageNote] ⚠️ imageFileInfos[${i}] 宽高异常 ${f.width}x${f.height}`);
+      if (!f.fileSize) console.warn(`${TAG} [publishImageNote] ⚠️ imageFileInfos[${i}] fileSize=0，origin_size 将为 0`);
+      if (!f.mimeType) console.warn(`${TAG} [publishImageNote] ⚠️ imageFileInfos[${i}] 缺少 mimeType，extra_info_json 将缺失`);
+    });
+    fileInfos = imageFileInfos.map(f => ({
+      fileId: f.fileId,
+      width: f.width,
+      height: f.height,
+      fileSize: f.fileSize,
+      mimeType: f.mimeType,
+    }));
+  } else if (images && images.length > 0) {
+    fileInfos = [];
+    for (let i = 0; i < images.length; i++) {
+      const result = await uploadImage(images[i].base64, images[i].mimeType || 'image/jpeg');
+      fileInfos.push(result);
+    }
+  } else {
+    throw new Error('images array is empty and no imageFileInfos provided');
   }
 
   // 2. 构建 business_binds
@@ -1590,7 +1673,8 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         const data = await publishImageNote({
           title: String(message.title || ''),
           desc: String(message.desc || ''),
-          images: message.images || [],
+          images: message.images || undefined,
+          imageFileInfos: message.imageFileInfos || undefined,
           privacyType: Number(message.privacy_type ?? 0),
           privacyUserIds: message.privacy_user_ids || [],
           topics: message.topics || [],
@@ -2233,7 +2317,79 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'START_XHS_IMAGE_UPLOAD_TASK') {
+    const { taskId, uploadSessionId, mimeType, totalBytes, transferChunkCount } = message;
+    console.log(`${TAG} [START_XHS_IMAGE_UPLOAD_TASK] START taskId=${taskId} mimeType=${mimeType} totalBytes=${totalBytes} chunks=${transferChunkCount}`);
+
+    // 立即发送响应，避免消息通道超时关闭
+    sendResponse({ success: true });
+
+    (async () => {
+      try {
+        // 1. 从 bg session 逐片拉取，拼装成完整 Uint8Array
+        const fullBytes = new Uint8Array(totalBytes);
+        let offset = 0;
+        for (let chunkIndex = 0; chunkIndex < transferChunkCount; chunkIndex++) {
+          console.log(`${TAG} [START_XHS_IMAGE_UPLOAD_TASK] Fetching chunk ${chunkIndex}/${transferChunkCount}`);
+          const resp = await chrome.runtime.sendMessage({
+            type: 'GET_UPLOAD_SESSION_CHUNK',
+            uploadSessionId,
+            chunkIndex,
+          });
+          if (!resp?.success || !resp.chunkData) {
+            throw new Error(resp?.error || `Failed to get chunk ${chunkIndex}`);
+          }
+          const chunkBytes = new Uint8Array(resp.chunkData);
+          fullBytes.set(chunkBytes, offset);
+          offset += chunkBytes.length;
+
+          // 上报进度（拉取阶段 0~50%）
+          const progress = 0.5 * ((chunkIndex + 1) / transferChunkCount);
+          chrome.runtime.sendMessage({
+            type: 'TASK_PROGRESS_FROM_CONTENT',
+            taskId,
+            phase: 'receiving',
+            progress,
+          });
+        }
+
+        // ⚠️ 校验实际拉取字节数与声明 totalBytes 一致，不一致则 warn（可能丢片/乱序）
+        if (offset !== totalBytes) {
+          console.warn(`${TAG} [START_XHS_IMAGE_UPLOAD_TASK] ⚠️ 拉取字节数不匹配: got=${offset}B expected=${totalBytes}B (chunks=${transferChunkCount})`);
+        }
+        console.log(`${TAG} [START_XHS_IMAGE_UPLOAD_TASK] All chunks fetched, total=${offset}B, uploading to COS`);
+
+        // 2. 上传到 COS（复用 uploadImageFromBytes）
+        const result = await uploadImageFromBytes(fullBytes, mimeType || 'image/jpeg');
+        console.log(`${TAG} [START_XHS_IMAGE_UPLOAD_TASK] COS upload done fileId=${result.fileId} ${result.width}x${result.height}`);
+
+        chrome.runtime.sendMessage({
+          type: 'TASK_PROGRESS_FROM_CONTENT',
+          taskId,
+          phase: 'completed',
+          progress: 1.0,
+        });
+
+        // 3. 上报完成，result 即 ImageUploadResult
+        await chrome.runtime.sendMessage({
+          type: 'TASK_COMPLETED_FROM_CONTENT',
+          taskId,
+          contentType: 'application/json',
+          resultBase64: btoa(unescape(encodeURIComponent(JSON.stringify(result)))),
+        });
+      } catch (e: any) {
+        console.error(`${TAG} [START_XHS_IMAGE_UPLOAD_TASK] error:`, e.message);
+        await chrome.runtime.sendMessage({
+          type: 'TASK_FAILED_FROM_CONTENT',
+          taskId,
+          phase: 'upload',
+          errorCode: 'IMAGE_UPLOAD_FAILED',
+          errorMessage: e?.message || String(e),
+        });
+      }
+    })();
+    return true;
+  }
+
   return false;
 });
-
-console.log(`${TAG} Active. Sign inject script injected into page context.`);

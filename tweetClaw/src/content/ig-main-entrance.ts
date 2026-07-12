@@ -161,6 +161,85 @@ chrome.runtime.onMessage.addListener((message: any, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'START_IG_IMAGE_UPLOAD_TASK') {
+    const { taskId, uploadSessionId, mimeType, totalBytes, transferChunkCount } = message;
+    console.log(`${TAG} [START_IG_IMAGE_UPLOAD_TASK] START taskId=${taskId} mimeType=${mimeType} totalBytes=${totalBytes} chunks=${transferChunkCount}`);
+
+    // 立即发送响应，避免消息通道超时关闭
+    sendResponse({ success: true });
+
+    (async () => {
+      try {
+        // 1. 从 bg session 逐片拉取，拼装成完整 Uint8Array
+        const fullBytes = new Uint8Array(totalBytes);
+        let offset = 0;
+        for (let chunkIndex = 0; chunkIndex < transferChunkCount; chunkIndex++) {
+          console.log(`${TAG} [START_IG_IMAGE_UPLOAD_TASK] Fetching chunk ${chunkIndex}/${transferChunkCount}`);
+          const resp = await chrome.runtime.sendMessage({
+            type: 'GET_UPLOAD_SESSION_CHUNK',
+            uploadSessionId,
+            chunkIndex,
+          });
+          if (!resp?.success || !resp.chunkData) {
+            throw new Error(resp?.error || `Failed to get chunk ${chunkIndex}`);
+          }
+          const chunkBytes = new Uint8Array(resp.chunkData);
+          fullBytes.set(chunkBytes, offset);
+          offset += chunkBytes.length;
+
+          // 上报进度（拉取阶段 0~50%）
+          const progress = 0.5 * ((chunkIndex + 1) / transferChunkCount);
+          chrome.runtime.sendMessage({
+            type: 'TASK_PROGRESS_FROM_CONTENT',
+            taskId,
+            phase: 'receiving',
+            progress,
+          });
+        }
+
+        // ⚠️ 校验实际拉取字节数与声明 totalBytes 一致，不一致则 warn（可能丢片/乱序）
+        if (offset !== totalBytes) {
+          console.warn(`${TAG} [START_IG_IMAGE_UPLOAD_TASK] ⚠️ 拉取字节数不匹配: got=${offset}B expected=${totalBytes}B (chunks=${transferChunkCount})`);
+        }
+        console.log(`${TAG} [START_IG_IMAGE_UPLOAD_TASK] All chunks fetched, total=${offset}B, uploading to IG`);
+
+        // 2. 上传到 IG（igApi.uploadImage 返回 { upload_id, status }）
+        const uploadResult = await igApi.uploadImage(fullBytes, mimeType || 'image/jpeg');
+        // ⚠️ upload_id 为空/undefined 会导致后端解析失败 + configureSidecar 拿到空 id
+        if (!uploadResult?.upload_id) {
+          console.warn(`${TAG} [START_IG_IMAGE_UPLOAD_TASK] ⚠️ igApi.uploadImage 返回缺少 upload_id, result=${JSON.stringify(uploadResult)}; bytes=${fullBytes.length} mimeType=${mimeType}`);
+          throw new Error(`IG uploadImage returned no upload_id (status=${uploadResult?.status})`);
+        }
+        console.log(`${TAG} [START_IG_IMAGE_UPLOAD_TASK] IG upload done upload_id=${uploadResult.upload_id}`);
+
+        chrome.runtime.sendMessage({
+          type: 'TASK_PROGRESS_FROM_CONTENT',
+          taskId,
+          phase: 'completed',
+          progress: 1.0,
+        });
+
+        // 3. 上报完成，result 转成 { uploadId } 供后端解析
+        await chrome.runtime.sendMessage({
+          type: 'TASK_COMPLETED_FROM_CONTENT',
+          taskId,
+          contentType: 'application/json',
+          resultBase64: btoa(unescape(encodeURIComponent(JSON.stringify({ uploadId: uploadResult.upload_id })))),
+        });
+      } catch (e: any) {
+        console.error(`${TAG} [START_IG_IMAGE_UPLOAD_TASK] error:`, e.message);
+        await chrome.runtime.sendMessage({
+          type: 'TASK_FAILED_FROM_CONTENT',
+          taskId,
+          phase: 'upload',
+          errorCode: 'IMAGE_UPLOAD_FAILED',
+          errorMessage: e?.message || String(e),
+        });
+      }
+    })();
+    return true;
+  }
+
   if (message.type === 'CHECK_LOGIN') {
     console.log(`${TAG}[A41] CHECK_LOGIN received, tabId=${message.tabId}`);
     try {
@@ -641,6 +720,7 @@ async function handlePostMedia(params: Record<string, any>): Promise<any> {
     imageBase64List,
     videoBytes,
     videoBase64,
+    uploadIds,
     mimeType,
     caption,
     disableComments,
@@ -656,13 +736,45 @@ async function handlePostMedia(params: Record<string, any>): Promise<any> {
   // 检查是否有图片或视频数据
   const hasImage = imageBase64 || imageBytes || imageBase64List;
   const hasVideo = videoBytes || videoBase64;
+  const hasUploadIds = Array.isArray(uploadIds) && uploadIds.length > 0;
 
-  if (!hasImage && !hasVideo) {
-    throw new Error('Either imageBase64/imageBytes or videoBytes/videoBase64 is required');
+  if (!hasImage && !hasVideo && !hasUploadIds) {
+    throw new Error('Either imageBase64/imageBytes or videoBytes/videoBase64 or uploadIds is required');
   }
 
   if (!caption) {
     throw new Error('caption is required');
+  }
+
+  // 分片上传后的快路径：已有 upload_ids，直接调 configureSidecar 组装轮播
+  if (hasUploadIds) {
+    // ⚠️ 单 upload_id 走 sidecar 协议，IG 可能拒绝单图轮播（sidecar 为多图设计）
+    if (uploadIds.length === 1) {
+      console.warn(`${TAG} [handlePostMedia] ⚠️ 仅 1 个 upload_id，走 configureSidecar 单子项轮播（IG sidecar 协议可能拒绝单图）`);
+    }
+    console.log(`${TAG} [handlePostMedia] using ${uploadIds.length} pre-uploaded upload_id(s), calling configureSidecar directly`);
+    // ⚠️ 检查 upload_id 是否为空字符串
+    const emptyIds = uploadIds.filter((id: string) => !id);
+    if (emptyIds.length > 0) {
+      console.warn(`${TAG} [handlePostMedia] ⚠️ uploadIds 中有 ${emptyIds.length} 个空字符串，configureSidecar 可能失败`);
+    }
+    const result = await igApi.configureSidecar(uploadIds, caption, {
+      disableComments: disableComments || false,
+      shareToThreads: shareToThreads !== false,
+      location,
+    });
+
+    return {
+      success: true,
+      media: {
+        id: result.media.id,
+        pk: result.media.pk,
+        code: result.media.code,
+        caption: result.media.caption?.text,
+        mediaType: result.media.media_type,
+        takenAt: result.media.taken_at,
+      },
+    };
   }
 
   // 构建 postMedia 参数

@@ -1672,13 +1672,16 @@ async function getOrOpenCreatorTab(): Promise<number> {
 }
 
 export async function publishXhsImageNote(payload: Record<string, unknown> = {}) {
+    const hasImages = Array.isArray(payload.images) && (payload.images as any[]).length > 0;
+    const hasImageFileInfos = Array.isArray(payload.imageFileInfos) && (payload.imageFileInfos as any[]).length > 0;
     console.log('[TweetClaw-BG] publishXhsImageNote called', {
         title: payload.title,
         imageCount: (payload.images as any[])?.length,
+        imageFileInfosCount: (payload.imageFileInfos as any[])?.length,
     });
 
-    if (!payload.images || (payload.images as any[]).length === 0) {
-        throw new Error('images array is required');
+    if (!hasImages && !hasImageFileInfos) {
+        throw new Error('images or imageFileInfos array is required');
     }
 
     // 发布流程通过 content script 在 xiaohongshu.com 域下执行（origin 正确）
