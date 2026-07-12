@@ -209,6 +209,50 @@ function genXrayTraceId(): string {
   return id;
 }
 
+/**
+ * 人类行为时序延迟：在 API 调用之间插入随机间隔，避免机器枪式调用被风控识别。
+ * @param minMs 最小毫秒
+ * @param maxMs 最大毫秒
+ */
+async function humanDelay(minMs: number, maxMs: number): Promise<void> {
+  const ms = minMs + Math.random() * (maxMs - minMs);
+  await new Promise(resolve => setTimeout(resolve, ms));
+}
+
+/**
+ * 校验当前 content script 所在页面是否为 creator 发布页。
+ * origin/referer 是 forbidden header，fetch 无法手动设置，浏览器依据页面域名自动注入。
+ * 若不在 creator.xiaohongshu.com，发布请求的 origin/referer 会与上传请求不一致，被风控指纹。
+ */
+function assertCreatorPublishPage(): void {
+  if (location.hostname !== 'creator.xiaohongshu.com') {
+    throw new Error(
+      `发布中止：当前页面域名 ${location.hostname} 不是 creator.xiaohongshu.com，` +
+      `浏览器自动注入的 origin/referer 将与上传请求不一致（风控指纹）。请在小红书创作者发布页执行。`
+    );
+  }
+}
+
+/**
+ * 构建 capa_trace_info 的 contextJson（行为遥测上下文）。
+ * 结构对齐真实 creator 客户端抓包（4.log，2026-07-12）：
+ *   - recommend_title / recommendTitle 保持原样（recommendTitle 真实就是空 []）
+ *   - recommend_topics.used 填充本次发布实际使用的话题，每项含 id/name/topic_source
+ * 真实客户端不携带 mouse_trace/input_timing 等字段，切勿臆造。
+ */
+function buildCapaTraceContext(topics: Array<{ id: string; name: string }>): string {
+  const used = topics.map(t => ({
+    id: t.id,
+    name: t.name,
+    topic_source: 'recommend_exposed_display',
+  }));
+  return JSON.stringify({
+    recommend_title: { recommend_title_id: '', is_use: 3, used_index: -1 },
+    recommendTitle: [],
+    recommend_topics: { used },
+  });
+}
+
 async function signedFetch(apiPath: string, method: 'GET' | 'POST', body?: string, extraHeaders?: Record<string, string>): Promise<any> {
   const bodyStr = body || '';
 
@@ -712,6 +756,9 @@ async function publishImageNote(params: PublishImageNoteParams): Promise<any> {
   const topicSuffix = topics.length > 0 ? ' ' + topics.map(t => `#${t.name}[话题]#`).join(' ') : '';
   const fullDesc = desc + topicSuffix;
 
+  // P1-5：校验页面域名，确保浏览器自动注入正确的 origin/referer
+  assertCreatorPublishPage();
+
   // 1. 获取图片元信息：优先用已上传的 imageFileInfos，否则从 base64 上传
   let fileInfos: ImageUploadResult[];
   if (imageFileInfos && imageFileInfos.length > 0) {
@@ -735,6 +782,8 @@ async function publishImageNote(params: PublishImageNoteParams): Promise<any> {
     for (let i = 0; i < images.length; i++) {
       const result = await uploadImage(images[i].base64, images[i].mimeType || 'image/jpeg');
       fileInfos.push(result);
+      // P1-4：多图场景下每张图上传之间加 1-3 秒随机间隔，模拟用户逐张选图
+      if (i < images.length - 1) await humanDelay(1000, 3000);
     }
   } else {
     throw new Error('images array is empty and no imageFileInfos provided');
@@ -756,11 +805,7 @@ async function publishImageNote(params: PublishImageNoteParams): Promise<any> {
     optionRelationList: [],
   });
 
-  const contextJson = JSON.stringify({
-    recommend_title: { recommend_title_id: '', is_use: 3, used_index: -1 },
-    recommendTitle: [],
-    recommend_topics: { used: [] },
-  });
+  const contextJson = buildCapaTraceContext(topics);
 
   // 3. 构建图片列表
   const imagePayload = fileInfos.map(f => ({
@@ -799,15 +844,23 @@ async function publishImageNote(params: PublishImageNoteParams): Promise<any> {
   const postApi = '/web_api/sns/v2/note';
   const bodyStr = JSON.stringify(postBody);
 
+  // P1-4：模拟"用户输入标题正文后点发布"的思考时间，放在签名之前——
+  // 真实客户端是用户compose完→点发布→签名→发送，签名应紧贴发送时刻，避免x-t/RAP变旧。
+  await humanDelay(2000, 6000);
+
   // 5. 获取签名（inject script 优先用 window.mnsv2 生成 XYS_ 格式）
   const signHeaders = await requestSign(postApi, bodyStr);
 
   // 5.5 获取 x-rap-param（RAP SDK 行为签名，写操作必须携带）
-  let xRapParam = '';
+  // P0-2：RAP 失败改为 fatal——无 RAP 签名的写操作 = 机器人实锤
+  let xRapParam: string;
   try {
     xRapParam = await requestRapParam(postApi, bodyStr);
   } catch (rapErr: any) {
-    console.warn(`${TAG} x-rap-param request failed (non-fatal): ${rapErr.message}`);
+    throw new Error(`x-rap-param 获取失败，放弃发布（RAP 签名是写操作必需）: ${rapErr.message}`);
+  }
+  if (!xRapParam) {
+    throw new Error('x-rap-param 为空，放弃发布（RAP 签名是写操作必需）');
   }
 
   // 6. 组装请求头
@@ -815,6 +868,8 @@ async function publishImageNote(params: PublishImageNoteParams): Promise<any> {
   const xB3TraceId = Array.from({ length: 16 }, () => hexChars[Math.floor(Math.random() * 16)]).join('');
   const xXrayTraceId = Array.from({ length: 32 }, () => hexChars[Math.floor(Math.random() * 16)]).join('');
 
+  // P0-1：保留空 authorization 头——抓包（4.log）确认真实 creator 客户端发帖请求即带空 authorization，
+  // 删除反而成为指纹差异。真实 web 客户端就是发空字符串。
   const publishHeaders: Record<string, string> = {
     'accept': 'application/json, text/plain, */*',
     'authorization': '',
@@ -825,7 +880,7 @@ async function publishImageNote(params: PublishImageNoteParams): Promise<any> {
     'x-xray-traceid': xXrayTraceId,
   };
   if (signHeaders['x-s-common']) publishHeaders['x-s-common'] = signHeaders['x-s-common'];
-  if (xRapParam) publishHeaders['x-rap-param'] = xRapParam;
+  publishHeaders['x-rap-param'] = xRapParam;
 
   // 7. 发布请求
   const publishUrl = `${EDITH}${postApi}`;
@@ -885,6 +940,9 @@ async function publishVideoNote(params: PublishVideoNoteParams): Promise<any> {
   const mimeType = videoBytes?.mimeType || video?.mimeType || 'video/mp4';
 
   console.log(`${TAG} [publishVideoNote] start title="${title}" privacyType=${privacyType}`);
+
+  // P1-5：校验页面域名，确保浏览器自动注入正确的 origin/referer
+  assertCreatorPublishPage();
 
   // 1. 验证视频元数据（必须由 Python 端提供）
   if (!videoMetadata) {
@@ -1023,11 +1081,7 @@ async function publishVideoNote(params: PublishVideoNoteParams): Promise<any> {
     optionRelationList: [],
   });
 
-  const contextJson = JSON.stringify({
-    recommend_title: { recommend_title_id: '', is_use: 3, used_index: -1 },
-    recommendTitle: [],
-    recommend_topics: { used: [] },
-  });
+  const contextJson = buildCapaTraceContext(topics);
 
   // 5. 组装发帖 body
   const postBody = {
@@ -1052,22 +1106,32 @@ async function publishVideoNote(params: PublishVideoNoteParams): Promise<any> {
   const postApi = '/web_api/sns/v2/note';
   const bodyStr = JSON.stringify(postBody);
 
+  // P1-4：模拟"用户输入标题正文后点发布"的思考时间，放在签名之前——
+  // 真实客户端是用户compose完→点发布→签名→发送，签名应紧贴发送时刻，避免x-t/RAP变旧。
+  await humanDelay(2000, 6000);
+
   // 6. 签名 + x-rap-param
   console.log(`${TAG} [publishVideoNote] requesting sign...`);
   const signHeaders = await requestSign(postApi, bodyStr);
 
-  let xRapParam = '';
+  // P0-2：RAP 失败改为 fatal——无 RAP 签名的写操作 = 机器人实锤
+  let xRapParam: string;
   try {
     xRapParam = await requestRapParam(postApi, bodyStr);
     console.log(`${TAG} [publishVideoNote] rap param ok len=${xRapParam.length}`);
   } catch (rapErr: any) {
-    console.warn(`${TAG} [publishVideoNote] x-rap-param failed (non-fatal): ${rapErr.message}`);
+    throw new Error(`x-rap-param 获取失败，放弃发布（RAP 签名是写操作必需）: ${rapErr.message}`);
+  }
+  if (!xRapParam) {
+    throw new Error('x-rap-param 为空，放弃发布（RAP 签名是写操作必需）');
   }
 
   const hexChars = 'abcdef0123456789';
   const xB3TraceId = Array.from({ length: 16 }, () => hexChars[Math.floor(Math.random() * 16)]).join('');
   const xXrayTraceId = Array.from({ length: 32 }, () => hexChars[Math.floor(Math.random() * 16)]).join('');
 
+  // P0-1：保留空 authorization 头——抓包（4.log）确认真实 creator 客户端发帖请求即带空 authorization，
+  // 删除反而成为指纹差异。真实 web 客户端就是发空字符串。
   const publishHeaders: Record<string, string> = {
     'accept': 'application/json, text/plain, */*',
     'authorization': '',
@@ -1078,7 +1142,7 @@ async function publishVideoNote(params: PublishVideoNoteParams): Promise<any> {
     'x-xray-traceid': xXrayTraceId,
   };
   if (signHeaders['x-s-common']) publishHeaders['x-s-common'] = signHeaders['x-s-common'];
-  if (xRapParam) publishHeaders['x-rap-param'] = xRapParam;
+  publishHeaders['x-rap-param'] = xRapParam;
 
   // 7. 发布
   console.log(`${TAG} [publishVideoNote] posting to ${postApi}...`);
