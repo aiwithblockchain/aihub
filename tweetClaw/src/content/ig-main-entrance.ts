@@ -746,18 +746,38 @@ async function handlePostMedia(params: Record<string, any>): Promise<any> {
     throw new Error('caption is required');
   }
 
-  // 分片上传后的快路径：已有 upload_ids，直接调 configureSidecar 组装轮播
+  // 分片上传后的快路径：已有 upload_ids，按数量分流
   if (hasUploadIds) {
-    // ⚠️ 单 upload_id 走 sidecar 协议，IG 可能拒绝单图轮播（sidecar 为多图设计）
-    if (uploadIds.length === 1) {
-      console.warn(`${TAG} [handlePostMedia] ⚠️ 仅 1 个 upload_id，走 configureSidecar 单子项轮播（IG sidecar 协议可能拒绝单图）`);
-    }
-    console.log(`${TAG} [handlePostMedia] using ${uploadIds.length} pre-uploaded upload_id(s), calling configureSidecar directly`);
     // ⚠️ 检查 upload_id 是否为空字符串
     const emptyIds = uploadIds.filter((id: string) => !id);
     if (emptyIds.length > 0) {
-      console.warn(`${TAG} [handlePostMedia] ⚠️ uploadIds 中有 ${emptyIds.length} 个空字符串，configureSidecar 可能失败`);
+      console.warn(`${TAG} [handlePostMedia] ⚠️ uploadIds 中有 ${emptyIds.length} 个空字符串，configure 可能失败`);
     }
+
+    if (uploadIds.length === 1) {
+      // 单图：走 configureMedia（单图 configure），不走 sidecar 协议
+      console.log(`${TAG} [handlePostMedia] using 1 pre-uploaded upload_id, calling configureMedia directly`);
+      const result = await igApi.configureMedia(uploadIds[0], caption, {
+        disableComments: disableComments || false,
+        shareToThreads: shareToThreads !== false,
+        location,
+      });
+
+      return {
+        success: true,
+        media: {
+          id: result.media.id,
+          pk: result.media.pk,
+          code: result.media.code,
+          caption: result.media.caption?.text,
+          mediaType: result.media.media_type,
+          takenAt: result.media.taken_at,
+        },
+      };
+    }
+
+    // 多图：走 configureSidecar 组装轮播
+    console.log(`${TAG} [handlePostMedia] using ${uploadIds.length} pre-uploaded upload_id(s), calling configureSidecar directly`);
     const result = await igApi.configureSidecar(uploadIds, caption, {
       disableComments: disableComments || false,
       shareToThreads: shareToThreads !== false,
