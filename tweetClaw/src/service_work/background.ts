@@ -300,20 +300,26 @@ localBridge.handleReconnectAlarm = function(windowCount?: number) {
 
 // ── Home refresh alarm (A41 stage 4) ──────────────────────────────
 //
-// 每 30 分钟把 online 账号的非活动 tab 刷新到平台首页，保活登录 session。
+// 把 online 账号的非活动 tab 刷新到平台首页，保活登录 session。
 // "长时间无操作" 的低成本代理：非 active tab = 用户切走后未再操作。
 // 只刷新已存在的 tab，不新建 tab；跳过 active tab 避免打断用户浏览。
+// 间隔随机化：下次触发在 30~60 分钟之间，避免固定周期形成 bot 指纹。
 const HOME_REFRESH_ALARM_NAME = 'tweetclaw-home-refresh';
-const HOME_REFRESH_INTERVAL_MINUTES = 30;
+const HOME_REFRESH_MIN_MINUTES = 30;
+const HOME_REFRESH_MAX_MINUTES = 60;
+
+function nextHomeRefreshDelayMinutes(): number {
+    return HOME_REFRESH_MIN_MINUTES + Math.random() * (HOME_REFRESH_MAX_MINUTES - HOME_REFRESH_MIN_MINUTES);
+}
 
 // 用 alarms.get 检查避免每次 SW 启动都重置计时器（SW 可能频繁启停）
 chrome.alarms.get(HOME_REFRESH_ALARM_NAME, (existing) => {
     if (!existing) {
+        const delay = nextHomeRefreshDelayMinutes();
         chrome.alarms.create(HOME_REFRESH_ALARM_NAME, {
-            delayInMinutes: HOME_REFRESH_INTERVAL_MINUTES,
-            periodInMinutes: HOME_REFRESH_INTERVAL_MINUTES,
+            delayInMinutes: delay,
         });
-        console.log(`[tweetClaw][A41][home-refresh] alarm created (interval=${HOME_REFRESH_INTERVAL_MINUTES}min)`);
+        console.log(`[tweetClaw][A41][home-refresh] alarm created (next fire in ${delay.toFixed(1)}min)`);
     }
 });
 
@@ -354,8 +360,15 @@ chrome.alarms.onAlarm.addListener((alarm) => {
     }
     if (alarm.name === HOME_REFRESH_ALARM_NAME) {
         void (async () => {
-            console.log('[tweetClaw][A41][home-refresh] alarm fired');
-            await refreshOnlineAccountsHome();
+            try {
+                console.log('[tweetClaw][A41][home-refresh] alarm fired');
+                await refreshOnlineAccountsHome();
+            } finally {
+                // 无论刷新成功或失败都重新安排下一次，避免链中断
+                const delay = nextHomeRefreshDelayMinutes();
+                await chrome.alarms.create(HOME_REFRESH_ALARM_NAME, { delayInMinutes: delay });
+                console.log(`[tweetClaw][A41][home-refresh] next fire in ${delay.toFixed(1)}min`);
+            }
         })().catch((e) => console.warn('[tweetClaw][A41][home-refresh] failed', e));
         return;
     }
