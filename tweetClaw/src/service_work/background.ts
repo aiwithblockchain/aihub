@@ -597,6 +597,15 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         return true;
     }
 
+    // Content Script 请求获取 twid cookie 中的数字 UID（HttpOnly，CS 读不到）
+    if (message.type === 'GET_AUTH_UID') {
+        (async () => {
+            const uid = await getAuthenticUid();
+            sendResponse({ uid });
+        })();
+        return true;
+    }
+
     // 小红书 Ping
     if (message.type === 'XHS_PING') {
         sendResponse({

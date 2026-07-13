@@ -112,6 +112,8 @@ export type MessageType =
   | 'response.ig_get_followers'
   | 'command.ig_get_following'
   | 'response.ig_get_following'
+  | 'command.query_account_statuses'
+  | 'response.query_account_statuses'
   | 'command.query_x_basic_info'
   | 'request.open_tab'
   | 'response.open_tab'
@@ -257,6 +259,8 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_IG_GET_FOLLOWERS: 'response.ig_get_followers',
   COMMAND_IG_GET_FOLLOWING: 'command.ig_get_following',
   RESPONSE_IG_GET_FOLLOWING: 'response.ig_get_following',
+  COMMAND_QUERY_ACCOUNT_STATUSES: 'command.query_account_statuses',
+  RESPONSE_QUERY_ACCOUNT_STATUSES: 'response.query_account_statuses',
   COMMAND_QUERY_X_BASIC_INFO: 'command.query_x_basic_info',
   REQUEST_OPEN_TAB: 'request.open_tab',
   RESPONSE_OPEN_TAB: 'response.open_tab',

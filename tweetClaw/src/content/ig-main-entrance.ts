@@ -242,28 +242,39 @@ chrome.runtime.onMessage.addListener((message: any, sender, sendResponse) => {
 
   if (message.type === 'CHECK_LOGIN') {
     console.log(`${TAG}[A41] CHECK_LOGIN received, tabId=${message.tabId}`);
-    try {
-      const img = document.querySelector('a[href] img[alt*="profile picture"]') as HTMLImageElement | null;
-      console.log(`${TAG}[A41] IG profile picture img found=${!!img}`);
-      if (!img) {
-        sendResponse({ loggedIn: false, platform: 'instagram', tabId: message.tabId ?? null });
-        return true;
+    (async () => {
+      try {
+        const img = document.querySelector('a[href] img[alt*="profile picture"]') as HTMLImageElement | null;
+        console.log(`${TAG}[A41] IG profile picture img found=${!!img}`);
+        if (!img) {
+          sendResponse({ loggedIn: false, platform: 'instagram', tabId: message.tabId ?? null });
+          return;
+        }
+        const anchor = img.closest('a');
+        const href = anchor?.getAttribute('href') ?? '';
+        const username = href.replace(/^\//, '').replace(/\/$/, '') || null;
+        const avatarUrl = img.getAttribute('src') || null;
+        const displayName = img.getAttribute('alt')?.replace(' profile picture', '') || null;
+
+        // 从 cookie 获取 ds_user_id（IG 的真实数字 ID）
+        let userId: string | null = null;
+        const cookieMatch = document.cookie.match(/ds_user_id=(\d+)/);
+        if (cookieMatch) {
+          userId = cookieMatch[1];
+        }
+
+        console.log(`${TAG}[A41] IG logged_in, username=${username}, userId=${userId}, displayName=${displayName}`);
+        sendResponse({
+          loggedIn: true,
+          platform: 'instagram',
+          tabId: message.tabId ?? null,
+          account: { username, userId, displayName, avatarUrl },
+        });
+      } catch (e: any) {
+        console.warn(`${TAG}[A41] IG CHECK_LOGIN error: ${e?.message || String(e)}`);
+        sendResponse({ loggedIn: false, platform: 'instagram', tabId: message.tabId ?? null, error: String(e) });
       }
-      const anchor = img.closest('a');
-      const href = anchor?.getAttribute('href') ?? '';
-      const username = href.replace(/^\//, '').replace(/\/$/, '') || null;
-      const avatarUrl = img.getAttribute('src') || null;
-      console.log(`${TAG}[A41] IG logged_in, username=${username}, avatarUrl=${avatarUrl}`);
-      sendResponse({
-        loggedIn: true,
-        platform: 'instagram',
-        tabId: message.tabId ?? null,
-        account: { username, displayName: null, avatarUrl },
-      });
-    } catch (e: any) {
-      console.warn(`${TAG}[A41] IG CHECK_LOGIN error: ${e?.message || String(e)}`);
-      sendResponse({ loggedIn: false, platform: 'instagram', tabId: message.tabId ?? null, error: String(e) });
-    }
+    })();
     return true;
   }
 

@@ -761,6 +761,9 @@ export class LocalBridgeSocket {
         case MESSAGE_TYPES.COMMAND_QUERY_X_BASIC_INFO:
           this.handleQueryXBasicInfo(msg);
           break;
+        case MESSAGE_TYPES.COMMAND_QUERY_ACCOUNT_STATUSES:
+          this.handleQueryAccountStatuses(msg);
+          break;
         case MESSAGE_TYPES.REQUEST_OPEN_TAB:
           this.handleOpenTab(msg);
           break;
@@ -1027,6 +1030,51 @@ export class LocalBridgeSocket {
             }
         };
         this.send(errResp);
+    }
+  }
+
+  /**
+   * 处理 command.query_account_statuses：主动采集一次 3 平台账号在线状态，
+   * 返回与 ping payload.accounts 相同结构的 AccountStatusResult[]。
+   * 手动刷新按钮通过 REST → WS 路径触发此 handler，只做状态查询，不写 trend。
+   */
+  private async handleQueryAccountStatuses(req: BaseMessage) {
+    console.log(`[tweetClaw] handling command.query_account_statuses, ${this.identityLabel()}`);
+    if (!this.collectAccountStatusesHandler) {
+        console.error('[tweetClaw] no handler for query_account_statuses');
+        this.send({
+            id: req.id,
+            type: MESSAGE_TYPES.RESPONSE_ERROR,
+            source: 'tweetClaw',
+            target: 'LocalBridgeMac',
+            timestamp: Date.now(),
+            payload: { code: 'INTERNAL_ERROR', message: 'Handler not registered', details: null }
+        });
+        return;
+    }
+    try {
+        const results = await this.collectAccountStatusesHandler();
+        // 更新缓存，使下一次 ping 立即反映最新状态
+        this.lastAccountStatuses = results;
+        this.lastAccountCheckAt = Date.now();
+        console.log(`[tweetClaw] query_account_statuses done: ${results.length} entries`);
+        this.send({
+            id: req.id,
+            type: MESSAGE_TYPES.RESPONSE_QUERY_ACCOUNT_STATUSES,
+            source: 'tweetClaw',
+            target: 'LocalBridgeMac',
+            timestamp: Date.now(),
+            payload: { accounts: results }
+        });
+    } catch (e: any) {
+        this.send({
+            id: req.id,
+            type: MESSAGE_TYPES.RESPONSE_ERROR,
+            source: 'tweetClaw',
+            target: 'LocalBridgeMac',
+            timestamp: Date.now(),
+            payload: { code: 'INTERNAL_ERROR', message: e?.message || String(e), details: null }
+        });
     }
   }
 

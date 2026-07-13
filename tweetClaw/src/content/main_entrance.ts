@@ -162,32 +162,82 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     if (message.type === 'CHECK_LOGIN') {
         console.log('[TweetClaw-CS][A41] CHECK_LOGIN received, tabId=', message.tabId);
-        try {
-            const btn = document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]');
-            console.log('[TweetClaw-CS][A41] Twitter SideNav_AccountSwitcher_Button found=', !!btn);
-            if (!btn) {
-                sendResponse({ loggedIn: false, platform: 'twitter', tabId: message.tabId ?? null });
-                return true;
+        (async () => {
+            try {
+                const btn = document.querySelector('[data-testid="SideNav_AccountSwitcher_Button"]');
+                console.log('[TweetClaw-CS][A41] Twitter SideNav_AccountSwitcher_Button found=', !!btn);
+                if (!btn) {
+                    sendResponse({ loggedIn: false, platform: 'twitter', tabId: message.tabId ?? null });
+                    return;
+                }
+                // 限定在 btn 子树内，避免命中 feed 流里其他用户的同名 testid 容器
+                const avatarContainer = btn.querySelector('[data-testid^="UserAvatar-Container-"]');
+                const username = avatarContainer
+                    ?.getAttribute('data-testid')
+                    ?.replace('UserAvatar-Container-', '') || null;
+
+                // 1. 优先从 <img> 提取 displayName 和 avatarUrl
+                const img = btn.querySelector('img[alt][src*="pbs.twimg.com/profile_images"]');
+                let displayName = img?.getAttribute('alt') || null;
+                let avatarUrl = img?.getAttribute('src') || null;
+
+                // 2. Fallback: 从 background-image div 提取 avatarUrl（img 尚未渲染时）
+                if (!avatarUrl) {
+                    const bgDiv = btn.querySelector('div[style*="pbs.twimg.com/profile_images"]');
+                    if (bgDiv) {
+                        const style = bgDiv.getAttribute('style') || '';
+                        const match = style.match(/url\(["']?(https:\/\/pbs\.twimg\.com\/profile_images\/[^"')\s]+)["']?\)/);
+                        if (match) avatarUrl = match[1];
+                    }
+                }
+
+                // 3. Fallback: 从侧边栏文字提取 displayName（不含 @handle 的那个 div）
+                if (!displayName) {
+                    const nameDivs = Array.from(btn.querySelectorAll('div[dir="ltr"]'));
+                    for (const div of nameDivs) {
+                        const text = div.textContent?.trim();
+                        if (text && !text.startsWith('@')) {
+                            displayName = text;
+                            break;
+                        }
+                    }
+                }
+
+                // 4. 获取 userId：优先 chrome.storage.local（settings.json 拦截写入），fallback 到 twid cookie
+                let userId: string | null = null;
+                if (username) {
+                    try {
+                        const stored = await chrome.storage.local.get(['userId', 'screenName']);
+                        // screenName 可能带 @ 前缀，统一去掉再比较
+                        const storedSn = (stored.screenName as string | undefined)?.replace(/^@/, '');
+                        if (storedSn === username && stored.userId) {
+                            userId = String(stored.userId);
+                        }
+                    } catch {}
+                }
+                // Fallback: twid cookie 是 HttpOnly，CS 读不到，通过 background 读取
+                if (!userId) {
+                    try {
+                        const resp = await chrome.runtime.sendMessage({ type: 'GET_AUTH_UID' });
+                        if (resp?.uid) {
+                            userId = String(resp.uid);
+                            console.log('[TweetClaw-CS][A41] userId from twid cookie:', userId);
+                        }
+                    } catch {}
+                }
+
+                console.log('[TweetClaw-CS][A41] Twitter logged_in, username=', username, 'displayName=', displayName, 'userId=', userId);
+                sendResponse({
+                    loggedIn: true,
+                    platform: 'twitter',
+                    tabId: message.tabId ?? null,
+                    account: { username, userId, displayName, avatarUrl },
+                });
+            } catch (e: any) {
+                console.warn('[TweetClaw-CS][A41] Twitter CHECK_LOGIN error:', e?.message || String(e));
+                sendResponse({ loggedIn: false, platform: 'twitter', tabId: message.tabId ?? null, error: String(e) });
             }
-            // 限定在 btn 子树内，避免命中 feed 流里其他用户的同名 testid 容器
-            const avatarContainer = btn.querySelector('[data-testid^="UserAvatar-Container-"]');
-            const username = avatarContainer
-                ?.getAttribute('data-testid')
-                ?.replace('UserAvatar-Container-', '') || null;
-            const img = btn.querySelector('img[alt][src*="pbs.twimg.com/profile_images"]');
-            const displayName = img?.getAttribute('alt') || null;
-            const avatarUrl = img?.getAttribute('src') || null;
-            console.log('[TweetClaw-CS][A41] Twitter logged_in, username=', username, 'displayName=', displayName);
-            sendResponse({
-                loggedIn: true,
-                platform: 'twitter',
-                tabId: message.tabId ?? null,
-                account: { username, displayName, avatarUrl },
-            });
-        } catch (e: any) {
-            console.warn('[TweetClaw-CS][A41] Twitter CHECK_LOGIN error:', e?.message || String(e));
-            sendResponse({ loggedIn: false, platform: 'twitter', tabId: message.tabId ?? null, error: String(e) });
-        }
+        })();
         return true;
     }
 

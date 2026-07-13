@@ -1527,28 +1527,71 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   if (message.type === 'CHECK_LOGIN') {
     console.log('[XHS-CS][A41] CHECK_LOGIN received, tabId=', message.tabId);
-    try {
-      const link = document.querySelector('li.user.side-bar-component a[href^="/user/profile/"]') as HTMLAnchorElement | null;
-      console.log('[XHS-CS][A41] XHS profile link found=', !!link);
-      if (!link) {
-        sendResponse({ loggedIn: false, platform: 'xiaohongshu', tabId: message.tabId ?? null });
-        return true;
+    (async () => {
+      try {
+        const link = document.querySelector('li.user.side-bar-component a[href^="/user/profile/"]') as HTMLAnchorElement | null;
+        console.log('[XHS-CS][A41] XHS profile link found=', !!link);
+        if (!link) {
+          sendResponse({ loggedIn: false, platform: 'xiaohongshu', tabId: message.tabId ?? null });
+          return;
+        }
+        const href = link.href;
+        const userId = href.split('/user/profile/')[1]?.split('/')[0] || null;
+        const img = link.querySelector('img.reds-img');
+        const avatarUrl = img?.getAttribute('src') || null;
+
+        // 1. displayName: 优先从 img alt 提取，fallback 到 li 容器内的文字
+        let displayName = img?.getAttribute('alt') || null;
+        if (!displayName) {
+          const li = link.closest('li.user.side-bar-component');
+          // 常见 XHS 侧边栏：nickname 在 .name / .nickname / .user-name 等元素中
+          const nameEl = li?.querySelector('.name, .nickname, .user-name, .reds-user-name');
+          displayName = nameEl?.textContent?.trim() || null;
+        }
+
+        // 2. username: XHS 的红薯号/red_id，通常在侧边栏副文字中
+        let username: string | null = null;
+        {
+          const li = link.closest('li.user.side-bar-component');
+          // red_id 通常显示为 "红薯号：xxx" 或在 .red-id 元素中
+          const redIdEl = li?.querySelector('.red-id, .user-id, .sub-name');
+          if (redIdEl) {
+            const text = redIdEl.textContent?.trim() || '';
+            const m = text.match(/红薯号[：:]\s*(.+)/);
+            username = m ? m[1].trim() : (text || null);
+          }
+        }
+
+        // 3. XHS 侧边栏只渲染小头像 + "我" 字，不含昵称和红薯号。
+        //    DOM 抓取拿不到时，fallback 调 /api/sns/web/v2/user/me REST API 补全。
+        if (!displayName || !username) {
+          try {
+            const meResp = await fetchCurrentUser();
+            const meData = meResp?.data || meResp;
+            if (!displayName && meData) {
+              displayName = meData.nickname || meData.nick_name || null;
+            }
+            if (!username && meData) {
+              username = meData.red_id ? String(meData.red_id) : null;
+            }
+            console.log('[XHS-CS][A41] XHS enriched via /user/me API: displayName=', displayName, 'username=', username);
+          } catch (enrichErr: any) {
+            console.warn('[XHS-CS][A41] XHS /user/me enrichment failed:', enrichErr?.message || String(enrichErr));
+          }
+        }
+
+        console.log('[XHS-CS][A41] XHS logged_in, userId=', userId, 'username=', username, 'displayName=', displayName);
+        sendResponse({
+          loggedIn: true,
+          platform: 'xiaohongshu',
+          tabId: message.tabId ?? null,
+          account: { username, userId, displayName, avatarUrl },
+        });
+      } catch (e: any) {
+        console.warn('[XHS-CS][A41] XHS CHECK_LOGIN error:', e?.message || String(e));
+        sendResponse({ loggedIn: false, platform: 'xiaohongshu', tabId: message.tabId ?? null, error: String(e) });
       }
-      const href = link.href;
-      const userId = href.split('/user/profile/')[1]?.split('/')[0] || null;
-      const img = link.querySelector('img.reds-img');
-      const avatarUrl = img?.getAttribute('src') || null;
-      console.log('[XHS-CS][A41] XHS logged_in, userId=', userId, 'avatarUrl=', avatarUrl);
-      sendResponse({
-        loggedIn: true,
-        platform: 'xiaohongshu',
-        tabId: message.tabId ?? null,
-        account: { userId, displayName: null, avatarUrl },
-      });
-    } catch (e: any) {
-      console.warn('[XHS-CS][A41] XHS CHECK_LOGIN error:', e?.message || String(e));
-      sendResponse({ loggedIn: false, platform: 'xiaohongshu', tabId: message.tabId ?? null, error: String(e) });
-    }
+    })();
     return true;
   }
 
