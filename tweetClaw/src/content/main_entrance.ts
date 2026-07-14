@@ -177,7 +177,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     ?.replace('UserAvatar-Container-', '') || null;
 
                 // 1. 优先从 <img> 提取 displayName 和 avatarUrl
-                const img = btn.querySelector('img[alt][src*="pbs.twimg.com/profile_images"]');
+                let img = btn.querySelector('img[alt][src*="pbs.twimg.com/profile_images"]');
+                // Fallback: 尝试更宽松的选择器（不限制 pbs.twimg.com）
+                if (!img) {
+                    img = btn.querySelector('img[alt]');
+                }
                 let displayName = img?.getAttribute('alt') || null;
                 let avatarUrl = img?.getAttribute('src') || null;
 
@@ -196,10 +200,19 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     const nameDivs = Array.from(btn.querySelectorAll('div[dir="ltr"]'));
                     for (const div of nameDivs) {
                         const text = div.textContent?.trim();
-                        if (text && !text.startsWith('@')) {
+                        if (text && !text.startsWith('@') && text !== username) {
                             displayName = text;
                             break;
                         }
+                    }
+                }
+
+                // 4. 最终 fallback: 如果还是没有 avatarUrl，尝试查找任何 img
+                if (!avatarUrl) {
+                    const anyImg = btn.querySelector('img[src]');
+                    const src = anyImg?.getAttribute('src');
+                    if (src && (src.includes('profile_images') || src.includes('avatar'))) {
+                        avatarUrl = src;
                     }
                 }
 
