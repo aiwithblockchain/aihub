@@ -140,9 +140,9 @@ localBridge.xhsListCollectionsHandler = listXhsCollections;
 localBridge.xhsListCollectionNotesHandler = listXhsCollectionNotes;
 localBridge.xhsUpdateCollectionHandler = updateXhsCollection;
 localBridge.xhsGetNoteDetailStatsHandler = getXhsNoteDetailStats;
-localBridge.openTabHandler = openXTab;
-localBridge.closeTabHandler = closeXTab;
-localBridge.navigateTabHandler = navigateXTab;
+localBridge.openTabHandler = openTabByPlatform;
+localBridge.closeTabHandler = closeTabByPlatform;
+localBridge.navigateTabHandler = navigateTabByPlatform;
 localBridge.execActionHandler = execAction;
 localBridge.queryHomeTimelineHandler = queryHomeTimeline;
 localBridge.queryTweetRepliesHandler = queryTweetReplies;
@@ -1188,43 +1188,69 @@ export async function openXTab(payload: OpenTabRequestPayload): Promise<OpenTabR
 }
 
 /**
- * 关闭指定的 X 标签页
+ * 打开新的小红书标签页。path 是相对 https://www.xiaohongshu.com/ 的路径，
+ * 例如 "explore"（首页）、"user/profile/<id>"。
  */
-export async function closeXTab(payload: CloseTabRequestPayload): Promise<CloseTabResponsePayload> {
-    const tabId = payload.tabId;
+export async function openXhsTab(payload: OpenTabRequestPayload): Promise<OpenTabResponsePayload> {
+    const path = payload.path || "explore";
+    const url = "https://www.xiaohongshu.com/" + (path.startsWith("/") ? path.substring(1) : path);
 
     return new Promise((resolve) => {
-        chrome.tabs.get(tabId, (tab) => {
-            if (chrome.runtime.lastError || !tab) {
-                resolve({ success: false, reason: "not_found" });
-                return;
+        chrome.tabs.create({ url }, (tab) => {
+            if (chrome.runtime.lastError) {
+                resolve({ success: false, error: chrome.runtime.lastError.message });
+            } else {
+                resolve({
+                    success: true,
+                    tabId: tab.id,
+                    url: tab.url || url
+                });
             }
-
-            // 空 URL = 正在导航过渡中（chrome.tabs.update 后 tab.url 可能短暂为空/about:blank），
-            // 此时仍应允许 close；仅当 URL 明确非 x.com/twitter.com 时才拒绝。
-            const url = tab.url || "";
-            if (url && !url.includes("x.com") && !url.includes("twitter.com")) {
-                resolve({ success: false, reason: "not_found" });
-                return;
-            }
-
-            chrome.tabs.remove(tabId, () => {
-                if (chrome.runtime.lastError) {
-                    resolve({
-                        success: false,
-                        reason: "failed",
-                        error: chrome.runtime.lastError.message
-                    });
-                } else {
-                    resolve({ success: true, reason: "success" });
-                }
-            });
         });
     });
 }
 
 /**
- * 导航到指定路径
+ * 打开新的 Instagram 标签页。path 是相对 https://www.instagram.com/ 的路径，
+ * 例如 "<username>"、"<username>/reels"。
+ */
+export async function openIgTab(payload: OpenTabRequestPayload): Promise<OpenTabResponsePayload> {
+    const path = payload.path || "";
+    const url = "https://www.instagram.com/" + (path.startsWith("/") ? path.substring(1) : path);
+
+    return new Promise((resolve) => {
+        chrome.tabs.create({ url }, (tab) => {
+            if (chrome.runtime.lastError) {
+                resolve({ success: false, error: chrome.runtime.lastError.message });
+            } else {
+                resolve({
+                    success: true,
+                    tabId: tab.id,
+                    url: tab.url || url
+                });
+            }
+        });
+    });
+}
+
+/**
+ * 按 platform 字段分发打开标签页。默认/未指定时按 X 处理（向后兼容）。
+ */
+export async function openTabByPlatform(payload: OpenTabRequestPayload): Promise<OpenTabResponsePayload> {
+    switch (payload.platform) {
+        case 'xhs':
+            return openXhsTab(payload);
+        case 'ig':
+            return openIgTab(payload);
+        case 'x':
+        default:
+            return openXTab(payload);
+    }
+}
+
+/**
+ * 导航 X 标签页到指定路径。若已有 x.com/twitter.com 标签页则刷新到目标 URL，
+ * 否则打开新标签页。
  */
 export async function navigateXTab(payload: NavigateTabRequestPayload): Promise<NavigateTabResponsePayload> {
     const path = payload.path || "home";
@@ -1237,8 +1263,15 @@ export async function navigateXTab(payload: NavigateTabRequestPayload): Promise<
         targetTabId = targetTab?.id;
     }
 
+    // 没有现有标签页 → 打开新标签页
     if (!targetTabId) {
-        return { success: false, tabId: 0, url: "", error: "No target tab found" };
+        const opened = await openXTab({ path, platform: 'x' });
+        return {
+            success: opened.success,
+            tabId: opened.tabId || 0,
+            url: opened.url || url,
+            error: opened.error,
+        };
     }
 
     return new Promise((resolve) => {
@@ -1257,6 +1290,156 @@ export async function navigateXTab(payload: NavigateTabRequestPayload): Promise<
                     url: tab.url || url
                 });
             }
+        });
+    });
+}
+
+/**
+ * 导航小红书标签页到指定路径。若已有 xiaohongshu.com 标签页则刷新，
+ * 否则打开新标签页。path 是相对 https://www.xiaohongshu.com/ 的路径。
+ */
+export async function navigateXhsTab(payload: NavigateTabRequestPayload): Promise<NavigateTabResponsePayload> {
+    const path = payload.path || "explore";
+    const url = "https://www.xiaohongshu.com/" + (path.startsWith("/") ? path.substring(1) : path);
+
+    let targetTabId = payload.tabId;
+    if (!targetTabId) {
+        const xhsTabs = await chrome.tabs.query({ url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*'] });
+        const targetTab = xhsTabs.find(t => t.active) || xhsTabs[0];
+        targetTabId = targetTab?.id;
+    }
+
+    if (!targetTabId) {
+        const opened = await openXhsTab({ path, platform: 'xhs' });
+        return {
+            success: opened.success,
+            tabId: opened.tabId || 0,
+            url: opened.url || url,
+            error: opened.error,
+        };
+    }
+
+    return new Promise((resolve) => {
+        chrome.tabs.update(targetTabId!, { url }, (tab) => {
+            if (chrome.runtime.lastError) {
+                resolve({
+                    success: false,
+                    tabId: targetTabId!,
+                    url: "",
+                    error: chrome.runtime.lastError.message
+                });
+            } else {
+                resolve({
+                    success: true,
+                    tabId: tab.id || targetTabId!,
+                    url: tab.url || url
+                });
+            }
+        });
+    });
+}
+
+/**
+ * 导航 Instagram 标签页到指定路径。若已有 instagram.com 标签页则刷新，
+ * 否则打开新标签页。path 是相对 https://www.instagram.com/ 的路径。
+ */
+export async function navigateIgTab(payload: NavigateTabRequestPayload): Promise<NavigateTabResponsePayload> {
+    const path = payload.path || "";
+    const url = "https://www.instagram.com/" + (path.startsWith("/") ? path.substring(1) : path);
+
+    let targetTabId = payload.tabId;
+    if (!targetTabId) {
+        const igTabs = await chrome.tabs.query({ url: ['*://www.instagram.com/*', '*://instagram.com/*'] });
+        const targetTab = igTabs.find(t => t.active) || igTabs[0];
+        targetTabId = targetTab?.id;
+    }
+
+    if (!targetTabId) {
+        const opened = await openIgTab({ path, platform: 'ig' });
+        return {
+            success: opened.success,
+            tabId: opened.tabId || 0,
+            url: opened.url || url,
+            error: opened.error,
+        };
+    }
+
+    return new Promise((resolve) => {
+        chrome.tabs.update(targetTabId!, { url }, (tab) => {
+            if (chrome.runtime.lastError) {
+                resolve({
+                    success: false,
+                    tabId: targetTabId!,
+                    url: "",
+                    error: chrome.runtime.lastError.message
+                });
+            } else {
+                resolve({
+                    success: true,
+                    tabId: tab.id || targetTabId!,
+                    url: tab.url || url
+                });
+            }
+        });
+    });
+}
+
+/**
+ * 按 platform 字段分发导航标签页。默认/未指定时按 X 处理（向后兼容）。
+ * 语义：已有该平台标签页则刷新到目标 URL，否则打开新标签页。
+ */
+export async function navigateTabByPlatform(payload: NavigateTabRequestPayload): Promise<NavigateTabResponsePayload> {
+    switch (payload.platform) {
+        case 'xhs':
+            return navigateXhsTab(payload);
+        case 'ig':
+            return navigateIgTab(payload);
+        case 'x':
+        default:
+            return navigateXTab(payload);
+    }
+}
+
+/**
+ * 按 platform 字段分发关闭标签页。close-tab 用 tabId 定位，
+ * 平台字段用于校验该 tab 是否属于指定平台（避免误关别平台 tab）。
+ */
+export async function closeTabByPlatform(payload: CloseTabRequestPayload): Promise<CloseTabResponsePayload> {
+    const tabId = payload.tabId;
+    const platform = payload.platform || 'x';
+
+    return new Promise((resolve) => {
+        chrome.tabs.get(tabId, (tab) => {
+            if (chrome.runtime.lastError || !tab) {
+                resolve({ success: false, reason: "not_found" });
+                return;
+            }
+
+            // 空 URL = 正在导航过渡中（chrome.tabs.update 后 tab.url 可能短暂为空/about:blank），
+            // 此时仍应允许 close；仅当 URL 明确不属于目标平台时才拒绝。
+            const url = tab.url || "";
+            if (url) {
+                const matches =
+                    (platform === 'x' && (url.includes("x.com") || url.includes("twitter.com"))) ||
+                    (platform === 'xhs' && url.includes("xiaohongshu.com")) ||
+                    (platform === 'ig' && url.includes("instagram.com"));
+                if (!matches) {
+                    resolve({ success: false, reason: "not_found" });
+                    return;
+                }
+            }
+
+            chrome.tabs.remove(tabId, () => {
+                if (chrome.runtime.lastError) {
+                    resolve({
+                        success: false,
+                        reason: "failed",
+                        error: chrome.runtime.lastError.message
+                    });
+                } else {
+                    resolve({ success: true, reason: "success" });
+                }
+            });
         });
     });
 }

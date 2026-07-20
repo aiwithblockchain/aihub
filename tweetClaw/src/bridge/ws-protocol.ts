@@ -376,8 +376,11 @@ export interface QueryXhsHomefeedRequestPayload {
   cursor_score?: string;
 }
 
+export type TabPlatform = 'x' | 'xhs' | 'ig';
+
 export interface OpenTabRequestPayload {
   path: string;
+  platform?: TabPlatform;
 }
 
 export interface OpenTabResponsePayload {
@@ -389,6 +392,7 @@ export interface OpenTabResponsePayload {
 
 export interface CloseTabRequestPayload {
   tabId: number;
+  platform?: TabPlatform;
 }
 
 export interface CloseTabResponsePayload {
@@ -400,6 +404,7 @@ export interface CloseTabResponsePayload {
 export interface NavigateTabRequestPayload {
   tabId?: number;
   path: string;
+  platform?: TabPlatform;
 }
 
 export interface NavigateTabResponsePayload {
