@@ -149,8 +149,9 @@ export function buildHomeFeedVariables(maxId?: string): any {
     last: null,
     variant: "home",
     __relay_internal__pv__PolarisImmersiveFeedChainingEnabledrelayprovider: true,
-    __relay_internal__pv__PolarisAIGMMediaWebLabelEnabledrelayprovider: true,
+    __relay_internal__pv__PolarisMultiCaptionCarouselEnabledrelayprovider: false,
     __relay_internal__pv__PolarisAIGMAccountLabelEnabledrelayprovider: false,
+    __relay_internal__pv__PolarisReelsRecoDebugOverlayEnabledrelayprovider: false,
   };
 }
 
@@ -272,110 +273,18 @@ export function getSessionId(): string {
   return '';
 }
 
-/**
- * 从页面提取 __hsi (session instance ID)
- */
-function getSessionInstanceId(): string {
-  const scripts = Array.from(document.querySelectorAll('script'));
-  for (const script of scripts) {
-    const text = script.textContent || '';
-    const match = text.match(/["']__hsi["']\s*:\s*(\d+)/);
-    if (match && match[1]) {
-      return match[1];
-    }
-  }
-  return '0';
-}
-
-/**
- * 从页面提取 __dyn (dynamic configuration)
- */
-function getDynamicConfig(): string {
-  const scripts = Array.from(document.querySelectorAll('script'));
-  for (const script of scripts) {
-    const text = script.textContent || '';
-    const match = text.match(/["']__dyn["']\s*:\s*"([^"]+)"/);
-    if (match && match[1]) {
-      return match[1];
-    }
-  }
-  return '';
-}
-
-/**
- * 从页面提取 __csr (CSR token)
- */
-function getCsrToken(): string {
-  const scripts = Array.from(document.querySelectorAll('script'));
-  for (const script of scripts) {
-    const text = script.textContent || '';
-    const match = text.match(/["']__csr["']\s*:\s*"([^"]+)"/);
-    if (match && match[1]) {
-      return match[1];
-    }
-  }
-  return '';
-}
-
-/**
- * 从页面提取 __hs (handshake ID)
- */
-function getHandshakeId(): string {
-  const scripts = Array.from(document.querySelectorAll('script'));
-  for (const script of scripts) {
-    const text = script.textContent || '';
-    const match = text.match(/["']__hs["']\s*:\s*"([^"]+)"/);
-    if (match && match[1]) {
-      return match[1];
-    }
-  }
-  return '20612.HYP:instagram_web_pkg.2.1...0';
-}
-
-/**
- * 从页面提取 __hsdp (HSDP token)
- */
-function getHsdpToken(): string {
-  const scripts = Array.from(document.querySelectorAll('script'));
-  for (const script of scripts) {
-    const text = script.textContent || '';
-    const match = text.match(/["']__hsdp["']\s*:\s*"([^"]+)"/);
-    if (match && match[1]) {
-      return match[1];
-    }
-  }
-  return '';
-}
-
-/**
- * 从页面提取 __hblp (HBLP token)
- */
-function getHblpToken(): string {
-  const scripts = Array.from(document.querySelectorAll('script'));
-  for (const script of scripts) {
-    const text = script.textContent || '';
-    const match = text.match(/["']__hblp["']\s*:\s*"([^"]+)"/);
-    if (match && match[1]) {
-      return match[1];
-    }
-  }
-  return '';
-}
-
-/**
- * 从页面提取 __sjsp (SJSP token)
- */
-function getSjspToken(): string {
-  const scripts = Array.from(document.querySelectorAll('script'));
-  for (const script of scripts) {
-    const text = script.textContent || '';
-    const match = text.match(/["']__sjsp["']\s*:\s*"([^"]+)"/);
-    if (match && match[1]) {
-      return match[1];
-    }
-  }
-  return '';
-}
+// ── 已移除的 DOM 提取函数 ──────────────────────────────────────────
+// 以下函数在 buildGraphQLBody 瘦身后不再被调用，已删除：
+//   getSessionInstanceId()  — __hsi，DOM 提取失败 fallback '0'，空值比不发更可疑
+//   getDynamicConfig()      — __dyn，DOM 提取失败 fallback ''
+//   getCsrToken()           — __csr，DOM 提取失败 fallback ''
+//   getHandshakeId()        — __hs，DOM 提取失败 fallback 硬编码值
+//   getHsdpToken()          — __hsdp，DOM 提取失败 fallback ''
+//   getHblpToken()          — __hblp，DOM 提取失败 fallback ''
+//   getSjspToken()          — __sjsp，DOM 提取失败 fallback ''
+// 这些字段在 instagrapi public_doc_id_graphql_request 中也不发送，
+// 空值/硬编码值反而构成指纹差异（根因 #8/#10），因此直接从 body 中移除。
+// ────────────────────────────────────────────────────────────────
 
 /**
  * 从页面提取 __rev (revision)
@@ -390,6 +299,50 @@ export function getRevision(): string {
     }
   }
   return '1000000000'; // fallback
+}
+
+/**
+ * 获取 x-bloks-version-id（根因 #14）
+ *
+ * 这是 Instagram Bloks 渲染引擎的版本哈希，绑定 Web 前端部署版本，
+ * 不随用户会话变化。instagrapi 在 config.py 里同样按 app 版本硬编码
+ * bloks_versioning_id，此处采用相同策略。
+ *
+ * 值来源：2026-07-23 抓包（ig_get_feed/ig_notifications/ig_get_user_media/
+ * ig_get_user_info 的 /graphql/query 请求），所有请求一致。
+ *
+ * 注意：Instagram 前端发版后此值会变，需定期更新。提取方式见下方注释。
+ */
+const BLOKS_VERSION_ID = '8d3b63255809238950cdffa6dba61c104f40e6a600a2ca34bc7f8d3442f3632c';
+
+/**
+ * 获取 Bloks 渲染引擎版本哈希
+ *
+ * 当前采用硬编码（与 instagrapi config.py 策略一致）。
+ * 该值绑定 Instagram Web 前端部署版本，不随会话变化，
+ * 埋在 webpack chunk 里无法用简单 DOM regex 提取。
+ */
+export function getBloksVersionId(): string {
+  return BLOKS_VERSION_ID;
+}
+
+/**
+ * Follow/Unfollow 操作的 nav_chain（根因 #11）
+ *
+ * nav_chain 记录用户导航路径（RouteRoot:pageName:stepIndex:source，逗号分隔多段）。
+ * 旧值 `PolarisProfilePostsTabRoot:profilePage:1:via_cold_start` 是单段冷启动路径，
+ * 与真浏览器不符——真用户从 Feed 点进 Profile 再关注，导航链有两段。
+ *
+ * 值来源：2026-07-23 抓包 ig_follow.log 的 usePolarisFollowMutation 请求。
+ * 与 instagrapi photo.py/video.py 策略一致：硬编码真实导航路径字符串。
+ */
+const FOLLOW_NAV_CHAIN = 'PolarisFeedRoot:feedPage:4:topnav-link,PolarisProfilePostsTabRoot:profilePage:5:unexpected';
+
+/**
+ * 获取 Follow/Unfollow 的 nav_chain
+ */
+export function getFollowNavChain(): string {
+  return FOLLOW_NAV_CHAIN;
 }
 
 /**
@@ -431,7 +384,27 @@ export function resetReqCounter(): void {
 }
 
 /**
- * 构建完整的 GraphQL 请求体
+ * 构建完整的 GraphQL 请求体（瘦身版）
+ *
+ * 参照 instagrapi `public_doc_id_graphql_request`（`mixins/public.py` 第 483–487 行），
+ * 只保留 GraphQL 核心参数 + 已修复的指纹字段，砍掉 Facebook 兼容层参数。
+ *
+ * 砍掉的字段及原因：
+ *   - `__s`/`__hsi`/`__dyn`/`__csr`/`__hsdp`/`__hblp`/`__sjsp`：DOM 提取失败导致空值，
+ *     空值比不发更可疑（真浏览器总有值）→ 解决根因 #8（token stale）
+ *   - `__ccg`：硬编码 `MODERATE` 与真浏览器不符（有时是 `POOR`）→ 解决根因 #10
+ *   - `__hs`：DOM 提取 fallback 值与真浏览器不符
+ *   - `av`/`__d`/`__user`/`__a`/`dpr`/`__comet_req`/`__spin_*`：
+ *     常量字段，非 GraphQL doc_id 模式所必需
+ *   - `lsd`：已通过 header `x-fb-lsd` 发送，body 不需要重复
+ *   - `__rev`：已通过 header `x-instagram-ajax` 发送（= `getRevision()`），body 不需要重复
+ *
+ * 保留字段：
+ *   - `__req`：递增请求序号（base-36，根因 #3 已修复）
+ *   - `fb_dtsg` + `jazoest`：CSRF token + 校验值（根因 #4 已修复）
+ *   - `__crn`：comet route name（根因 #13 已修复）
+ *   - `fb_api_caller_class`：`RelayModern`，真实浏览器在所有 GraphQL 请求中都会发送
+ *   - `fb_api_req_friendly_name`/`server_timestamps`/`doc_id`/`variables`：GraphQL 核心参数
  */
 export function buildGraphQLBody(
   queryName: string,
@@ -442,58 +415,22 @@ export function buildGraphQLBody(
 ): string {
   const params = new URLSearchParams();
 
-  // 必需参数（按浏览器实际请求）
-  params.append('av', '17841427211664125');
-  params.append('__d', 'www');
-  params.append('__user', '0');
-  params.append('__a', '1');
+  // __req — 递增请求序号（base-36），根因 #3
   params.append('__req', nextReqId());
-  params.append('__hs', getHandshakeId());
-  params.append('dpr', '2');
-  params.append('__ccg', 'MODERATE');
-  params.append('__rev', getRevision());
-  params.append('__s', getSessionId());
-  params.append('__hsi', getSessionInstanceId());
-  params.append('__dyn', getDynamicConfig());
-  params.append('__csr', getCsrToken());
-  params.append('__comet_req', '7');
+
+  // fb_dtsg + jazoest — CSRF token + 校验值，根因 #4
   params.append('fb_dtsg', fbDtsg);
-  // jazoest = '2' + sum(ord(c) for c in fb_dtsg)，已用 7 条 GraphQL 抓包验证
   params.append('jazoest', computeJazoest(fbDtsg));
 
-  const lsd = getLsdToken();
-  if (lsd) {
-    params.append('lsd', lsd);
-  }
-
-  params.append('__spin_r', getRevision());
-  params.append('__spin_b', 'trunk');
-  params.append('__spin_t', Math.floor(Date.now() / 1000).toString());
-
-  // __crn (comet route name) — 真浏览器每个请求都带此字段，标识发起请求的页面路由
-  // 缺失会被 anti-abuse 系统标记为非正常浏览器请求（根因 #13）
+  // __crn — comet route name，根因 #13
   if (crn) {
     params.append('__crn', crn);
   }
 
-  // 添加额外的参数（从实际请求中发现）
-  const hsdp = getHsdpToken();
-  if (hsdp) {
-    params.append('__hsdp', hsdp);
-  }
-
-  const hblp = getHblpToken();
-  if (hblp) {
-    params.append('__hblp', hblp);
-  }
-
-  const sjsp = getSjspToken();
-  if (sjsp) {
-    params.append('__sjsp', sjsp);
-  }
-
-  // GraphQL 特定参数
+  // fb_api_caller_class — 真实浏览器在所有 GraphQL 请求中都会发送此字段
   params.append('fb_api_caller_class', 'RelayModern');
+
+  // GraphQL 核心参数
   params.append('fb_api_req_friendly_name', queryName);
   params.append('server_timestamps', 'true');
   params.append('doc_id', docId);

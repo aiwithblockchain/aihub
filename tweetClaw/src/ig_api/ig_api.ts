@@ -23,6 +23,8 @@ import {
   getLsdToken,
   getRevision,
   getSessionId,
+  getBloksVersionId,
+  getFollowNavChain,
   resetReqCounter,
   parseSearchResponse,
   parseFeedResponse,
@@ -479,12 +481,14 @@ export class IgApiClient {
       // 发送 GraphQL 请求
       const headers = await this.buildHeaders('POST');
       headers.set('x-fb-friendly-name', GRAPHQL_QUERIES.HOME_FEED.queryName);
+      headers.set('x-bloks-version-id', getBloksVersionId()); // 根因 #14
       console.log('[IG API] getHomeFeed fingerprint:', {
         doc_id: GRAPHQL_QUERIES.HOME_FEED.docId,
         friendly_name: GRAPHQL_QUERIES.HOME_FEED.queryName,
         crn: 'comet.igweb.PolarisFeedRoute',
         'x-fb-lsd': getLsdToken() || 'MISSING',
         'x-instagram-ajax': getRevision(),
+        'x-bloks-version-id': getBloksVersionId(),
       });
       const response = await fetch(`${this.baseUrl}/graphql/query`, {
         method: 'POST',
@@ -565,12 +569,14 @@ export class IgApiClient {
       const headers = await this.buildHeaders('POST');
       headers.set('content-type', 'application/x-www-form-urlencoded');
       headers.set('x-fb-friendly-name', GRAPHQL_QUERIES.MEDIA_INFO.queryName);
+      headers.set('x-bloks-version-id', getBloksVersionId()); // 根因 #14
       console.log('[IG API] getMediaInfo fingerprint:', {
         doc_id: GRAPHQL_QUERIES.MEDIA_INFO.docId,
         friendly_name: GRAPHQL_QUERIES.MEDIA_INFO.queryName,
         crn: 'comet.igweb.PolarisPostRoute',
         'x-fb-lsd': getLsdToken() || 'MISSING',
         'x-instagram-ajax': getRevision(),
+        'x-bloks-version-id': getBloksVersionId(),
       });
 
       const response = await fetch(`${this.baseUrl}/graphql/query`, {
@@ -913,7 +919,7 @@ export class IgApiClient {
       const variables = {
         target_user_id: params.userId,
         container_module: params.moduleName || 'profile',
-        nav_chain: 'PolarisProfilePostsTabRoot:profilePage:1:via_cold_start',
+        nav_chain: getFollowNavChain(), // 根因 #11
       };
 
       const body = buildGraphQLBody(
@@ -932,6 +938,7 @@ export class IgApiClient {
         crn: 'comet.igweb.PolarisProfilePostsTabRoute',
         'x-fb-lsd': getLsdToken() || 'MISSING',
         'x-instagram-ajax': getRevision(),
+        nav_chain: getFollowNavChain(),
       });
 
       const response = await fetch(`${this.baseUrl}/api/graphql`, {
@@ -982,7 +989,7 @@ export class IgApiClient {
       const variables = {
         target_user_id: userId,
         container_module: 'profile',
-        nav_chain: 'PolarisProfilePostsTabRoot:profilePage:1:via_cold_start',
+        nav_chain: getFollowNavChain(), // 根因 #11
       };
 
       const body = buildGraphQLBody(
@@ -1001,6 +1008,7 @@ export class IgApiClient {
         crn: 'comet.igweb.PolarisProfilePostsTabRoute',
         'x-fb-lsd': getLsdToken() || 'MISSING',
         'x-instagram-ajax': getRevision(),
+        nav_chain: getFollowNavChain(),
       });
 
       const response = await fetch(`${this.baseUrl}/api/graphql`, {
@@ -2252,7 +2260,8 @@ export class IgApiClient {
       if (hasAfter) {
         // 第 2 页+: after 在顶层，含 first/last/before
         // 必须包含 PolarisReelsRecoDebugOverlayEnabledrelayprovider，否则 Instagram
-        // 返回 "execution error, CRITICAL"（5.log 真实请求验证）
+        // 返回 "execution error, CRITICAL"（ig_get_user_media.log 真实请求验证）
+        // include_multi_captions + PolarisMultiCaptionCarouselEnabled：根因 #15
         variables = {
           after: params.after,
           before: null,
@@ -2264,10 +2273,11 @@ export class IgApiClient {
             latest_reel_media: true,
           },
           first: params.count || 12,
+          include_multi_captions: false, // 根因 #15
           last: null,
           username: username,
+          __relay_internal__pv__PolarisMultiCaptionCarouselEnabledrelayprovider: false, // 根因 #15
           __relay_internal__pv__PolarisImmersiveFeedChainingEnabledrelayprovider: true,
-          __relay_internal__pv__PolarisAIGMMediaWebLabelEnabledrelayprovider: true,
           __relay_internal__pv__PolarisAIGMAccountLabelEnabledrelayprovider: false,
           __relay_internal__pv__PolarisReelsRecoDebugOverlayEnabledrelayprovider: false,
         };
@@ -2281,9 +2291,10 @@ export class IgApiClient {
             latest_besties_reel_media: true,
             latest_reel_media: true,
           },
+          include_multi_captions: false, // 根因 #15
           username: username,
+          __relay_internal__pv__PolarisMultiCaptionCarouselEnabledrelayprovider: false, // 根因 #15
           __relay_internal__pv__PolarisImmersiveFeedChainingEnabledrelayprovider: true,
-          __relay_internal__pv__PolarisAIGMMediaWebLabelEnabledrelayprovider: true,
           __relay_internal__pv__PolarisAIGMAccountLabelEnabledrelayprovider: false,
           __relay_internal__pv__PolarisReelsRecoDebugOverlayEnabledrelayprovider: false,
         };
@@ -2303,6 +2314,7 @@ export class IgApiClient {
       const headers = await this.buildHeaders('POST');
       headers.set('x-fb-friendly-name', queryName);
       headers.set('x-root-field-name', 'xdt_api__v1__feed__user_timeline_graphql_connection');
+      headers.set('x-bloks-version-id', getBloksVersionId()); // 根因 #14
       console.log('[IG API] getUserMedia fingerprint:', {
         doc_id: docId,
         friendly_name: queryName,
@@ -2310,6 +2322,7 @@ export class IgApiClient {
         page: hasAfter ? 'page2+' : 'page1',
         'x-fb-lsd': getLsdToken() || 'MISSING',
         'x-instagram-ajax': getRevision(),
+        'x-bloks-version-id': getBloksVersionId(),
       });
 
       const response = await fetch(`${this.baseUrl}/graphql/query`, {
@@ -2626,12 +2639,14 @@ export class IgApiClient {
       const headers = await this.buildHeaders('POST');
       headers.set('x-fb-friendly-name', GRAPHQL_QUERIES.ACTIVITY_FEED.queryName);
       headers.set('x-root-field-name', 'xdt_activity_inbox');
+      headers.set('x-bloks-version-id', getBloksVersionId()); // 根因 #14
       console.log('[IG API] getNotifications fingerprint:', {
         doc_id: GRAPHQL_QUERIES.ACTIVITY_FEED.docId,
         friendly_name: GRAPHQL_QUERIES.ACTIVITY_FEED.queryName,
         crn: 'comet.igweb.PolarisFeedRoute',
         'x-fb-lsd': getLsdToken() || 'MISSING',
         'x-instagram-ajax': getRevision(),
+        'x-bloks-version-id': getBloksVersionId(),
       });
 
       // 4. 发送请求
