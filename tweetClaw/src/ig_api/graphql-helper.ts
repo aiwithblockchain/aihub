@@ -225,7 +225,7 @@ export const GRAPHQL_QUERIES = {
     queryName: 'PolarisSearchBoxRefetchableQuery',
   },
   HOME_FEED: {
-    docId: '26431707439838189',
+    docId: '27274534238909635',
     queryName: 'PolarisFeedRootPaginationCachedQuery_subscribe',
   },
   MEDIA_INFO: {
@@ -233,7 +233,7 @@ export const GRAPHQL_QUERIES = {
     queryName: 'PolarisPostRootQuery',
   },
   ACTIVITY_FEED: {
-    docId: '27008123808810299',
+    docId: '36796401869973287',
     queryName: 'PolarisActivityFeedStoriesViewQuery',
   },
   USER_PROFILE: {
@@ -245,7 +245,7 @@ export const GRAPHQL_QUERIES = {
 /**
  * 从页面提取 LSD token
  */
-function getLsdToken(): string | null {
+export function getLsdToken(): string | null {
   const scripts = Array.from(document.querySelectorAll('script'));
   for (const script of scripts) {
     const text = script.textContent || '';
@@ -260,7 +260,7 @@ function getLsdToken(): string | null {
 /**
  * 从页面提取 __s (session ID)
  */
-function getSessionId(): string {
+export function getSessionId(): string {
   const scripts = Array.from(document.querySelectorAll('script'));
   for (const script of scripts) {
     const text = script.textContent || '';
@@ -380,7 +380,7 @@ function getSjspToken(): string {
 /**
  * 从页面提取 __rev (revision)
  */
-function getRevision(): string {
+export function getRevision(): string {
   const scripts = Array.from(document.querySelectorAll('script'));
   for (const script of scripts) {
     const text = script.textContent || '';
@@ -393,13 +393,52 @@ function getRevision(): string {
 }
 
 /**
+ * 计算 jazoest 值
+ * 算法：'2' + str(sum(ord(c) for c in input))
+ *
+ * 输入字符串取决于端点类型：
+ * - GraphQL 端点（/api/graphql, /graphql/query）：传入 fb_dtsg（已用 7 条抓包验证）
+ * - REST 端点（/api/v1/web/comments/, /api/v1/media/configure*）：传入 csrf token（已用 ig_comment.log 验证）
+ */
+export function computeJazoest(input: string): string {
+  let charSum = 0;
+  for (let i = 0; i < input.length; i++) {
+    charSum += input.charCodeAt(i);
+  }
+  return '2' + charSum.toString();
+}
+
+/**
+ * __req 递增计数器
+ * 真浏览器的 __req 是页面会话内递增的请求序号（base-36 编码：0-9, a-z）
+ * 硬编码 '2' 会让所有请求共用同一序号，是封号根因 #3
+ */
+let reqCounter = 0;
+
+/**
+ * 获取下一个 __req 值（base-36 递增编码）
+ */
+function nextReqId(): string {
+  reqCounter++;
+  return reqCounter.toString(36);
+}
+
+/**
+ * 重置 __req 计数器（页面刷新时调用）
+ */
+export function resetReqCounter(): void {
+  reqCounter = 0;
+}
+
+/**
  * 构建完整的 GraphQL 请求体
  */
 export function buildGraphQLBody(
   queryName: string,
   docId: string,
   variables: any,
-  fbDtsg: string
+  fbDtsg: string,
+  crn?: string
 ): string {
   const params = new URLSearchParams();
 
@@ -408,7 +447,7 @@ export function buildGraphQLBody(
   params.append('__d', 'www');
   params.append('__user', '0');
   params.append('__a', '1');
-  params.append('__req', '2'); // 改为 '2'，与实际请求一致
+  params.append('__req', nextReqId());
   params.append('__hs', getHandshakeId());
   params.append('dpr', '2');
   params.append('__ccg', 'MODERATE');
@@ -419,7 +458,8 @@ export function buildGraphQLBody(
   params.append('__csr', getCsrToken());
   params.append('__comet_req', '7');
   params.append('fb_dtsg', fbDtsg);
-  params.append('jazoest', '26430'); // 改为 '26430'，与实际请求一致
+  // jazoest = '2' + sum(ord(c) for c in fb_dtsg)，已用 7 条 GraphQL 抓包验证
+  params.append('jazoest', computeJazoest(fbDtsg));
 
   const lsd = getLsdToken();
   if (lsd) {
@@ -429,6 +469,12 @@ export function buildGraphQLBody(
   params.append('__spin_r', getRevision());
   params.append('__spin_b', 'trunk');
   params.append('__spin_t', Math.floor(Date.now() / 1000).toString());
+
+  // __crn (comet route name) — 真浏览器每个请求都带此字段，标识发起请求的页面路由
+  // 缺失会被 anti-abuse 系统标记为非正常浏览器请求（根因 #13）
+  if (crn) {
+    params.append('__crn', crn);
+  }
 
   // 添加额外的参数（从实际请求中发现）
   const hsdp = getHsdpToken();

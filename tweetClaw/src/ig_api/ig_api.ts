@@ -19,6 +19,11 @@ import {
   buildMediaInfoVariables,
   buildUserProfileVariables,
   buildGraphQLBody,
+  computeJazoest,
+  getLsdToken,
+  getRevision,
+  getSessionId,
+  resetReqCounter,
   parseSearchResponse,
   parseFeedResponse,
   parseUserProfileResponse,
@@ -165,9 +170,17 @@ export class IgApiClient {
       'Accept-Language': 'en-US,en;q=0.9',
       'X-Requested-With': 'XMLHttpRequest',
       'Referer': 'https://www.instagram.com/',
-      'X-Instagram-AJAX': '1',
+      'X-Instagram-AJAX': getRevision(),
+      'x-asbd-id': '359341',
+      'x-ig-max-touch-points': '0',
       // 注意：在浏览器中不要手动设置 User-Agent，浏览器会自动发送
     });
+
+    // x-fb-lsd：从 DOM 提取，真浏览器每个 GraphQL 请求都带此 header
+    const lsd = getLsdToken();
+    if (lsd) {
+      headers.set('x-fb-lsd', lsd);
+    }
 
     if (method === 'POST') {
       headers.set('Content-Type', 'application/x-www-form-urlencoded');
@@ -287,12 +300,20 @@ export class IgApiClient {
       GRAPHQL_QUERIES.USER_PROFILE.queryName,
       GRAPHQL_QUERIES.USER_PROFILE.docId,
       variables,
-      fbDtsg
+      fbDtsg,
+      'comet.igweb.PolarisProfilePostsTabRoute'
     );
 
     const headers = await this.buildHeaders('POST');
     headers.set('x-fb-friendly-name', GRAPHQL_QUERIES.USER_PROFILE.queryName);
 
+    console.log('[IG API] getUserInfo fingerprint:', {
+      doc_id: GRAPHQL_QUERIES.USER_PROFILE.docId,
+      friendly_name: GRAPHQL_QUERIES.USER_PROFILE.queryName,
+      crn: 'comet.igweb.PolarisProfilePostsTabRoute',
+      'x-fb-lsd': getLsdToken() || 'MISSING',
+      'x-instagram-ajax': getRevision(),
+    });
     console.log(`[IG API] getUserInfo via GraphQL: userId=${userId}`);
 
     const response = await fetch(`${this.baseUrl}/api/graphql`, {
@@ -361,11 +382,20 @@ export class IgApiClient {
         GRAPHQL_QUERIES.SEARCH_USERS.queryName,
         GRAPHQL_QUERIES.SEARCH_USERS.docId,
         variables,
-        fbDtsg
+        fbDtsg,
+        'comet.igweb.PolarisExploreRoute'
       );
 
       // 发送 GraphQL 请求
       const headers = await this.buildHeaders('POST');
+      headers.set('x-fb-friendly-name', GRAPHQL_QUERIES.SEARCH_USERS.queryName);
+      console.log('[IG API] searchUserId fingerprint:', {
+        doc_id: GRAPHQL_QUERIES.SEARCH_USERS.docId,
+        friendly_name: GRAPHQL_QUERIES.SEARCH_USERS.queryName,
+        crn: 'comet.igweb.PolarisExploreRoute',
+        'x-fb-lsd': getLsdToken() || 'MISSING',
+        'x-instagram-ajax': getRevision(),
+      });
       const response = await fetch(`${this.baseUrl}/api/graphql`, {
         method: 'POST',
         headers,
@@ -442,11 +472,20 @@ export class IgApiClient {
         GRAPHQL_QUERIES.HOME_FEED.queryName,
         GRAPHQL_QUERIES.HOME_FEED.docId,
         variables,
-        fbDtsg
+        fbDtsg,
+        'comet.igweb.PolarisFeedRoute'
       );
 
       // 发送 GraphQL 请求
       const headers = await this.buildHeaders('POST');
+      headers.set('x-fb-friendly-name', GRAPHQL_QUERIES.HOME_FEED.queryName);
+      console.log('[IG API] getHomeFeed fingerprint:', {
+        doc_id: GRAPHQL_QUERIES.HOME_FEED.docId,
+        friendly_name: GRAPHQL_QUERIES.HOME_FEED.queryName,
+        crn: 'comet.igweb.PolarisFeedRoute',
+        'x-fb-lsd': getLsdToken() || 'MISSING',
+        'x-instagram-ajax': getRevision(),
+      });
       const response = await fetch(`${this.baseUrl}/graphql/query`, {
         method: 'POST',
         headers,
@@ -519,11 +558,20 @@ export class IgApiClient {
         GRAPHQL_QUERIES.MEDIA_INFO.queryName,
         GRAPHQL_QUERIES.MEDIA_INFO.docId,
         variables,
-        fbDtsg
+        fbDtsg,
+        'comet.igweb.PolarisPostRoute'
       );
 
       const headers = await this.buildHeaders('POST');
       headers.set('content-type', 'application/x-www-form-urlencoded');
+      headers.set('x-fb-friendly-name', GRAPHQL_QUERIES.MEDIA_INFO.queryName);
+      console.log('[IG API] getMediaInfo fingerprint:', {
+        doc_id: GRAPHQL_QUERIES.MEDIA_INFO.docId,
+        friendly_name: GRAPHQL_QUERIES.MEDIA_INFO.queryName,
+        crn: 'comet.igweb.PolarisPostRoute',
+        'x-fb-lsd': getLsdToken() || 'MISSING',
+        'x-instagram-ajax': getRevision(),
+      });
 
       const response = await fetch(`${this.baseUrl}/graphql/query`, {
         method: 'POST',
@@ -680,6 +728,29 @@ export class IgApiClient {
   }
 
   /**
+   * 从页面提取 x-ig-www-claim
+   * 真浏览器的 www-claim 由 Instagram 响应头 x-ig-set-www-claim 设置，
+   * 后续请求自动带上。content script 无法读取历史响应头，
+   * 尝试从 DOM script 标签提取；若提取不到则返回 null（不设此 header，比硬编码过期值更安全）。
+   */
+  private getWwwClaim(): string | null {
+    const scripts = Array.from(document.querySelectorAll('script'));
+    for (const script of scripts) {
+      const text = script.textContent || '';
+      const match = text.match(/"x-ig-www-claim"\s*:\s*"(hmac\.[^"]+)"/);
+      if (match && match[1]) {
+        return match[1];
+      }
+      // 备选 pattern
+      const match2 = text.match(/"www_claim"\s*:\s*"(hmac\.[^"]+)"/);
+      if (match2 && match2[1]) {
+        return match2[1];
+      }
+    }
+    return null;
+  }
+
+  /**
    * 点赞媒体 (使用 GraphQL API)
    * API: POST /api/graphql
    * Mutation: PolarisAPILikePostMutation
@@ -701,17 +772,29 @@ export class IgApiClient {
           media_id: params.mediaId,
           actor_id: actorId,
           client_mutation_id: '1',
+          container_module: 'feed_timeline',
+          tracking_token: '',
         },
       };
 
       const body = buildGraphQLBody(
-        'PolarisAPILikePostMutation',
-        '27232073366423857',
+        'usePolarisLikeMediaXIGLikeMutation',
+        '27182485238052618',
         variables,
-        fbDtsg
+        fbDtsg,
+        'comet.igweb.PolarisFeedRoute'
       );
 
       const headers = await this.buildHeaders('POST');
+      headers.set('x-fb-friendly-name', 'usePolarisLikeMediaXIGLikeMutation');
+      console.log('[IG API] likeMedia fingerprint:', {
+        doc_id: '27182485238052618',
+        friendly_name: 'usePolarisLikeMediaXIGLikeMutation',
+        crn: 'comet.igweb.PolarisFeedRoute',
+        'x-fb-lsd': getLsdToken() || 'MISSING',
+        'x-instagram-ajax': getRevision(),
+        'x-fb-friendly-name': 'usePolarisLikeMediaXIGLikeMutation',
+      });
       const response = await fetch(`${this.baseUrl}/api/graphql`, {
         method: 'POST',
         headers,
@@ -771,12 +854,19 @@ export class IgApiClient {
         'usePolarisLikeMediaXIGUnlikeMutation',
         '26662414810082851',
         variables,
-        fbDtsg
+        fbDtsg,
+        'comet.igweb.PolarisFeedRoute'
       );
 
       const headers = await this.buildHeaders('POST');
       headers.set('x-fb-friendly-name', 'usePolarisLikeMediaXIGUnlikeMutation');
-
+      console.log('[IG API] unlikeMedia fingerprint:', {
+        doc_id: '26662414810082851',
+        friendly_name: 'usePolarisLikeMediaXIGUnlikeMutation',
+        crn: 'comet.igweb.PolarisFeedRoute',
+        'x-fb-lsd': getLsdToken() || 'MISSING',
+        'x-instagram-ajax': getRevision(),
+      });
       const response = await fetch(`${this.baseUrl}/api/graphql`, {
         method: 'POST',
         headers,
@@ -830,11 +920,19 @@ export class IgApiClient {
         'usePolarisFollowMutation',
         '26508036048874888',
         variables,
-        fbDtsg
+        fbDtsg,
+        'comet.igweb.PolarisProfilePostsTabRoute'
       );
 
       const headers = await this.buildHeaders('POST');
       headers.set('x-fb-friendly-name', 'usePolarisFollowMutation');
+      console.log('[IG API] followUser fingerprint:', {
+        doc_id: '26508036048874888',
+        friendly_name: 'usePolarisFollowMutation',
+        crn: 'comet.igweb.PolarisProfilePostsTabRoute',
+        'x-fb-lsd': getLsdToken() || 'MISSING',
+        'x-instagram-ajax': getRevision(),
+      });
 
       const response = await fetch(`${this.baseUrl}/api/graphql`, {
         method: 'POST',
@@ -891,11 +989,19 @@ export class IgApiClient {
         'usePolarisUnfollowMutation',
         '27789106940691111',
         variables,
-        fbDtsg
+        fbDtsg,
+        'comet.igweb.PolarisProfilePostsTabRoute'
       );
 
       const headers = await this.buildHeaders('POST');
       headers.set('x-fb-friendly-name', 'usePolarisUnfollowMutation');
+      console.log('[IG API] unfollowUser fingerprint:', {
+        doc_id: '27789106940691111',
+        friendly_name: 'usePolarisUnfollowMutation',
+        crn: 'comet.igweb.PolarisProfilePostsTabRoute',
+        'x-fb-lsd': getLsdToken() || 'MISSING',
+        'x-instagram-ajax': getRevision(),
+      });
 
       const response = await fetch(`${this.baseUrl}/api/graphql`, {
         method: 'POST',
@@ -941,16 +1047,33 @@ export class IgApiClient {
         throw new Error('fb_dtsg token not found. Please refresh Instagram page.');
       }
 
+      // REST jazoest：输入是 csrf token（非 fb_dtsg，ig_comment.log 验证）
+      const csrfToken = await getCsrfToken();
+
       // 构建表单数据
       const formData = new URLSearchParams();
       formData.append('comment_text', params.text);
       formData.append('fb_dtsg', fbDtsg);
-      formData.append('jazoest', '22673');
+      formData.append('jazoest', computeJazoest(csrfToken));
 
       const headers = await this.buildHeaders('POST');
-      headers.set('x-ig-www-claim', 'hmac.AR0WfvuQCL7DQedh15YwL5r8w1EnVqMNDPpLTaXT-bsO97RD');
-      headers.set('x-instagram-ajax', '1040987894');
+      // REST 端点不带 x-fb-lsd（ig_comment.log 抓包确认）
+      headers.delete('x-fb-lsd');
+      const wwwClaim = this.getWwwClaim();
+      if (wwwClaim) {
+        headers.set('x-ig-www-claim', wwwClaim);
+      }
+      headers.set('x-instagram-ajax', getRevision());
+      headers.set('x-web-session-id', getSessionId());
       headers.set('x-requested-with', 'XMLHttpRequest');
+
+      console.log('[IG API] postComment fingerprint:', {
+        jazoest: computeJazoest(csrfToken),
+        jazoestInput: 'csrfToken',
+        'x-ig-www-claim': wwwClaim ? 'SET' : 'MISSING',
+        'x-instagram-ajax': getRevision(),
+        'x-web-session-id': getSessionId() || 'MISSING',
+      });
 
       const response = await fetch(
         `${this.baseUrl}/api/v1/web/comments/${params.mediaId}/add/`,
@@ -987,8 +1110,23 @@ export class IgApiClient {
 
     try {
       const headers = await this.buildHeaders('POST');
+      // REST 端点不带 x-fb-lsd（GraphQL 专用 header）
+      headers.delete('x-fb-lsd');
+      const wwwClaim = this.getWwwClaim();
+      if (wwwClaim) {
+        headers.set('x-ig-www-claim', wwwClaim);
+      }
+      headers.set('x-instagram-ajax', getRevision());
+      headers.set('x-web-session-id', getSessionId());
+      headers.set('x-requested-with', 'XMLHttpRequest');
 
       console.log(`[IG API] POST /api/v1/web/comments/${params.mediaId}/delete/${params.commentId}/`);
+      console.log('[IG API] deleteComment fingerprint:', {
+        'x-ig-www-claim': wwwClaim ? 'SET' : 'MISSING',
+        'x-instagram-ajax': getRevision(),
+        'x-web-session-id': getSessionId() || 'MISSING',
+        'x-fb-lsd': 'DELETED (REST)',
+      });
 
       const response = await fetch(
         `${this.baseUrl}/api/v1/web/comments/${params.mediaId}/delete/${params.commentId}/`,
@@ -1075,6 +1213,12 @@ export class IgApiClient {
 
       console.log(`[IG API] POST https://i.instagram.com/rupload_igphoto/fb_uploader_${finalUploadId}`);
       console.log(`[IG API] Image size: ${width}x${height}, bytes: ${imageBytes.length}`);
+      console.log('[IG API] uploadImage fingerprint:', {
+        'x-instagram-ajax': 'NOT SET (rupload)',
+        'x-fb-lsd': 'NOT SET (rupload)',
+        endpoint: 'rupload_igphoto',
+        uploadId: finalUploadId,
+      });
 
       const response = await fetch(
         `https://i.instagram.com/rupload_igphoto/fb_uploader_${finalUploadId}`,
@@ -1121,6 +1265,12 @@ export class IgApiClient {
 
     try {
       console.log(`[IG API] Uploading video: upload_id=${uploadId}, size=${videoBytes.length}, duration=${duration}ms`);
+      console.log('[IG API] uploadVideo fingerprint:', {
+        'x-instagram-ajax': getRevision(),
+        'x-fb-lsd': 'NOT SET (rupload)',
+        endpoint: 'rupload_igvideo',
+        uploadId,
+      });
 
       const ruploadParams = this.buildRuploadParams(uploadId, duration, width, height);
 
@@ -1143,7 +1293,7 @@ export class IgApiClient {
         'x-entity-name': `fb_uploader_${uploadId}`,
         'x-ig-app-id': X_IG_APP_ID,
         'x-ig-max-touch-points': '0',
-        'x-instagram-ajax': '1041354847',
+        'x-instagram-ajax': getRevision(),
         'x-instagram-rupload-params': ruploadParams,
       };
 
@@ -1193,6 +1343,13 @@ export class IgApiClient {
     const ruploadParams = this.buildRuploadParams(uploadId, duration, width, height);
 
     console.log(`[IG API] uploadVideoChunked start upload_id=${uploadId} totalBytes=${totalBytes}`);
+    console.log('[IG API] uploadVideoChunked fingerprint:', {
+      'x-instagram-ajax': getRevision(),
+      'x-fb-lsd': 'NOT SET (rupload)',
+      endpoint: 'rupload_igvideo (chunked)',
+      uploadId,
+      totalBytes,
+    });
 
     let offset = await this.queryUploadOffset(uploadId);
     console.log(`[IG API] Starting from offset=${offset}`);
@@ -1210,7 +1367,7 @@ export class IgApiClient {
         'x-entity-name': `fb_uploader_${uploadId}`,
         'x-ig-app-id': X_IG_APP_ID,
         'x-ig-max-touch-points': '0',
-        'x-instagram-ajax': '1041354847',
+        'x-instagram-ajax': getRevision(),
         'x-instagram-rupload-params': ruploadParams,
       };
 
@@ -1316,6 +1473,12 @@ export class IgApiClient {
   ): Promise<{ status: string }> {
     try {
       console.log(`[IG API] Uploading video thumbnail: upload_id=${uploadId}, size=${thumbnailBytes.length}`);
+      console.log('[IG API] uploadVideoThumbnail fingerprint:', {
+        'x-instagram-ajax': getRevision(),
+        'x-fb-lsd': 'NOT SET (rupload)',
+        endpoint: 'rupload_igphoto (thumbnail)',
+        uploadId,
+      });
 
       const uploadHeaders: Record<string, string> = {
         'accept': '*/*',
@@ -1328,7 +1491,7 @@ export class IgApiClient {
         'x-entity-type': 'image/jpeg',
         'x-ig-app-id': X_IG_APP_ID,
         'x-ig-max-touch-points': '0',
-        'x-instagram-ajax': '1041007766',
+        'x-instagram-ajax': getRevision(),
         'x-instagram-rupload-params': JSON.stringify({
           'media_type': 2,  // 注意：仍然是视频类型
           'upload_id': uploadId,
@@ -1467,7 +1630,7 @@ export class IgApiClient {
       formData.append('igtv_share_preview_to_feed', '1');
       formData.append('is_meta_only_post', '0');
       formData.append('is_unified_video', '1');
-      formData.append('jazoest', '22673');
+      formData.append('jazoest', computeJazoest(csrfToken));
       formData.append('like_and_view_counts_disabled', '0');
       formData.append('media_share_flow', 'creation_flow');
       formData.append('share_to_facebook', '');
@@ -1478,6 +1641,7 @@ export class IgApiClient {
 
       console.log(`[IG API] POST /api/v1/media/configure_to_clips/ upload_id=${params.uploadId}`);
 
+      const wwwClaim = this.getWwwClaim();
       const headers: Record<string, string> = {
         'Accept': '*/*',
         'Accept-Language': 'en-US,en;q=0.9',
@@ -1488,9 +1652,21 @@ export class IgApiClient {
         'Referer': 'https://www.instagram.com/',
         'x-asbd-id': '359341',
         'x-ig-max-touch-points': '0',
-        'x-ig-www-claim': 'hmac.AR0WfvuQCL7DQedh15YwL5r8w1EnVqMNDPpLTaXT-bsO97RD',
-        'x-instagram-ajax': '1041007766',
+        'x-instagram-ajax': getRevision(),
+        'x-web-session-id': getSessionId(),
       };
+      if (wwwClaim) {
+        headers['x-ig-www-claim'] = wwwClaim;
+      }
+
+      console.log('[IG API] configureVideo fingerprint:', {
+        jazoest: computeJazoest(csrfToken),
+        jazoestInput: 'csrfToken',
+        'x-ig-www-claim': wwwClaim ? 'SET' : 'MISSING',
+        'x-instagram-ajax': getRevision(),
+        'x-web-session-id': getSessionId() || 'MISSING',
+        'x-fb-lsd': 'NOT SET (REST)',
+      });
 
       const response = await fetch(
         `${this.baseUrl}/api/v1/media/configure_to_clips/`,
@@ -1570,7 +1746,7 @@ export class IgApiClient {
       formData.append('igtv_share_preview_to_feed', '1');
       formData.append('is_meta_only_post', '0');
       formData.append('is_unified_video', '1');
-      formData.append('jazoest', '22673');
+      formData.append('jazoest', computeJazoest(csrfToken));
       formData.append('like_and_view_counts_disabled', '0');
       formData.append('media_share_flow', 'creation_flow');
       formData.append('share_to_facebook', '');
@@ -1602,19 +1778,38 @@ export class IgApiClient {
 
       console.log(`[IG API] POST /api/v1/media/configure/ upload_id=${uploadId}`);
 
+      const wwwClaim2 = this.getWwwClaim();
+      const configureMediaHeaders: Record<string, string> = {
+        'Accept': '*/*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Content-Type': 'application/x-www-form-urlencoded',
+        'X-CSRFToken': csrfToken,
+        'X-IG-App-ID': X_IG_APP_ID,
+        'X-Requested-With': 'XMLHttpRequest',
+        'Referer': 'https://www.instagram.com/',
+        'x-asbd-id': '359341',
+        'x-ig-max-touch-points': '0',
+        'x-instagram-ajax': getRevision(),
+        'x-web-session-id': getSessionId(),
+      };
+      if (wwwClaim2) {
+        configureMediaHeaders['x-ig-www-claim'] = wwwClaim2;
+      }
+
+      console.log('[IG API] configureMedia fingerprint:', {
+        jazoest: computeJazoest(csrfToken),
+        jazoestInput: 'csrfToken',
+        'x-ig-www-claim': wwwClaim2 ? 'SET' : 'MISSING',
+        'x-instagram-ajax': getRevision(),
+        'x-web-session-id': getSessionId() || 'MISSING',
+        'x-fb-lsd': 'NOT SET (REST)',
+      });
+
       const response = await fetch(
         `${this.baseUrl}/api/v1/media/configure/`,
         {
           method: 'POST',
-          headers: {
-            'Accept': '*/*',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Content-Type': 'application/x-www-form-urlencoded',
-            'X-CSRFToken': csrfToken,
-            'X-IG-App-ID': X_IG_APP_ID,
-            'X-Requested-With': 'XMLHttpRequest',
-            'Referer': 'https://www.instagram.com/',
-          },
+          headers: configureMediaHeaders,
           body: formData.toString(),
           credentials: 'include',
         }
@@ -1686,7 +1881,7 @@ export class IgApiClient {
         share_to_facebook: '',
         share_to_fb_destination_type: 'USER',
         source_type: 'library',
-        jazoest: '22673',
+        jazoest: computeJazoest(csrfToken),
         fb_dtsg: fbDtsg,
       };
 
@@ -1712,19 +1907,38 @@ export class IgApiClient {
 
       console.log(`[IG API] POST /api/v1/media/configure_sidecar/ upload_ids=[${uploadIds.join(', ')}]`);
 
+      const wwwClaim3 = this.getWwwClaim();
+      const sidecarHeaders: Record<string, string> = {
+        'Accept': '*/*',
+        'Accept-Language': 'en-US,en;q=0.9',
+        'Content-Type': 'application/json',
+        'X-CSRFToken': csrfToken,
+        'X-IG-App-ID': X_IG_APP_ID,
+        'X-Requested-With': 'XMLHttpRequest',
+        'Referer': 'https://www.instagram.com/',
+        'x-asbd-id': '359341',
+        'x-ig-max-touch-points': '0',
+        'x-instagram-ajax': getRevision(),
+        'x-web-session-id': getSessionId(),
+      };
+      if (wwwClaim3) {
+        sidecarHeaders['x-ig-www-claim'] = wwwClaim3;
+      }
+
+      console.log('[IG API] configureSidecar fingerprint:', {
+        jazoest: computeJazoest(csrfToken),
+        jazoestInput: 'csrfToken',
+        'x-ig-www-claim': wwwClaim3 ? 'SET' : 'MISSING',
+        'x-instagram-ajax': getRevision(),
+        'x-web-session-id': getSessionId() || 'MISSING',
+        'x-fb-lsd': 'NOT SET (REST)',
+      });
+
       const response = await fetch(
         `${this.baseUrl}/api/v1/media/configure_sidecar/`,
         {
           method: 'POST',
-          headers: {
-            'Accept': '*/*',
-            'Accept-Language': 'en-US,en;q=0.9',
-            'Content-Type': 'application/json',
-            'X-CSRFToken': csrfToken,
-            'X-IG-App-ID': X_IG_APP_ID,
-            'X-Requested-With': 'XMLHttpRequest',
-            'Referer': 'https://www.instagram.com/',
-          },
+          headers: sidecarHeaders,
           body: JSON.stringify(body),
           credentials: 'include',
         }
@@ -1942,13 +2156,25 @@ export class IgApiClient {
 
     try {
       const headers = await this.buildHeaders('POST');
+      // REST 端点不带 x-fb-lsd（GraphQL 专用 header）
+      headers.delete('x-fb-lsd');
       headers.set('x-asbd-id', '359341');
-      headers.set('x-ig-www-claim', 'hmac.AR0WfvuQCL7DQedh15YwL5r8w1EnVqMNDPpLTaXT-bsO97RD');
-      headers.set('x-instagram-ajax', '1041007766');
+      const wwwClaim4 = this.getWwwClaim();
+      if (wwwClaim4) {
+        headers.set('x-ig-www-claim', wwwClaim4);
+      }
+      headers.set('x-instagram-ajax', getRevision());
       headers.set('x-ig-max-touch-points', '0');
+      headers.set('x-web-session-id', getSessionId());
       headers.set('x-requested-with', 'XMLHttpRequest');
 
       console.log(`[IG API] POST /api/v1/web/create/${mediaId}/delete/`);
+      console.log('[IG API] deleteMedia fingerprint:', {
+        'x-ig-www-claim': wwwClaim4 ? 'SET' : 'MISSING',
+        'x-instagram-ajax': getRevision(),
+        'x-web-session-id': getSessionId() || 'MISSING',
+        'x-fb-lsd': 'DELETED (REST)',
+      });
 
       const response = await fetch(
         `${this.baseUrl}/api/v1/web/create/${mediaId}/delete/`,
@@ -2019,8 +2245,8 @@ export class IgApiClient {
         ? 'PolarisProfilePostsTabContentQuery_connection'
         : 'PolarisProfilePostsQuery';
       const docId = hasAfter
-        ? '27839684308962379'
-        : '27378030181834840';
+        ? '36843822688595799'
+        : '27769721232718994';
 
       let variables: any;
       if (hasAfter) {
@@ -2067,7 +2293,8 @@ export class IgApiClient {
         queryName,
         docId,
         variables,
-        fbDtsg
+        fbDtsg,
+        'comet.igweb.PolarisProfilePostsTabRoute'
       );
 
       console.log(`[IG API] Getting user media: username=${username}, count=${params.count || 12}${hasAfter ? ', after=' + params.after : ''}`);
@@ -2076,6 +2303,14 @@ export class IgApiClient {
       const headers = await this.buildHeaders('POST');
       headers.set('x-fb-friendly-name', queryName);
       headers.set('x-root-field-name', 'xdt_api__v1__feed__user_timeline_graphql_connection');
+      console.log('[IG API] getUserMedia fingerprint:', {
+        doc_id: docId,
+        friendly_name: queryName,
+        crn: 'comet.igweb.PolarisProfilePostsTabRoute',
+        page: hasAfter ? 'page2+' : 'page1',
+        'x-fb-lsd': getLsdToken() || 'MISSING',
+        'x-instagram-ajax': getRevision(),
+      });
 
       const response = await fetch(`${this.baseUrl}/graphql/query`, {
         method: 'POST',
@@ -2153,7 +2388,7 @@ export class IgApiClient {
   /**
    * 搜索 Instagram 内容（用户、标签、地点等）
    * API: POST /api/graphql
-   * Query: PolarisKeywordSearchExplorePageRelayQuery
+   * Query: PolarisSearchBoxRefetchableQuery（与真浏览器一致，5.log + ig_search.log 验证）
    *
    * @param params - 搜索关键词和会话 ID
    * @returns 搜索结果
@@ -2166,43 +2401,45 @@ export class IgApiClient {
         throw new Error('fb_dtsg token not found. Please refresh Instagram page.');
       }
 
-      // 2. 生成会话 ID（如果没有提供）
+      // 2. 构建 variables（嵌套 data 结构，与真浏览器一致）
       const searchSessionId = params.searchSessionId || this.generateUUID();
-      const serpSessionId = params.serpSessionId || this.generateUUID();
-
-      // 3. 构建 GraphQL 查询参数（支持分页）
-      const variables: any = {
-        query: params.query,
-        search_session_id: searchSessionId,
-        serp_session_id: serpSessionId,
+      const rankToken = `${Date.now()}|${this.generateRandomHash()}`;
+      const variables = {
+        data: {
+          context: 'blended',
+          include_reel: 'true',
+          query: params.query,
+          rank_token: rankToken,
+          search_session_id: searchSessionId,
+          search_surface: 'web_top_search',
+        },
+        hasQuery: true,
+        __relay_internal__pv__PolarisAIGMAccountLabelEnabledrelayprovider: false,
       };
 
-      // 添加分页参数
-      if (params.after) {
-        variables.after = params.after;
-      }
-      if (params.before) {
-        variables.before = params.before;
-      }
-      if (params.first) {
-        variables.first = params.first;
-      }
-      if (params.last) {
-        variables.last = params.last;
-      }
-
       const body = buildGraphQLBody(
-        'PolarisKeywordSearchExplorePageRelayQuery',
-        '27436028659365449',
+        GRAPHQL_QUERIES.SEARCH_USERS.queryName,
+        GRAPHQL_QUERIES.SEARCH_USERS.docId,
         variables,
-        fbDtsg
+        fbDtsg,
+        'comet.igweb.PolarisExploreRoute'
       );
 
-      console.log(`[IG API] Searching: query="${params.query}"${params.after ? ', after=' + params.after : ''}`);
+      console.log(`[IG API] Searching: query="${params.query}"`);
 
-      // 4. 发送 GraphQL 请求
+      // 3. 发送 GraphQL 请求
       const headers = await this.buildHeaders('POST');
-      headers.set('x-fb-friendly-name', 'PolarisKeywordSearchExplorePageRelayQuery');
+      headers.set('x-fb-friendly-name', GRAPHQL_QUERIES.SEARCH_USERS.queryName);
+      // 搜索的 referrer 是 /explore/（ig_search.log + 5.log 确认）
+      headers.set('Referer', 'https://www.instagram.com/explore/');
+      console.log('[IG API] search fingerprint:', {
+        doc_id: GRAPHQL_QUERIES.SEARCH_USERS.docId,
+        friendly_name: GRAPHQL_QUERIES.SEARCH_USERS.queryName,
+        crn: 'comet.igweb.PolarisExploreRoute',
+        'x-fb-lsd': getLsdToken() || 'MISSING',
+        'x-instagram-ajax': getRevision(),
+        referrer: 'https://www.instagram.com/explore/',
+      });
 
       const response = await fetch(`${this.baseUrl}/api/graphql`, {
         method: 'POST',
@@ -2218,7 +2455,7 @@ export class IgApiClient {
 
       const data = await response.json();
 
-      // 5. 解析响应（包含分页信息）
+      // 4. 解析响应
       const { results, pageInfo } = this.parseSearchResultsWithPagination(data);
 
       console.log(`[IG API] Search completed: ${results.length} results, hasMore=${pageInfo.hasNextPage}`);
@@ -2237,6 +2474,8 @@ export class IgApiClient {
 
   /**
    * 解析搜索结果（包含分页信息）
+   * 响应路径：xdt_api__v1__fbsearch__topsearch_connection（PolarisSearchBoxRefetchableQuery）
+   * 结构：users[] / hashtags[] / places[] 平铺数组，非 edges 嵌套
    */
   private parseSearchResultsWithPagination(data: any): { results: IgSearchResult[]; pageInfo: any } {
     const results: IgSearchResult[] = [];
@@ -2247,110 +2486,71 @@ export class IgApiClient {
     };
 
     try {
-      // 实际响应路径：xdt_fbsearch__top_serp_graphql
-      const connection = data?.data?.xdt_fbsearch__top_serp_graphql;
-      const edges = connection?.edges || [];
-
-      // 提取分页信息
-      if (connection?.page_info) {
-        console.log('[IG API] Raw page_info:', JSON.stringify(connection.page_info, null, 2));
-        pageInfo.hasNextPage = connection.page_info.has_next_page || false;
-        pageInfo.endCursor = connection.page_info.end_cursor || null;
-        pageInfo.startCursor = connection.page_info.start_cursor || null;
-        console.log('[IG API] Extracted pagination:', { hasNextPage: pageInfo.hasNextPage, endCursor: pageInfo.endCursor, startCursor: pageInfo.startCursor });
-      } else {
-        console.log('[IG API] No page_info found in connection');
+      const connection = data?.data?.xdt_api__v1__fbsearch__topsearch_connection;
+      if (!connection) {
+        console.error('[IG API] No xdt_api__v1__fbsearch__topsearch_connection in response');
+        return { results, pageInfo };
       }
 
-      edges.forEach((edge: any, index: number) => {
-        const node = edge.node;
-        const typename = node.__typename;
-
-        // 处理媒体网格单元（最常见）
-        if (typename === 'XDTTopSerpMediaGridUnit') {
-          const items = node.items || [];
-          items.forEach((item: any, itemIndex: number) => {
-            if (item.__typename === 'XDTMediaDict') {
-              // 这是一个媒体帖子
-              const media = item;
-              const user = media.user || {};
-
-              results.push({
-                position: index * 100 + itemIndex, // 保持唯一性
-                media: {
-                  pk: media.pk,
-                  id: media.id,
-                  code: media.code,
-                  media_type: media.media_type,
-                  image_versions: media.image_versions2?.candidates || [],
-                  original_width: media.original_width,
-                  original_height: media.original_height,
-                  taken_at: media.taken_at,
-                  like_count: media.like_count || 0,
-                  comment_count: media.comment_count || 0,
-                  play_count: media.play_count,
-                  caption: media.caption?.text,
-                  user: {
-                    pk: user.pk,
-                    username: user.username,
-                    full_name: user.full_name,
-                    is_private: user.is_private,
-                    is_verified: user.is_verified,
-                    profile_pic_url: user.profile_pic_url,
-                  },
-                },
-              });
-            }
-          });
-        }
-
-        // 用户结果（如果存在）
-        if (node.user) {
-          results.push({
-            position: index,
-            user: {
-              pk: node.user.pk || node.user.id,
-              username: node.user.username,
-              full_name: node.user.full_name,
-              is_private: node.user.is_private,
-              is_verified: node.user.is_verified,
-              profile_pic_url: node.user.profile_pic_url,
-              follower_count: node.user.follower_count || 0,
-              following_count: node.user.following_count || 0,
-              media_count: node.user.media_count || 0,
-              biography: node.user.biography,
-              is_business: node.user.is_business || false,
-            },
-          });
-        }
-
-        // 标签结果（如果存在）
-        if (node.hashtag) {
-          results.push({
-            position: index,
-            hashtag: {
-              id: node.hashtag.id,
-              name: node.hashtag.name,
-              media_count: node.hashtag.media_count || 0,
-            },
-          });
-        }
-
-        // 地点结果（如果存在）
-        if (node.place) {
-          results.push({
-            position: index,
-            place: {
-              location: {
-                pk: node.place.location.pk,
-                name: node.place.location.name,
-                lat: node.place.location.lat,
-                lng: node.place.location.lng,
-              },
-            },
-          });
-        }
+      // 用户结果
+      const users = connection.users || [];
+      users.forEach((item: any, index: number) => {
+        const u = item.user;
+        if (!u) return;
+        results.push({
+          position: item.position ?? index,
+          user: {
+            pk: u.pk || u.id,
+            username: u.username,
+            full_name: u.full_name,
+            is_private: u.is_private,
+            is_verified: u.is_verified,
+            profile_pic_url: u.profile_pic_url,
+            follower_count: u.follower_count || 0,
+            following_count: u.following_count || 0,
+            media_count: u.media_count || 0,
+            biography: u.biography,
+            is_business: u.is_business || false,
+          },
+        });
       });
+
+      // 标签结果
+      const hashtags = connection.hashtags || [];
+      hashtags.forEach((item: any, index: number) => {
+        const h = item.hashtag;
+        if (!h) return;
+        results.push({
+          position: item.position ?? index,
+          hashtag: {
+            id: h.id,
+            name: h.name,
+            media_count: h.media_count || 0,
+          },
+        });
+      });
+
+      // 地点结果
+      const places = connection.places || [];
+      places.forEach((item: any, index: number) => {
+        const p = item.place;
+        if (!p?.location) return;
+        results.push({
+          position: item.position ?? index,
+          place: {
+            location: {
+              pk: p.location.pk,
+              name: p.location.name,
+              lat: p.location.lat,
+              lng: p.location.lng,
+            },
+          },
+        });
+      });
+
+      // PolarisSearchBoxRefetchableQuery 响应没有 page_info（非分页 query）
+      // hasMore 由调用方根据 results 数量判断
+      console.log(`[IG API] Parsed: ${users.length} users, ${hashtags.length} hashtags, ${places.length} places`);
     } catch (error) {
       console.error('[IG API] Parse search results error:', error);
     }
@@ -2374,6 +2574,18 @@ export class IgApiClient {
       const v = c === 'x' ? r : (r & 0x3) | 0x8;
       return v.toString(16);
     });
+  }
+
+  /**
+   * 生成随机哈希（64 位 hex，用于 rank_token）
+   */
+  private generateRandomHash(): string {
+    const chars = '0123456789abcdef';
+    let result = '';
+    for (let i = 0; i < 64; i++) {
+      result += chars[Math.floor(Math.random() * chars.length)];
+    }
+    return result;
   }
 
   // ============ 通知 API ============
@@ -2404,7 +2616,8 @@ export class IgApiClient {
         GRAPHQL_QUERIES.ACTIVITY_FEED.queryName,
         GRAPHQL_QUERIES.ACTIVITY_FEED.docId,
         variables,
-        fbDtsg
+        fbDtsg,
+        'comet.igweb.PolarisFeedRoute'
       );
 
       console.log('[IG API] Getting notifications...');
@@ -2413,6 +2626,13 @@ export class IgApiClient {
       const headers = await this.buildHeaders('POST');
       headers.set('x-fb-friendly-name', GRAPHQL_QUERIES.ACTIVITY_FEED.queryName);
       headers.set('x-root-field-name', 'xdt_activity_inbox');
+      console.log('[IG API] getNotifications fingerprint:', {
+        doc_id: GRAPHQL_QUERIES.ACTIVITY_FEED.docId,
+        friendly_name: GRAPHQL_QUERIES.ACTIVITY_FEED.queryName,
+        crn: 'comet.igweb.PolarisFeedRoute',
+        'x-fb-lsd': getLsdToken() || 'MISSING',
+        'x-instagram-ajax': getRevision(),
+      });
 
       // 4. 发送请求
       const response = await fetch(`${this.baseUrl}/graphql/query`, {
