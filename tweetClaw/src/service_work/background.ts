@@ -304,24 +304,66 @@ localBridge.handleReconnectAlarm = function(windowCount?: number) {
 // "长时间无操作" 的低成本代理：非 active tab = 用户切走后未再操作。
 // 只刷新已存在的 tab，不新建 tab；跳过 active tab 避免打断用户浏览。
 // 间隔随机化：下次触发在 30~60 分钟之间，避免固定周期形成 bot 指纹。
-const HOME_REFRESH_ALARM_NAME = 'tweetclaw-home-refresh';
+const HOME_REFRESH_ALARM_NAMES = {
+    twitter:      'tweetclaw-home-refresh-twitter',
+    instagram:    'tweetclaw-home-refresh-instagram',
+    xiaohongshu:  'tweetclaw-home-refresh-xhs',
+} as const;
+
+const HOME_REFRESH_LEGACY_ALARM_NAME = 'tweetclaw-home-refresh';
 const HOME_REFRESH_MIN_MINUTES = 30;
 const HOME_REFRESH_MAX_MINUTES = 60;
+
+interface PlatformRefreshConfig {
+    platform: 'twitter' | 'instagram' | 'xiaohongshu';
+    urlPatterns: string[];
+    homeUrl: string;
+    // 小红书有两套域名（主站 + 创作者中心），用数组表达
+    extraRefreshes?: { urlPatterns: string[]; homeUrl: string }[];
+}
+
+const PLATFORM_REFRESH_CONFIGS: PlatformRefreshConfig[] = [
+    {
+        platform: 'twitter',
+        urlPatterns: ['*://x.com/*', '*://twitter.com/*'],
+        homeUrl: 'https://x.com/home',
+    },
+    {
+        platform: 'instagram',
+        urlPatterns: ['*://www.instagram.com/*', '*://instagram.com/*'],
+        homeUrl: 'https://www.instagram.com/',
+    },
+    {
+        platform: 'xiaohongshu',
+        urlPatterns: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*'],
+        homeUrl: 'https://www.xiaohongshu.com/explore',
+        extraRefreshes: [
+            {
+                urlPatterns: ['*://creator.xiaohongshu.com/*'],
+                homeUrl: 'https://creator.xiaohongshu.com/new/home?source=official',
+            },
+        ],
+    },
+];
 
 function nextHomeRefreshDelayMinutes(): number {
     return HOME_REFRESH_MIN_MINUTES + Math.random() * (HOME_REFRESH_MAX_MINUTES - HOME_REFRESH_MIN_MINUTES);
 }
 
-// 用 alarms.get 检查避免每次 SW 启动都重置计时器（SW 可能频繁启停）
-chrome.alarms.get(HOME_REFRESH_ALARM_NAME, (existing) => {
-    if (!existing) {
-        const delay = nextHomeRefreshDelayMinutes();
-        chrome.alarms.create(HOME_REFRESH_ALARM_NAME, {
-            delayInMinutes: delay,
-        });
-        console.log(`[tweetClaw][A41][home-refresh] alarm created (next fire in ${delay.toFixed(1)}min)`);
-    }
-});
+// SW 启动时为每个平台独立安排 alarm（若不存在）。
+// 三个平台各自独立随机延迟，首次触发时刻天然错开，避免同步指纹。
+for (const cfg of PLATFORM_REFRESH_CONFIGS) {
+    const alarmName = HOME_REFRESH_ALARM_NAMES[cfg.platform];
+    chrome.alarms.get(alarmName, (existing) => {
+        if (!existing) {
+            const delay = nextHomeRefreshDelayMinutes();
+            chrome.alarms.create(alarmName, { delayInMinutes: delay });
+            console.log(
+                `[tweetClaw][A41][home-refresh] ${cfg.platform} alarm created (next fire in ${delay.toFixed(1)}min)`
+            );
+        }
+    });
+}
 
 // ── Listen for reconnect alarms ──────────────────────────────────
 chrome.alarms.onAlarm.addListener((alarm) => {
@@ -358,18 +400,49 @@ chrome.alarms.onAlarm.addListener((alarm) => {
         })().catch((e) => console.warn('[TweetClaw-BG] failed to reconcile bridge on alarm', e));
         return;
     }
-    if (alarm.name === HOME_REFRESH_ALARM_NAME) {
+    // 一次性迁移：旧的单 alarm 触发时，按新逻辑刷新所有平台然后删除自己
+    if (alarm.name === HOME_REFRESH_LEGACY_ALARM_NAME) {
+        void (async () => {
+            console.log('[tweetClaw][A41][home-refresh] legacy alarm fired, migrating');
+            for (const cfg of PLATFORM_REFRESH_CONFIGS) {
+                await refreshSinglePlatformHome(cfg.platform);
+            }
+            await chrome.alarms.clear(HOME_REFRESH_LEGACY_ALARM_NAME);
+            // 确保三个新 alarm 都已安排
+            for (const cfg of PLATFORM_REFRESH_CONFIGS) {
+                const name = HOME_REFRESH_ALARM_NAMES[cfg.platform];
+                const existing = await chrome.alarms.get(name);
+                if (!existing) {
+                    const delay = nextHomeRefreshDelayMinutes();
+                    await chrome.alarms.create(name, { delayInMinutes: delay });
+                }
+            }
+        })().catch((e) =>
+            console.warn('[tweetClaw][A41][home-refresh] legacy migration failed', e)
+        );
+        return;
+    }
+
+    // 找到触发的是哪个平台的 alarm
+    const platformEntry = Object.entries(HOME_REFRESH_ALARM_NAMES)
+        .find(([_, name]) => name === alarm.name);
+    if (platformEntry) {
+        const platform = platformEntry[0] as keyof typeof HOME_REFRESH_ALARM_NAMES;
         void (async () => {
             try {
-                console.log('[tweetClaw][A41][home-refresh] alarm fired');
-                await refreshOnlineAccountsHome();
+                console.log(`[tweetClaw][A41][home-refresh] ${platform} alarm fired`);
+                await refreshSinglePlatformHome(platform);
             } finally {
-                // 无论刷新成功或失败都重新安排下一次，避免链中断
+                // 无论成功失败都重新安排下一次，避免链中断
                 const delay = nextHomeRefreshDelayMinutes();
-                await chrome.alarms.create(HOME_REFRESH_ALARM_NAME, { delayInMinutes: delay });
-                console.log(`[tweetClaw][A41][home-refresh] next fire in ${delay.toFixed(1)}min`);
+                await chrome.alarms.create(alarm.name, { delayInMinutes: delay });
+                console.log(
+                    `[tweetClaw][A41][home-refresh] ${platform} next fire in ${delay.toFixed(1)}min`
+                );
             }
-        })().catch((e) => console.warn('[tweetClaw][A41][home-refresh] failed', e));
+        })().catch((e) =>
+            console.warn(`[tweetClaw][A41][home-refresh] ${platform} failed`, e)
+        );
         return;
     }
 });
@@ -1041,31 +1114,30 @@ async function refreshTabsToHome(urlPatterns: string[], homeUrl: string): Promis
     return refreshed;
 }
 
-async function refreshOnlineAccountsHome(): Promise<void> {
+async function refreshSinglePlatformHome(
+    platform: 'twitter' | 'instagram' | 'xiaohongshu'
+): Promise<void> {
+    // 先检查该平台账号是否仍在线；离线则跳过（不刷新、不报错）
     const statuses = await collectAccountStatuses();
-    const online = statuses.filter(s => s.status === 'logged_in');
-    if (online.length === 0) {
-        console.log('[tweetClaw][A41][home-refresh] no online accounts, skip');
+    const online = statuses.find(s => s.platform === platform && s.status === 'logged_in');
+    if (!online) {
+        console.log(`[tweetClaw][A41][home-refresh] ${platform} not online, skip`);
         return;
     }
 
-    for (const s of online) {
-        if (s.platform === 'twitter') {
-            const n = await refreshTabsToHome(['*://x.com/*', '*://twitter.com/*'], 'https://x.com/home');
-            console.log(`[tweetClaw][A41][home-refresh] twitter: refreshed ${n} tab(s)`);
-        } else if (s.platform === 'instagram') {
-            const n = await refreshTabsToHome(['*://www.instagram.com/*', '*://instagram.com/*'], 'https://www.instagram.com/');
-            console.log(`[tweetClaw][A41][home-refresh] instagram: refreshed ${n} tab(s)`);
-        } else if (s.platform === 'xiaohongshu') {
-            const n1 = await refreshTabsToHome(
-                ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*'],
-                'https://www.xiaohongshu.com/explore'
+    const cfg = PLATFORM_REFRESH_CONFIGS.find(c => c.platform === platform);
+    if (!cfg) return;
+
+    const n = await refreshTabsToHome(cfg.urlPatterns, cfg.homeUrl);
+    console.log(`[tweetClaw][A41][home-refresh] ${platform}: refreshed ${n} tab(s)`);
+
+    // 小红书主站 + 创作者中心
+    if (cfg.extraRefreshes) {
+        for (const extra of cfg.extraRefreshes) {
+            const n2 = await refreshTabsToHome(extra.urlPatterns, extra.homeUrl);
+            console.log(
+                `[tweetClaw][A41][home-refresh] ${platform} extra: refreshed ${n2} tab(s)`
             );
-            const n2 = await refreshTabsToHome(
-                ['*://creator.xiaohongshu.com/*'],
-                'https://creator.xiaohongshu.com/new/home?source=official'
-            );
-            console.log(`[tweetClaw][A41][home-refresh] xiaohongshu: refreshed ${n1} main + ${n2} creator tab(s)`);
         }
     }
 }
