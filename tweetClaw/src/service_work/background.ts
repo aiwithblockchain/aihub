@@ -311,8 +311,8 @@ const HOME_REFRESH_ALARM_NAMES = {
 } as const;
 
 const HOME_REFRESH_LEGACY_ALARM_NAME = 'tweetclaw-home-refresh';
-const HOME_REFRESH_MIN_MINUTES = 30;
-const HOME_REFRESH_MAX_MINUTES = 60;
+const HOME_REFRESH_MIN_MINUTES = 90;
+const HOME_REFRESH_MAX_MINUTES = 120;
 
 interface PlatformRefreshConfig {
     platform: 'twitter' | 'instagram' | 'xiaohongshu';
