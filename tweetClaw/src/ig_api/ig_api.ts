@@ -206,10 +206,20 @@ export class IgApiClient {
   private checkGraphQlDocIdError(data: any, friendlyName: string): void {
     const errors = data?.errors;
     if (!Array.isArray(errors)) return;
-    const expired = errors.some((e: any) =>
+    const fieldException = errors.some((e: any) =>
       e?.code === 1675030 || e?.message === 'field_exception'
     );
-    if (!expired) return;
+    if (!fieldException) return;
+    // 1675030/field_exception 是 IG 通用的 "Query Error"，并非专指 doc_id 过期。
+    // 4.log 实证：context=users/hashtags 传给 topsearch 也会返回 1675030，且 errors[].path
+    // 指向具体 connection 字段（如 xdt_api__v1__fbsearch__topsearch_connection）——这是
+    // 查询形状/变量错误，不是 doc_id 轮换。只有无法归因到具体字段路径的 field_exception
+    // 才按 doc_id 过期处理（invalidate + home refresh 自愈）。
+    const hasFieldPath = errors.some((e: any) => Array.isArray(e?.path) && e.path.length > 0);
+    if (hasFieldPath) {
+      console.warn(`[IG API] field_exception for ${friendlyName} has field path ${JSON.stringify(errors[0]?.path)} — treating as query-shape error, not doc_id rotation`);
+      throw new Error(`GraphQL field_exception (non-doc_id) for ${friendlyName}: ${errors[0]?.message || ''}`);
+    }
     console.warn(`[IG API] field_exception detected for ${friendlyName} (doc_id may be rotated), invalidating cache & triggering home refresh`);
     invalidateDocId(friendlyName);
     try {
@@ -2480,11 +2490,18 @@ export class IgApiClient {
       }
 
       // 2. 构建 variables（嵌套 data 结构，与真浏览器一致）
+      // IG 的 PolarisSearchBoxRefetchableQuery 服务端只接受 context=blended，
+      // 传 users/hashtags/places 会返回 field_exception 1675030（4.log Test 2/3 实证）。
+      // 类型过滤由 parseSearchResultsWithPagination 解析层按 user/hashtag/place 字段区分，
+      // 调用方在结果里自行筛选，不再通过 context 参数请求服务端过滤。
       const searchSessionId = params.searchSessionId || this.generateUUID();
       const rankToken = `${Date.now()}|${this.generateRandomHash()}`;
+      if (params.context && params.context !== 'blended') {
+        console.warn(`[IG API] search context="${params.context}" is not supported by IG topsearch (only blended works), forcing blended. Filter results client-side instead.`);
+      }
       const variables = {
         data: {
-          context: params.context || 'blended',
+          context: 'blended',
           include_reel: 'true',
           query: params.query,
           rank_token: rankToken,
