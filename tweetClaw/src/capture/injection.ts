@@ -15,6 +15,56 @@ import { watchedOps, isGuestHandle } from './consts';
 
     console.log(`${TAG} System initializing...`);
 
+    // ===== Instagram doc_id 动态捕获（方案核心）=====
+    // 仅在 instagram.com 域名下激活；Twitter 页面 hostname 不匹配，零影响。
+    const IG_GRAPHQL_URL_PATTERN = /instagram\.com\/(api\/)?graphql\//i;
+    const IG_DOC_ID_STORAGE_KEY = 'ig_doc_id_map';
+
+    function isIgContext(): boolean {
+        return /(^|\.)instagram\.com$/i.test(location.hostname);
+    }
+
+    function extractIgDocIdMapping(body: any): { friendlyName: string; docId: string } | null {
+        if (!body) return null;
+        let fn: string | undefined;
+        let did: string | undefined;
+        if (typeof body === 'string') {
+            // IG GraphQL 用 application/x-www-form-urlencoded
+            try {
+                const params = new URLSearchParams(body);
+                fn = params.get('fb_api_req_friendly_name') || undefined;
+                did = params.get('doc_id') || undefined;
+            } catch {}
+        } else if (body instanceof FormData) {
+            fn = (body.get('fb_api_req_friendly_name') as string) || undefined;
+            did = (body.get('doc_id') as string) || undefined;
+        } else if (typeof body === 'object') {
+            fn = body.fb_api_req_friendly_name || body.friendly_name;
+            did = body.doc_id || body.docId;
+        }
+        if (fn && did) return { friendlyName: fn, docId: did };
+        return null;
+    }
+
+    function storeIgDocId(mapping: { friendlyName: string; docId: string }): void {
+        try {
+            const raw = sessionStorage.getItem(IG_DOC_ID_STORAGE_KEY);
+            const map = raw ? JSON.parse(raw) : {};
+            map[mapping.friendlyName] = { docId: mapping.docId, ts: Date.now() };
+            sessionStorage.setItem(IG_DOC_ID_STORAGE_KEY, JSON.stringify(map));
+            console.log(`🛡️ [IG-DocId] captured ${mapping.friendlyName} → ${mapping.docId}`);
+        } catch (e) {
+            console.warn('🛡️ [IG-DocId] store failed', e);
+        }
+    }
+
+    function tryCaptureIgDocId(url: string, body: any): void {
+        if (!isIgContext()) return;
+        if (!IG_GRAPHQL_URL_PATTERN.test(url)) return;
+        const m = extractIgDocIdMapping(body);
+        if (m) storeIgDocId(m);
+    }
+
     function isIdentityOp(url: string): string | null {
         const lowerUrl = url.toLowerCase();
         if (lowerUrl.includes('authenticateduserquery')) return 'AuthenticatedUserQuery';
@@ -133,6 +183,23 @@ import { watchedOps, isGuestHandle } from './consts';
                 : (reqArg instanceof Request ? reqArg.url : String(reqArg));
             const method = initArg?.method || 'GET';
             const body = initArg?.body;
+
+            // ===== IG doc_id 捕获（新增）=====
+            // IG 页面不会有 Twitter targetOp，与下方 Twitter 逻辑互斥。
+            if (isIgContext() && IG_GRAPHQL_URL_PATTERN.test(url)) {
+                try {
+                    let bodyForIg = initArg?.body;
+                    if (!bodyForIg && reqArg instanceof Request) {
+                        bodyForIg = await reqArg.clone().text();
+                    }
+                    tryCaptureIgDocId(url, bodyForIg);
+                } catch (e) {
+                    console.warn('🛡️ [IG-DocId] fetch extract error', e);
+                }
+                // IG 页面无需走 Twitter targetOp 分支，直接放行
+                return orgFetch.apply(this, args as any);
+            }
+
             const targetOp = isTargetUrl(url);
 
             if (!targetOp) {
@@ -183,6 +250,14 @@ import { watchedOps, isGuestHandle } from './consts';
                 return (super.open as any).apply(this, [m, u, ...rest]);
             }
             send(b?: any) {
+                // ===== IG doc_id 捕获（新增）=====
+                try {
+                    if (isIgContext() && IG_GRAPHQL_URL_PATTERN.test(this._tc_url || '')) {
+                        tryCaptureIgDocId(this._tc_url, b);
+                    }
+                } catch (e) {
+                    console.warn('🛡️ [IG-DocId] xhr extract error', e);
+                }
                 const op = this._tc_op;
                 const url = this._tc_url;
                 const method = this._tc_method;

@@ -30,6 +30,8 @@ import {
   parseFeedResponse,
   parseUserProfileResponse,
   GRAPHQL_QUERIES,
+  getDocId,
+  invalidateDocId,
 } from './graphql-helper';
 import type {
   IgCurrentUser,
@@ -192,6 +194,33 @@ export class IgApiClient {
   }
 
   /**
+   * 检测 GraphQL 响应中的 field_exception（doc_id 过期信号），触发自愈。
+   *
+   * Instagram 轮换 doc_id 后，旧 doc_id 会返回：
+   *   { "errors": [{ "message": "field_exception", "code": 1675030 }] }
+   * 检测到时：
+   *   1. invalidateDocId 清除 sessionStorage 该 friendly_name 条目（下次 getDocId 回退 fallback）
+   *   2. fire-and-forget 请求 background 刷新 IG 主页 tab（前端重新发 GraphQL → injection 捕获新 doc_id）
+   *   3. 抛出 Error，让上层 try/catch 决定是否降级 / 重试
+   */
+  private checkGraphQlDocIdError(data: any, friendlyName: string): void {
+    const errors = data?.errors;
+    if (!Array.isArray(errors)) return;
+    const expired = errors.some((e: any) =>
+      e?.code === 1675030 || e?.message === 'field_exception'
+    );
+    if (!expired) return;
+    console.warn(`[IG API] field_exception detected for ${friendlyName} (doc_id may be rotated), invalidating cache & triggering home refresh`);
+    invalidateDocId(friendlyName);
+    try {
+      chrome.runtime.sendMessage({ type: 'IG_TRIGGER_HOME_REFRESH', friendlyName });
+    } catch (e) {
+      console.warn('[IG API] trigger home refresh failed', e);
+    }
+    throw new Error(`GraphQL doc_id expired (field_exception) for ${friendlyName}`);
+  }
+
+  /**
    * 发送 API 请求
    * @param endpoint API 端点
    * @param method HTTP 方法
@@ -298,9 +327,10 @@ export class IgApiClient {
     }
 
     const variables = buildUserProfileVariables(userId);
+    const docId = getDocId(GRAPHQL_QUERIES.USER_PROFILE.queryName, GRAPHQL_QUERIES.USER_PROFILE.docId);
     const body = buildGraphQLBody(
       GRAPHQL_QUERIES.USER_PROFILE.queryName,
-      GRAPHQL_QUERIES.USER_PROFILE.docId,
+      docId,
       variables,
       fbDtsg,
       'comet.igweb.PolarisProfilePostsTabRoute'
@@ -310,7 +340,7 @@ export class IgApiClient {
     headers.set('x-fb-friendly-name', GRAPHQL_QUERIES.USER_PROFILE.queryName);
 
     console.log('[IG API] getUserInfo fingerprint:', {
-      doc_id: GRAPHQL_QUERIES.USER_PROFILE.docId,
+      doc_id: docId,
       friendly_name: GRAPHQL_QUERIES.USER_PROFILE.queryName,
       crn: 'comet.igweb.PolarisProfilePostsTabRoute',
       'x-fb-lsd': getLsdToken() || 'MISSING',
@@ -331,6 +361,9 @@ export class IgApiClient {
     }
 
     const data = await response.json();
+
+    // 检查 doc_id 过期（field_exception）
+    this.checkGraphQlDocIdError(data, GRAPHQL_QUERIES.USER_PROFILE.queryName);
 
     // 检查 feedback_required / spam 限流
     if (data?.status === 'fail' || data?.message === 'feedback_required') {
@@ -380,9 +413,10 @@ export class IgApiClient {
 
       // 构建 GraphQL 查询参数
       const variables = buildUserSearchVariables(username);
+      const docId = getDocId(GRAPHQL_QUERIES.SEARCH_USERS.queryName, GRAPHQL_QUERIES.SEARCH_USERS.docId);
       const body = buildGraphQLBody(
         GRAPHQL_QUERIES.SEARCH_USERS.queryName,
-        GRAPHQL_QUERIES.SEARCH_USERS.docId,
+        docId,
         variables,
         fbDtsg,
         'comet.igweb.PolarisExploreRoute'
@@ -392,7 +426,7 @@ export class IgApiClient {
       const headers = await this.buildHeaders('POST');
       headers.set('x-fb-friendly-name', GRAPHQL_QUERIES.SEARCH_USERS.queryName);
       console.log('[IG API] searchUserId fingerprint:', {
-        doc_id: GRAPHQL_QUERIES.SEARCH_USERS.docId,
+        doc_id: docId,
         friendly_name: GRAPHQL_QUERIES.SEARCH_USERS.queryName,
         crn: 'comet.igweb.PolarisExploreRoute',
         'x-fb-lsd': getLsdToken() || 'MISSING',
@@ -411,6 +445,9 @@ export class IgApiClient {
       }
 
       const data = await response.json();
+
+      // 检查 doc_id 过期（field_exception）
+      this.checkGraphQlDocIdError(data, GRAPHQL_QUERIES.SEARCH_USERS.queryName);
 
       // 解析搜索结果
       const users = parseSearchResponse(data);
@@ -470,9 +507,10 @@ export class IgApiClient {
 
       // 构建 GraphQL 查询参数
       const variables = buildHomeFeedVariables(maxId);
+      const docId = getDocId(GRAPHQL_QUERIES.HOME_FEED.queryName, GRAPHQL_QUERIES.HOME_FEED.docId);
       const body = buildGraphQLBody(
         GRAPHQL_QUERIES.HOME_FEED.queryName,
-        GRAPHQL_QUERIES.HOME_FEED.docId,
+        docId,
         variables,
         fbDtsg,
         'comet.igweb.PolarisFeedRoute'
@@ -483,7 +521,7 @@ export class IgApiClient {
       headers.set('x-fb-friendly-name', GRAPHQL_QUERIES.HOME_FEED.queryName);
       headers.set('x-bloks-version-id', getBloksVersionId()); // 根因 #14
       console.log('[IG API] getHomeFeed fingerprint:', {
-        doc_id: GRAPHQL_QUERIES.HOME_FEED.docId,
+        doc_id: docId,
         friendly_name: GRAPHQL_QUERIES.HOME_FEED.queryName,
         crn: 'comet.igweb.PolarisFeedRoute',
         'x-fb-lsd': getLsdToken() || 'MISSING',
@@ -503,6 +541,9 @@ export class IgApiClient {
       }
 
       const data = await response.json();
+
+      // 检查 doc_id 过期（field_exception）
+      this.checkGraphQlDocIdError(data, GRAPHQL_QUERIES.HOME_FEED.queryName);
 
       // Debug: log raw response structure
       console.log('[IG API] Feed raw response keys:', Object.keys(data));
@@ -558,9 +599,10 @@ export class IgApiClient {
       }
 
       const variables = buildMediaInfoVariables(shortcode);
+      const docId = getDocId(GRAPHQL_QUERIES.MEDIA_INFO.queryName, GRAPHQL_QUERIES.MEDIA_INFO.docId);
       const body = buildGraphQLBody(
         GRAPHQL_QUERIES.MEDIA_INFO.queryName,
-        GRAPHQL_QUERIES.MEDIA_INFO.docId,
+        docId,
         variables,
         fbDtsg,
         'comet.igweb.PolarisPostRoute'
@@ -571,7 +613,7 @@ export class IgApiClient {
       headers.set('x-fb-friendly-name', GRAPHQL_QUERIES.MEDIA_INFO.queryName);
       headers.set('x-bloks-version-id', getBloksVersionId()); // 根因 #14
       console.log('[IG API] getMediaInfo fingerprint:', {
-        doc_id: GRAPHQL_QUERIES.MEDIA_INFO.docId,
+        doc_id: docId,
         friendly_name: GRAPHQL_QUERIES.MEDIA_INFO.queryName,
         crn: 'comet.igweb.PolarisPostRoute',
         'x-fb-lsd': getLsdToken() || 'MISSING',
@@ -592,6 +634,9 @@ export class IgApiClient {
       }
 
       const data = await response.json();
+
+      // 检查 doc_id 过期（field_exception）
+      this.checkGraphQlDocIdError(data, GRAPHQL_QUERIES.MEDIA_INFO.queryName);
 
       // 解析 GraphQL 响应
       const items = data?.data?.xdt_api__v1__media__shortcode__web_info?.items;
@@ -783,9 +828,10 @@ export class IgApiClient {
         },
       };
 
+      const likeDocId = getDocId('usePolarisLikeMediaXIGLikeMutation', '27182485238052618');
       const body = buildGraphQLBody(
         'usePolarisLikeMediaXIGLikeMutation',
-        '27182485238052618',
+        likeDocId,
         variables,
         fbDtsg,
         'comet.igweb.PolarisFeedRoute'
@@ -794,7 +840,7 @@ export class IgApiClient {
       const headers = await this.buildHeaders('POST');
       headers.set('x-fb-friendly-name', 'usePolarisLikeMediaXIGLikeMutation');
       console.log('[IG API] likeMedia fingerprint:', {
-        doc_id: '27182485238052618',
+        doc_id: likeDocId,
         friendly_name: 'usePolarisLikeMediaXIGLikeMutation',
         crn: 'comet.igweb.PolarisFeedRoute',
         'x-fb-lsd': getLsdToken() || 'MISSING',
@@ -814,6 +860,9 @@ export class IgApiClient {
       }
 
       const data = await response.json();
+
+      // 检查 doc_id 过期（field_exception）
+      this.checkGraphQlDocIdError(data, 'usePolarisLikeMediaXIGLikeMutation');
 
       // 解析 GraphQL 响应
       const hasLiked = data?.data?.xig_media_like?.media?.has_liked;
@@ -856,9 +905,10 @@ export class IgApiClient {
         },
       };
 
+      const unlikeDocId = getDocId('usePolarisLikeMediaXIGUnlikeMutation', '26662414810082851');
       const body = buildGraphQLBody(
         'usePolarisLikeMediaXIGUnlikeMutation',
-        '26662414810082851',
+        unlikeDocId,
         variables,
         fbDtsg,
         'comet.igweb.PolarisFeedRoute'
@@ -867,7 +917,7 @@ export class IgApiClient {
       const headers = await this.buildHeaders('POST');
       headers.set('x-fb-friendly-name', 'usePolarisLikeMediaXIGUnlikeMutation');
       console.log('[IG API] unlikeMedia fingerprint:', {
-        doc_id: '26662414810082851',
+        doc_id: unlikeDocId,
         friendly_name: 'usePolarisLikeMediaXIGUnlikeMutation',
         crn: 'comet.igweb.PolarisFeedRoute',
         'x-fb-lsd': getLsdToken() || 'MISSING',
@@ -886,6 +936,9 @@ export class IgApiClient {
       }
 
       const data = await response.json();
+
+      // 检查 doc_id 过期（field_exception）
+      this.checkGraphQlDocIdError(data, 'usePolarisLikeMediaXIGUnlikeMutation');
 
       // 解析 GraphQL 响应
       const hasLiked = data?.data?.xig_media_unlike?.media?.has_liked;
@@ -922,9 +975,10 @@ export class IgApiClient {
         nav_chain: getFollowNavChain(), // 根因 #11
       };
 
+      const followDocId = getDocId('usePolarisFollowMutation', '26508036048874888');
       const body = buildGraphQLBody(
         'usePolarisFollowMutation',
-        '26508036048874888',
+        followDocId,
         variables,
         fbDtsg,
         'comet.igweb.PolarisProfilePostsTabRoute'
@@ -933,7 +987,7 @@ export class IgApiClient {
       const headers = await this.buildHeaders('POST');
       headers.set('x-fb-friendly-name', 'usePolarisFollowMutation');
       console.log('[IG API] followUser fingerprint:', {
-        doc_id: '26508036048874888',
+        doc_id: followDocId,
         friendly_name: 'usePolarisFollowMutation',
         crn: 'comet.igweb.PolarisProfilePostsTabRoute',
         'x-fb-lsd': getLsdToken() || 'MISSING',
@@ -954,6 +1008,9 @@ export class IgApiClient {
       }
 
       const data = await response.json();
+
+      // 检查 doc_id 过期（field_exception）
+      this.checkGraphQlDocIdError(data, 'usePolarisFollowMutation');
 
       // 解析 GraphQL 响应
       const friendshipStatus = data?.data?.xdt_create_friendship?.friendship_status;
@@ -992,9 +1049,10 @@ export class IgApiClient {
         nav_chain: getFollowNavChain(), // 根因 #11
       };
 
+      const unfollowDocId = getDocId('usePolarisUnfollowMutation', '27789106940691111');
       const body = buildGraphQLBody(
         'usePolarisUnfollowMutation',
-        '27789106940691111',
+        unfollowDocId,
         variables,
         fbDtsg,
         'comet.igweb.PolarisProfilePostsTabRoute'
@@ -1003,7 +1061,7 @@ export class IgApiClient {
       const headers = await this.buildHeaders('POST');
       headers.set('x-fb-friendly-name', 'usePolarisUnfollowMutation');
       console.log('[IG API] unfollowUser fingerprint:', {
-        doc_id: '27789106940691111',
+        doc_id: unfollowDocId,
         friendly_name: 'usePolarisUnfollowMutation',
         crn: 'comet.igweb.PolarisProfilePostsTabRoute',
         'x-fb-lsd': getLsdToken() || 'MISSING',
@@ -1024,6 +1082,9 @@ export class IgApiClient {
       }
 
       const data = await response.json();
+
+      // 检查 doc_id 过期（field_exception）
+      this.checkGraphQlDocIdError(data, 'usePolarisUnfollowMutation');
 
       // 解析 GraphQL 响应
       const friendshipStatus = data?.data?.xdt_destroy_friendship?.friendship_status;
@@ -2243,8 +2304,8 @@ export class IgApiClient {
 
       // 3. 构建 GraphQL 查询参数
       // 翻页时 Instagram 会切换到不同的 query：
-      // - 第 1 页（无 after）: PolarisProfilePostsQuery, doc_id=27378030181834840
-      // - 第 2 页+（有 after）: PolarisProfilePostsTabContentQuery_connection, doc_id=27839684308962379
+      // - 第 1 页（无 after）: PolarisProfilePostsQuery
+      // - 第 2 页+（有 after）: PolarisProfilePostsTabContentQuery_connection
       //   此时 `after` 必须放在 variables 顶层（与 first/last/before 同级），
       //   `data` 对象保留 count 等参数。
       // 参考：5.log 浏览器真实翻页请求
@@ -2252,9 +2313,10 @@ export class IgApiClient {
       const queryName = hasAfter
         ? 'PolarisProfilePostsTabContentQuery_connection'
         : 'PolarisProfilePostsQuery';
-      const docId = hasAfter
+      const fallbackDocId = hasAfter
         ? '36843822688595799'
         : '27769721232718994';
+      const docId = getDocId(queryName, fallbackDocId);
 
       let variables: any;
       if (hasAfter) {
@@ -2338,6 +2400,9 @@ export class IgApiClient {
       }
 
       const data = await response.json();
+
+      // 检查 doc_id 过期（field_exception）
+      this.checkGraphQlDocIdError(data, queryName);
 
       // 5. 解析响应
       const connection = data?.data?.xdt_api__v1__feed__user_timeline_graphql_connection;
@@ -2430,9 +2495,10 @@ export class IgApiClient {
         __relay_internal__pv__PolarisAIGMAccountLabelEnabledrelayprovider: false,
       };
 
+      const searchDocId = getDocId(GRAPHQL_QUERIES.SEARCH_USERS.queryName, GRAPHQL_QUERIES.SEARCH_USERS.docId);
       const body = buildGraphQLBody(
         GRAPHQL_QUERIES.SEARCH_USERS.queryName,
-        GRAPHQL_QUERIES.SEARCH_USERS.docId,
+        searchDocId,
         variables,
         fbDtsg,
         'comet.igweb.PolarisExploreRoute'
@@ -2446,7 +2512,7 @@ export class IgApiClient {
       // 搜索的 referrer 是 /explore/（ig_search.log + 5.log 确认）
       headers.set('Referer', 'https://www.instagram.com/explore/');
       console.log('[IG API] search fingerprint:', {
-        doc_id: GRAPHQL_QUERIES.SEARCH_USERS.docId,
+        doc_id: searchDocId,
         friendly_name: GRAPHQL_QUERIES.SEARCH_USERS.queryName,
         crn: 'comet.igweb.PolarisExploreRoute',
         'x-fb-lsd': getLsdToken() || 'MISSING',
@@ -2467,6 +2533,9 @@ export class IgApiClient {
       }
 
       const data = await response.json();
+
+      // 检查 doc_id 过期（field_exception）
+      this.checkGraphQlDocIdError(data, GRAPHQL_QUERIES.SEARCH_USERS.queryName);
 
       // 4. 解析响应
       const { results, pageInfo } = this.parseSearchResultsWithPagination(data);
@@ -2625,9 +2694,10 @@ export class IgApiClient {
         pending_request_data: {},
       };
 
+      const activityDocId = getDocId(GRAPHQL_QUERIES.ACTIVITY_FEED.queryName, GRAPHQL_QUERIES.ACTIVITY_FEED.docId);
       const body = buildGraphQLBody(
         GRAPHQL_QUERIES.ACTIVITY_FEED.queryName,
-        GRAPHQL_QUERIES.ACTIVITY_FEED.docId,
+        activityDocId,
         variables,
         fbDtsg,
         'comet.igweb.PolarisFeedRoute'
@@ -2641,7 +2711,7 @@ export class IgApiClient {
       headers.set('x-root-field-name', 'xdt_activity_inbox');
       headers.set('x-bloks-version-id', getBloksVersionId()); // 根因 #14
       console.log('[IG API] getNotifications fingerprint:', {
-        doc_id: GRAPHQL_QUERIES.ACTIVITY_FEED.docId,
+        doc_id: activityDocId,
         friendly_name: GRAPHQL_QUERIES.ACTIVITY_FEED.queryName,
         crn: 'comet.igweb.PolarisFeedRoute',
         'x-fb-lsd': getLsdToken() || 'MISSING',
@@ -2663,6 +2733,9 @@ export class IgApiClient {
       }
 
       const data = await response.json();
+
+      // 检查 doc_id 过期（field_exception）
+      this.checkGraphQlDocIdError(data, GRAPHQL_QUERIES.ACTIVITY_FEED.queryName);
 
       // 5. 解析响应
       const activityInbox = data.data?.xdt_activity_inbox;

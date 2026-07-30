@@ -244,6 +244,57 @@ export const GRAPHQL_QUERIES = {
 } as const;
 
 /**
+ * 动态获取 doc_id（方案核心，同步）
+ *
+ * 1. 读 sessionStorage.ig_doc_id_map（由 injection.ts 在 page world 写入，
+ *    content script 同源共享），命中且 ts 新鲜 (< 6h) → 返回动态 doc_id
+ * 2. 未命中 / 陈旧 / 读取异常 → 返回 fallbackDocId
+ *
+ * 同步签名：sessionStorage.getItem 同步返回，调用方无需 await，
+ * buildGraphQLBody 调用方式零改动。
+ *
+ * @param friendlyName  GraphQL friendly_name（如 'PolarisSearchBoxRefetchableQuery'）
+ * @param fallbackDocId GRAPHQL_QUERIES.X.docId 硬编码兜底值
+ */
+const IG_DOC_ID_STORAGE_KEY = 'ig_doc_id_map';
+const IG_DOC_ID_TTL_MS = 6 * 60 * 60 * 1000; // 6h
+
+export function getDocId(friendlyName: string, fallbackDocId: string): string {
+  try {
+    const raw = sessionStorage.getItem(IG_DOC_ID_STORAGE_KEY);
+    if (!raw) return fallbackDocId;
+    const map = JSON.parse(raw) as Record<string, { docId: string; ts: number }>;
+    const entry = map[friendlyName];
+    if (entry && entry.docId && (Date.now() - entry.ts) < IG_DOC_ID_TTL_MS) {
+      return entry.docId;
+    }
+  } catch (e) {
+    console.warn('[IG GraphQL] getDocId sessionStorage read failed', e);
+  }
+  return fallbackDocId;
+}
+
+/**
+ * 清除指定 friendly_name 的动态 doc_id 缓存条目。
+ *
+ * 在检测到 field_exception（doc_id 过期）时调用，强制下次 getDocId 回退到
+ * fallback 或等待重新捕获。
+ */
+export function invalidateDocId(friendlyName: string): void {
+  try {
+    const raw = sessionStorage.getItem(IG_DOC_ID_STORAGE_KEY);
+    if (!raw) return;
+    const map = JSON.parse(raw);
+    if (!map[friendlyName]) return;
+    delete map[friendlyName];
+    sessionStorage.setItem(IG_DOC_ID_STORAGE_KEY, JSON.stringify(map));
+    console.log(`[IG GraphQL] invalidated doc_id cache for ${friendlyName}`);
+  } catch (e) {
+    console.warn('[IG GraphQL] invalidateDocId failed', e);
+  }
+}
+
+/**
  * 从页面提取 LSD token
  */
 export function getLsdToken(): string | null {

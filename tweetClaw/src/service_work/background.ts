@@ -681,6 +681,23 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         return true;
     }
 
+    // IG doc_id 过期自愈：content script 检测到 field_exception 后请求刷新 IG 主页 tab，
+    // 让 IG 前端重新发 GraphQL 请求 → injection 捕获最新 doc_id 写入 sessionStorage。
+    // fire-and-forget：content script 不等待结果，下次调用 getDocId 时自然读到新值。
+    if (message.type === 'IG_TRIGGER_HOME_REFRESH') {
+        (async () => {
+            try {
+                console.log(`[tweetClaw-BG] IG_TRIGGER_HOME_REFRESH received (friendlyName=${message.friendlyName}), refreshing IG home tab`);
+                await refreshSinglePlatformHome('instagram');
+                if (sendResponse) sendResponse({ success: true });
+            } catch (e: any) {
+                console.warn('[tweetClaw-BG] IG_TRIGGER_HOME_REFRESH failed', e);
+                if (sendResponse) sendResponse({ success: false, error: e?.message || String(e) });
+            }
+        })();
+        return true;
+    }
+
     // 小红书 Ping
     if (message.type === 'XHS_PING') {
         sendResponse({

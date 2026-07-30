@@ -28,6 +28,17 @@ import type {
 } from '../ig_api/types';
 import { X_IG_APP_ID } from '../ig_api/constants';
 
+// ── 注入 page-world fetch/XHR hook（复用 Twitter 的 injection.js，内含 IG doc_id 捕获分支）──
+// 必须在 IG 前端发 GraphQL 请求之前注入，因此放在文件顶部尽早执行。
+(function injectIgInjury() {
+  if (document.getElementById('tc_injection')) return;
+  const script = document.createElement('script');
+  script.id = 'tc_injection';
+  script.src = chrome.runtime.getURL('js/injection.js');
+  (document.head || document.documentElement).appendChild(script);
+  script.onload = () => script.remove();
+})();
+
 const TAG = '[IgClaw-CS]';
 
 // Instagram API 客户端实例
