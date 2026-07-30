@@ -486,6 +486,7 @@ class IgService:
         before: Optional[str] = None,
         first: Optional[int] = None,
         last: Optional[int] = None,
+        context: Optional[str] = None,
     ) -> Dict[str, Any]:
         """
         Search Instagram content (users, hashtags, places) with pagination support.
@@ -496,6 +497,7 @@ class IgService:
             before: Pagination cursor (backward)
             first: Number of items to fetch (from start)
             last: Number of items to fetch (from end)
+            context: Search type (blended=all | users=users only | hashtags=hashtags only | places=places only)
 
         Returns:
             Search results with:
@@ -504,4 +506,4 @@ class IgService:
             - endCursor: Cursor for next page
             - startCursor: Cursor for previous page
         """
-        return self.transport.search(query, after=after, before=before, first=first, last=last)
+        return self.transport.search(query, after=after, before=before, first=first, last=last, context=context)

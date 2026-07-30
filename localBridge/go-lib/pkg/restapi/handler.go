@@ -85,6 +85,7 @@ func (h *Handler) Register(mux *http.ServeMux) {
 	mux.HandleFunc("/api/v1/xhs/search_filter", h.xhsSearchFilter)
 	mux.HandleFunc("/api/v1/xhs/comment", h.xhsPostComment)
 	mux.HandleFunc("/api/v1/xhs/search_users", h.xhsSearchUsers)
+	mux.HandleFunc("/api/v1/xhs/search/usersearch", h.xhsSearchUsersearch)
 	mux.HandleFunc("/api/v1/xhs/intimacy_list", h.xhsIntimacyList)
 	mux.HandleFunc("/api/v1/xhs/like", h.xhsLikeNote)
 	mux.HandleFunc("/api/v1/xhs/unlike", h.xhsUnlikeNote)
@@ -707,6 +708,29 @@ func (h *Handler) xhsSearchUsers(w http.ResponseWriter, r *http.Request) {
 	h.bridge(w, r, "tweetClaw", id, buildRawMsg(id, "command.xhs_search_users", "tweetClaw", queryToMap(r)), h.cfg.TimeoutMs,
 		func(data []byte) {
 			log.Printf("[xhsSearchUsers] received response len=%d", len(data))
+			writeRawPayload(w, data)
+		})
+}
+
+// xhsSearchUsersearch: 全站用户搜索（v0.8 新增）
+// POST /api/v1/xhs/search/usersearch → command.xhs_search_usersearch
+// 与 xhsSearchUsers（intimacy @mention 好友搜索）区分：本端点走 edith.xiaohongshu.com 的全站用户搜索
+func (h *Handler) xhsSearchUsersearch(w http.ResponseWriter, r *http.Request) {
+	log.Printf("[xhsSearchUsersearch] received request method=%s", r.Method)
+	if r.Method != http.MethodPost {
+		jsonErr(w, 405, "method_not_allowed")
+		return
+	}
+	body, err := readRawBody(r)
+	if err != nil {
+		jsonErr(w, 400, err.Error())
+		return
+	}
+	id := newID("http_xhs_search_usersearch")
+	log.Printf("[xhsSearchUsersearch] sending to tweetClaw: id=%s", id)
+	h.bridge(w, r, "tweetClaw", id, buildRawMsgFromBytes(id, "command.xhs_search_usersearch", "tweetClaw", body), h.cfg.TimeoutMs,
+		func(data []byte) {
+			log.Printf("[xhsSearchUsersearch] received response len=%d", len(data))
 			writeRawPayload(w, data)
 		})
 }

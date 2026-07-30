@@ -1221,7 +1221,14 @@ async function fetchFeed(noteId: string, xsecToken: string = '', xsecSource: str
   return signedXhrFetch('/api/sns/web/v1/feed', 'POST', JSON.stringify(body));
 }
 
-async function searchNotes(keyword: string, cursor: string = '', pageSize: number): Promise<any> {
+async function searchNotes(
+  keyword: string,
+  cursor: string = '',
+  pageSize: number,
+  sort?: string,
+  noteType?: number,
+  filters?: any[],
+): Promise<any> {
   // 与 Spider_XHS generate_search_id 完全一致：
   // _int_to_base36((timestamp_ms << 64) + random_part)
   // JS 用 BigInt 实现真正的 64 位左移
@@ -1236,22 +1243,28 @@ async function searchNotes(keyword: string, cursor: string = '', pageSize: numbe
     n = n / 36n;
   }
 
+  // 分类搜索参数：sort / note_type / filters 由调用方透传，
+  // 未提供时回退到 Spider_XHS 抓包验证过的默认值（综合排序 + 全部笔记类型 + 5 维不限）。
+  const effectiveSort = sort || 'general';
+  const effectiveNoteType = (typeof noteType === 'number') ? noteType : 0;
+  const effectiveFilters = filters || [
+    { tags: [effectiveSort], type: 'sort_type' },
+    { tags: ['不限'], type: 'filter_note_type' },
+    { tags: ['不限'], type: 'filter_note_time' },
+    { tags: ['不限'], type: 'filter_note_range' },
+    { tags: ['不限'], type: 'filter_pos_distance' },
+  ];
+
   const body: any = {
     keyword,
     page: 1,
     page_size: pageSize,
     search_id: searchId,
-    sort: 'general',
-    note_type: 0,
+    sort: effectiveSort,
+    note_type: effectiveNoteType,
     ext_flags: [],
     // Spider_XHS 的真实抓包验证：不传 filters 会导致服务端偶发返回空结果
-    filters: [
-      { tags: ['general'], type: 'sort_type' },
-      { tags: ['不限'], type: 'filter_note_type' },
-      { tags: ['不限'], type: 'filter_note_time' },
-      { tags: ['不限'], type: 'filter_note_range' },
-      { tags: ['不限'], type: 'filter_pos_distance' },
-    ],
+    filters: effectiveFilters,
     geo: '',
     image_formats: ['jpg', 'webp', 'avif'],
     message_id: 'sending',
@@ -1355,6 +1368,43 @@ async function searchUsers(keyword: string, page: number = 1, rows: number = 30)
   const apiPath = `/api/sns/web/v1/intimacy/intimacy_list/search?keyword=${encodeURIComponent(keyword)}&page=${page}&rows=${rows}`;
   const result = await signedFetch(apiPath, 'GET');
   console.log(`${TAG} [searchUsers] result code=${result?.code} success=${result?.success} items=${result?.data?.items?.length || 0}`);
+  return result;
+}
+
+// 全站用户搜索（v0.8 新增）
+// 与 searchUsers（intimacy @mention 好友搜索）区分：本函数走 edith.xiaohongshu.com 的
+// /api/sns/web/v1/search/usersearch，抓包验证为真正的全站用户搜索端点。
+// 请求体结构：{ search_user_request: { keyword, search_id, page, page_size, biz_type, request_id } }
+async function searchUsersearch(keyword: string, page: number = 1, pageSize: number = 15): Promise<any> {
+  console.log(`${TAG} [searchUsersearch] keyword=${keyword} page=${page} pageSize=${pageSize}`);
+  // search_id 生成逻辑与 searchNotes 一致：_int_to_base36((timestamp_ms << 64) + random)
+  const timestampMs = BigInt(Date.now());
+  const randomPart = BigInt(Math.ceil(0x7ffffffe * Math.random()));
+  const searchIdInt = (timestampMs << 64n) + randomPart;
+  const chars = '0123456789abcdefghijklmnopqrstuvwxyz';
+  let searchId = '';
+  let n = searchIdInt;
+  while (n > 0n) {
+    searchId = chars[Number(n % 36n)] + searchId;
+    n = n / 36n;
+  }
+  const requestId = `${Math.floor(Math.random() * 1e9)}-${Date.now()}`;
+  const body: any = {
+    search_user_request: {
+      keyword,
+      search_id: searchId,
+      page,
+      page_size: pageSize,
+      biz_type: 'web_search_user',
+      request_id: requestId,
+    },
+  };
+  const result = await signedXhrFetch(
+    'https://edith.xiaohongshu.com/api/sns/web/v1/search/usersearch',
+    'POST',
+    JSON.stringify(body),
+  );
+  console.log(`${TAG} [searchUsersearch] result code=${result?.code} success=${result?.success} users=${result?.data?.users?.length || 0}`);
   return result;
 }
 
@@ -1683,6 +1733,9 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
           String(message.keyword),
           String(message.cursor || ''),
           Number(message.page_size),
+          message.sort ? String(message.sort) : undefined,
+          message.note_type !== undefined ? Number(message.note_type) : undefined,
+          message.filters,
         );
         sendResponse({ success: true, data });
       } catch (e: any) {
@@ -2007,6 +2060,31 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         sendResponse({ success: true, data });
       } catch (e: any) {
         console.error(`${TAG} [SEARCH_USERS] error:`, e.message);
+        sendResponse({ success: false, error: e.message });
+      }
+    })();
+    return true;
+  }
+
+  if (message.type === XHS_MSG_TYPE.SEARCH_USERSEARCH) {
+    console.log(`${TAG} [SEARCH_USERSEARCH] received message:`, JSON.stringify(message));
+    (async () => {
+      try {
+        if (!message.keyword) {
+          console.log(`${TAG} [SEARCH_USERSEARCH] validation failed: keyword is required`);
+          sendResponse({ success: false, error: 'keyword is required' });
+          return;
+        }
+        console.log(`${TAG} [SEARCH_USERSEARCH] calling searchUsersearch...`);
+        const data = await searchUsersearch(
+          String(message.keyword),
+          message.page ? Number(message.page) : 1,
+          message.page_size ? Number(message.page_size) : 15,
+        );
+        console.log(`${TAG} [SEARCH_USERSEARCH] success, users:`, data?.data?.users?.length || 0);
+        sendResponse({ success: true, data });
+      } catch (e: any) {
+        console.error(`${TAG} [SEARCH_USERSEARCH] error:`, e.message);
         sendResponse({ success: false, error: e.message });
       }
     })();

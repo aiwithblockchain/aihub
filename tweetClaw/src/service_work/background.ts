@@ -63,6 +63,7 @@ interface QuerySearchTimelinePayload {
     cursor?: string;
     count?: number;
     tabId?: number;
+    product?: string; // Top | Latest | People | Media（透传到 x.com GraphQL SearchTimeline.variables.product）
 }
 
 interface QueryUserTweetsPayload {
@@ -126,6 +127,7 @@ localBridge.xhsGetPublishedNotesHandler = getXhsPublishedNotes;
 localBridge.xhsSearchFilterHandler = getXhsSearchFilter;
 localBridge.xhsPostCommentHandler = postXhsComment;
 localBridge.xhsSearchUsersHandler = searchXhsUsers;
+localBridge.xhsSearchUsersearchHandler = searchXhsUsersearch;
 localBridge.xhsGetIntimacyListHandler = getXhsIntimacyList;
 localBridge.xhsLikeNoteHandler = likeXhsNote;
 localBridge.xhsUnlikeNoteHandler = unlikeXhsNote;
@@ -1663,7 +1665,7 @@ export async function queryUserProfile(payload: QueryUserProfilePayload): Promis
  * 搜索推文 - 返回推特原始 GraphQL 响应
  */
 export async function querySearchTimeline(payload: QuerySearchTimelinePayload): Promise<TwitterResponse> {
-    const { query, cursor, count, tabId } = payload;
+    const { query, cursor, count, tabId, product } = payload;
 
     const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
     let targetTabId: number | undefined = tabId;
@@ -1681,6 +1683,7 @@ export async function querySearchTimeline(payload: QuerySearchTimelinePayload): 
         query,
         cursor,
         count,
+        product,
     });
 
     // 直接返回推特原始 GraphQL 响应
@@ -2260,6 +2263,28 @@ export async function searchXhsUsers(payload: Record<string, unknown>): Promise<
 
     if (!result?.success) {
         throw new Error(result?.error || 'Failed to search users');
+    }
+
+    return result.data;
+}
+
+export async function searchXhsUsersearch(payload: Record<string, unknown>): Promise<any> {
+    console.log('[TweetClaw-BG] searchXhsUsersearch called', payload);
+    const tab = await findXhsTab();
+    if (!tab?.id) {
+        throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
+    }
+
+    const result: any = await sendMessageToTab(tab.id, {
+        type: 'XHS_SEARCH_USERSEARCH',
+        ...payload,
+    }).catch((e: any) => {
+        console.error('[TweetClaw-BG] Failed to communicate with XHS content script:', e);
+        throw new Error(`Content script communication failed: ${e?.message}`);
+    });
+
+    if (!result?.success) {
+        throw new Error(result?.error || 'Failed to search users (usersearch)');
     }
 
     return result.data;

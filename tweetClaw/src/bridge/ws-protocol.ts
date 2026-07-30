@@ -43,6 +43,8 @@ export type MessageType =
   | 'response.xhs_post_comment'
   | 'command.xhs_search_users'
   | 'response.xhs_search_users'
+  | 'command.xhs_search_usersearch'
+  | 'response.xhs_search_usersearch'
   | 'command.xhs_get_intimacy_list'
   | 'response.xhs_get_intimacy_list'
   | 'command.xhs_like_note'
@@ -190,6 +192,8 @@ export const MESSAGE_TYPES: Record<string, MessageType> = {
   RESPONSE_XHS_POST_COMMENT: 'response.xhs_post_comment',
   COMMAND_XHS_SEARCH_USERS: 'command.xhs_search_users',
   RESPONSE_XHS_SEARCH_USERS: 'response.xhs_search_users',
+  COMMAND_XHS_SEARCH_USERSEARCH: 'command.xhs_search_usersearch',
+  RESPONSE_XHS_SEARCH_USERSEARCH: 'response.xhs_search_usersearch',
   COMMAND_XHS_GET_INTIMACY_LIST: 'command.xhs_get_intimacy_list',
   RESPONSE_XHS_GET_INTIMACY_LIST: 'response.xhs_get_intimacy_list',
   COMMAND_XHS_LIKE_NOTE: 'command.xhs_like_note',
@@ -447,6 +451,7 @@ export interface QuerySearchTimelineRequestPayload {
   query?: string;   // 搜索关键词
   cursor?: string;  // 翻页游标
   count?: number;   // 结果数量（默认 20）
+  product?: string; // Top | Latest | People | Media（透传到 x.com GraphQL SearchTimeline.variables.product，默认 Top）
 }
 
 export interface QueryUserTweetsRequestPayload {

@@ -58,9 +58,18 @@ class XhsService:
         """Get a specific note's feed data by note ID."""
         return self.transport.get_feed_raw(note_id=note_id, xsec_token=xsec_token, xsec_source=xsec_source)
 
-    def search(self, keyword: str, cursor: Optional[str] = None, page_size: int = 20) -> Dict[str, Any]:
-        """Search XHS notes by keyword with pagination."""
-        return self.transport.search_raw(keyword=keyword, cursor=cursor, page_size=page_size)
+    def search(self, keyword: str, cursor: Optional[str] = None, page_size: int = 20,
+               sort: Optional[str] = None, note_type: Optional[int] = None,
+               filters: Optional[List[Dict[str, Any]]] = None) -> Dict[str, Any]:
+        """Search XHS notes by keyword with pagination.
+
+        Args:
+            sort: 排序方式 (general=综合 | time_descending=最新发布)
+            note_type: 笔记类型 (0=全部 | 1=图文 | 2=视频)
+            filters: 完整的 filters 数组（覆盖 sort/note_type 默认值）
+        """
+        return self.transport.search_raw(keyword=keyword, cursor=cursor, page_size=page_size,
+                                         sort=sort, note_type=note_type, filters=filters)
 
     # ── User Content ──────────────────────────────────────────────────────────
 
@@ -293,6 +302,20 @@ class XhsService:
             rows: Results per page (default: 30)
         """
         return self.transport.search_users_raw(keyword=keyword, page=page, rows=rows)
+
+    def search_usersearch(self, keyword: str, page: int = 1, page_size: int = 15) -> Dict[str, Any]:
+        """全站用户搜索（v0.8 新增）
+
+        与 search_users（intimacy @mention 好友搜索）区分：本方法走 edith.xiaohongshu.com
+        的 /api/sns/web/v1/search/usersearch，抓包验证为真正的全站用户搜索端点，
+        返回 {users: [{id, name, fans, note_count, image, xsec_token, red_id, sub_title, ...}], has_more}。
+
+        Args:
+            keyword: 搜索关键词
+            page: 页码（从 1 开始）
+            page_size: 每页数量（默认 15，抓包观测值）
+        """
+        return self.transport.search_usersearch_raw(keyword=keyword, page=page, page_size=page_size)
 
     def get_intimacy_list(self) -> Dict[str, Any]:
         """

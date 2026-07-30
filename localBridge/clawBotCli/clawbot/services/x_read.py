@@ -55,8 +55,8 @@ class XReadService:
             return None
         return self.get_tweet(pinned_tweet_id, tab_id=tab_id, instance_id=instance_id)
 
-    def search(self, query: str, count: int = 20, cursor: Optional[str] = None, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Tuple[List[XTweet], List[XUser]]:
-        raw = self.transport.search_raw(query=query, count=count, cursor=cursor, tab_id=tab_id, instance_id=instance_id)
+    def search(self, query: str, count: int = 20, cursor: Optional[str] = None, tab_id: Optional[int] = None, instance_id: Optional[str] = None, product: Optional[str] = None) -> Tuple[List[XTweet], List[XUser]]:
+        raw = self.transport.search_raw(query=query, count=count, cursor=cursor, tab_id=tab_id, instance_id=instance_id, product=product)
         return extract_search_tweets_and_users(raw)
 
     def search_tweets(self, query: str, count: int = 20, cursor: Optional[str] = None, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> List[XTweet]:

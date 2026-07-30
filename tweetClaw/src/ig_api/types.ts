@@ -401,6 +401,9 @@ export interface IgSearchParams {
   query: string;                  // 搜索关键词
   searchSessionId?: string;       // 搜索会话 ID（可选，自动生成）
   serpSessionId?: string;         // 搜索结果页会话 ID（可选，自动生成）
+  // 分类搜索：context 控制 topsearch 返回的结果类型
+  // blended=全部（默认）| users=仅用户 | hashtags=仅标签 | places=仅地点
+  context?: string;
   // 分页支持
   after?: string;                 // 分页游标（用于获取下一页）
   before?: string;                // 分页游标（用于获取上一页）

@@ -54,10 +54,11 @@ type QueryUserProfileRequest struct {
 }
 
 type QuerySearchTimelineRequest struct {
-	TabID  *int   `json:"tabId,omitempty"`
-	Query  string `json:"query,omitempty"`  // 搜索关键词
-	Cursor string `json:"cursor,omitempty"` // 翻页游标
-	Count  int    `json:"count,omitempty"`  // 结果数量
+	TabID   *int   `json:"tabId,omitempty"`
+	Query   string `json:"query,omitempty"`   // 搜索关键词
+	Cursor  string `json:"cursor,omitempty"`  // 翻页游标
+	Count   int    `json:"count,omitempty"`   // 结果数量
+	Product string `json:"product,omitempty"` // Top | Latest | People | Media（透传到 x.com GraphQL SearchTimeline.variables.product，默认 Top）
 }
 
 type QueryUserTweetsRequest struct {

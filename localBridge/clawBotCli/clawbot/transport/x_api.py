@@ -60,7 +60,7 @@ class XApiTransport(BaseApiTransport):
             params["instanceId"] = instance_id
         return self.request_json("GET", "/api/v1/x/users", params=params)
 
-    def search_raw(self, query: str, cursor: Optional[str] = None, count: int = 20, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:
+    def search_raw(self, query: str, cursor: Optional[str] = None, count: int = 20, tab_id: Optional[int] = None, instance_id: Optional[str] = None, product: Optional[str] = None) -> Dict[Any, Any]:
         params = {"query": query, "count": count}
         if cursor:
             params["cursor"] = cursor
@@ -68,6 +68,9 @@ class XApiTransport(BaseApiTransport):
             params["tabId"] = tab_id
         if instance_id:
             params["instanceId"] = instance_id
+        # product: Top | Latest | People | Media（透传到 x.com GraphQL SearchTimeline.variables.product）
+        if product:
+            params["product"] = product
         return self.request_json("GET", "/api/v1/x/search", params=params)
 
     def get_user_tweets_raw(self, user_id: str, cursor: Optional[str] = None, count: int = 20, tab_id: Optional[int] = None, instance_id: Optional[str] = None) -> Dict[Any, Any]:

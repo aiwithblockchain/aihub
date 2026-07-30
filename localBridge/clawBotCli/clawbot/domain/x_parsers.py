@@ -150,6 +150,27 @@ def extract_first_timeline_tweet(response: Dict[str, Any]) -> Optional[XTweet]:
     return tweets[0] if tweets else None
 
 
+def _parse_user_result(result: Dict[str, Any]) -> XUser:
+    """Parse a user result entry, supporting both legacy and 2024+ Twitter structures."""
+    rest_id = result.get("rest_id") or result.get("id")
+    legacy = result.get("legacy", {}) if isinstance(result.get("legacy"), dict) else {}
+    core = result.get("core", {}) if isinstance(result.get("core"), dict) else {}
+    # 2024+ structure: core.screen_name, core.name; legacy fallback
+    screen_name = (
+        core.get("screen_name", {}).get("value") if isinstance(core.get("screen_name"), dict)
+        else core.get("screen_name")
+    ) or legacy.get("screen_name")
+    name = core.get("name") or legacy.get("name")
+    description = legacy.get("description")
+    return XUser(
+        id=str(rest_id) if rest_id is not None else None,
+        name=name,
+        screen_name=screen_name,
+        description=description,
+        raw=result,
+    )
+
+
 def extract_search_tweets_and_users(response: Dict[str, Any]) -> Tuple[List[XTweet], List[XUser]]:
     data = _unwrap_data(response)
     instructions = (
@@ -160,29 +181,35 @@ def extract_search_tweets_and_users(response: Dict[str, Any]) -> Tuple[List[XTwe
     )
     tweets: List[XTweet] = []
     users: List[XUser] = []
+    seen_user_ids: set = set()
     for instruction in instructions:
         if instruction.get("type") != "TimelineAddEntries":
             continue
         for entry in instruction.get("entries", []):
-            result = (
-                entry.get("content", {})
-                .get("itemContent", {})
-                .get("tweet_results", {})
-                .get("result", {})
-            )
-            if not result:
-                continue
-            tweet = parse_tweet_result(result)
-            tweets.append(tweet)
-            if tweet.author_id or tweet.author_screen_name:
-                users.append(
-                    XUser(
-                        id=tweet.author_id,
-                        name=tweet.author_name,
-                        screen_name=tweet.author_screen_name,
-                        raw=result,
+            item_content = entry.get("content", {}).get("itemContent", {})
+            # Tweet entries (product=Top/Latest/Media)
+            tweet_result = item_content.get("tweet_results", {}).get("result", {})
+            if tweet_result:
+                tweet = parse_tweet_result(tweet_result)
+                tweets.append(tweet)
+                if tweet.author_id or tweet.author_screen_name:
+                    users.append(
+                        XUser(
+                            id=tweet.author_id,
+                            name=tweet.author_name,
+                            screen_name=tweet.author_screen_name,
+                            raw=tweet_result,
+                        )
                     )
-                )
+                continue
+            # User entries (product=People)
+            user_result = item_content.get("user_results", {}).get("result", {})
+            if user_result:
+                user = _parse_user_result(user_result)
+                if user.id and user.id in seen_user_ids:
+                    continue
+                seen_user_ids.add(user.id)
+                users.append(user)
     return tweets, users
 
 

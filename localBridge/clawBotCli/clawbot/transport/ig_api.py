@@ -365,6 +365,7 @@ class IgApiTransport(BaseApiTransport):
         before: Optional[str] = None,
         first: Optional[int] = None,
         last: Optional[int] = None,
+        context: Optional[str] = None,
     ) -> Dict[Any, Any]:
         """搜索 Instagram 内容
 
@@ -376,6 +377,7 @@ class IgApiTransport(BaseApiTransport):
             before: 分页游标（向前）
             first: 获取数量（从前往后）
             last: 获取数量（从后往前）
+            context: 搜索类型 (blended=全部 | users=仅用户 | hashtags=仅标签 | places=仅地点)
 
         Returns:
             搜索结果列表，包含 results, hasMore, endCursor, startCursor
@@ -394,6 +396,8 @@ class IgApiTransport(BaseApiTransport):
             payload["first"] = first
         if last is not None:
             payload["last"] = last
+        if context:
+            payload["context"] = context
 
         # 搜索可能需要更长时间，设置 30 秒超时
         return self.request_json("POST", "/api/v1/ig/search", json=payload, timeout=30)
@@ -405,9 +409,14 @@ class IgApiTransport(BaseApiTransport):
         before: Optional[str] = None,
         first: Optional[int] = None,
         last: Optional[int] = None,
+        context: Optional[str] = None,
     ) -> Dict[Any, Any]:
-        """搜索 Instagram 内容（支持分页）"""
-        return self.search_raw(query, after=after, before=before, first=first, last=last)
+        """搜索 Instagram 内容（支持分页）
+
+        Args:
+            context: 搜索类型 (blended=全部 | users=仅用户 | hashtags=仅标签 | places=仅地点)
+        """
+        return self.search_raw(query, after=after, before=before, first=first, last=last, context=context)
 
     def get_followers(
         self,

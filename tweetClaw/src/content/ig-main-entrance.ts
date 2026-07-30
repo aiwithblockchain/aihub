@@ -523,7 +523,7 @@ async function handleGetMediaComments(params: Record<string, any>): Promise<any>
 }
 
 async function handleSearch(params: Record<string, any>): Promise<any> {
-  const { query, searchSessionId, serpSessionId, after, before, first, last } = params;
+  const { query, searchSessionId, serpSessionId, after, before, first, last, context } = params;
 
   if (!query) {
     throw new Error('query is required');
@@ -537,6 +537,7 @@ async function handleSearch(params: Record<string, any>): Promise<any> {
     before,
     first,
     last,
+    context,
   });
 
   return {

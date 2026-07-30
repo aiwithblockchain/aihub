@@ -61,10 +61,19 @@ class XhsApiTransport(BaseApiTransport):
             params["xsec_source"] = xsec_source
         return self.request_json("GET", "/api/v1/xhs/feed", params=params)
 
-    def search_raw(self, keyword: str, cursor: Optional[str] = None, page_size: int = 20) -> Dict[Any, Any]:
+    def search_raw(self, keyword: str, cursor: Optional[str] = None, page_size: int = 20,
+                   sort: Optional[str] = None, note_type: Optional[int] = None,
+                   filters: Optional[List[Dict[str, Any]]] = None) -> Dict[Any, Any]:
         payload = {"keyword": keyword, "page_size": page_size}
         if cursor:
             payload["cursor"] = cursor
+        # 分类搜索参数：透传到 tweetClaw content script 的 searchNotes
+        if sort:
+            payload["sort"] = sort
+        if note_type is not None:
+            payload["note_type"] = note_type
+        if filters is not None:
+            payload["filters"] = filters
         return self.request_json("POST", "/api/v1/xhs/search", json=payload)
 
     def get_user_notes_raw(self, user_id: str, cursor: Optional[str] = None, xsec_token: Optional[str] = None, xsec_source: Optional[str] = None) -> Dict[Any, Any]:
@@ -172,6 +181,23 @@ class XhsApiTransport(BaseApiTransport):
     def search_users_raw(self, keyword: str, page: int = 1, rows: int = 30) -> Dict[Any, Any]:
         params = {"keyword": keyword, "page": str(page), "rows": str(rows)}
         return self.request_json("GET", "/api/v1/xhs/search_users", params=params)
+
+    def search_usersearch_raw(self, keyword: str, page: int = 1, page_size: int = 15) -> Dict[Any, Any]:
+        """全站用户搜索（v0.8 新增）
+
+        与 search_users_raw（intimacy @mention 好友搜索）区分：本方法走 edith.xiaohongshu.com
+        的 /api/sns/web/v1/search/usersearch，抓包验证为真正的全站用户搜索端点。
+
+        Args:
+            keyword: 搜索关键词
+            page: 页码（从 1 开始）
+            page_size: 每页数量（默认 15，抓包观测值）
+
+        Returns:
+            原始响应，结构为 {code, success, data: {users: [...], has_more: bool}}
+        """
+        payload = {"keyword": keyword, "page": page, "page_size": page_size}
+        return self.request_json("POST", "/api/v1/xhs/search/usersearch", json=payload)
 
     def get_intimacy_list_raw(self) -> Dict[Any, Any]:
         return self.request_json("GET", "/api/v1/xhs/intimacy_list")

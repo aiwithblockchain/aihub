@@ -2419,7 +2419,7 @@ export class IgApiClient {
       const rankToken = `${Date.now()}|${this.generateRandomHash()}`;
       const variables = {
         data: {
-          context: 'blended',
+          context: params.context || 'blended',
           include_reel: 'true',
           query: params.query,
           rank_token: rankToken,

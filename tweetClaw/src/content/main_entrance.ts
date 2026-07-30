@@ -475,7 +475,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     rawQuery: query,
                     count: count,
                     querySource: 'typed_query',
-                    product: 'Top',
+                    product: message.product || 'Top',
                     withGrokTranslatedBio: false
                 };
 
@@ -585,7 +585,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
                     rawQuery: message.query || '',
                     count: message.count || 20,
                     querySource: 'typed_query',
-                    product: 'Top',
+                    product: message.product || 'Top',
                     withGrokTranslatedBio: false
                 };
                 if (message.cursor) {
