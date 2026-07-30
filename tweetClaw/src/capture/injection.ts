@@ -17,7 +17,7 @@ import { watchedOps, isGuestHandle } from './consts';
 
     // ===== Instagram doc_id 动态捕获（方案核心）=====
     // 仅在 instagram.com 域名下激活；Twitter 页面 hostname 不匹配，零影响。
-    const IG_GRAPHQL_URL_PATTERN = /instagram\.com\/(api\/)?graphql\//i;
+    const IG_GRAPHQL_URL_PATTERN = /\/(api\/)?graphql(\/|$)/i;
     const IG_DOC_ID_STORAGE_KEY = 'ig_doc_id_map';
 
     function isIgContext(): boolean {
