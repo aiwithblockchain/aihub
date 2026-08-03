@@ -963,16 +963,14 @@ async function ensurePlatformTabReady(
 
     let tabId: number;
     if (!tab?.id) {
+        // 没有已有标签页 → 后台打开首页
         const created = await chrome.tabs.create({ url: homeUrl, active: false });
         tabId = created.id!;
     } else {
+        // tab 已存在 → 只等加载完成，不 reload / navigate。
+        // signedFetch 只要求 tab 在目标域名上（cookie/origin 正确），
+        // 不要求在首页；强制刷新会打断用户浏览。
         tabId = tab.id;
-        const normalize = (u: string) => u.split('#')[0].split('?')[0];
-        if (normalize(tab.url || '') === normalize(homeUrl)) {
-            await chrome.tabs.reload(tabId);
-        } else {
-            await chrome.tabs.update(tabId, { url: homeUrl });
-        }
     }
 
     await waitForTabComplete(tabId, timeoutMs);
