@@ -966,14 +966,18 @@ async function ensurePlatformTabReady(
         // 没有已有标签页 → 后台打开首页
         const created = await chrome.tabs.create({ url: homeUrl, active: false });
         tabId = created.id!;
+        await waitForTabComplete(tabId, timeoutMs);
     } else {
-        // tab 已存在 → 只等加载完成，不 reload / navigate。
-        // signedFetch 只要求 tab 在目标域名上（cookie/origin 正确），
-        // 不要求在首页；强制刷新会打断用户浏览。
+        // tab 已存在 → 不 reload / navigate，避免打断用户浏览。
+        // signedFetch 只要求 tab 在目标域名上（cookie/origin 正确）。
         tabId = tab.id;
+        // 仅当 tab 仍在加载时才等待；已 complete 则直接返回，
+        // 否则 onUpdated 永不触发 → 超时。
+        const current = await chrome.tabs.get(tabId);
+        if (current.status !== 'complete') {
+            await waitForTabComplete(tabId, timeoutMs);
+        }
     }
-
-    await waitForTabComplete(tabId, timeoutMs);
     return tabId;
 }
 
