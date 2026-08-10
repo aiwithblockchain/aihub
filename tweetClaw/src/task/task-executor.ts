@@ -257,6 +257,15 @@ export class BackgroundTaskCoordinator {
     }
 
     if (taskKind === 'xhs.publish_video' || taskKind === 'xhs.image_upload') {
+      // 优先 creator.xiaohongshu.com：发布/上传要求 origin=creator，
+      // 否则 content script 的 assertCreatorPublishPage 会拦截（风控指纹）。
+      const creatorTabs = await chrome.tabs.query({ url: ['*://creator.xiaohongshu.com/*'] });
+      const creatorTab = creatorTabs.find(t => t.active) || creatorTabs[0];
+      if (creatorTab?.id) {
+        return creatorTab.id;
+      }
+
+      // 兜底：www tab（publish 阶段若非 creator 域会被 assertCreatorPublishPage 拦截）
       const xhsTabs = await chrome.tabs.query({ url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*'] });
       const targetTab = xhsTabs.find(tab => tab.active) || xhsTabs[0];
       if (!targetTab?.id) {
