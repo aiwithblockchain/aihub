@@ -555,6 +555,28 @@ async function harvestBearer(bearer: string | null | undefined) {
     }
 }
 
+// ── 心跳：保活 content script ↔ background 连接 ───────────────────
+chrome.runtime.onConnect.addListener((port) => {
+    if (port.name !== 'heartbeat') return;
+
+    let platformLogged = false;
+
+    port.onDisconnect.addListener(() => {
+        console.log('[TweetClaw-BG] Heartbeat port disconnected');
+    });
+
+    port.onMessage.addListener((msg) => {
+        if (msg.type === 'HEARTBEAT_PING') {
+            const src = msg.platform || 'unknown';
+            if (!platformLogged) {
+                console.log(`[TweetClaw-BG] Heartbeat port connected: platform=${src}`);
+                platformLogged = true;
+            }
+            port.postMessage({ type: 'HEARTBEAT_PONG' });
+        }
+    });
+});
+
 // ── 消息中枢 ─────────────────────────────────────────────────────
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
