@@ -561,7 +561,6 @@ interface HealthEntry {
     platform: string;
     tabId: number;
     lastPingAt: number;
-    status: 'alive' | 'disconnected';
 }
 
 const healthTable = new Map<string, HealthEntry>(); // key: `${platform}:${tabId}`
@@ -573,7 +572,6 @@ function healthLog() {
     const entries = Array.from(healthTable.values()).map(e => ({
         platform: e.platform,
         tabId: e.tabId,
-        status: e.status,
         ageSec: Math.round((now - e.lastPingAt) / 1000),
     }));
     console.log(`[TweetClaw-BG] Health table (${entries.length} entries):`, JSON.stringify(entries));
@@ -589,13 +587,12 @@ chrome.runtime.onConnect.addListener((port) => {
 
     port.onDisconnect.addListener(() => {
         const src = port.sender?.tab?.id ?? -1;
-        // 标记断开，不立即删除（保留供日志观察）
         for (const [key, entry] of healthTable) {
             if (entry.tabId === src) {
-                entry.status = 'disconnected';
+                healthTable.delete(key);
+                console.log(`[TweetClaw-BG] Health entry removed: ${key}`);
             }
         }
-        console.log(`[TweetClaw-BG] Heartbeat port disconnected: tabId=${src}`);
     });
 
     port.onMessage.addListener((msg) => {
@@ -605,13 +602,11 @@ chrome.runtime.onConnect.addListener((port) => {
                 console.log(`[TweetClaw-BG] Heartbeat port connected: platform=${src} tabId=${tabId}`);
                 platformLogged = true;
             }
-            // 更新健康表
             const key = `${src}:${tabId}`;
             healthTable.set(key, {
                 platform: src,
                 tabId,
                 lastPingAt: Date.now(),
-                status: 'alive',
             });
             port.postMessage({ type: 'HEARTBEAT_PONG' });
         }

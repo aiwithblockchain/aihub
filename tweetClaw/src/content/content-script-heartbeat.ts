@@ -4,7 +4,7 @@ let platform = 'unknown';
 
 const HEARTBEAT_INTERVAL_MS = 20_000;
 const HEARTBEAT_TIMEOUT_MS  = 5_000;
-const RECONNECT_TIMEOUT_MS  = 3_000;
+const RECONNECT_TIMEOUT_MS  = 8_000;
 
 let port: chrome.runtime.Port | null = null;
 let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
@@ -54,6 +54,7 @@ function startHeartbeat() {
 
         if (pongTimer !== null) {
             clearTimeout(pongTimer);
+            pongTimer = null;
         }
 
         try {
@@ -75,6 +76,8 @@ function startHeartbeat() {
 function attemptReconnect() {
     console.log(`${TAG} Attempting reconnect (timeout in ${RECONNECT_TIMEOUT_MS}ms)...`);
 
+    let reconnectSucceeded = false;
+
     const reloadTimer = setTimeout(() => {
         console.warn(`${TAG} Reconnect timed out, reloading page...`);
         location.reload();
@@ -85,15 +88,15 @@ function attemptReconnect() {
 
         newPort.onMessage.addListener((msg) => {
             if (msg.type === 'HEARTBEAT_PONG') {
+                reconnectSucceeded = true;
                 clearTimeout(reloadTimer);
                 console.log(`${TAG} Reconnect successful`);
-                // Attach with full lifecycle management for the new port
                 attachPort(newPort);
             }
         });
 
         newPort.onDisconnect.addListener(() => {
-            // newPort disconnected before we got a PONG — reloadTimer will fire
+            if (reconnectSucceeded) return;
             const err = chrome.runtime.lastError?.message || 'unknown';
             console.warn(`${TAG} Reconnect port disconnected before PONG (reason: ${err}), waiting for reload timer...`);
         });
@@ -102,11 +105,16 @@ function attemptReconnect() {
         console.log(`${TAG} Reconnect PING sent`);
     } catch (e) {
         console.error(`${TAG} Reconnect connect() threw immediately:`, e);
-        // reloadTimer will still fire
     }
 }
 
 export function connect(p: string) {
+    if (port !== null || heartbeatTimer !== null) {
+        console.warn(`${TAG} connect() called while already active, tearing down previous connection`);
+        clearHeartbeat();
+        port?.disconnect();
+        port = null;
+    }
     platform = p;
     console.log(`${TAG} Initializing heartbeat... platform=${platform}`);
     try {
