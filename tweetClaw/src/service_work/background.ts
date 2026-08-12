@@ -32,37 +32,31 @@ interface ExecActionPayload {
     action: string;
     tweetId?: string;
     userId?: string;
-    tabId?: number;
     text?: string;
     media_ids?: string[];
     attachmentUrl?: string;
 }
 
 interface QueryTimelinePayload {
-    tabId?: number;
 }
 
 interface QueryTweetPayload {
     tweetId: string;
-    tabId?: number;
 }
 
 interface QueryTweetRepliesPayload {
     tweetId: string;
-    tabId?: number;
     cursor?: string;
 }
 
 interface QueryUserProfilePayload {
     screenName: string;
-    tabId?: number;
 }
 
 interface QuerySearchTimelinePayload {
     query?: string;
     cursor?: string;
     count?: number;
-    tabId?: number;
     product?: string; // Top | Latest | People | Media（透传到 x.com GraphQL SearchTimeline.variables.product）
 }
 
@@ -70,28 +64,24 @@ interface QueryUserTweetsPayload {
     userId: string;
     cursor?: string;
     count?: number;
-    tabId?: number;
 }
 
 interface QueryFollowersPayload {
     userId: string;
     cursor?: string;
     count?: number;
-    tabId?: number;
 }
 
 interface QueryFollowingPayload {
     userId: string;
     cursor?: string;
     count?: number;
-    tabId?: number;
 }
 
 interface QueryBlueVerifiedFollowersPayload {
     userId: string;
     cursor?: string;
     count?: number;
-    tabId?: number;
 }
 
 const backgroundSessionStore = new BackgroundSessionStore();
@@ -1599,16 +1589,10 @@ export async function closeTabByPlatform(payload: CloseTabRequestPayload): Promi
  * 执行推特操作（like, retweet, follow 等）- 返回推特原始响应
  */
 export async function execAction(payload: ExecActionPayload): Promise<TwitterResponse> {
-    const { tabId } = payload;
     console.log(`[TweetClaw-BG] execAction: ${payload.action}`, payload);
 
-    let targetTabId = tabId;
-    if (!targetTabId) {
-        const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-        const targetTab = xTabs.find(t => t.active) || xTabs[0];
-        targetTabId = targetTab?.id;
-    }
-
+    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
+    const targetTabId = (xTabs.find(t => t.active) || xTabs[0])?.id;
     if (!targetTabId) {
         throw new Error('No target tab found for action');
     }
@@ -1628,13 +1612,9 @@ export async function execAction(payload: ExecActionPayload): Promise<TwitterRes
 /**
  * 查询主页时间线 - 返回推特原始 GraphQL 响应
  */
-export async function queryHomeTimeline(payload: QueryTimelinePayload): Promise<TwitterResponse> {
+export async function queryHomeTimeline(_payload: QueryTimelinePayload): Promise<TwitterResponse> {
     const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    let targetTabId: number | undefined = payload?.tabId;
-    if (!targetTabId) {
-        const activeTab = xTabs.find(t => t.active) || xTabs[0];
-        targetTabId = activeTab?.id;
-    }
+    const targetTabId = (xTabs.find(t => t.active) || xTabs[0])?.id;
     if (!targetTabId) {
         throw new Error('No x.com tab found');
     }
@@ -1654,17 +1634,13 @@ export async function queryHomeTimeline(payload: QueryTimelinePayload): Promise<
  * 查询推文回复 - 返回推特原始 GraphQL 响应
  */
 export async function queryTweetReplies(payload: QueryTweetRepliesPayload): Promise<TwitterResponse> {
-    const { tweetId, tabId, cursor } = payload;
+    const { tweetId, cursor } = payload;
     if (!tweetId) {
         throw new Error('tweetId is required');
     }
 
     const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    let targetTabId: number | undefined = tabId;
-    if (!targetTabId) {
-        const activeTab = xTabs.find(t => t.active) || xTabs[0];
-        targetTabId = activeTab?.id;
-    }
+    const targetTabId = (xTabs.find(t => t.active) || xTabs[0])?.id;
     if (!targetTabId) {
         throw new Error('No x.com tab found');
     }
@@ -1684,17 +1660,13 @@ export async function queryTweetReplies(payload: QueryTweetRepliesPayload): Prom
  * 查询推文详情 - 返回推特原始 GraphQL 响应
  */
 export async function queryTweetDetail(payload: QueryTweetPayload): Promise<TwitterResponse> {
-    const { tweetId, tabId } = payload;
+    const { tweetId } = payload;
     if (!tweetId) {
         throw new Error('tweetId is required');
     }
 
     const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    let targetTabId: number | undefined = tabId;
-    if (!targetTabId) {
-        const activeTab = xTabs.find(t => t.active) || xTabs[0];
-        targetTabId = activeTab?.id;
-    }
+    const targetTabId = (xTabs.find(t => t.active) || xTabs[0])?.id;
     if (!targetTabId) {
         throw new Error('No x.com tab found');
     }
@@ -1713,17 +1685,13 @@ export async function queryTweetDetail(payload: QueryTweetPayload): Promise<Twit
  * 查询用户资料 - 返回推特原始 GraphQL 响应
  */
 export async function queryUserProfile(payload: QueryUserProfilePayload): Promise<TwitterResponse> {
-    const { screenName, tabId } = payload;
+    const { screenName } = payload;
     if (!screenName) {
         throw new Error('screenName is required');
     }
 
     const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    let targetTabId: number | undefined = tabId;
-    if (!targetTabId) {
-        const activeTab = xTabs.find(t => t.active) || xTabs[0];
-        targetTabId = activeTab?.id;
-    }
+    const targetTabId = (xTabs.find(t => t.active) || xTabs[0])?.id;
     if (!targetTabId) {
         throw new Error('No x.com tab found');
     }
@@ -1742,14 +1710,10 @@ export async function queryUserProfile(payload: QueryUserProfilePayload): Promis
  * 搜索推文 - 返回推特原始 GraphQL 响应
  */
 export async function querySearchTimeline(payload: QuerySearchTimelinePayload): Promise<TwitterResponse> {
-    const { query, cursor, count, tabId, product } = payload;
+    const { query, cursor, count, product } = payload;
 
     const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    let targetTabId: number | undefined = tabId;
-    if (!targetTabId) {
-        const activeTab = xTabs.find(t => t.active) || xTabs[0];
-        targetTabId = activeTab?.id;
-    }
+    const targetTabId = (xTabs.find(t => t.active) || xTabs[0])?.id;
     if (!targetTabId) {
         throw new Error('No x.com tab found');
     }
@@ -1771,14 +1735,10 @@ export async function querySearchTimeline(payload: QuerySearchTimelinePayload): 
  * 查询用户推文 - 返回推特原始 GraphQL 响应
  */
 export async function queryUserTweets(payload: QueryUserTweetsPayload): Promise<TwitterResponse> {
-    const { userId, cursor, count, tabId } = payload;
+    const { userId, cursor, count } = payload;
 
     const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    let targetTabId: number | undefined = tabId;
-    if (!targetTabId) {
-        const activeTab = xTabs.find(t => t.active) || xTabs[0];
-        targetTabId = activeTab?.id;
-    }
+    const targetTabId = (xTabs.find(t => t.active) || xTabs[0])?.id;
     if (!targetTabId) {
         throw new Error('No x.com tab found');
     }
@@ -1799,15 +1759,11 @@ export async function queryUserTweets(payload: QueryUserTweetsPayload): Promise<
  * 查询粉丝列表（关注我的） - 返回推特原始 GraphQL 响应
  */
 export async function queryFollowers(payload: QueryFollowersPayload): Promise<TwitterResponse> {
-    const { userId, cursor, count, tabId } = payload;
+    const { userId, cursor, count } = payload;
     if (!userId) throw new Error('userId is required');
 
     const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    let targetTabId: number | undefined = tabId;
-    if (!targetTabId) {
-        const activeTab = xTabs.find(t => t.active) || xTabs[0];
-        targetTabId = activeTab?.id;
-    }
+    const targetTabId = (xTabs.find(t => t.active) || xTabs[0])?.id;
     if (!targetTabId) throw new Error('No x.com tab found');
 
     const result = await sendMessageToTab(targetTabId, {
@@ -1824,15 +1780,11 @@ export async function queryFollowers(payload: QueryFollowersPayload): Promise<Tw
  * 查询我关注的用户列表 - 返回推特原始 GraphQL 响应
  */
 export async function queryFollowing(payload: QueryFollowingPayload): Promise<TwitterResponse> {
-    const { userId, cursor, count, tabId } = payload;
+    const { userId, cursor, count } = payload;
     if (!userId) throw new Error('userId is required');
 
     const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    let targetTabId: number | undefined = tabId;
-    if (!targetTabId) {
-        const activeTab = xTabs.find(t => t.active) || xTabs[0];
-        targetTabId = activeTab?.id;
-    }
+    const targetTabId = (xTabs.find(t => t.active) || xTabs[0])?.id;
     if (!targetTabId) throw new Error('No x.com tab found');
 
     const result = await sendMessageToTab(targetTabId, {
@@ -1849,15 +1801,11 @@ export async function queryFollowing(payload: QueryFollowingPayload): Promise<Tw
  * 查询关注我的蓝 V 用户列表 - 返回推特原始 GraphQL 响应
  */
 export async function queryBlueVerifiedFollowers(payload: QueryBlueVerifiedFollowersPayload): Promise<TwitterResponse> {
-    const { userId, cursor, count, tabId } = payload;
+    const { userId, cursor, count } = payload;
     if (!userId) throw new Error('userId is required');
 
     const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    let targetTabId: number | undefined = tabId;
-    if (!targetTabId) {
-        const activeTab = xTabs.find(t => t.active) || xTabs[0];
-        targetTabId = activeTab?.id;
-    }
+    const targetTabId = (xTabs.find(t => t.active) || xTabs[0])?.id;
     if (!targetTabId) throw new Error('No x.com tab found');
 
     const result = await sendMessageToTab(targetTabId, {

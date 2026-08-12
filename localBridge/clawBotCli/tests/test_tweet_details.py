@@ -52,9 +52,9 @@ def print_json_preview(label: str, payload: Any, limit: int = 1000) -> None:
     print(f"{label}:\n{preview}")
 
 
-def extract_tweet_id_from_timeline(client: ClawBotClient, tab_id: Optional[int]) -> Optional[str]:
+def extract_tweet_id_from_timeline(client: ClawBotClient) -> Optional[str]:
     print("\n📋 Extracting tweet ID from timeline...")
-    tweet = client.x.timeline.get_first_timeline_tweet(tab_id=tab_id)
+    tweet = client.x.timeline.get_first_timeline_tweet()
     if tweet and tweet.id:
         print(f"✅ Found tweet ID: {tweet.id}")
         return tweet.id
@@ -62,13 +62,13 @@ def extract_tweet_id_from_timeline(client: ClawBotClient, tab_id: Optional[int])
     return None
 
 
-def test_get_tweet(client: ClawBotClient, tweet_id: str, instance_id: Optional[str], tab_id: Optional[int]) -> bool:
+def test_get_tweet(client: ClawBotClient, tweet_id: str, instance_id: Optional[str]) -> bool:
     print("\n" + "=" * 60)
     print("Testing: GET /api/v1/x/tweets?tweetId=...")
     print("=" * 60)
 
-    raw = client.x.tweets.get_tweet_raw(tweet_id, tab_id=tab_id, instance_id=instance_id)
-    tweet = client.x.tweets.get_tweet(tweet_id, tab_id=tab_id, instance_id=instance_id)
+    raw = client.x.tweets.get_tweet_raw(tweet_id, instance_id=instance_id)
+    tweet = client.x.tweets.get_tweet(tweet_id, instance_id=instance_id)
 
     print_json_preview("Raw TweetDetail preview", raw)
     print(f"Structured tweet id: {tweet.id}")
@@ -88,13 +88,13 @@ def test_get_tweet(client: ClawBotClient, tweet_id: str, instance_id: Optional[s
     return True
 
 
-def test_get_tweet_replies(client: ClawBotClient, tweet_id: str, instance_id: Optional[str], tab_id: Optional[int]) -> bool:
+def test_get_tweet_replies(client: ClawBotClient, tweet_id: str, instance_id: Optional[str]) -> bool:
     print("\n" + "=" * 60)
     print("Testing: GET /api/v1/x/tweets/{tweetId}/replies")
     print("=" * 60)
 
-    raw = client.x.tweets.transport.get_tweet_replies_raw(tweet_id=tweet_id, tab_id=tab_id, instance_id=instance_id)
-    replies = client.x.tweets.get_tweet_replies(tweet_id, tab_id=tab_id, instance_id=instance_id)
+    raw = client.x.tweets.transport.get_tweet_replies_raw(tweet_id=tweet_id, instance_id=instance_id)
+    replies = client.x.tweets.get_tweet_replies(tweet_id, instance_id=instance_id)
 
     print_json_preview("Raw replies preview", raw)
     print(f"Retrieved {len(replies)} structured replies")
@@ -122,7 +122,6 @@ def main() -> int:
     parser = argparse.ArgumentParser(description="Run tweet detail and replies smoke tests")
     parser.add_argument("--tweet-id", type=str, help="Tweet ID to test")
     parser.add_argument("--instance-id", type=str, help="Explicit instanceId")
-    parser.add_argument("--tab-id", type=int, help="Optional tabId")
     parser.add_argument("--only", choices=["tweet", "replies"], help="Run only one sub-test")
     args = parser.parse_args()
 
@@ -131,7 +130,7 @@ def main() -> int:
 
     client = ClawBotClient()
     resolved_instance_id = resolve_instance_id(client, args.instance_id)
-    tweet_id = args.tweet_id or extract_tweet_id_from_timeline(client, args.tab_id)
+    tweet_id = args.tweet_id or extract_tweet_id_from_timeline(client)
 
     if not tweet_id:
         print("⏭️  Skipped - No tweet ID available")
@@ -139,9 +138,9 @@ def main() -> int:
 
     results = []
     if args.only in (None, "tweet"):
-        results.append(("Get Tweet", test_get_tweet(client, tweet_id, resolved_instance_id, args.tab_id)))
+        results.append(("Get Tweet", test_get_tweet(client, tweet_id, resolved_instance_id)))
     if args.only in (None, "replies"):
-        results.append(("Get Tweet Replies", test_get_tweet_replies(client, tweet_id, resolved_instance_id, args.tab_id)))
+        results.append(("Get Tweet Replies", test_get_tweet_replies(client, tweet_id, resolved_instance_id)))
 
     print("\n" + "=" * 60)
     print("Test Summary:")

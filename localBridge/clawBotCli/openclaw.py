@@ -37,34 +37,33 @@ def choose_logged_in_platform(client: ClawBotClient) -> Optional[str]:
     return selected
 
 
-def ensure_x_ready(client: ClawBotClient) -> Optional[int]:
+def ensure_x_ready(client: ClawBotClient) -> bool:
     print("\n" + "=" * 60)
     print("📍 Step 2: Testing TweetClaw Connectivity")
     print("=" * 60)
     instances = client.x.status.get_instances()
     if not isinstance(instances, list) or not instances:
         print("❌ No tweetClaw instances connected")
-        return None
+        return False
     print(f"✅ Found {len(instances)} tweetClaw instance(s)")
 
     status = client.x.status.get_status()
     if not status.is_logged_in:
         print("❌ Not logged in to X.com")
-        return None
+        return False
     if not status.tabs:
         print("❌ No X.com tabs open")
-        return None
-    tab_id = status.tabs[0].tab_id
-    print(f"✅ Logged in to X.com with tab ID: {tab_id}")
-    return tab_id
+        return False
+    print("✅ Logged in to X.com")
+    return True
 
 
-def get_pinned_tweet(client: ClawBotClient, username: str, tab_id: Optional[int]):
+def get_pinned_tweet(client: ClawBotClient, username: str):
     print("\n" + "=" * 60)
     print(f"📍 Step 3: Fetching Pinned Tweet from @{username}")
     print("=" * 60)
-    client.x.tabs.navigate(username, tab_id=tab_id)
-    tweet = client.x.users.get_pinned_tweet(username, tab_id=tab_id)
+    client.x.tabs.navigate(username)
+    tweet = client.x.users.get_pinned_tweet(username)
     if not tweet or not tweet.id:
         raise ParseError(f"No pinned tweet found for @{username}")
     print(f"✅ Found pinned tweet ID: {tweet.id}")
@@ -130,10 +129,9 @@ def main() -> int:
     platform = choose_logged_in_platform(client)
     if not platform:
         return 1
-    tab_id = ensure_x_ready(client)
-    if tab_id is None:
+    if not ensure_x_ready(client):
         return 1
-    tweet = get_pinned_tweet(client, username, tab_id)
+    tweet = get_pinned_tweet(client, username)
     reply_text = analyze_with_ai(client, platform, tweet.text or "")
     post_reply(client, tweet.id, reply_text)
     print("\n✅ Workflow completed successfully!")

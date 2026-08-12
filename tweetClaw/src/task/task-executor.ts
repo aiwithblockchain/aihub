@@ -86,7 +86,7 @@ export class BackgroundTaskCoordinator {
       const params = (request.params || {}) as BackgroundTaskParams;
       this.assertSupportedRequestParams(params);
 
-      const tabId = await this.resolveTargetTab(request.taskKind, params.tabId);
+      const tabId = await this.resolveTargetTab(request.taskKind);
       context.tabId = tabId;
       logger.info(`[BackgroundTaskCoordinator] Resolved target tab, taskId=${taskId}, taskKind=${request.taskKind}, tabId=${tabId}`);
 
@@ -251,11 +251,7 @@ export class BackgroundTaskCoordinator {
     }
   }
 
-  private async resolveTargetTab(taskKind: string, preferredTabId?: number): Promise<number> {
-    if (preferredTabId) {
-      return preferredTabId;
-    }
-
+  private async resolveTargetTab(taskKind: string): Promise<number> {
     if (taskKind === 'xhs.publish_video' || taskKind === 'xhs.image_upload') {
       // 优先 creator.xiaohongshu.com：发布/上传要求 origin=creator，
       // 否则 content script 的 assertCreatorPublishPage 会拦截（风控指纹）。

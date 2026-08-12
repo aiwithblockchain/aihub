@@ -16,7 +16,6 @@ export interface InputMetadata {
 }
 
 export interface BackgroundTaskParams extends Record<string, any> {
-  tabId?: number;
   totalParts: number;
   totalBytes: number;
   contentType: string;

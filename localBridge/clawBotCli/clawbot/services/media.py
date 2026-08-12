@@ -21,7 +21,7 @@ class MediaService:
         self.uploader = uploader or ChunkedUploader(task_client)
         self.progress = progress or ProgressDisplay()
 
-    def upload(self, file_path: str, client_name: str = "tweetClaw", instance_id: Optional[str] = None, tab_id: Optional[int] = None) -> MediaUploadResult:
+    def upload(self, file_path: str, client_name: str = "tweetClaw", instance_id: Optional[str] = None) -> MediaUploadResult:
         if not os.path.exists(file_path):
             raise MediaUploadError(f"File does not exist: {file_path}")
 
@@ -34,7 +34,7 @@ class MediaService:
                 instance_id=instance_id,
                 task_kind="x.media_upload",
                 input_mode="chunked_binary",
-                params={"tabId": tab_id},
+                params={},
             )
             total_parts, total_bytes, content_type = self.uploader.upload_file(
                 task_id,
@@ -72,15 +72,15 @@ class MediaService:
                 raise
             raise MediaUploadError(str(exc)) from exc
 
-    def upload_many(self, paths: Iterable[str], client_name: str = "tweetClaw", instance_id: Optional[str] = None, tab_id: Optional[int] = None) -> List[MediaUploadResult]:
-        return [self.upload(path, client_name=client_name, instance_id=instance_id, tab_id=tab_id) for path in paths]
+    def upload_many(self, paths: Iterable[str], client_name: str = "tweetClaw", instance_id: Optional[str] = None) -> List[MediaUploadResult]:
+        return [self.upload(path, client_name=client_name, instance_id=instance_id) for path in paths]
 
-    def post_tweet(self, text: str, file_paths: Iterable[str], instance_id: Optional[str] = None, tab_id: Optional[int] = None):
-        uploads = self.upload_many(file_paths, instance_id=instance_id, tab_id=tab_id)
+    def post_tweet(self, text: str, file_paths: Iterable[str], instance_id: Optional[str] = None):
+        uploads = self.upload_many(file_paths, instance_id=instance_id)
         media_ids = [item.media_id for item in uploads if item.media_id]
         return self.actions.create_tweet(text=text, media_ids=media_ids)
 
-    def reply_with_media(self, tweet_id: str, text: str, file_paths: Iterable[str], instance_id: Optional[str] = None, tab_id: Optional[int] = None):
-        uploads = self.upload_many(file_paths, instance_id=instance_id, tab_id=tab_id)
+    def reply_with_media(self, tweet_id: str, text: str, file_paths: Iterable[str], instance_id: Optional[str] = None):
+        uploads = self.upload_many(file_paths, instance_id=instance_id)
         media_ids = [item.media_id for item in uploads if item.media_id]
         return self.actions.reply(tweet_id=tweet_id, text=text, media_ids=media_ids)
