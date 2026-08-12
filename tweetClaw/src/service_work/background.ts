@@ -556,22 +556,63 @@ async function harvestBearer(bearer: string | null | undefined) {
 }
 
 // ── 心跳：保活 content script ↔ background 连接 ───────────────────
+
+interface HealthEntry {
+    platform: string;
+    tabId: number;
+    lastPingAt: number;
+    status: 'alive' | 'disconnected';
+}
+
+const healthTable = new Map<string, HealthEntry>(); // key: `${platform}:${tabId}`
+const HEALTH_LOG_INTERVAL_MS = 30_000;
+
+function healthLog() {
+    if (healthTable.size === 0) return;
+    const now = Date.now();
+    const entries = Array.from(healthTable.values()).map(e => ({
+        platform: e.platform,
+        tabId: e.tabId,
+        status: e.status,
+        ageSec: Math.round((now - e.lastPingAt) / 1000),
+    }));
+    console.log(`[TweetClaw-BG] Health table (${entries.length} entries):`, JSON.stringify(entries));
+}
+
+setInterval(healthLog, HEALTH_LOG_INTERVAL_MS);
+
 chrome.runtime.onConnect.addListener((port) => {
     if (port.name !== 'heartbeat') return;
 
+    const tabId = port.sender?.tab?.id ?? -1;
     let platformLogged = false;
 
     port.onDisconnect.addListener(() => {
-        console.log('[TweetClaw-BG] Heartbeat port disconnected');
+        const src = port.sender?.tab?.id ?? -1;
+        // 标记断开，不立即删除（保留供日志观察）
+        for (const [key, entry] of healthTable) {
+            if (entry.tabId === src) {
+                entry.status = 'disconnected';
+            }
+        }
+        console.log(`[TweetClaw-BG] Heartbeat port disconnected: tabId=${src}`);
     });
 
     port.onMessage.addListener((msg) => {
         if (msg.type === 'HEARTBEAT_PING') {
             const src = msg.platform || 'unknown';
             if (!platformLogged) {
-                console.log(`[TweetClaw-BG] Heartbeat port connected: platform=${src}`);
+                console.log(`[TweetClaw-BG] Heartbeat port connected: platform=${src} tabId=${tabId}`);
                 platformLogged = true;
             }
+            // 更新健康表
+            const key = `${src}:${tabId}`;
+            healthTable.set(key, {
+                platform: src,
+                tabId,
+                lastPingAt: Date.now(),
+                status: 'alive',
+            });
             port.postMessage({ type: 'HEARTBEAT_PONG' });
         }
     });
