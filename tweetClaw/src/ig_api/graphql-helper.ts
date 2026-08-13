@@ -173,10 +173,13 @@ export function buildUserProfileVariables(userId: string): any {
   return {
     enable_integrity_filters: true,
     id: userId,
+    render_surface: 'PROFILE',
     __relay_internal__pv__PolarisCannesGuardianExperienceEnabledrelayprovider: true,
     __relay_internal__pv__PolarisCASB976ProfileEnabledrelayprovider: false,
     __relay_internal__pv__PolarisWebSchoolsEnabledrelayprovider: false,
     __relay_internal__pv__PolarisRepostsConsumptionEnabledrelayprovider: false,
+    __relay_internal__pv__PolarisShortDramaEnabledrelayprovider: false,
+    __relay_internal__pv__PolarisLongformEnabledrelayprovider: false,
   };
 }
 

@@ -325,6 +325,12 @@ chrome.alarms.onAlarm.addListener((alarm) => {
         })().catch((e) => console.warn('[TweetClaw-BG] failed to reconcile bridge on alarm', e));
         return;
     }
+
+    if (alarm.name === HEALTH_CHECK_ALARM) {
+        void pruneStaleHealthEntries()
+            .catch((e) => console.warn('[TweetClaw-BG] failed to prune health entries', e));
+        return;
+    }
 });
 
 chrome.runtime.onStartup?.addListener(() => {
@@ -436,43 +442,102 @@ async function harvestBearer(bearer: string | null | undefined) {
 // ── 平台存活健康表（落在 chrome.storage.session，跨 SW 睡眠存活）────────────
 
 const ALIVE_KEY_PREFIX = 'tweetclaw:alive:';   // 与 content script 保持一致
-const PLATFORM_STALE_AFTER_MS = 60_000;        // 3 × LIVE_INTERVAL_MS：超过即视为离线
+const HEALTH_TIMEOUT_MS = 60_000;              // 3 × HEARTBEAT_INTERVAL_MS：超过即视为不活跃
+const HEALTH_CHECK_ALARM = 'tweetclaw-health-check';
 
-// chrome.storage.session 默认 accessLevel 为 TRUSTED_CONTEXTS，content script 读不到；
-// 必须在受信任上下文（SW）里显式开放，否则 content script 的存活写入会被静默丢弃。
-void chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' })
-    .catch((e) => console.warn('[TweetClaw-BG] failed to open storage.session to content scripts', e));
-
-// 读取所有 live 平台；顺带清理已过期的键
-async function getLivePlatforms(): Promise<string[]> {
+// 读取每个平台下存活的 tabId 列表；顺带清理已过期的键
+async function getLiveTabs(): Promise<Record<string, number[]>> {
     const all = await chrome.storage.session.get(null);
     const now = Date.now();
-    const live: string[] = [];
+    const result: Record<string, number[]> = {};
     const staleKeys: string[] = [];
+
     for (const [key, value] of Object.entries(all)) {
         if (!key.startsWith(ALIVE_KEY_PREFIX)) continue;
-        const platform = key.slice(ALIVE_KEY_PREFIX.length);
-        if (typeof value === 'number' && now - value <= PLATFORM_STALE_AFTER_MS) {
-            live.push(platform);
+        const parts = key.slice(ALIVE_KEY_PREFIX.length).split(':');
+        if (parts.length !== 2) continue;
+
+        const platform = parts[0];
+        const tabId = Number(parts[1]);
+        if (!Number.isInteger(tabId) || tabId <= 0) continue;
+
+        if (typeof value === 'number' && now - value <= HEALTH_TIMEOUT_MS) {
+            (result[platform] ||= []).push(tabId);
         } else {
             staleKeys.push(key);
         }
     }
+
     if (staleKeys.length) {
         void chrome.storage.session.remove(staleKeys).catch(() => {});
     }
-    return live;
+    return result;
+}
+
+// 每 60s 主动清理一次：删除超过 HEALTH_TIMEOUT_MS 未更新的键，
+// 表示该 tab 已停止心跳，对应账号不再活跃。
+async function pruneStaleHealthEntries(): Promise<void> {
+    const all = await chrome.storage.session.get(null);
+    const now = Date.now();
+    const staleKeys: string[] = [];
+
+    for (const [key, value] of Object.entries(all)) {
+        if (!key.startsWith(ALIVE_KEY_PREFIX)) continue;
+        if (typeof value !== 'number' || now - value > HEALTH_TIMEOUT_MS) {
+            staleKeys.push(key);
+        }
+    }
+
+    if (staleKeys.length) {
+        await chrome.storage.session.remove(staleKeys);
+    }
+}
+
+// 同名 alarm 会覆盖旧 alarm；periodInMinutes: 1 对应 60s 检查一次
+void chrome.alarms.create(HEALTH_CHECK_ALARM, { periodInMinutes: 1 })
+    .catch((e) => console.warn('[TweetClaw-BG] failed to create health-check alarm', e));
+
+// 统一的 Twitter / Instagram 业务 tab 选择入口：
+// 先用 chrome.tabs.query 确认 tab 当前仍存在，再用健康表过滤出 content script 存活的 tab，
+// 最后取最小 tabId，保证确定性。
+async function findLiveTab(platform: 'twitter' | 'instagram'): Promise<number | null> {
+    const urlPatterns = platform === 'twitter'
+        ? ['*://x.com/*', '*://twitter.com/*']
+        : ['*://www.instagram.com/*', '*://instagram.com/*'];
+
+    const tabs = await chrome.tabs.query({ url: urlPatterns });
+    const liveIds = (await getLiveTabs())[platform] ?? [];
+    const candidates = tabs
+        .map(t => t.id)
+        .filter((id): id is number => id != null && liveIds.includes(id));
+
+    return candidates.length ? Math.min(...candidates) : null;
 }
 
 // 观测用：SW 醒着时周期打印一次，便于排查
 setInterval(() => {
-    void getLivePlatforms().then(live => {
-        console.log(`[TweetClaw-BG] Live platforms:`, JSON.stringify(live));
+    void getLiveTabs().then(tabs => {
+        console.log(`[TweetClaw-BG] Live tabs:`, JSON.stringify(tabs));
     });
 }, 30_000);
 
 // ── 消息中枢 ─────────────────────────────────────────────────────
-chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+// 注意：onMessage 监听器必须保持在 SW 顶层同步注册。content script 的首条心跳在注入后
+// 立即发送，若把本监听器移入异步初始化，冷启动窗口内会丢首条心跳并触发 content 侧 reload。
+chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
+
+    // content script 消息式心跳：background 更新健康表
+    if (message.type === 'TWEETCLAW_HEARTBEAT') {
+        const platform = typeof message.platform === 'string' ? message.platform : '';
+        const tabId = sender.tab?.id;
+        if (platform && tabId != null) {
+            void chrome.storage.session
+                .set({ [`${ALIVE_KEY_PREFIX}${platform}:${tabId}`]: Date.now() })
+                .catch((e) => console.warn('[TweetClaw-BG] health table update failed', e));
+        }
+        if (sendResponse) sendResponse({ ok: true });
+        return false;
+    }
 
     // Bridge 状态查询
     if (message.type === 'GET_BRIDGE_STATUS') {
@@ -825,88 +890,16 @@ export async function queryXTabsStatus() {
     };
 }
 
-// ── 平台 tab 保活工具 ──────────────────────────────────────────────────────────
-
-/**
- * 等待指定 tabId 加载到 status === 'complete'，带超时兜底。
- * 用于在导航/刷新后确保页面就绪，再向 content script 发消息。
- */
-function waitForTabComplete(tabId: number, timeoutMs = 15000): Promise<void> {
-    return new Promise((resolve, reject) => {
-        let settled = false;
-        const listener = (updatedTabId: number, info: chrome.tabs.OnUpdatedInfo) => {
-            if (settled || updatedTabId !== tabId) return;
-            if (info.status === 'complete') {
-                settled = true;
-                chrome.tabs.onUpdated.removeListener(listener);
-                clearTimeout(timer);
-                resolve();
-            }
-        };
-        chrome.tabs.onUpdated.addListener(listener);
-
-        const timer = setTimeout(() => {
-            if (settled) return;
-            settled = true;
-            chrome.tabs.onUpdated.removeListener(listener);
-            reject(new Error(`Tab ${tabId} did not reach 'complete' within ${timeoutMs}ms`));
-        }, timeoutMs);
-    });
-}
-
-/**
- * 确保存在一个指定平台的标签页，并刷新到首页，等待加载完成后再返回 tabId。
- *
- * 反页面过时策略：
- * - 无该平台 tab → 新建 inactive 标签页打开 homeUrl（session 存在则自动登录）
- * - 已有 tab → 一律刷新到 homeUrl：已在 home 则 reload 强制激活，否则导航到 home
- *
- * @param urlPatterns chrome.tabs.query 的 url 匹配模式
- * @param homeUrl     目标首页 URL
- * @returns 就绪后的 tabId
- */
-async function ensurePlatformTabReady(
-    urlPatterns: string[],
-    homeUrl: string,
-    timeoutMs = 15000
-): Promise<number> {
-    const tabs = await chrome.tabs.query({ url: urlPatterns });
-
-    // 优先复用非活动标签页，避免抢占用户当前正在浏览的 tab；
-    // 只有当平台仅存在一个活动 tab 时才回退到它。
-    const inactiveTab = tabs.find(t => !t.active);
-    const tab = inactiveTab || tabs[0] || null;
-
-    let tabId: number;
-    if (!tab?.id) {
-        // 没有已有标签页 → 后台打开首页
-        const created = await chrome.tabs.create({ url: homeUrl, active: false });
-        tabId = created.id!;
-        await waitForTabComplete(tabId, timeoutMs);
-    } else {
-        // tab 已存在 → 不 reload / navigate，避免打断用户浏览。
-        // signedFetch 只要求 tab 在目标域名上（cookie/origin 正确）。
-        tabId = tab.id;
-        // 仅当 tab 仍在加载时才等待；已 complete 则直接返回，
-        // 否则 onUpdated 永不触发 → 超时。
-        const current = await chrome.tabs.get(tabId);
-        if (current.status !== 'complete') {
-            await waitForTabComplete(tabId, timeoutMs);
-        }
-    }
-    return tabId;
-}
-
 /**
  * 查询当前登录账号基本信息 - 返回推特原始 GraphQL 响应
  */
 export async function queryXBasicInfo() {
     console.log('[TweetClaw-BG] queryXBasicInfo called');
 
-    const tabId = await ensurePlatformTabReady(
-        ['*://x.com/*', '*://twitter.com/*'],
-        'https://x.com/home'
-    );
+    const tabId = await findLiveTab('twitter');
+    if (!tabId) {
+        throw new Error('No x.com tab found');
+    }
 
     // 委托 Content Script 调用推特 API 并返回原始响应
     const result: any = await sendMessageToTab(tabId, {
@@ -954,9 +947,17 @@ async function checkPlatformLogin(
     platform: 'twitter' | 'instagram' | 'xiaohongshu',
     urlPatterns: string[]
 ): Promise<AccountStatusResult> {
-    const tabs = await chrome.tabs.query({ url: urlPatterns });
-    if (tabs.length === 0) {
-        console.log(`[tweetClaw][A41] ${platform}: no tab open → logged_out`);
+    // Twitter / Instagram 与业务命令统一走 findLiveTab；XHS 保留原双域名查询逻辑。
+    let tabId: number | null = null;
+    if (platform === 'twitter' || platform === 'instagram') {
+        tabId = await findLiveTab(platform);
+    } else {
+        const tabs = await chrome.tabs.query({ url: urlPatterns });
+        tabId = (tabs.find(t => !t.active) || tabs[0])?.id ?? null;
+    }
+
+    if (!tabId) {
+        console.log(`[tweetClaw][A41] ${platform}: no live tab → logged_out`);
         return {
             platform,
             status: 'logged_out',
@@ -964,19 +965,18 @@ async function checkPlatformLogin(
             lastCheckedAt: Date.now(),
         };
     }
-    // 优先用非活动 tab，避免打扰用户当前浏览
-    const tab = tabs.find(t => !t.active) || tabs[0];
-    console.log(`[tweetClaw][A41] ${platform}: ${tabs.length} tab(s) open, querying tabId=${tab.id} active=${tab.active} url=${tab.url}`);
+
+    console.log(`[tweetClaw][A41] ${platform}: querying live tabId=${tabId}`);
     try {
-        const resp = await sendMessageToTab<CheckLoginResponse>(tab.id!, {
+        const resp = await sendMessageToTab<CheckLoginResponse>(tabId, {
             type: 'CHECK_LOGIN',
-            tabId: tab.id,
+            tabId,
         });
         console.log(`[tweetClaw][A41] ${platform}: content script replied`, JSON.stringify(resp));
         return {
             platform,
             status: resp?.loggedIn ? 'logged_in' : 'logged_out',
-            tabId: tab.id ?? null,
+            tabId,
             lastCheckedAt: Date.now(),
             account: resp?.account,
             error: resp?.error,
@@ -987,7 +987,7 @@ async function checkPlatformLogin(
         return {
             platform,
             status: 'logged_out',
-            tabId: tab.id ?? null,
+            tabId,
             lastCheckedAt: Date.now(),
             error: e?.message || String(e),
         };
@@ -1059,25 +1059,12 @@ export async function queryXhsHomefeed(payload: Record<string, unknown> = {}) {
 export async function queryXhsAccountInfo() {
     console.log('[TweetClaw-BG] queryXhsAccountInfo called');
 
-    // 并行确保 home 和 creator 两个 tab 都打开：
-    //   - home  (www.xiaohongshu.com/explore)   → 账号信息查询所需，等待加载完成
-    //   - creator (creator.xiaohongshu.com/...)  → 后续 published_notes 等同域请求所需，
-    //     后台打开即可，失败不阻塞账号查询（下次 getOrOpenCreatorTab 会再补开）
-    const creatorOpenPromise = ensurePlatformTabReady(
-        ['*://creator.xiaohongshu.com/*'],
-        'https://creator.xiaohongshu.com/new/note-manager?source=official'
-    ).then(id => {
-        console.log(`[TweetClaw-BG] creator tab ensured in background: tabId=${id}`);
-    }).catch(e => {
-        console.warn(`[TweetClaw-BG] creator tab open failed (non-fatal): ${e?.message}`);
-    });
+    const tab = await findXhsTab();
+    if (!tab?.id) {
+        throw new Error('No Xiaohongshu tab found. Please open xiaohongshu.com first.');
+    }
 
-    const tabId = await ensurePlatformTabReady(
-        ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*'],
-        'https://www.xiaohongshu.com/explore'
-    );
-
-    const result: any = await sendMessageToTab(tabId, {
+    const result: any = await sendMessageToTab(tab.id, {
         type: 'XHS_FETCH_CURRENT_USER',
     }).catch((e: any) => {
         throw new Error(`Failed to communicate with content script: ${e?.message}`);
@@ -1086,9 +1073,6 @@ export async function queryXhsAccountInfo() {
     if (!result?.success) {
         throw new Error(result?.error || 'Failed to fetch current user info from Xiaohongshu API');
     }
-
-    // 账号信息已拿到，creator tab 仍在后台并行打开中，不阻塞返回
-    void creatorOpenPromise;
 
     return result.data;
 }
@@ -1403,10 +1387,9 @@ export async function closeTabByPlatform(payload: CloseTabRequestPayload): Promi
 export async function execAction(payload: ExecActionPayload): Promise<TwitterResponse> {
     console.log(`[TweetClaw-BG] execAction: ${payload.action}`, payload);
 
-    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    const targetTabId = (xTabs.find(t => t.active) || xTabs[0])?.id;
+    const targetTabId = await findLiveTab('twitter');
     if (!targetTabId) {
-        throw new Error('No target tab found for action');
+        throw new Error('No x.com tab found');
     }
 
     // 委托 Content Script 执行操作并返回推特原始响应
@@ -1425,8 +1408,7 @@ export async function execAction(payload: ExecActionPayload): Promise<TwitterRes
  * 查询主页时间线 - 返回推特原始 GraphQL 响应
  */
 export async function queryHomeTimeline(_payload: QueryTimelinePayload): Promise<TwitterResponse> {
-    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    const targetTabId = (xTabs.find(t => t.active) || xTabs[0])?.id;
+    const targetTabId = await findLiveTab('twitter');
     if (!targetTabId) {
         throw new Error('No x.com tab found');
     }
@@ -1451,8 +1433,7 @@ export async function queryTweetReplies(payload: QueryTweetRepliesPayload): Prom
         throw new Error('tweetId is required');
     }
 
-    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    const targetTabId = (xTabs.find(t => t.active) || xTabs[0])?.id;
+    const targetTabId = await findLiveTab('twitter');
     if (!targetTabId) {
         throw new Error('No x.com tab found');
     }
@@ -1477,8 +1458,7 @@ export async function queryTweetDetail(payload: QueryTweetPayload): Promise<Twit
         throw new Error('tweetId is required');
     }
 
-    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    const targetTabId = (xTabs.find(t => t.active) || xTabs[0])?.id;
+    const targetTabId = await findLiveTab('twitter');
     if (!targetTabId) {
         throw new Error('No x.com tab found');
     }
@@ -1502,8 +1482,7 @@ export async function queryUserProfile(payload: QueryUserProfilePayload): Promis
         throw new Error('screenName is required');
     }
 
-    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    const targetTabId = (xTabs.find(t => t.active) || xTabs[0])?.id;
+    const targetTabId = await findLiveTab('twitter');
     if (!targetTabId) {
         throw new Error('No x.com tab found');
     }
@@ -1524,8 +1503,7 @@ export async function queryUserProfile(payload: QueryUserProfilePayload): Promis
 export async function querySearchTimeline(payload: QuerySearchTimelinePayload): Promise<TwitterResponse> {
     const { query, cursor, count, product } = payload;
 
-    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    const targetTabId = (xTabs.find(t => t.active) || xTabs[0])?.id;
+    const targetTabId = await findLiveTab('twitter');
     if (!targetTabId) {
         throw new Error('No x.com tab found');
     }
@@ -1549,8 +1527,7 @@ export async function querySearchTimeline(payload: QuerySearchTimelinePayload): 
 export async function queryUserTweets(payload: QueryUserTweetsPayload): Promise<TwitterResponse> {
     const { userId, cursor, count } = payload;
 
-    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    const targetTabId = (xTabs.find(t => t.active) || xTabs[0])?.id;
+    const targetTabId = await findLiveTab('twitter');
     if (!targetTabId) {
         throw new Error('No x.com tab found');
     }
@@ -1574,8 +1551,7 @@ export async function queryFollowers(payload: QueryFollowersPayload): Promise<Tw
     const { userId, cursor, count } = payload;
     if (!userId) throw new Error('userId is required');
 
-    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    const targetTabId = (xTabs.find(t => t.active) || xTabs[0])?.id;
+    const targetTabId = await findLiveTab('twitter');
     if (!targetTabId) throw new Error('No x.com tab found');
 
     const result = await sendMessageToTab(targetTabId, {
@@ -1595,8 +1571,7 @@ export async function queryFollowing(payload: QueryFollowingPayload): Promise<Tw
     const { userId, cursor, count } = payload;
     if (!userId) throw new Error('userId is required');
 
-    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    const targetTabId = (xTabs.find(t => t.active) || xTabs[0])?.id;
+    const targetTabId = await findLiveTab('twitter');
     if (!targetTabId) throw new Error('No x.com tab found');
 
     const result = await sendMessageToTab(targetTabId, {
@@ -1616,8 +1591,7 @@ export async function queryBlueVerifiedFollowers(payload: QueryBlueVerifiedFollo
     const { userId, cursor, count } = payload;
     if (!userId) throw new Error('userId is required');
 
-    const xTabs = await chrome.tabs.query({ url: ['*://x.com/*', '*://twitter.com/*'] });
-    const targetTabId = (xTabs.find(t => t.active) || xTabs[0])?.id;
+    const targetTabId = await findLiveTab('twitter');
     if (!targetTabId) throw new Error('No x.com tab found');
 
     const result = await sendMessageToTab(targetTabId, {
@@ -2569,19 +2543,14 @@ interface IgGetFollowingPayload {
     maxId?: string;
 }
 
-async function findIgTab(): Promise<chrome.tabs.Tab | null> {
-    const tabs = await chrome.tabs.query({ url: 'https://www.instagram.com/*' });
-    return tabs[0] || null;
-}
-
 export async function igCheckLogin(payload: IgCheckLoginPayload): Promise<any> {
     console.log('[TweetClaw-BG] igCheckLogin called', payload);
-    const tab = await findIgTab();
-    if (!tab?.id) {
+    const tabId = await findLiveTab('instagram');
+    if (!tabId) {
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await sendMessageToTab(tab.id, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'command.ig_check_login',
         params: payload,
     }).catch((e: any) => {
@@ -2597,10 +2566,10 @@ export async function igCheckLogin(payload: IgCheckLoginPayload): Promise<any> {
 
 export async function igGetSelfInfo(payload: IgGetSelfInfoPayload): Promise<any> {
     console.log('[TweetClaw-BG] igGetSelfInfo called', payload);
-    const tabId = await ensurePlatformTabReady(
-        ['*://www.instagram.com/*'],
-        'https://www.instagram.com/'
-    );
+    const tabId = await findLiveTab('instagram');
+    if (!tabId) {
+        throw new Error('No Instagram tab found. Please open instagram.com first.');
+    }
 
     const result: any = await sendMessageToTab(tabId, {
         type: 'command.ig_get_self_info',
@@ -2618,12 +2587,12 @@ export async function igGetSelfInfo(payload: IgGetSelfInfoPayload): Promise<any>
 
 export async function igGetUserInfo(payload: IgGetUserInfoPayload): Promise<any> {
     console.log('[TweetClaw-BG] igGetUserInfo called', payload);
-    const tab = await findIgTab();
-    if (!tab?.id) {
+    const tabId = await findLiveTab('instagram');
+    if (!tabId) {
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await sendMessageToTab(tab.id, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'command.ig_get_user_info',
         params: payload,
     }).catch((e: any) => {
@@ -2639,12 +2608,12 @@ export async function igGetUserInfo(payload: IgGetUserInfoPayload): Promise<any>
 
 export async function igSearchUser(payload: IgSearchUserPayload): Promise<any> {
     console.log('[TweetClaw-BG] igSearchUser called', payload);
-    const tab = await findIgTab();
-    if (!tab?.id) {
+    const tabId = await findLiveTab('instagram');
+    if (!tabId) {
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await sendMessageToTab(tab.id, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'command.ig_search_user',
         params: payload,
     }).catch((e: any) => {
@@ -2660,12 +2629,12 @@ export async function igSearchUser(payload: IgSearchUserPayload): Promise<any> {
 
 export async function igGetFeed(payload: IgGetFeedPayload): Promise<any> {
     console.log('[TweetClaw-BG] igGetFeed called', payload);
-    const tab = await findIgTab();
-    if (!tab?.id) {
+    const tabId = await findLiveTab('instagram');
+    if (!tabId) {
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await sendMessageToTab(tab.id, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'command.ig_get_feed',
         params: payload,
     }).catch((e: any) => {
@@ -2681,12 +2650,12 @@ export async function igGetFeed(payload: IgGetFeedPayload): Promise<any> {
 
 export async function igGetMedia(payload: IgGetMediaPayload): Promise<any> {
     console.log('[TweetClaw-BG] igGetMedia called', payload);
-    const tab = await findIgTab();
-    if (!tab?.id) {
+    const tabId = await findLiveTab('instagram');
+    if (!tabId) {
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await sendMessageToTab(tab.id, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'command.ig_get_media',
         params: payload,
     }).catch((e: any) => {
@@ -2702,12 +2671,12 @@ export async function igGetMedia(payload: IgGetMediaPayload): Promise<any> {
 
 export async function igLikeMedia(payload: IgLikeMediaPayload): Promise<any> {
     console.log('[TweetClaw-BG] igLikeMedia called', payload);
-    const tab = await findIgTab();
-    if (!tab?.id) {
+    const tabId = await findLiveTab('instagram');
+    if (!tabId) {
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await sendMessageToTab(tab.id, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'command.ig_like_media',
         params: payload,
     }).catch((e: any) => {
@@ -2723,12 +2692,12 @@ export async function igLikeMedia(payload: IgLikeMediaPayload): Promise<any> {
 
 export async function igUnlikeMedia(payload: IgUnlikeMediaPayload): Promise<any> {
     console.log('[TweetClaw-BG] igUnlikeMedia called', payload);
-    const tab = await findIgTab();
-    if (!tab?.id) {
+    const tabId = await findLiveTab('instagram');
+    if (!tabId) {
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await sendMessageToTab(tab.id, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'command.ig_unlike_media',
         params: payload,
     }).catch((e: any) => {
@@ -2744,12 +2713,12 @@ export async function igUnlikeMedia(payload: IgUnlikeMediaPayload): Promise<any>
 
 export async function igFollowUser(payload: IgFollowUserPayload): Promise<any> {
     console.log('[TweetClaw-BG] igFollowUser called', payload);
-    const tab = await findIgTab();
-    if (!tab?.id) {
+    const tabId = await findLiveTab('instagram');
+    if (!tabId) {
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await sendMessageToTab(tab.id, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'command.ig_follow_user',
         params: payload,
     }).catch((e: any) => {
@@ -2765,12 +2734,12 @@ export async function igFollowUser(payload: IgFollowUserPayload): Promise<any> {
 
 export async function igUnfollowUser(payload: IgUnfollowUserPayload): Promise<any> {
     console.log('[TweetClaw-BG] igUnfollowUser called', payload);
-    const tab = await findIgTab();
-    if (!tab?.id) {
+    const tabId = await findLiveTab('instagram');
+    if (!tabId) {
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await sendMessageToTab(tab.id, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'command.ig_unfollow_user',
         params: payload,
     }).catch((e: any) => {
@@ -2786,12 +2755,12 @@ export async function igUnfollowUser(payload: IgUnfollowUserPayload): Promise<an
 
 export async function igPostComment(payload: IgPostCommentPayload): Promise<any> {
     console.log('[TweetClaw-BG] igPostComment called', payload);
-    const tab = await findIgTab();
-    if (!tab?.id) {
+    const tabId = await findLiveTab('instagram');
+    if (!tabId) {
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await sendMessageToTab(tab.id, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'command.ig_post_comment',
         params: payload,
     }).catch((e: any) => {
@@ -2807,12 +2776,12 @@ export async function igPostComment(payload: IgPostCommentPayload): Promise<any>
 
 export async function igDeleteComment(payload: IgDeleteCommentPayload): Promise<any> {
     console.log('[TweetClaw-BG] igDeleteComment called', payload);
-    const tab = await findIgTab();
-    if (!tab?.id) {
+    const tabId = await findLiveTab('instagram');
+    if (!tabId) {
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await sendMessageToTab(tab.id, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'command.ig_delete_comment',
         params: payload,
     }).catch((e: any) => {
@@ -2828,12 +2797,12 @@ export async function igDeleteComment(payload: IgDeleteCommentPayload): Promise<
 
 export async function igPostMedia(payload: IgPostMediaPayload): Promise<any> {
     console.log('[TweetClaw-BG] igPostMedia called', payload);
-    const tab = await findIgTab();
-    if (!tab?.id) {
+    const tabId = await findLiveTab('instagram');
+    if (!tabId) {
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await sendMessageToTab(tab.id, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'command.ig_post_media',
         params: payload,
     }).catch((e: any) => {
@@ -2849,12 +2818,12 @@ export async function igPostMedia(payload: IgPostMediaPayload): Promise<any> {
 
 export async function igDeleteMedia(payload: IgDeleteMediaPayload): Promise<any> {
     console.log('[TweetClaw-BG] igDeleteMedia called', payload);
-    const tab = await findIgTab();
-    if (!tab?.id) {
+    const tabId = await findLiveTab('instagram');
+    if (!tabId) {
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await sendMessageToTab(tab.id, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'command.ig_delete_media',
         params: payload,
     }).catch((e: any) => {
@@ -2870,12 +2839,12 @@ export async function igDeleteMedia(payload: IgDeleteMediaPayload): Promise<any>
 
 export async function igGetUserMedia(payload: IgGetUserMediaPayload): Promise<any> {
     console.log('[TweetClaw-BG] igGetUserMedia called', payload);
-    const tab = await findIgTab();
-    if (!tab?.id) {
+    const tabId = await findLiveTab('instagram');
+    if (!tabId) {
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await sendMessageToTab(tab.id, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'command.ig_get_user_media',
         params: payload,
     }).catch((e: any) => {
@@ -2891,12 +2860,12 @@ export async function igGetUserMedia(payload: IgGetUserMediaPayload): Promise<an
 
 export async function igGetMediaComments(payload: IgGetMediaCommentsPayload): Promise<any> {
     console.log('[TweetClaw-BG] igGetMediaComments called', payload);
-    const tab = await findIgTab();
-    if (!tab?.id) {
+    const tabId = await findLiveTab('instagram');
+    if (!tabId) {
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await sendMessageToTab(tab.id, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'command.ig_get_media_comments',
         params: payload,
     }).catch((e: any) => {
@@ -2912,12 +2881,12 @@ export async function igGetMediaComments(payload: IgGetMediaCommentsPayload): Pr
 
 export async function igSearch(payload: IgSearchPayload): Promise<any> {
     console.log('[TweetClaw-BG] igSearch called', payload);
-    const tab = await findIgTab();
-    if (!tab?.id) {
+    const tabId = await findLiveTab('instagram');
+    if (!tabId) {
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await sendMessageToTab(tab.id, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'command.ig_search',
         params: payload,
     }).catch((e: any) => {
@@ -2933,12 +2902,12 @@ export async function igSearch(payload: IgSearchPayload): Promise<any> {
 
 export async function igGetNotifications(payload: IgGetNotificationsPayload): Promise<any> {
     console.log('[TweetClaw-BG] igGetNotifications called', payload);
-    const tab = await findIgTab();
-    if (!tab?.id) {
+    const tabId = await findLiveTab('instagram');
+    if (!tabId) {
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await sendMessageToTab(tab.id, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'command.ig_get_notifications',
         params: payload,
     }).catch((e: any) => {
@@ -2954,12 +2923,12 @@ export async function igGetNotifications(payload: IgGetNotificationsPayload): Pr
 
 export async function igGetFollowers(payload: IgGetFollowersPayload): Promise<any> {
     console.log('[TweetClaw-BG] igGetFollowers called', payload);
-    const tab = await findIgTab();
-    if (!tab?.id) {
+    const tabId = await findLiveTab('instagram');
+    if (!tabId) {
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await sendMessageToTab(tab.id, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'command.ig_get_followers',
         params: payload,
     }).catch((e: any) => {
@@ -2975,12 +2944,12 @@ export async function igGetFollowers(payload: IgGetFollowersPayload): Promise<an
 
 export async function igGetFollowing(payload: IgGetFollowingPayload): Promise<any> {
     console.log('[TweetClaw-BG] igGetFollowing called', payload);
-    const tab = await findIgTab();
-    if (!tab?.id) {
+    const tabId = await findLiveTab('instagram');
+    if (!tabId) {
         throw new Error('No Instagram tab found. Please open instagram.com first.');
     }
 
-    const result: any = await sendMessageToTab(tab.id, {
+    const result: any = await sendMessageToTab(tabId, {
         type: 'command.ig_get_following',
         params: payload,
     }).catch((e: any) => {

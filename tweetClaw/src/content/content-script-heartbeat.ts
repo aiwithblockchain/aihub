@@ -1,44 +1,45 @@
 // content-script-heartbeat.ts
 //
-// 两项解耦的职责：
-//   1. 周期性把存活时间戳写入 chrome.storage.session（不唤醒 SW），供 background 判断平台 live；
-//   2. 周期性刷新页面（location.reload）。
-// 不建立持久 Port、不 sendMessage、不等待 ack，因此不存在「断线重连 → 重载」的无限循环。
+// 消息式心跳：
+//   1. 每 20s 向 background 发 TWEETCLAW_HEARTBEAT，由 background 更新健康表；
+//   2. 发送失败（扩展上下文失效 / background 不可达）时 reload 当前页面。
+// 不建立持久 Port、不等待 pong、不写 storage.session。
 
 const TAG = '[TweetClaw-HB]';
 
-// 与 background 侧保持一致的前缀
-const ALIVE_KEY_PREFIX = 'tweetclaw:alive:';
-
-const LIVE_INTERVAL_MS    = 20_000;           // 写存活时间戳间隔
-const RELOAD_INTERVAL_MS  = 30 * 60 * 1000;   // 周期刷新间隔
+const HEARTBEAT_MSG = 'TWEETCLAW_HEARTBEAT';
+const HEARTBEAT_INTERVAL_MS = 20_000;
 
 export function connect(platform: string) {
-    // 1. 报告存活：每 20s 写一次时间戳，latest-write-wins，不等待任何响应
-    let writeErrorLogged = false;
-    const logWriteError = (e: unknown) => {
-        if (writeErrorLogged) return;
-        writeErrorLogged = true;
-        console.warn(`${TAG} storage.session.set failed: platform=${platform}`, e);
+    let reloadScheduled = false;
+
+    const reloadOnce = (reason: string) => {
+        if (reloadScheduled) return;
+        reloadScheduled = true;
+        console.warn(`${TAG} reload: platform=${platform}, reason=${reason}`);
+        location.reload();
     };
 
-    setInterval(() => {
+    const sendHeartbeat = () => {
         try {
-            void chrome.storage.session
-                .set({ [`${ALIVE_KEY_PREFIX}${platform}`]: Date.now() })
-                .catch(logWriteError);
+            chrome.runtime.sendMessage(
+                { type: HEARTBEAT_MSG, platform },
+                () => {
+                    if (chrome.runtime.lastError) {
+                        reloadOnce(`sendMessage failed: ${chrome.runtime.lastError.message}`);
+                    }
+                }
+            );
         } catch (e) {
-            logWriteError(e);
+            reloadOnce(`sendMessage threw: ${String(e)}`);
         }
-    }, LIVE_INTERVAL_MS);
+    };
 
-    // 2. 周期刷新：独立定时器，与报告存活完全解耦
-    setInterval(() => {
-        console.log(`${TAG} Periodic reload: platform=${platform}`);
-        location.reload();
-    }, RELOAD_INTERVAL_MS);
+    // 注意：首条心跳在注入后立即发送。这里依赖 background 的
+    // chrome.runtime.onMessage.addListener 在顶层同步注册；若将来把该监听器
+    // 移入异步初始化之后，需改为延迟一个周期再发首条心跳，避免冷启动丢消息触发 reload 循环。
+    sendHeartbeat();
+    setInterval(sendHeartbeat, HEARTBEAT_INTERVAL_MS);
 
-    console.log(
-        `${TAG} Started: platform=${platform}, alive=${LIVE_INTERVAL_MS}ms, reload=${RELOAD_INTERVAL_MS}ms`
-    );
+    console.log(`${TAG} Started: platform=${platform}, heartbeat=${HEARTBEAT_INTERVAL_MS}ms`);
 }
