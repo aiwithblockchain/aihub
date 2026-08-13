@@ -290,73 +290,6 @@ localBridge.handleReconnectAlarm = function(windowCount?: number) {
     return originalHandleReconnect(windowCount);
 };
 
-// ── Home refresh alarm (A41 stage 4) ──────────────────────────────
-//
-// 把 online 账号的非活动 tab 刷新到平台首页，保活登录 session。
-// "长时间无操作" 的低成本代理：非 active tab = 用户切走后未再操作。
-// 只刷新已存在的 tab，不新建 tab；跳过 active tab 避免打断用户浏览。
-// 间隔随机化：下次触发在 30~60 分钟之间，避免固定周期形成 bot 指纹。
-const HOME_REFRESH_ALARM_NAMES = {
-    twitter:      'tweetclaw-home-refresh-twitter',
-    instagram:    'tweetclaw-home-refresh-instagram',
-    xiaohongshu:  'tweetclaw-home-refresh-xhs',
-} as const;
-
-const HOME_REFRESH_LEGACY_ALARM_NAME = 'tweetclaw-home-refresh';
-const HOME_REFRESH_MIN_MINUTES = 90;
-const HOME_REFRESH_MAX_MINUTES = 120;
-
-interface PlatformRefreshConfig {
-    platform: 'twitter' | 'instagram' | 'xiaohongshu';
-    urlPatterns: string[];
-    homeUrl: string;
-    // 小红书有两套域名（主站 + 创作者中心），用数组表达
-    extraRefreshes?: { urlPatterns: string[]; homeUrl: string }[];
-}
-
-const PLATFORM_REFRESH_CONFIGS: PlatformRefreshConfig[] = [
-    {
-        platform: 'twitter',
-        urlPatterns: ['*://x.com/*', '*://twitter.com/*'],
-        homeUrl: 'https://x.com/home',
-    },
-    {
-        platform: 'instagram',
-        urlPatterns: ['*://www.instagram.com/*', '*://instagram.com/*'],
-        homeUrl: 'https://www.instagram.com/',
-    },
-    {
-        platform: 'xiaohongshu',
-        urlPatterns: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*'],
-        homeUrl: 'https://www.xiaohongshu.com/explore',
-        extraRefreshes: [
-            {
-                urlPatterns: ['*://creator.xiaohongshu.com/*'],
-                homeUrl: 'https://creator.xiaohongshu.com/new/home?source=official',
-            },
-        ],
-    },
-];
-
-function nextHomeRefreshDelayMinutes(): number {
-    return HOME_REFRESH_MIN_MINUTES + Math.random() * (HOME_REFRESH_MAX_MINUTES - HOME_REFRESH_MIN_MINUTES);
-}
-
-// SW 启动时为每个平台独立安排 alarm（若不存在）。
-// 三个平台各自独立随机延迟，首次触发时刻天然错开，避免同步指纹。
-for (const cfg of PLATFORM_REFRESH_CONFIGS) {
-    const alarmName = HOME_REFRESH_ALARM_NAMES[cfg.platform];
-    chrome.alarms.get(alarmName, (existing) => {
-        if (!existing) {
-            const delay = nextHomeRefreshDelayMinutes();
-            chrome.alarms.create(alarmName, { delayInMinutes: delay });
-            console.log(
-                `[tweetClaw][A41][home-refresh] ${cfg.platform} alarm created (next fire in ${delay.toFixed(1)}min)`
-            );
-        }
-    });
-}
-
 // ── Listen for reconnect alarms ──────────────────────────────────
 chrome.alarms.onAlarm.addListener((alarm) => {
     if (alarm.name === 'tweetclaw-reconnect') {
@@ -390,51 +323,6 @@ chrome.alarms.onAlarm.addListener((alarm) => {
                 windowCount
             });
         })().catch((e) => console.warn('[TweetClaw-BG] failed to reconcile bridge on alarm', e));
-        return;
-    }
-    // 一次性迁移：旧的单 alarm 触发时，按新逻辑刷新所有平台然后删除自己
-    if (alarm.name === HOME_REFRESH_LEGACY_ALARM_NAME) {
-        void (async () => {
-            console.log('[tweetClaw][A41][home-refresh] legacy alarm fired, migrating');
-            for (const cfg of PLATFORM_REFRESH_CONFIGS) {
-                await refreshSinglePlatformHome(cfg.platform);
-            }
-            await chrome.alarms.clear(HOME_REFRESH_LEGACY_ALARM_NAME);
-            // 确保三个新 alarm 都已安排
-            for (const cfg of PLATFORM_REFRESH_CONFIGS) {
-                const name = HOME_REFRESH_ALARM_NAMES[cfg.platform];
-                const existing = await chrome.alarms.get(name);
-                if (!existing) {
-                    const delay = nextHomeRefreshDelayMinutes();
-                    await chrome.alarms.create(name, { delayInMinutes: delay });
-                }
-            }
-        })().catch((e) =>
-            console.warn('[tweetClaw][A41][home-refresh] legacy migration failed', e)
-        );
-        return;
-    }
-
-    // 找到触发的是哪个平台的 alarm
-    const platformEntry = Object.entries(HOME_REFRESH_ALARM_NAMES)
-        .find(([_, name]) => name === alarm.name);
-    if (platformEntry) {
-        const platform = platformEntry[0] as keyof typeof HOME_REFRESH_ALARM_NAMES;
-        void (async () => {
-            try {
-                console.log(`[tweetClaw][A41][home-refresh] ${platform} alarm fired`);
-                await refreshSinglePlatformHome(platform);
-            } finally {
-                // 无论成功失败都重新安排下一次，避免链中断
-                const delay = nextHomeRefreshDelayMinutes();
-                await chrome.alarms.create(alarm.name, { delayInMinutes: delay });
-                console.log(
-                    `[tweetClaw][A41][home-refresh] ${platform} next fire in ${delay.toFixed(1)}min`
-                );
-            }
-        })().catch((e) =>
-            console.warn(`[tweetClaw][A41][home-refresh] ${platform} failed`, e)
-        );
         return;
     }
 });
@@ -545,63 +433,43 @@ async function harvestBearer(bearer: string | null | undefined) {
     }
 }
 
-// ── 心跳：保活 content script ↔ background 连接 ───────────────────
+// ── 平台存活健康表（落在 chrome.storage.session，跨 SW 睡眠存活）────────────
 
-interface HealthEntry {
-    platform: string;
-    tabId: number;
-    lastPingAt: number;
-}
+const ALIVE_KEY_PREFIX = 'tweetclaw:alive:';   // 与 content script 保持一致
+const PLATFORM_STALE_AFTER_MS = 60_000;        // 3 × LIVE_INTERVAL_MS：超过即视为离线
 
-const healthTable = new Map<string, HealthEntry>(); // key: `${platform}:${tabId}`
-const HEALTH_LOG_INTERVAL_MS = 30_000;
+// chrome.storage.session 默认 accessLevel 为 TRUSTED_CONTEXTS，content script 读不到；
+// 必须在受信任上下文（SW）里显式开放，否则 content script 的存活写入会被静默丢弃。
+void chrome.storage.session.setAccessLevel({ accessLevel: 'TRUSTED_AND_UNTRUSTED_CONTEXTS' })
+    .catch((e) => console.warn('[TweetClaw-BG] failed to open storage.session to content scripts', e));
 
-function healthLog() {
-    if (healthTable.size === 0) return;
+// 读取所有 live 平台；顺带清理已过期的键
+async function getLivePlatforms(): Promise<string[]> {
+    const all = await chrome.storage.session.get(null);
     const now = Date.now();
-    const entries = Array.from(healthTable.values()).map(e => ({
-        platform: e.platform,
-        tabId: e.tabId,
-        ageSec: Math.round((now - e.lastPingAt) / 1000),
-    }));
-    console.log(`[TweetClaw-BG] Health table (${entries.length} entries):`, JSON.stringify(entries));
+    const live: string[] = [];
+    const staleKeys: string[] = [];
+    for (const [key, value] of Object.entries(all)) {
+        if (!key.startsWith(ALIVE_KEY_PREFIX)) continue;
+        const platform = key.slice(ALIVE_KEY_PREFIX.length);
+        if (typeof value === 'number' && now - value <= PLATFORM_STALE_AFTER_MS) {
+            live.push(platform);
+        } else {
+            staleKeys.push(key);
+        }
+    }
+    if (staleKeys.length) {
+        void chrome.storage.session.remove(staleKeys).catch(() => {});
+    }
+    return live;
 }
 
-setInterval(healthLog, HEALTH_LOG_INTERVAL_MS);
-
-chrome.runtime.onConnect.addListener((port) => {
-    if (port.name !== 'heartbeat') return;
-
-    const tabId = port.sender?.tab?.id ?? -1;
-    let platformLogged = false;
-
-    port.onDisconnect.addListener(() => {
-        const src = port.sender?.tab?.id ?? -1;
-        for (const [key, entry] of healthTable) {
-            if (entry.tabId === src) {
-                healthTable.delete(key);
-                console.log(`[TweetClaw-BG] Health entry removed: ${key}`);
-            }
-        }
+// 观测用：SW 醒着时周期打印一次，便于排查
+setInterval(() => {
+    void getLivePlatforms().then(live => {
+        console.log(`[TweetClaw-BG] Live platforms:`, JSON.stringify(live));
     });
-
-    port.onMessage.addListener((msg) => {
-        if (msg.type === 'HEARTBEAT_PING') {
-            const src = msg.platform || 'unknown';
-            if (!platformLogged) {
-                console.log(`[TweetClaw-BG] Heartbeat port connected: platform=${src} tabId=${tabId}`);
-                platformLogged = true;
-            }
-            const key = `${src}:${tabId}`;
-            healthTable.set(key, {
-                platform: src,
-                tabId,
-                lastPingAt: Date.now(),
-            });
-            port.postMessage({ type: 'HEARTBEAT_PONG' });
-        }
-    });
-});
+}, 30_000);
 
 // ── 消息中枢 ─────────────────────────────────────────────────────
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
@@ -736,7 +604,7 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
         (async () => {
             try {
                 console.log(`[tweetClaw-BG] IG_TRIGGER_HOME_REFRESH received (friendlyName=${message.friendlyName}), refreshing IG home tab`);
-                await refreshSinglePlatformHome('instagram');
+                await reloadIgHomeTab();
                 if (sendResponse) sendResponse({ success: true });
             } catch (e: any) {
                 console.warn('[tweetClaw-BG] IG_TRIGGER_HOME_REFRESH failed', e);
@@ -1133,81 +1001,25 @@ async function collectAccountStatuses(): Promise<AccountStatusResult[]> {
     return results;
 }
 
-// ── A41 stage 4: Home refresh ─────────────────────────────────────
+// ── IG doc_id 过期自愈 ────────────────────────────────────────────
 //
-// 把已登录账号的非活动 tab 刷新到平台首页，保活 session。
-// "长时间无操作" 的低成本代理：
-//   - 非 active tab：用户切到了同窗口的另一个 tab → 无操作
-//   - active 但窗口失焦：用户离开浏览器（如切到 VS Code）→ 无操作
-//   - active 且窗口有焦点：用户可能正在看 → 跳过，避免打断
-// 只刷新已存在的 tab，不新建。
+// IG doc_id 过期自愈：把 instagram 非活动 tab 导航回主页，让前端重新发 GraphQL 以捕获新 doc_id。
 
-async function refreshTabsToHome(urlPatterns: string[], homeUrl: string): Promise<number> {
-    const tabs = await chrome.tabs.query({ url: urlPatterns });
-    if (tabs.length === 0) return 0;
-
-    // 查询每个 tab 所在窗口是否拥有 OS 焦点
-    const windowFocused = new Map<number, boolean>();
-    for (const t of tabs) {
-        if (t.windowId != null && !windowFocused.has(t.windowId)) {
-            try {
-                const win = await chrome.windows.get(t.windowId);
-                windowFocused.set(t.windowId, !!win.focused);
-            } catch {
-                windowFocused.set(t.windowId, false);
-            }
-        }
-    }
-
-    // 只跳过"active 且窗口有焦点"的 tab（用户真的可能在看）
-    const inactiveTabs = tabs.filter(t => t.id && !(t.active && windowFocused.get(t.windowId)));
-    if (inactiveTabs.length === 0) {
-        console.log(`[tweetClaw][A41][home-refresh] all tabs active+focused, skipping (patterns=${JSON.stringify(urlPatterns)})`);
-        return 0;
-    }
-
-    const normalize = (u: string) => u.split('#')[0].split('?')[0];
-    let refreshed = 0;
-    for (const tab of inactiveTabs) {
-        try {
-            if (normalize(tab.url || '') === normalize(homeUrl)) {
-                await chrome.tabs.reload(tab.id!);
-            } else {
-                await chrome.tabs.update(tab.id!, { url: homeUrl });
-            }
-            refreshed++;
-        } catch (e: any) {
-            console.warn(`[tweetClaw][A41][home-refresh] failed tabId=${tab.id}`, e?.message || String(e));
-        }
-    }
-    return refreshed;
-}
-
-async function refreshSinglePlatformHome(
-    platform: 'twitter' | 'instagram' | 'xiaohongshu'
-): Promise<void> {
-    // 先检查该平台账号是否仍在线；离线则跳过（不刷新、不报错）
-    const statuses = await collectAccountStatuses();
-    const online = statuses.find(s => s.platform === platform && s.status === 'logged_in');
-    if (!online) {
-        console.log(`[tweetClaw][A41][home-refresh] ${platform} not online, skip`);
+async function reloadIgHomeTab(): Promise<void> {
+    const HOME_URL = 'https://www.instagram.com/';
+    const tabs = await chrome.tabs.query({ url: ['*://www.instagram.com/*', '*://instagram.com/*'] });
+    const tab = tabs.find(t => !t.active) || tabs[0];
+    if (!tab?.id) {
+        console.log('[tweetClaw-BG] reloadIgHomeTab: no IG tab found, skip');
         return;
     }
-
-    const cfg = PLATFORM_REFRESH_CONFIGS.find(c => c.platform === platform);
-    if (!cfg) return;
-
-    const n = await refreshTabsToHome(cfg.urlPatterns, cfg.homeUrl);
-    console.log(`[tweetClaw][A41][home-refresh] ${platform}: refreshed ${n} tab(s)`);
-
-    // 小红书主站 + 创作者中心
-    if (cfg.extraRefreshes) {
-        for (const extra of cfg.extraRefreshes) {
-            const n2 = await refreshTabsToHome(extra.urlPatterns, extra.homeUrl);
-            console.log(
-                `[tweetClaw][A41][home-refresh] ${platform} extra: refreshed ${n2} tab(s)`
-            );
-        }
+    const normalize = (u: string) => u.split('#')[0].split('?')[0];
+    if (normalize(tab.url || '') === normalize(HOME_URL)) {
+        console.log(`[tweetClaw-BG] reloadIgHomeTab: reload tabId=${tab.id} (already on home)`);
+        await chrome.tabs.reload(tab.id);
+    } else {
+        console.log(`[tweetClaw-BG] reloadIgHomeTab: navigate tabId=${tab.id} from=${tab.url} to=${HOME_URL}`);
+        await chrome.tabs.update(tab.id, { url: HOME_URL });
     }
 }
 
@@ -2638,12 +2450,131 @@ export async function getXhsNoteDetailStats(payload: Record<string, unknown>): P
 // Instagram Handler Functions
 // ============================================================
 
+interface IgCheckLoginPayload {}
+
+interface IgGetSelfInfoPayload {}
+
+interface IgGetUserInfoPayload {
+    userId: string;
+}
+
+interface IgSearchUserPayload {
+    username: string;
+}
+
+interface IgGetFeedPayload {
+    maxId?: string;
+}
+
+interface IgGetMediaPayload {
+    shortcode: string;
+}
+
+interface IgLikeMediaPayload {
+    mediaId: string;
+    moduleName?: string;
+    userId?: string;
+    username?: string;
+    d?: number;
+}
+
+interface IgUnlikeMediaPayload {
+    mediaId: string;
+}
+
+interface IgFollowUserPayload {
+    userId: string;
+    moduleName?: string;
+    username?: string;
+}
+
+interface IgUnfollowUserPayload {
+    userId: string;
+}
+
+interface IgPostCommentPayload {
+    mediaId: string;
+    text: string;
+    repliedToCommentId?: string;
+}
+
+interface IgDeleteCommentPayload {
+    mediaId: string;
+    commentId: string;
+}
+
+interface IgPostMediaPayload {
+    caption: string;
+    imageBase64?: string;
+    imageBytes?: any;
+    imageBase64List?: string[];
+    videoBytes?: any;
+    videoBase64?: string;
+    uploadIds?: string[];
+    mimeType?: string;
+    disableComments?: boolean;
+    shareToThreads?: boolean;
+    location?: any;
+    videoDuration?: number;
+    videoWidth?: number;
+    videoHeight?: number;
+    thumbnailBase64?: string;
+    thumbnailBytes?: any;
+}
+
+interface IgDeleteMediaPayload {
+    mediaId: string;
+}
+
+interface IgGetUserMediaPayload {
+    userId?: string;
+    username?: string;
+    count?: number;
+    after?: string;
+}
+
+interface IgGetMediaCommentsPayload {
+    mediaId: string;
+    minId?: string;
+    sortOrder?: 'popular' | 'chronological';
+    canSupportThreading?: boolean;
+    permalinkEnabled?: boolean;
+}
+
+interface IgSearchPayload {
+    query: string;
+    searchSessionId?: string;
+    serpSessionId?: string;
+    after?: string;
+    before?: string;
+    first?: number;
+    last?: number;
+    context?: string;
+}
+
+interface IgGetNotificationsPayload {
+    maxId?: string;
+}
+
+interface IgGetFollowersPayload {
+    userId: string;
+    count?: number;
+    maxId?: string;
+    searchSurface?: string;
+}
+
+interface IgGetFollowingPayload {
+    userId: string;
+    count?: number;
+    maxId?: string;
+}
+
 async function findIgTab(): Promise<chrome.tabs.Tab | null> {
     const tabs = await chrome.tabs.query({ url: 'https://www.instagram.com/*' });
     return tabs[0] || null;
 }
 
-export async function igCheckLogin(payload: Record<string, unknown>): Promise<any> {
+export async function igCheckLogin(payload: IgCheckLoginPayload): Promise<any> {
     console.log('[TweetClaw-BG] igCheckLogin called', payload);
     const tab = await findIgTab();
     if (!tab?.id) {
@@ -2664,7 +2595,7 @@ export async function igCheckLogin(payload: Record<string, unknown>): Promise<an
     return result.data;
 }
 
-export async function igGetSelfInfo(payload: Record<string, unknown>): Promise<any> {
+export async function igGetSelfInfo(payload: IgGetSelfInfoPayload): Promise<any> {
     console.log('[TweetClaw-BG] igGetSelfInfo called', payload);
     const tabId = await ensurePlatformTabReady(
         ['*://www.instagram.com/*'],
@@ -2685,7 +2616,7 @@ export async function igGetSelfInfo(payload: Record<string, unknown>): Promise<a
     return result.data;
 }
 
-export async function igGetUserInfo(payload: Record<string, unknown>): Promise<any> {
+export async function igGetUserInfo(payload: IgGetUserInfoPayload): Promise<any> {
     console.log('[TweetClaw-BG] igGetUserInfo called', payload);
     const tab = await findIgTab();
     if (!tab?.id) {
@@ -2706,7 +2637,7 @@ export async function igGetUserInfo(payload: Record<string, unknown>): Promise<a
     return result.data;
 }
 
-export async function igSearchUser(payload: Record<string, unknown>): Promise<any> {
+export async function igSearchUser(payload: IgSearchUserPayload): Promise<any> {
     console.log('[TweetClaw-BG] igSearchUser called', payload);
     const tab = await findIgTab();
     if (!tab?.id) {
@@ -2727,7 +2658,7 @@ export async function igSearchUser(payload: Record<string, unknown>): Promise<an
     return result.data;
 }
 
-export async function igGetFeed(payload: Record<string, unknown>): Promise<any> {
+export async function igGetFeed(payload: IgGetFeedPayload): Promise<any> {
     console.log('[TweetClaw-BG] igGetFeed called', payload);
     const tab = await findIgTab();
     if (!tab?.id) {
@@ -2748,7 +2679,7 @@ export async function igGetFeed(payload: Record<string, unknown>): Promise<any> 
     return result.data;
 }
 
-export async function igGetMedia(payload: Record<string, unknown>): Promise<any> {
+export async function igGetMedia(payload: IgGetMediaPayload): Promise<any> {
     console.log('[TweetClaw-BG] igGetMedia called', payload);
     const tab = await findIgTab();
     if (!tab?.id) {
@@ -2769,7 +2700,7 @@ export async function igGetMedia(payload: Record<string, unknown>): Promise<any>
     return result.data;
 }
 
-export async function igLikeMedia(payload: Record<string, unknown>): Promise<any> {
+export async function igLikeMedia(payload: IgLikeMediaPayload): Promise<any> {
     console.log('[TweetClaw-BG] igLikeMedia called', payload);
     const tab = await findIgTab();
     if (!tab?.id) {
@@ -2790,7 +2721,7 @@ export async function igLikeMedia(payload: Record<string, unknown>): Promise<any
     return result.data;
 }
 
-export async function igUnlikeMedia(payload: Record<string, unknown>): Promise<any> {
+export async function igUnlikeMedia(payload: IgUnlikeMediaPayload): Promise<any> {
     console.log('[TweetClaw-BG] igUnlikeMedia called', payload);
     const tab = await findIgTab();
     if (!tab?.id) {
@@ -2811,7 +2742,7 @@ export async function igUnlikeMedia(payload: Record<string, unknown>): Promise<a
     return result.data;
 }
 
-export async function igFollowUser(payload: Record<string, unknown>): Promise<any> {
+export async function igFollowUser(payload: IgFollowUserPayload): Promise<any> {
     console.log('[TweetClaw-BG] igFollowUser called', payload);
     const tab = await findIgTab();
     if (!tab?.id) {
@@ -2832,7 +2763,7 @@ export async function igFollowUser(payload: Record<string, unknown>): Promise<an
     return result.data;
 }
 
-export async function igUnfollowUser(payload: Record<string, unknown>): Promise<any> {
+export async function igUnfollowUser(payload: IgUnfollowUserPayload): Promise<any> {
     console.log('[TweetClaw-BG] igUnfollowUser called', payload);
     const tab = await findIgTab();
     if (!tab?.id) {
@@ -2853,7 +2784,7 @@ export async function igUnfollowUser(payload: Record<string, unknown>): Promise<
     return result.data;
 }
 
-export async function igPostComment(payload: Record<string, unknown>): Promise<any> {
+export async function igPostComment(payload: IgPostCommentPayload): Promise<any> {
     console.log('[TweetClaw-BG] igPostComment called', payload);
     const tab = await findIgTab();
     if (!tab?.id) {
@@ -2874,7 +2805,7 @@ export async function igPostComment(payload: Record<string, unknown>): Promise<a
     return result.data;
 }
 
-export async function igDeleteComment(payload: Record<string, unknown>): Promise<any> {
+export async function igDeleteComment(payload: IgDeleteCommentPayload): Promise<any> {
     console.log('[TweetClaw-BG] igDeleteComment called', payload);
     const tab = await findIgTab();
     if (!tab?.id) {
@@ -2895,7 +2826,7 @@ export async function igDeleteComment(payload: Record<string, unknown>): Promise
     return result.data;
 }
 
-export async function igPostMedia(payload: Record<string, unknown>): Promise<any> {
+export async function igPostMedia(payload: IgPostMediaPayload): Promise<any> {
     console.log('[TweetClaw-BG] igPostMedia called', payload);
     const tab = await findIgTab();
     if (!tab?.id) {
@@ -2916,7 +2847,7 @@ export async function igPostMedia(payload: Record<string, unknown>): Promise<any
     return result.data;
 }
 
-export async function igDeleteMedia(payload: Record<string, unknown>): Promise<any> {
+export async function igDeleteMedia(payload: IgDeleteMediaPayload): Promise<any> {
     console.log('[TweetClaw-BG] igDeleteMedia called', payload);
     const tab = await findIgTab();
     if (!tab?.id) {
@@ -2937,7 +2868,7 @@ export async function igDeleteMedia(payload: Record<string, unknown>): Promise<a
     return result.data;
 }
 
-export async function igGetUserMedia(payload: Record<string, unknown>): Promise<any> {
+export async function igGetUserMedia(payload: IgGetUserMediaPayload): Promise<any> {
     console.log('[TweetClaw-BG] igGetUserMedia called', payload);
     const tab = await findIgTab();
     if (!tab?.id) {
@@ -2958,7 +2889,7 @@ export async function igGetUserMedia(payload: Record<string, unknown>): Promise<
     return result.data;
 }
 
-export async function igGetMediaComments(payload: Record<string, unknown>): Promise<any> {
+export async function igGetMediaComments(payload: IgGetMediaCommentsPayload): Promise<any> {
     console.log('[TweetClaw-BG] igGetMediaComments called', payload);
     const tab = await findIgTab();
     if (!tab?.id) {
@@ -2979,7 +2910,7 @@ export async function igGetMediaComments(payload: Record<string, unknown>): Prom
     return result.data;
 }
 
-export async function igSearch(payload: Record<string, unknown>): Promise<any> {
+export async function igSearch(payload: IgSearchPayload): Promise<any> {
     console.log('[TweetClaw-BG] igSearch called', payload);
     const tab = await findIgTab();
     if (!tab?.id) {
@@ -3000,7 +2931,7 @@ export async function igSearch(payload: Record<string, unknown>): Promise<any> {
     return result.data;
 }
 
-export async function igGetNotifications(payload: Record<string, unknown>): Promise<any> {
+export async function igGetNotifications(payload: IgGetNotificationsPayload): Promise<any> {
     console.log('[TweetClaw-BG] igGetNotifications called', payload);
     const tab = await findIgTab();
     if (!tab?.id) {
@@ -3021,7 +2952,7 @@ export async function igGetNotifications(payload: Record<string, unknown>): Prom
     return result.data;
 }
 
-export async function igGetFollowers(payload: Record<string, unknown>): Promise<any> {
+export async function igGetFollowers(payload: IgGetFollowersPayload): Promise<any> {
     console.log('[TweetClaw-BG] igGetFollowers called', payload);
     const tab = await findIgTab();
     if (!tab?.id) {
@@ -3042,7 +2973,7 @@ export async function igGetFollowers(payload: Record<string, unknown>): Promise<
     return result.data;
 }
 
-export async function igGetFollowing(payload: Record<string, unknown>): Promise<any> {
+export async function igGetFollowing(payload: IgGetFollowingPayload): Promise<any> {
     console.log('[TweetClaw-BG] igGetFollowing called', payload);
     const tab = await findIgTab();
     if (!tab?.id) {

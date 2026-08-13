@@ -1,126 +1,44 @@
+// content-script-heartbeat.ts
+//
+// 两项解耦的职责：
+//   1. 周期性把存活时间戳写入 chrome.storage.session（不唤醒 SW），供 background 判断平台 live；
+//   2. 周期性刷新页面（location.reload）。
+// 不建立持久 Port、不 sendMessage、不等待 ack，因此不存在「断线重连 → 重载」的无限循环。
+
 const TAG = '[TweetClaw-HB]';
 
-let platform = 'unknown';
+// 与 background 侧保持一致的前缀
+const ALIVE_KEY_PREFIX = 'tweetclaw:alive:';
 
-const HEARTBEAT_INTERVAL_MS = 20_000;
-const HEARTBEAT_TIMEOUT_MS  = 5_000;
-const RECONNECT_TIMEOUT_MS  = 8_000;
+const LIVE_INTERVAL_MS    = 20_000;           // 写存活时间戳间隔
+const RELOAD_INTERVAL_MS  = 30 * 60 * 1000;   // 周期刷新间隔
 
-let port: chrome.runtime.Port | null = null;
-let heartbeatTimer: ReturnType<typeof setInterval> | null = null;
-let pongTimer: ReturnType<typeof setTimeout> | null = null;
+export function connect(platform: string) {
+    // 1. 报告存活：每 20s 写一次时间戳，latest-write-wins，不等待任何响应
+    let writeErrorLogged = false;
+    const logWriteError = (e: unknown) => {
+        if (writeErrorLogged) return;
+        writeErrorLogged = true;
+        console.warn(`${TAG} storage.session.set failed: platform=${platform}`, e);
+    };
 
-function clearHeartbeat() {
-    if (heartbeatTimer !== null) {
-        clearInterval(heartbeatTimer);
-        heartbeatTimer = null;
-    }
-    if (pongTimer !== null) {
-        clearTimeout(pongTimer);
-        pongTimer = null;
-    }
-}
-
-function attachPort(p: chrome.runtime.Port) {
-    port = p;
-
-    p.onMessage.addListener((msg) => {
-        if (msg.type === 'HEARTBEAT_PONG') {
-            if (pongTimer !== null) {
-                clearTimeout(pongTimer);
-                pongTimer = null;
-            }
-        }
-    });
-
-    p.onDisconnect.addListener(() => {
-        const err = chrome.runtime.lastError?.message || 'unknown';
-        console.warn(`${TAG} Port disconnected (reason: ${err}), attempting reconnect...`);
-        clearHeartbeat();
-        port = null;
-        attemptReconnect();
-    });
-
-    startHeartbeat();
-    console.log(`${TAG} Port attached, heartbeat started`);
-}
-
-function startHeartbeat() {
-    heartbeatTimer = setInterval(() => {
-        if (!port) {
-            clearHeartbeat();
-            return;
-        }
-
-        if (pongTimer !== null) {
-            clearTimeout(pongTimer);
-            pongTimer = null;
-        }
-
+    setInterval(() => {
         try {
-            port.postMessage({ type: 'HEARTBEAT_PING', platform });
+            void chrome.storage.session
+                .set({ [`${ALIVE_KEY_PREFIX}${platform}`]: Date.now() })
+                .catch(logWriteError);
         } catch (e) {
-            console.warn(`${TAG} Failed to send PING:`, e);
-            return;
+            logWriteError(e);
         }
+    }, LIVE_INTERVAL_MS);
 
-        pongTimer = setTimeout(() => {
-            pongTimer = null;
-            console.warn(`${TAG} PONG timeout after ${HEARTBEAT_TIMEOUT_MS}ms, disconnecting...`);
-            port?.disconnect();
-            // onDisconnect will trigger attemptReconnect
-        }, HEARTBEAT_TIMEOUT_MS);
-    }, HEARTBEAT_INTERVAL_MS);
-}
-
-function attemptReconnect() {
-    console.log(`${TAG} Attempting reconnect (timeout in ${RECONNECT_TIMEOUT_MS}ms)...`);
-
-    let reconnectSucceeded = false;
-
-    const reloadTimer = setTimeout(() => {
-        console.warn(`${TAG} Reconnect timed out, reloading page...`);
+    // 2. 周期刷新：独立定时器，与报告存活完全解耦
+    setInterval(() => {
+        console.log(`${TAG} Periodic reload: platform=${platform}`);
         location.reload();
-    }, RECONNECT_TIMEOUT_MS);
+    }, RELOAD_INTERVAL_MS);
 
-    try {
-        const newPort = chrome.runtime.connect({ name: 'heartbeat' });
-
-        newPort.onMessage.addListener((msg) => {
-            if (msg.type === 'HEARTBEAT_PONG') {
-                reconnectSucceeded = true;
-                clearTimeout(reloadTimer);
-                console.log(`${TAG} Reconnect successful`);
-                attachPort(newPort);
-            }
-        });
-
-        newPort.onDisconnect.addListener(() => {
-            if (reconnectSucceeded) return;
-            const err = chrome.runtime.lastError?.message || 'unknown';
-            console.warn(`${TAG} Reconnect port disconnected before PONG (reason: ${err}), waiting for reload timer...`);
-        });
-
-        newPort.postMessage({ type: 'HEARTBEAT_PING', platform });
-        console.log(`${TAG} Reconnect PING sent`);
-    } catch (e) {
-        console.error(`${TAG} Reconnect connect() threw immediately:`, e);
-    }
-}
-
-export function connect(p: string) {
-    if (port !== null || heartbeatTimer !== null) {
-        console.warn(`${TAG} connect() called while already active, tearing down previous connection`);
-        clearHeartbeat();
-        port?.disconnect();
-        port = null;
-    }
-    platform = p;
-    console.log(`${TAG} Initializing heartbeat... platform=${platform}`);
-    try {
-        const initialPort = chrome.runtime.connect({ name: 'heartbeat' });
-        attachPort(initialPort);
-    } catch (e) {
-        console.error(`${TAG} Initial connect() failed:`, e);
-    }
+    console.log(
+        `${TAG} Started: platform=${platform}, alive=${LIVE_INTERVAL_MS}ms, reload=${RELOAD_INTERVAL_MS}ms`
+    );
 }
