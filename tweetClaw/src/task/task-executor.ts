@@ -7,6 +7,7 @@ import { logger } from './logger';
 import { ResultUploaderImpl, TaskExecutorConfig } from './result-uploader';
 import { BackgroundTaskParams, StartTaskRequest, TaskContext } from './types';
 import { sendMessageToTab } from '../utils/message-utils';
+import { getLiveTabIdsForPlatform } from '../utils/live-tabs';
 
 function base64ToUint8Array(base64: string): Uint8Array {
   const binary = atob(base64);
@@ -256,18 +257,14 @@ export class BackgroundTaskCoordinator {
       // 优先 creator.xiaohongshu.com：发布/上传要求 origin=creator，
       // 否则 content script 的 assertCreatorPublishPage 会拦截（风控指纹）。
       const creatorTabs = await chrome.tabs.query({ url: ['*://creator.xiaohongshu.com/*'] });
-      const creatorTab = creatorTabs.find(t => t.active) || creatorTabs[0];
-      if (creatorTab?.id) {
-        return creatorTab.id;
+      const liveIds = new Set(await getLiveTabIdsForPlatform('xiaohongshu'));
+      const creatorIds = creatorTabs
+          .map(t => t.id)
+          .filter((id): id is number => id != null && liveIds.has(id));
+      if (!creatorIds.length) {
+        throw new Error('No creator.xiaohongshu.com tab found for task execution');
       }
-
-      // 兜底：www tab（publish 阶段若非 creator 域会被 assertCreatorPublishPage 拦截）
-      const xhsTabs = await chrome.tabs.query({ url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*'] });
-      const targetTab = xhsTabs.find(tab => tab.active) || xhsTabs[0];
-      if (!targetTab?.id) {
-        throw new Error('No xiaohongshu.com tab found for task execution');
-      }
-      return targetTab.id;
+      return Math.min(...creatorIds);
     }
 
     if (taskKind === 'ig.publish_video' || taskKind === 'ig.image_upload') {
