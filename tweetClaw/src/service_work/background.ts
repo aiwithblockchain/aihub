@@ -891,24 +891,21 @@ interface CheckLoginResponse {
 
 const PLATFORM_TAB_CONFIG: Array<{
     platform: 'twitter' | 'instagram' | 'xiaohongshu';
-    urlPatterns: string[];
 }> = [
-    { platform: 'twitter', urlPatterns: ['*://x.com/*', '*://twitter.com/*'] },
-    { platform: 'instagram', urlPatterns: ['*://www.instagram.com/*', '*://instagram.com/*'] },
-    { platform: 'xiaohongshu', urlPatterns: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*'] },
+    { platform: 'twitter' },
+    { platform: 'instagram' },
+    { platform: 'xiaohongshu' },
 ];
 
 async function checkPlatformLogin(
-    platform: 'twitter' | 'instagram' | 'xiaohongshu',
-    urlPatterns: string[]
+    platform: 'twitter' | 'instagram' | 'xiaohongshu'
 ): Promise<AccountStatusResult> {
-    // Twitter / Instagram 与业务命令统一走 findLiveTab；XHS 保留原双域名查询逻辑。
+    // Twitter / Instagram 与业务命令统一走 findLiveTab；XHS 与业务命令统一走 findXhsMainTab。
     let tabId: number | null = null;
     if (platform === 'twitter' || platform === 'instagram') {
         tabId = await findLiveTab(platform);
     } else {
-        const tabs = await chrome.tabs.query({ url: urlPatterns });
-        tabId = (tabs.find(t => !t.active) || tabs[0])?.id ?? null;
+        tabId = await findXhsMainTab();
     }
 
     if (!tabId) {
@@ -951,7 +948,7 @@ async function checkPlatformLogin(
 
 async function collectAccountStatuses(): Promise<AccountStatusResult[]> {
     const results = await Promise.all(
-        PLATFORM_TAB_CONFIG.map(cfg => checkPlatformLogin(cfg.platform, cfg.urlPatterns))
+        PLATFORM_TAB_CONFIG.map(cfg => checkPlatformLogin(cfg.platform))
     );
     return results;
 }
@@ -991,16 +988,24 @@ async function pickMinLiveTab(platform: string, tabs: chrome.tabs.Tab[]): Promis
 
 async function findXhsMainTab(): Promise<number | null> {
     // 主站内容浏览 / 互动 API：只用 www / xiaohongshu.com
-    const tabs = await chrome.tabs.query({
-        url: ['*://www.xiaohongshu.com/*', '*://xiaohongshu.com/*']
+    const allTabs = await chrome.tabs.query({});
+    const tabs = allTabs.filter(t => {
+        const url = t.url || '';
+        return url.startsWith('https://www.xiaohongshu.com/')
+            || url.startsWith('https://xiaohongshu.com/')
+            || url.startsWith('http://www.xiaohongshu.com/')
+            || url.startsWith('http://xiaohongshu.com/');
     });
     return pickMinLiveTab('xiaohongshu', tabs);
 }
 
 async function findXhsCreatorTab(): Promise<number | null> {
     // 发布 / 创作者数据 API：只用 creator.xiaohongshu.com
-    const tabs = await chrome.tabs.query({
-        url: ['*://creator.xiaohongshu.com/*']
+    const allTabs = await chrome.tabs.query({});
+    const tabs = allTabs.filter(t => {
+        const url = t.url || '';
+        return url.startsWith('https://creator.xiaohongshu.com/')
+            || url.startsWith('http://creator.xiaohongshu.com/');
     });
     return pickMinLiveTab('xiaohongshu', tabs);
 }
