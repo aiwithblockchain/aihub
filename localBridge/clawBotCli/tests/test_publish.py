@@ -83,11 +83,11 @@ def resolve_instance_id(client: ClawBotClient, preferred_instance_id: Optional[s
     return str(instance_id) if instance_id else None
 
 
-def upload_media(client: ClawBotClient, file_paths: List[str], instance_id: Optional[str], tab_id: Optional[int]) -> List[str]:
+def upload_media(client: ClawBotClient, file_paths: List[str], instance_id: Optional[str]) -> List[str]:
     media_ids: List[str] = []
     for file_path in file_paths:
         print(f"📤 Uploading media file: {file_path}")
-        result = client.media.upload(file_path, instance_id=instance_id, tab_id=tab_id)
+        result = client.media.upload(file_path, instance_id=instance_id)
         print(f"✅ Uploaded media_id: {result.media_id}")
         media_ids.append(result.media_id)
     return media_ids
@@ -125,7 +125,6 @@ def main() -> int:
     parser.add_argument("--video", type=str, help="Video path, absolute or relative to test_media")
     parser.add_argument("--reply-to", type=str, help="Reply target tweet ID")
     parser.add_argument("--instance-id", type=str, help="Explicit instanceId for multi-instance routing")
-    parser.add_argument("--tab-id", type=int, help="Optional tabId for media upload")
     parser.add_argument("--yes", action="store_true", help="Skip interactive confirmation")
     args = parser.parse_args()
 
@@ -152,7 +151,7 @@ def main() -> int:
     client = ClawBotClient()
     instance_id = resolve_instance_id(client, preferred_instance_id=args.instance_id)
     print(f"Resolved instance_id: {instance_id}")
-    media_ids = upload_media(client, media_paths, instance_id, args.tab_id) if media_paths else None
+    media_ids = upload_media(client, media_paths, instance_id) if media_paths else None
 
     if args.reply_to:
         success = create_reply(client, args.reply_to, text, media_ids, instance_id=instance_id)

@@ -63,12 +63,12 @@ def print_json_preview(label: str, payload: Any, limit: int = 800) -> None:
     print(f"{label}:\n{preview}")
 
 
-def test_timeline(client: ClawBotClient, tab_id: Optional[int]) -> tuple[bool, Optional[str]]:
+def test_timeline(client: ClawBotClient) -> tuple[bool, Optional[str]]:
     print("\n" + "=" * 60)
     print("Testing: GET /api/v1/x/timeline")
     print("=" * 60)
 
-    tweets = client.x.timeline.list_timeline_tweets(tab_id=tab_id)
+    tweets = client.x.timeline.list_timeline_tweets()
     print(f"Found {len(tweets)} tweets")
     if tweets:
         first = tweets[0]
@@ -81,7 +81,7 @@ def test_timeline(client: ClawBotClient, tab_id: Optional[int]) -> tuple[bool, O
     return True, None
 
 
-def test_get_tweet(client: ClawBotClient, tweet_id: Optional[str], instance_id: Optional[str], tab_id: Optional[int]) -> bool:
+def test_get_tweet(client: ClawBotClient, tweet_id: Optional[str], instance_id: Optional[str]) -> bool:
     print("\n" + "=" * 60)
     print("Testing: GET /api/v1/x/tweets?tweetId=...")
     print("=" * 60)
@@ -91,8 +91,8 @@ def test_get_tweet(client: ClawBotClient, tweet_id: Optional[str], instance_id: 
         print("⏭️  Skipped")
         return True
 
-    raw = client.x.tweets.get_tweet_raw(tweet_id, tab_id=tab_id, instance_id=instance_id)
-    tweet = client.x.tweets.get_tweet(tweet_id, tab_id=tab_id, instance_id=instance_id)
+    raw = client.x.tweets.get_tweet_raw(tweet_id, instance_id=instance_id)
+    tweet = client.x.tweets.get_tweet(tweet_id, instance_id=instance_id)
 
     print_json_preview("Raw TweetDetail preview", raw)
     print(f"Structured tweet id: {tweet.id}")
@@ -112,13 +112,13 @@ def test_get_tweet(client: ClawBotClient, tweet_id: Optional[str], instance_id: 
     return True
 
 
-def test_user_profile(client: ClawBotClient, screen_name: Optional[str], tab_id: Optional[int]) -> bool:
+def test_user_profile(client: ClawBotClient, screen_name: Optional[str]) -> bool:
     print("\n" + "=" * 60)
     print("Testing: GET /api/v1/x/users")
     print("=" * 60)
 
     screen_name = prompt_if_missing(screen_name, "Enter a screen name to test (default: elonmusk): ", default="elonmusk")
-    user = client.x.users.get_user(screen_name, tab_id=tab_id)
+    user = client.x.users.get_user(screen_name)
 
     if user and user.screen_name:
         print(f"✅ User profile fetched: @{user.screen_name} - {user.name}")
@@ -128,13 +128,13 @@ def test_user_profile(client: ClawBotClient, screen_name: Optional[str], tab_id:
     return False
 
 
-def test_search(client: ClawBotClient, query: Optional[str], tab_id: Optional[int]) -> bool:
+def test_search(client: ClawBotClient, query: Optional[str]) -> bool:
     print("\n" + "=" * 60)
     print("Testing: GET /api/v1/x/search")
     print("=" * 60)
 
     query = prompt_if_missing(query, "Enter search query (default: AI): ", default="AI")
-    tweets, users = client.x.search.search(query, count=5, tab_id=tab_id)
+    tweets, users = client.x.search.search(query, count=5)
 
     print(f"✅ Search completed: found {len(tweets)} tweets, {len(users)} users")
     return True
@@ -146,7 +146,6 @@ def main() -> int:
     parser.add_argument("--screen-name", type=str, help="Screen name for user profile test")
     parser.add_argument("--query", type=str, help="Search query")
     parser.add_argument("--instance-id", type=str, help="Explicit instanceId for single tweet checks")
-    parser.add_argument("--tab-id", type=int, help="Optional tabId for read APIs")
     parser.add_argument("--only", choices=["timeline", "tweet", "user", "search"], help="Run only one sub-test")
     args = parser.parse_args()
 
@@ -159,7 +158,7 @@ def main() -> int:
     timeline_ok = True
     inferred_tweet_id: Optional[str] = None
     if args.only in (None, "timeline"):
-        timeline_ok, inferred_tweet_id = test_timeline(client, args.tab_id)
+        timeline_ok, inferred_tweet_id = test_timeline(client)
 
     effective_tweet_id = args.tweet_id or inferred_tweet_id
 
@@ -167,11 +166,11 @@ def main() -> int:
     if args.only in (None, "timeline"):
         results.append(("Timeline", timeline_ok))
     if args.only in (None, "tweet"):
-        results.append(("Get Tweet", test_get_tweet(client, effective_tweet_id, resolved_instance_id, args.tab_id)))
+        results.append(("Get Tweet", test_get_tweet(client, effective_tweet_id, resolved_instance_id)))
     if args.only in (None, "user"):
-        results.append(("User Profile", test_user_profile(client, args.screen_name, args.tab_id)))
+        results.append(("User Profile", test_user_profile(client, args.screen_name)))
     if args.only in (None, "search"):
-        results.append(("Search", test_search(client, args.query, args.tab_id)))
+        results.append(("Search", test_search(client, args.query)))
 
     print("\n" + "=" * 60)
     print("Test Summary:")

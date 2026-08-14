@@ -115,7 +115,7 @@ class TestServices(unittest.TestCase):
         self.assertIsInstance(tweet, XTweet)
         self.assertEqual(tweet.id, "root-1")
         self.assertEqual(tweet.text, "target tweet")
-        transport.get_tweet_raw.assert_called_once_with(tweet_id="root-1", tab_id=None, instance_id="instance-1")
+        transport.get_tweet_raw.assert_called_once_with(tweet_id="root-1", instance_id="instance-1")
 
     def test_x_read_get_tweet_replies_skips_focal_tweet(self):
         transport = Mock()
@@ -175,7 +175,7 @@ class TestServices(unittest.TestCase):
         tweets = service.get_tweet_replies("root-1", instance_id="instance-1")
         self.assertEqual([tweet.id for tweet in tweets], ["reply-1"])
         transport.get_tweet_replies_raw.assert_called_once_with(
-            tweet_id="root-1", cursor=None, tab_id=None, instance_id="instance-1"
+            tweet_id="root-1", cursor=None, instance_id="instance-1"
         )
 
     def test_ai_chat_send_message(self):

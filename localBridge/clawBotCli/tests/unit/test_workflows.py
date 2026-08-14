@@ -27,10 +27,10 @@ class TestCommonWorkflows(unittest.TestCase):
         self.read.get_first_timeline_tweet.return_value = XTweet(id="tweet1", text="hello")
         self.actions.like.return_value = Mock(success=True)
 
-        result = self.workflows.read_and_like_first_tweet(tab_id=1)
+        result = self.workflows.read_and_like_first_tweet()
 
-        self.read.get_first_timeline_tweet.assert_called_once_with(tab_id=1)
-        self.actions.like.assert_called_once_with("tweet1", tab_id=1)
+        self.read.get_first_timeline_tweet.assert_called_once_with(instance_id=None)
+        self.actions.like.assert_called_once_with("tweet1", instance_id=None)
         self.assertTrue(result.success)
 
     def test_read_and_like_first_tweet_raises_when_missing(self):
@@ -42,19 +42,19 @@ class TestCommonWorkflows(unittest.TestCase):
         self.read.search_first_user.return_value = XUser(id="u1", screen_name="alice")
         self.read.get_user.return_value = XUser(id="u1", screen_name="alice", name="Alice")
 
-        result = self.workflows.search_and_fetch_profile("AI", tab_id=2)
+        result = self.workflows.search_and_fetch_profile("AI")
 
-        self.read.search_first_user.assert_called_once_with(query="AI", tab_id=2)
-        self.read.get_user.assert_called_once_with("alice", tab_id=2)
+        self.read.search_first_user.assert_called_once_with(query="AI", instance_id=None)
+        self.read.get_user.assert_called_once_with("alice", instance_id=None)
         self.assertEqual(result.name, "Alice")
 
     def test_reply_to_pinned_tweet(self):
         self.read.get_pinned_tweet.return_value = XTweet(id="tweet2", text="pinned")
         self.actions.reply.return_value = Mock(success=True)
 
-        result = self.workflows.reply_to_pinned_tweet("openclaw", "hi", tab_id=3)
+        result = self.workflows.reply_to_pinned_tweet("openclaw", "hi")
 
-        self.actions.reply.assert_called_once_with("tweet2", "hi")
+        self.actions.reply.assert_called_once_with("tweet2", "hi", instance_id=None)
         self.assertTrue(result.success)
 
     def test_reply_to_pinned_tweet_raises_when_missing(self):
@@ -66,9 +66,9 @@ class TestCommonWorkflows(unittest.TestCase):
         self.read.get_tweet.return_value = XTweet(id="tweet3", text="tweet body")
         self.ai.send_message.return_value = AIMessageResult(success=True, content="reply", conversation_id="c1")
 
-        result = self.workflows.analyze_tweet_and_generate_reply("tweet3", "chatgpt", tab_id=4)
+        result = self.workflows.analyze_tweet_and_generate_reply("tweet3", "chatgpt")
 
-        self.read.get_tweet.assert_called_once_with("tweet3", tab_id=4)
+        self.read.get_tweet.assert_called_once_with("tweet3", instance_id=None)
         self.ai.send_message.assert_called_once()
         self.assertEqual(result.content, "reply")
 
@@ -77,9 +77,9 @@ class TestCommonWorkflows(unittest.TestCase):
         self.ai.send_message.return_value = AIMessageResult(success=True, content="generated reply")
         self.actions.reply.return_value = Mock(success=True)
 
-        result = self.workflows.reply_to_pinned_tweet_with_ai("openclaw", "chatgpt", tab_id=5)
+        result = self.workflows.reply_to_pinned_tweet_with_ai("openclaw", "chatgpt")
 
-        self.actions.reply.assert_called_once_with("tweet4", "generated reply")
+        self.actions.reply.assert_called_once_with("tweet4", "generated reply", instance_id=None)
         self.assertTrue(result.success)
 
     def test_reply_to_pinned_tweet_with_ai_raises_when_ai_empty(self):

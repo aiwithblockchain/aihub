@@ -83,7 +83,6 @@ def main() -> int:
     parser.add_argument("--images", type=str, help="Comma-separated image paths, absolute or relative to test_media")
     parser.add_argument("--video", type=str, help="Video path, absolute or relative to test_media")
     parser.add_argument("--instance-id", type=str, help="Explicit instanceId for upload")
-    parser.add_argument("--tab-id", type=int, help="Optional tabId for upload")
     parser.add_argument("--yes", action="store_true", help="Skip interactive confirmation")
     args = parser.parse_args()
 
@@ -94,8 +93,6 @@ def main() -> int:
     print("⚠️  WARNING: This uploads real media into the X workflow")
     print("=" * 60)
     print(f"Media files: {media_paths}")
-    if args.tab_id is not None:
-        print(f"Tab ID: {args.tab_id}")
 
     confirm_or_exit("⚠️  Real media upload task will be executed.", args.yes)
 
@@ -106,7 +103,7 @@ def main() -> int:
 
     for media_path in media_paths:
         print(f"\n📤 Uploading: {media_path}")
-        result = client.media.upload(media_path, instance_id=instance_id, tab_id=args.tab_id)
+        result = client.media.upload(media_path, instance_id=instance_id)
         print(f"✅ Uploaded media_id: {result.media_id}")
         uploaded_ids.append(result.media_id)
 

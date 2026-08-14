@@ -1,3 +1,4 @@
+import { connect as startHeartbeat } from './content-script-heartbeat';
 import { XHS_API_ENDPOINTS, XHS_MSG_TYPE } from '../platforms/xiaohongshu/xhs-consts';
 import { performXhsAction } from '../platforms/xiaohongshu/xhs-api';
 
@@ -2578,3 +2579,5 @@ chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 
   return false;
 });
+
+startHeartbeat("xiaohongshu");

@@ -372,6 +372,14 @@ export class IgApiClient {
 
     const data = await response.json();
 
+    // 诊断日志：原始响应缺少 data.user 时，记录完整结构便于定位是 doc_id 过期还是 variables 形状错误
+    console.log('[IG API] getUserInfo raw response keys:', Object.keys(data || {}));
+    console.log('[IG API] getUserInfo raw data keys:', Object.keys(data?.data || {}));
+    if (data?.errors) {
+      console.warn('[IG API] getUserInfo GraphQL errors:', JSON.stringify(data.errors));
+    }
+    console.log('[IG API] getUserInfo raw response:', JSON.stringify(data).slice(0, 4000));
+
     // 检查 doc_id 过期（field_exception）
     this.checkGraphQlDocIdError(data, GRAPHQL_QUERIES.USER_PROFILE.queryName);
 

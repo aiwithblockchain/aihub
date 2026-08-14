@@ -30,7 +30,7 @@ class TestLegacyMediaUploadTask(unittest.TestCase):
         self.task_client.wait_for_completion.return_value = {"state": "completed"}
         self.task_client.get_task_result.return_value = b'{"mediaId": "media_456"}'
 
-        media_id = self.media_upload.upload_video(self.video_path, instance_id="instance_xxx", tab_id=123)
+        media_id = self.media_upload.upload_video(self.video_path, instance_id="instance_xxx")
 
         self.assertEqual(media_id, "media_456")
         self.task_client.create_task.assert_called_once()
@@ -43,7 +43,7 @@ class TestLegacyMediaUploadTask(unittest.TestCase):
         self.task_client.wait_for_completion.side_effect = MediaUploadError("Network error")
 
         with self.assertRaises(MediaUploadError):
-            self.media_upload.upload_video(self.video_path, instance_id="instance_xxx", tab_id=123)
+            self.media_upload.upload_video(self.video_path, instance_id="instance_xxx")
 
 
 if __name__ == "__main__":

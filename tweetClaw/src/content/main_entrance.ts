@@ -1,3 +1,4 @@
+import { connect as startHeartbeat } from './content-script-heartbeat';
 import { MsgType } from '../capture/consts';
 import {
     performMutation,
@@ -703,5 +704,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     return false;
 });
+
+startHeartbeat("twitter");
 
 console.log('[TweetClaw-CS] Active.');

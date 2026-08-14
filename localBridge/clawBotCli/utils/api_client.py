@@ -36,20 +36,20 @@ class APIClient:
     def get_basic_info(self) -> Dict[Any, Any]:
         return self._client.x_transport.get_basic_info_raw()
 
-    def get_timeline(self, tab_id: Optional[int] = None) -> Dict[Any, Any]:
-        return self._client.x_transport.get_timeline_raw(tab_id=tab_id)
+    def get_timeline(self) -> Dict[Any, Any]:
+        return self._client.x_transport.get_timeline_raw()
 
-    def get_tweet(self, tweet_id: str, tab_id: Optional[int] = None) -> Dict[Any, Any]:
-        return self._client.x_transport.get_tweet_raw(tweet_id=tweet_id, tab_id=tab_id)
+    def get_tweet(self, tweet_id: str) -> Dict[Any, Any]:
+        return self._client.x_transport.get_tweet_raw(tweet_id=tweet_id)
 
-    def get_tweet_replies(self, tweet_id: str, cursor: Optional[str] = None, tab_id: Optional[int] = None) -> Dict[Any, Any]:
-        return self._client.x_transport.get_tweet_replies_raw(tweet_id=tweet_id, cursor=cursor, tab_id=tab_id)
+    def get_tweet_replies(self, tweet_id: str, cursor: Optional[str] = None) -> Dict[Any, Any]:
+        return self._client.x_transport.get_tweet_replies_raw(tweet_id=tweet_id, cursor=cursor)
 
-    def get_user_profile(self, screen_name: str, tab_id: Optional[int] = None) -> Dict[Any, Any]:
-        return self._client.x_transport.get_user_profile_raw(screen_name=screen_name, tab_id=tab_id)
+    def get_user_profile(self, screen_name: str) -> Dict[Any, Any]:
+        return self._client.x_transport.get_user_profile_raw(screen_name=screen_name)
 
-    def search_timeline(self, query: str, cursor: Optional[str] = None, count: int = 20, tab_id: Optional[int] = None) -> Dict[Any, Any]:
-        return self._client.x_transport.search_raw(query=query, cursor=cursor, count=count, tab_id=tab_id)
+    def search_timeline(self, query: str, cursor: Optional[str] = None, count: int = 20) -> Dict[Any, Any]:
+        return self._client.x_transport.search_raw(query=query, cursor=cursor, count=count)
 
     def create_tweet(self, text: str, media_ids: Optional[List[str]] = None) -> Dict[Any, Any]:
         return self._client.x_transport.create_tweet_raw(text=text, media_ids=media_ids)
@@ -57,32 +57,32 @@ class APIClient:
     def create_reply(self, tweet_id: str, text: str, media_ids: Optional[List[str]] = None) -> Dict[Any, Any]:
         return self._client.x_transport.create_reply_raw(tweet_id=tweet_id, text=text, media_ids=media_ids)
 
-    def like_tweet(self, tweet_id: str, tab_id: Optional[int] = None) -> Dict[Any, Any]:
-        return self._client.x_transport.like_tweet_raw(tweet_id=tweet_id, tab_id=tab_id)
+    def like_tweet(self, tweet_id: str) -> Dict[Any, Any]:
+        return self._client.x_transport.like_tweet_raw(tweet_id=tweet_id)
 
-    def unlike_tweet(self, tweet_id: str, tab_id: Optional[int] = None) -> Dict[Any, Any]:
-        return self._client.x_transport.unlike_tweet_raw(tweet_id=tweet_id, tab_id=tab_id)
+    def unlike_tweet(self, tweet_id: str) -> Dict[Any, Any]:
+        return self._client.x_transport.unlike_tweet_raw(tweet_id=tweet_id)
 
-    def retweet(self, tweet_id: str, tab_id: Optional[int] = None) -> Dict[Any, Any]:
-        return self._client.x_transport.retweet_raw(tweet_id=tweet_id, tab_id=tab_id)
+    def retweet(self, tweet_id: str) -> Dict[Any, Any]:
+        return self._client.x_transport.retweet_raw(tweet_id=tweet_id)
 
-    def unretweet(self, tweet_id: str, tab_id: Optional[int] = None) -> Dict[Any, Any]:
-        return self._client.x_transport.unretweet_raw(tweet_id=tweet_id, tab_id=tab_id)
+    def unretweet(self, tweet_id: str) -> Dict[Any, Any]:
+        return self._client.x_transport.unretweet_raw(tweet_id=tweet_id)
 
-    def bookmark_tweet(self, tweet_id: str, tab_id: Optional[int] = None) -> Dict[Any, Any]:
-        return self._client.x_transport.bookmark_tweet_raw(tweet_id=tweet_id, tab_id=tab_id)
+    def bookmark_tweet(self, tweet_id: str) -> Dict[Any, Any]:
+        return self._client.x_transport.bookmark_tweet_raw(tweet_id=tweet_id)
 
-    def unbookmark_tweet(self, tweet_id: str, tab_id: Optional[int] = None) -> Dict[Any, Any]:
-        return self._client.x_transport.unbookmark_tweet_raw(tweet_id=tweet_id, tab_id=tab_id)
+    def unbookmark_tweet(self, tweet_id: str) -> Dict[Any, Any]:
+        return self._client.x_transport.unbookmark_tweet_raw(tweet_id=tweet_id)
 
-    def follow_user(self, user_id: str, tab_id: Optional[int] = None) -> Dict[Any, Any]:
-        return self._client.x_transport.follow_user_raw(user_id=user_id, tab_id=tab_id)
+    def follow_user(self, user_id: str) -> Dict[Any, Any]:
+        return self._client.x_transport.follow_user_raw(user_id=user_id)
 
-    def unfollow_user(self, user_id: str, tab_id: Optional[int] = None) -> Dict[Any, Any]:
-        return self._client.x_transport.unfollow_user_raw(user_id=user_id, tab_id=tab_id)
+    def unfollow_user(self, user_id: str) -> Dict[Any, Any]:
+        return self._client.x_transport.unfollow_user_raw(user_id=user_id)
 
-    def delete_tweet(self, tweet_id: str, tab_id: Optional[int] = None) -> Dict[Any, Any]:
-        return self._client.x_transport.delete_tweet_raw(tweet_id=tweet_id, tab_id=tab_id)
+    def delete_tweet(self, tweet_id: str) -> Dict[Any, Any]:
+        return self._client.x_transport.delete_tweet_raw(tweet_id=tweet_id)
 
     def open_tab(self, path: str = "home") -> Dict[Any, Any]:
         return self._client.x_transport.open_tab_raw(path=path)
@@ -115,11 +115,10 @@ class MediaUploadTask:
         self.progress = progress
         self._media_service = MediaService(task_client=self.task_client, actions=None, uploader=self.uploader, progress=self.progress)
 
-    def upload_video(self, video_path: str, client_name: str = "tweetClaw", instance_id: str = None, tab_id: int = None) -> str:
+    def upload_video(self, video_path: str, client_name: str = "tweetClaw", instance_id: str = None) -> str:
         result: MediaUploadResult = self._media_service.upload(
             video_path,
             client_name=client_name,
             instance_id=instance_id,
-            tab_id=tab_id,
         )
         return result.media_id

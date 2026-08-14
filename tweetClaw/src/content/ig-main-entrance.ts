@@ -17,6 +17,7 @@
  */
 
 import { IgApiClient, shortcodeToMediaId, mediaIdToShortcode, extractShortcodeFromUrl } from '../ig_api/ig_api';
+import { connect as startHeartbeat } from './content-script-heartbeat';
 import type {
   IgMessageType,
   IgRequestMessage,
@@ -995,6 +996,8 @@ async function handleTestConnection(params: Record<string, any>): Promise<any> {
     console.error(`${TAG} ❌ Initialization error:`, error.message);
   }
 })();
+
+startHeartbeat("instagram");
 
 // ============ IG 分片视频上传 Task Handler ============
 

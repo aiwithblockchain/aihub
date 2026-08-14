@@ -424,7 +424,6 @@ export interface ExecActionRequestPayload {
        | 'delete_tweet';
   tweetId?: string;
   userId?: string;
-  tabId?: number;
   text?: string;    // 新增：发推文 / 回复时的文字内容
   media_ids?: string[];  // 新增：媒体 ID 列表
   attachmentUrl?: string; // 新增：quote tweet 时被引用推文的 URL
@@ -432,22 +431,18 @@ export interface ExecActionRequestPayload {
 
 export interface QueryTweetDetailRequestPayload {
   tweetId: string;
-  tabId?: number;
 }
 
 export interface QueryTweetRepliesRequestPayload {
   tweetId: string;
-  tabId?: number;
   cursor?: string;
 }
 
 export interface QueryUserProfileRequestPayload {
   screenName: string;
-  tabId?: number;
 }
 
 export interface QuerySearchTimelineRequestPayload {
-  tabId?: number;
   query?: string;   // 搜索关键词
   cursor?: string;  // 翻页游标
   count?: number;   // 结果数量（默认 20）
@@ -456,28 +451,24 @@ export interface QuerySearchTimelineRequestPayload {
 
 export interface QueryUserTweetsRequestPayload {
   userId: string;   // 用户 ID (如 "44196397")
-  tabId?: number;
   cursor?: string;  // 翻页游标
   count?: number;   // 结果数量（默认 20）
 }
 
 export interface QueryFollowersRequestPayload {
   userId: string;   // 目标用户 ID（数字字符串，如 "44196397"）
-  tabId?: number;
   cursor?: string;  // 翻页游标
   count?: number;   // 单页数量（默认 20）
 }
 
 export interface QueryFollowingRequestPayload {
   userId: string;
-  tabId?: number;
   cursor?: string;
   count?: number;
 }
 
 export interface QueryBlueVerifiedFollowersRequestPayload {
   userId: string;
-  tabId?: number;
   cursor?: string;
   count?: number;
 }
