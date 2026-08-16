@@ -23,6 +23,7 @@ import {
   getLsdToken,
   getRevision,
   getSessionId,
+  getIgCookie,
   getBloksVersionId,
   getFollowNavChain,
   resetReqCounter,
@@ -802,7 +803,16 @@ export class IgApiClient {
    * 后续请求自动带上。content script 无法读取历史响应头，
    * 尝试从 DOM script 标签提取；若提取不到则返回 null（不设此 header，比硬编码过期值更安全）。
    */
-  private getWwwClaim(): string | null {
+  private async getWwwClaim(): Promise<string | null> {
+    // 1. 从 sessionStorage 读（IG 页面把 www-claim 存在 www-claim-v2 键）
+    try {
+      const cached = sessionStorage.getItem('www-claim-v2');
+      if (cached) return cached;
+    } catch {}
+    // 2. fallback：从 cookie 读（httpOnly，chrome.cookies API）
+    const cookieVal = await getIgCookie('x-ig-www-claim');
+    if (cookieVal) return cookieVal;
+    // 3. fallback：从 DOM script 提取
     const scripts = Array.from(document.querySelectorAll('script'));
     for (const script of scripts) {
       const text = script.textContent || '';
@@ -1146,12 +1156,12 @@ export class IgApiClient {
       const headers = await this.buildHeaders('POST');
       // REST 端点不带 x-fb-lsd（ig_comment.log 抓包确认）
       headers.delete('x-fb-lsd');
-      const wwwClaim = this.getWwwClaim();
+      const wwwClaim = await this.getWwwClaim();
       if (wwwClaim) {
         headers.set('x-ig-www-claim', wwwClaim);
       }
       headers.set('x-instagram-ajax', getRevision());
-      headers.set('x-web-session-id', getSessionId());
+      headers.set('x-web-session-id', await getSessionId());
       headers.set('x-requested-with', 'XMLHttpRequest');
 
       console.log('[IG API] postComment fingerprint:', {
@@ -1159,7 +1169,7 @@ export class IgApiClient {
         jazoestInput: 'csrfToken',
         'x-ig-www-claim': wwwClaim ? 'SET' : 'MISSING',
         'x-instagram-ajax': getRevision(),
-        'x-web-session-id': getSessionId() || 'MISSING',
+        'x-web-session-id': await getSessionId() || 'MISSING',
       });
 
       const response = await fetch(
@@ -1199,19 +1209,19 @@ export class IgApiClient {
       const headers = await this.buildHeaders('POST');
       // REST 端点不带 x-fb-lsd（GraphQL 专用 header）
       headers.delete('x-fb-lsd');
-      const wwwClaim = this.getWwwClaim();
+      const wwwClaim = await this.getWwwClaim();
       if (wwwClaim) {
         headers.set('x-ig-www-claim', wwwClaim);
       }
       headers.set('x-instagram-ajax', getRevision());
-      headers.set('x-web-session-id', getSessionId());
+      headers.set('x-web-session-id', await getSessionId());
       headers.set('x-requested-with', 'XMLHttpRequest');
 
       console.log(`[IG API] POST /api/v1/web/comments/${params.mediaId}/delete/${params.commentId}/`);
       console.log('[IG API] deleteComment fingerprint:', {
         'x-ig-www-claim': wwwClaim ? 'SET' : 'MISSING',
         'x-instagram-ajax': getRevision(),
-        'x-web-session-id': getSessionId() || 'MISSING',
+        'x-web-session-id': await getSessionId() || 'MISSING',
         'x-fb-lsd': 'DELETED (REST)',
       });
 
@@ -1280,6 +1290,7 @@ export class IgApiClient {
       }
 
       // 上传图片不需要 CSRF token，使用简化的 headers
+      const sessionId = await getSessionId();
       const uploadHeaders: Record<string, string> = {
         'accept': '*/*',
         'accept-language': 'en-US,en;q=0.9',
@@ -1290,12 +1301,15 @@ export class IgApiClient {
         'x-entity-name': `fb_uploader_${finalUploadId}`,
         'x-entity-type': mimeType,
         'x-ig-app-id': X_IG_APP_ID,
+        'x-ig-max-touch-points': '0',
+        'x-instagram-ajax': getRevision(),
         'x-instagram-rupload-params': JSON.stringify({
           media_type: 1, // 1=图片, 2=视频
           upload_id: finalUploadId,
           upload_media_height: height,
           upload_media_width: width,
         }),
+        'x-web-session-id': sessionId,
       };
 
       console.log(`[IG API] POST https://i.instagram.com/rupload_igphoto/fb_uploader_${finalUploadId}`);
@@ -1363,6 +1377,7 @@ export class IgApiClient {
 
       // GET 查询当前进度
       const offset = await this.queryUploadOffset(uploadId);
+      const sessionId = await getSessionId();
       console.log(`[IG API] Video pre-check offset=${offset}`);
 
       // POST 上传（一次性）
@@ -1382,6 +1397,7 @@ export class IgApiClient {
         'x-ig-max-touch-points': '0',
         'x-instagram-ajax': getRevision(),
         'x-instagram-rupload-params': ruploadParams,
+        'x-web-session-id': sessionId,
       };
 
       const response = await fetch(
@@ -1424,10 +1440,11 @@ export class IgApiClient {
     duration: number,
     width: number,
     height: number,
-    onProgress?: (progress: number) => void
+    onProgress?: (progress: number) => void,
+    isSidecar = false
   ): Promise<string> {
     const CHUNK_SIZE = 10 * 1024 * 1024; // 10MB，与抓包一致
-    const ruploadParams = this.buildRuploadParams(uploadId, duration, width, height);
+    const ruploadParams = this.buildRuploadParams(uploadId, duration, width, height, isSidecar);
 
     console.log(`[IG API] uploadVideoChunked start upload_id=${uploadId} totalBytes=${totalBytes}`);
     console.log('[IG API] uploadVideoChunked fingerprint:', {
@@ -1439,6 +1456,7 @@ export class IgApiClient {
     });
 
     let offset = await this.queryUploadOffset(uploadId);
+    const sessionId = await getSessionId();
     console.log(`[IG API] Starting from offset=${offset}`);
 
     while (offset < totalBytes) {
@@ -1456,6 +1474,7 @@ export class IgApiClient {
         'x-ig-max-touch-points': '0',
         'x-instagram-ajax': getRevision(),
         'x-instagram-rupload-params': ruploadParams,
+        'x-web-session-id': sessionId,
       };
 
       console.log(`[IG API] POST chunk offset=${offset} size=${chunk.length}`);
@@ -1494,13 +1513,10 @@ export class IgApiClient {
     return uploadId;
   }
 
-  private buildRuploadParams(uploadId: string, duration: number, width: number, height: number): string {
-    return JSON.stringify({
+  private buildRuploadParams(uploadId: string, duration: number, width: number, height: number, isSidecar = false): string {
+    const params: Record<string, any> = {
       'client-passthrough': '1',
-      'is_clips_video': '1',
-      'is_sidecar': '0',
       'media_type': 2,
-      'for_album': false,
       'video_format': '',
       'upload_id': uploadId,
       'upload_media_duration_ms': duration,
@@ -1516,7 +1532,17 @@ export class IgApiClient {
         'trim_end': duration / 1000,
         'trim_start': 0,
       },
-    });
+    };
+    if (isSidecar) {
+      // 混合 carousel 视频：is_sidecar 标记（14:12 已验证视频上传成功拿到 upload_id）
+      params['is_sidecar'] = '1';
+      params['for_album'] = true;
+    } else {
+      params['is_clips_video'] = '1';
+      params['is_sidecar'] = '0';
+      params['for_album'] = false;
+    }
+    return JSON.stringify(params);
   }
 
   private async queryUploadOffset(uploadId: string): Promise<number> {
@@ -1728,7 +1754,7 @@ export class IgApiClient {
 
       console.log(`[IG API] POST /api/v1/media/configure_to_clips/ upload_id=${params.uploadId}`);
 
-      const wwwClaim = this.getWwwClaim();
+      const wwwClaim = await this.getWwwClaim();
       const headers: Record<string, string> = {
         'Accept': '*/*',
         'Accept-Language': 'en-US,en;q=0.9',
@@ -1740,7 +1766,7 @@ export class IgApiClient {
         'x-asbd-id': '359341',
         'x-ig-max-touch-points': '0',
         'x-instagram-ajax': getRevision(),
-        'x-web-session-id': getSessionId(),
+        'x-web-session-id': await getSessionId(),
       };
       if (wwwClaim) {
         headers['x-ig-www-claim'] = wwwClaim;
@@ -1751,7 +1777,7 @@ export class IgApiClient {
         jazoestInput: 'csrfToken',
         'x-ig-www-claim': wwwClaim ? 'SET' : 'MISSING',
         'x-instagram-ajax': getRevision(),
-        'x-web-session-id': getSessionId() || 'MISSING',
+        'x-web-session-id': await getSessionId() || 'MISSING',
         'x-fb-lsd': 'NOT SET (REST)',
       });
 
@@ -1865,7 +1891,7 @@ export class IgApiClient {
 
       console.log(`[IG API] POST /api/v1/media/configure/ upload_id=${uploadId}`);
 
-      const wwwClaim2 = this.getWwwClaim();
+      const wwwClaim2 = await this.getWwwClaim();
       const configureMediaHeaders: Record<string, string> = {
         'Accept': '*/*',
         'Accept-Language': 'en-US,en;q=0.9',
@@ -1877,7 +1903,7 @@ export class IgApiClient {
         'x-asbd-id': '359341',
         'x-ig-max-touch-points': '0',
         'x-instagram-ajax': getRevision(),
-        'x-web-session-id': getSessionId(),
+        'x-web-session-id': await getSessionId(),
       };
       if (wwwClaim2) {
         configureMediaHeaders['x-ig-www-claim'] = wwwClaim2;
@@ -1888,7 +1914,7 @@ export class IgApiClient {
         jazoestInput: 'csrfToken',
         'x-ig-www-claim': wwwClaim2 ? 'SET' : 'MISSING',
         'x-instagram-ajax': getRevision(),
-        'x-web-session-id': getSessionId() || 'MISSING',
+        'x-web-session-id': await getSessionId() || 'MISSING',
         'x-fb-lsd': 'NOT SET (REST)',
       });
 
@@ -1939,6 +1965,61 @@ export class IgApiClient {
       location?: IgPostMediaParams['location'];
     } = {}
   ): Promise<IgPostMediaResponse> {
+    return this._configureSidecar(uploadIds.map((id) => ({ upload_id: id })), caption, options);
+  }
+
+  /**
+   * 混合 carousel 的 sidecar 组装：children_metadata 里视频子项携带完整元数据，
+   * 图片子项保持最小 { upload_id }。视频子项字段对齐 instagrapi album.py:232-243。
+   */
+  public async configureSidecarMixed(
+    uploadIds: string[],
+    videoUploadId: string,
+    videoDuration: number,
+    videoWidth: number,
+    videoHeight: number,
+    caption: string,
+    options: {
+      disableComments?: boolean;
+      shareToThreads?: boolean;
+      location?: IgPostMediaParams['location'];
+    } = {}
+  ): Promise<IgPostMediaResponse> {
+    const pad = (n: number) => String(n).padStart(2, '0');
+    const now = new Date();
+    const dateTimeOriginal = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}T${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.000Z`;
+    // IG 网页客户端视频子项的 length 用整数秒（向下取整），与移动端私有 API 的 float 不同
+    const lengthSec = Math.floor(videoDuration / 1000);
+
+    const childrenMetadata = uploadIds.map((id) => {
+      if (id !== videoUploadId) {
+        return { upload_id: id };
+      }
+      return {
+        upload_id: id,
+        clips: JSON.stringify([{ length: lengthSec, source_type: '4' }]),
+        extra: JSON.stringify({ source_width: videoWidth, source_height: videoHeight }),
+        length: lengthSec,
+        poster_frame_index: '0',
+        filter_type: '0',
+        video_result: '',
+        date_time_original: dateTimeOriginal,
+        audio_muted: 'false',
+      };
+    });
+
+    return this._configureSidecar(childrenMetadata, caption, options);
+  }
+
+  private async _configureSidecar(
+    childrenMetadata: Array<Record<string, any>>,
+    caption: string,
+    options: {
+      disableComments?: boolean;
+      shareToThreads?: boolean;
+      location?: IgPostMediaParams['location'];
+    } = {}
+  ): Promise<IgPostMediaResponse> {
     await smartDelay(MIN_WRITE_DELAY, MAX_WRITE_DELAY);
 
     try {
@@ -1955,10 +2036,11 @@ export class IgApiClient {
       const clientSidecarId = Date.now().toString();
 
       // 构建 JSON body（与单图不同，轮播图使用 JSON）
+      // 对齐网页客户端：source_type 用 "library"，不额外加顶层 upload_id
       const body: Record<string, any> = {
         archive_only: false,
         caption,
-        children_metadata: uploadIds.map((id) => ({ upload_id: id })),
+        children_metadata: childrenMetadata,
         client_sidecar_id: clientSidecarId,
         disable_comments: options.disableComments ? '1' : '0',
         is_meta_only_post: false,
@@ -1992,9 +2074,10 @@ export class IgApiClient {
         });
       }
 
-      console.log(`[IG API] POST /api/v1/media/configure_sidecar/ upload_ids=[${uploadIds.join(', ')}]`);
+      console.log(`[IG API] POST /api/v1/media/configure_sidecar/ children=[${childrenMetadata.map((c) => c.upload_id).join(', ')}]`);
+      console.log('[IG API] configureSidecar body:', JSON.stringify(body));
 
-      const wwwClaim3 = this.getWwwClaim();
+      const wwwClaim3 = await this.getWwwClaim();
       const sidecarHeaders: Record<string, string> = {
         'Accept': '*/*',
         'Accept-Language': 'en-US,en;q=0.9',
@@ -2006,7 +2089,7 @@ export class IgApiClient {
         'x-asbd-id': '359341',
         'x-ig-max-touch-points': '0',
         'x-instagram-ajax': getRevision(),
-        'x-web-session-id': getSessionId(),
+        'x-web-session-id': await getSessionId(),
       };
       if (wwwClaim3) {
         sidecarHeaders['x-ig-www-claim'] = wwwClaim3;
@@ -2017,7 +2100,7 @@ export class IgApiClient {
         jazoestInput: 'csrfToken',
         'x-ig-www-claim': wwwClaim3 ? 'SET' : 'MISSING',
         'x-instagram-ajax': getRevision(),
-        'x-web-session-id': getSessionId() || 'MISSING',
+        'x-web-session-id': await getSessionId() || 'MISSING',
         'x-fb-lsd': 'NOT SET (REST)',
       });
 
@@ -2038,11 +2121,18 @@ export class IgApiClient {
 
       const data = await response.json();
 
+      // 转码未完成：等待后重试（混合 carousel 含视频时 IG 可能返回 202）
+      if (data.status === 'fail' && data.message === 'Transcode not finished yet.') {
+        console.log('[IG API] Sidecar transcode not finished, waiting...');
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        return this._configureSidecar(childrenMetadata, caption, options);
+      }
+
       if (!data.media) {
         throw new Error('Failed to configure sidecar');
       }
 
-      console.log(`[IG API] Sidecar configured: id=${data.media.id}, carousel_media_count=${data.media.carousel_media_count || uploadIds.length}`);
+      console.log(`[IG API] Sidecar configured: id=${data.media.id}, carousel_media_count=${data.media.carousel_media_count || childrenMetadata.length}`);
       return data;
     } catch (error) {
       console.error('[IG API] Configure sidecar error:', error);
@@ -2246,20 +2336,20 @@ export class IgApiClient {
       // REST 端点不带 x-fb-lsd（GraphQL 专用 header）
       headers.delete('x-fb-lsd');
       headers.set('x-asbd-id', '359341');
-      const wwwClaim4 = this.getWwwClaim();
+      const wwwClaim4 = await this.getWwwClaim();
       if (wwwClaim4) {
         headers.set('x-ig-www-claim', wwwClaim4);
       }
       headers.set('x-instagram-ajax', getRevision());
       headers.set('x-ig-max-touch-points', '0');
-      headers.set('x-web-session-id', getSessionId());
+      headers.set('x-web-session-id', await getSessionId());
       headers.set('x-requested-with', 'XMLHttpRequest');
 
       console.log(`[IG API] POST /api/v1/web/create/${mediaId}/delete/`);
       console.log('[IG API] deleteMedia fingerprint:', {
         'x-ig-www-claim': wwwClaim4 ? 'SET' : 'MISSING',
         'x-instagram-ajax': getRevision(),
-        'x-web-session-id': getSessionId() || 'MISSING',
+        'x-web-session-id': await getSessionId() || 'MISSING',
         'x-fb-lsd': 'DELETED (REST)',
       });
 

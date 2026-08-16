@@ -313,9 +313,49 @@ export function getLsdToken(): string | null {
 }
 
 /**
- * 从页面提取 __s (session ID)
+ * 读取 Instagram cookie：优先 document.cookie（非 httpOnly），
+ * 读不到时用 chrome.cookies API 读 httpOnly cookie。
  */
-export function getSessionId(): string {
+export async function getIgCookie(name: string): Promise<string | null> {
+  const cookies = document.cookie.split(';');
+  for (const cookie of cookies) {
+    const [n, v] = cookie.trim().split('=');
+    if (n === name && v) return decodeURIComponent(v);
+  }
+  try {
+    return await new Promise<string | null>((resolve) => {
+      chrome.cookies.get({ url: 'https://www.instagram.com', name }, (cookie) => {
+        resolve(cookie ? cookie.value : null);
+      });
+    });
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * 从页面提取 __s (session ID)，用于 x-web-session-id header
+ */
+export async function getSessionId(): Promise<string> {
+  // 1. 从 sessionStorage 读（injection.ts 从响应头捕获的 x-web-session-id，如果有）
+  try {
+    const cached = sessionStorage.getItem('ig_web_session_id');
+    if (cached) return cached;
+  } catch {}
+  // 2. 从 storage 拼接：IG 的 x-web-session-id = 会话token:TabId:会话token2
+  //    （形如 y78ol2:6gvvcr:4oti9q，第二段 = sessionStorage.TabId）
+  try {
+    const tabId = sessionStorage.getItem('TabId') || '';
+    const session1 = (localStorage.getItem('Session') || '').split(':')[0];
+    const session2 = (localStorage.getItem('IGSession') || '').split(':')[0];
+    if (tabId && session1 && session2) {
+      return `${session1}:${tabId}:${session2}`;
+    }
+  } catch {}
+  // 3. 从 cookie 读（__s 是 httpOnly，需走 chrome.cookies API）
+  const fromCookie = await getIgCookie('__s');
+  if (fromCookie) return fromCookie;
+  // 4. fallback：从 DOM script 提取
   const scripts = Array.from(document.querySelectorAll('script'));
   for (const script of scripts) {
     const text = script.textContent || '';

@@ -75,7 +75,7 @@ export class BackgroundTaskCoordinator {
     this.runningTasks.set(taskId, context);
 
     try {
-      const SUPPORTED_TASK_KINDS = ['x.media_upload', 'xhs.publish_video', 'ig.publish_video', 'xhs.image_upload', 'ig.image_upload'] as const;
+      const SUPPORTED_TASK_KINDS = ['x.media_upload', 'xhs.publish_video', 'ig.publish_video', 'xhs.image_upload', 'ig.image_upload', 'ig.video_upload'] as const;
       type SupportedTaskKind = typeof SUPPORTED_TASK_KINDS[number];
 
       if (!SUPPORTED_TASK_KINDS.includes(request.taskKind as SupportedTaskKind)) {
@@ -122,6 +122,8 @@ export class BackgroundTaskCoordinator {
         ? 'START_XHS_IMAGE_UPLOAD_TASK'
         : request.taskKind === 'ig.image_upload'
         ? 'START_IG_IMAGE_UPLOAD_TASK'
+        : request.taskKind === 'ig.video_upload'
+        ? 'START_IG_VIDEO_UPLOAD_TASK'
         : 'START_TASK_UPLOAD_FROM_BG_SESSION';
 
       logger.info(`[BackgroundTaskCoordinator] Sending message to content, taskId=${taskId}, messageType=${messageType}, session=${session.sessionId}, chunks=${session.transferChunkCount}, bytes=${session.totalBytes}`);
@@ -267,7 +269,7 @@ export class BackgroundTaskCoordinator {
       return Math.min(...creatorIds);
     }
 
-    if (taskKind === 'ig.publish_video' || taskKind === 'ig.image_upload') {
+    if (taskKind === 'ig.publish_video' || taskKind === 'ig.image_upload' || taskKind === 'ig.video_upload') {
       const igTabs = await chrome.tabs.query({ url: ['*://www.instagram.com/*', '*://instagram.com/*'] });
       const targetTab = igTabs.find(tab => tab.active) || igTabs[0];
       if (!targetTab?.id) {

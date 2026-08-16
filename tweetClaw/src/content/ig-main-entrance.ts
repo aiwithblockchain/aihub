@@ -173,6 +173,17 @@ chrome.runtime.onMessage.addListener((message: any, sender, sendResponse) => {
     return true;
   }
 
+  if (message.type === 'START_IG_VIDEO_UPLOAD_TASK') {
+    console.log(`${TAG} Received START_IG_VIDEO_UPLOAD_TASK taskId=${message.taskId}`);
+    handleVideoUploadTask(message).then(() => {
+      sendResponse({ success: true });
+    }).catch((e: any) => {
+      console.error(`${TAG} START_IG_VIDEO_UPLOAD_TASK rejected:`, e?.message || String(e));
+      sendResponse({ success: false, error: e?.message || String(e) });
+    });
+    return true;
+  }
+
   if (message.type === 'START_IG_IMAGE_UPLOAD_TASK') {
     const { taskId, uploadSessionId, mimeType, totalBytes, transferChunkCount } = message;
     console.log(`${TAG} [START_IG_IMAGE_UPLOAD_TASK] START taskId=${taskId} mimeType=${mimeType} totalBytes=${totalBytes} chunks=${transferChunkCount}`);
@@ -745,6 +756,7 @@ async function handlePostMedia(params: Record<string, any>): Promise<any> {
     videoBytes,
     videoBase64,
     uploadIds,
+    videoUploadId,
     mimeType,
     caption,
     disableComments,
@@ -776,6 +788,36 @@ async function handlePostMedia(params: Record<string, any>): Promise<any> {
     const emptyIds = uploadIds.filter((id: string) => !id);
     if (emptyIds.length > 0) {
       console.warn(`${TAG} [handlePostMedia] ⚠️ uploadIds 中有 ${emptyIds.length} 个空字符串，configure 可能失败`);
+    }
+
+    // 混合 carousel：videoUploadId 标记视频子项 → configureSidecarMixed
+    if (videoUploadId && uploadIds.includes(videoUploadId)) {
+      console.log(`${TAG} [handlePostMedia] mixed carousel: ${uploadIds.length} children (video=${videoUploadId}), calling configureSidecarMixed`);
+      const result = await igApi.configureSidecarMixed(
+        uploadIds,
+        videoUploadId,
+        Number(videoDuration || 0),
+        Number(videoWidth || 0),
+        Number(videoHeight || 0),
+        caption,
+        {
+          disableComments: disableComments || false,
+          shareToThreads: shareToThreads !== false,
+          location,
+        }
+      );
+
+      return {
+        success: true,
+        media: {
+          id: result.media.id,
+          pk: result.media.pk,
+          code: result.media.code,
+          caption: result.media.caption?.text,
+          mediaType: result.media.media_type,
+          takenAt: result.media.taken_at,
+        },
+      };
     }
 
     if (uploadIds.length === 1) {
@@ -1142,6 +1184,120 @@ export async function handlePublishVideoTask(message: any): Promise<void> {
       taskId,
       phase: 'publish',
       errorCode: 'PUBLISH_FAILED',
+      errorMessage: e?.message || String(e),
+    });
+  }
+}
+
+// ============ IG 混合 carousel 视频上传 Task Handler（只上传不 configure） ============
+
+export async function handleVideoUploadTask(message: any): Promise<void> {
+  const { taskId, uploadSessionId, mimeType, totalBytes, transferChunkCount, params } = message;
+
+  console.log(`${TAG} [START_IG_VIDEO_UPLOAD_TASK] START taskId=${taskId} mimeType=${mimeType} totalBytes=${totalBytes} chunks=${transferChunkCount}`);
+
+  chrome.runtime.sendMessage({
+    type: 'TASK_PROGRESS_FROM_CONTENT',
+    taskId,
+    phase: 'init_upload',
+    progress: 0.05,
+  });
+
+  try {
+    const uploadId = Date.now().toString();
+    const duration = Number(params?.videoDuration || params?.upload_media_duration_ms || 10000);
+    const width = Number(params?.videoWidth || params?.upload_media_width || 720);
+    const height = Number(params?.videoHeight || params?.upload_media_height || 1280);
+
+    console.log(`${TAG} [START_IG_VIDEO_UPLOAD_TASK] upload_id=${uploadId} duration=${duration} ${width}x${height}`);
+
+    // 累积缓冲区：用于按需拼装 IG 10MB 分片
+    let buffer = new Uint8Array(0);
+    let fetchedChunks = 0;
+
+    const getChunk = async (offset: number, size: number): Promise<Uint8Array> => {
+      while (buffer.length < size && fetchedChunks < transferChunkCount) {
+        const resp = await chrome.runtime.sendMessage({
+          type: 'GET_UPLOAD_SESSION_CHUNK',
+          uploadSessionId,
+          chunkIndex: fetchedChunks,
+        });
+
+        if (!resp?.success || !resp.chunkData) {
+          throw new Error(resp?.error || `Failed to get chunk ${fetchedChunks}`);
+        }
+
+        const chunkBytes = new Uint8Array(resp.chunkData);
+        const merged = new Uint8Array(buffer.length + chunkBytes.length);
+        merged.set(buffer, 0);
+        merged.set(chunkBytes, buffer.length);
+        buffer = merged;
+        fetchedChunks++;
+      }
+
+      const result = buffer.slice(0, size);
+      buffer = buffer.slice(size);
+      return result;
+    };
+
+    // 上传视频（sidecar 模式：is_sidecar=1，区别于 Reel）
+    await igApi.uploadVideoChunked(
+      getChunk,
+      totalBytes,
+      uploadId,
+      duration,
+      width,
+      height,
+      (progress) => {
+        chrome.runtime.sendMessage({
+          type: 'TASK_PROGRESS_FROM_CONTENT',
+          taskId,
+          phase: 'uploading',
+          progress: 0.1 + progress * 0.6,
+        });
+      },
+      true // isSidecar
+    );
+
+    chrome.runtime.sendMessage({
+      type: 'TASK_PROGRESS_FROM_CONTENT',
+      taskId,
+      phase: 'upload_thumbnail',
+      progress: 0.72,
+    });
+
+    // 上传封面图（thumbnail）
+    const thumbnailBase64: string | undefined = params?.thumbnailBase64;
+    const thumbnailBytes: number[] | undefined = params?.thumbnailBytes;
+
+    let thumbBytes: Uint8Array;
+    if (thumbnailBytes) {
+      thumbBytes = new Uint8Array(thumbnailBytes);
+    } else if (thumbnailBase64) {
+      const bin = atob(thumbnailBase64);
+      thumbBytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) thumbBytes[i] = bin.charCodeAt(i);
+    } else {
+      thumbBytes = igApi.generateDefaultThumbnailPublic(width, height);
+    }
+
+    await igApi.uploadVideoThumbnail(uploadId, thumbBytes, width, height);
+    console.log(`${TAG} [START_IG_VIDEO_UPLOAD_TASK] thumbnail uploaded`);
+
+    // 只返回 uploadId，不 configure（由后端合并所有 upload_id 后统一 configure_sidecar）
+    await chrome.runtime.sendMessage({
+      type: 'TASK_COMPLETED_FROM_CONTENT',
+      taskId,
+      contentType: 'application/json',
+      resultBase64: btoa(unescape(encodeURIComponent(JSON.stringify({ uploadId })))),
+    });
+  } catch (e: any) {
+    console.error(`${TAG} [START_IG_VIDEO_UPLOAD_TASK] error:`, e.message);
+    await chrome.runtime.sendMessage({
+      type: 'TASK_FAILED_FROM_CONTENT',
+      taskId,
+      phase: 'upload',
+      errorCode: 'VIDEO_UPLOAD_FAILED',
       errorMessage: e?.message || String(e),
     });
   }

@@ -184,20 +184,38 @@ import { watchedOps, isGuestHandle } from './consts';
             const method = initArg?.method || 'GET';
             const body = initArg?.body;
 
-            // ===== IG doc_id 捕获（新增）=====
+            // ===== IG 分支：捕获 doc_id + 响应头里的 www_claim / session id =====
             // IG 页面不会有 Twitter targetOp，与下方 Twitter 逻辑互斥。
-            if (isIgContext() && IG_GRAPHQL_URL_PATTERN.test(url)) {
-                try {
-                    let bodyForIg = initArg?.body;
-                    if (!bodyForIg && reqArg instanceof Request) {
-                        bodyForIg = await reqArg.clone().text();
+            if (isIgContext()) {
+                const isGql = IG_GRAPHQL_URL_PATTERN.test(url);
+                if (isGql) {
+                    try {
+                        let bodyForIg = initArg?.body;
+                        if (!bodyForIg && reqArg instanceof Request) {
+                            bodyForIg = await reqArg.clone().text();
+                        }
+                        tryCaptureIgDocId(url, bodyForIg);
+                    } catch (e) {
+                        console.warn('🛡️ [IG-DocId] fetch extract error', e);
                     }
-                    tryCaptureIgDocId(url, bodyForIg);
-                } catch (e) {
-                    console.warn('🛡️ [IG-DocId] fetch extract error', e);
                 }
-                // IG 页面无需走 Twitter targetOp 分支，直接放行
-                return orgFetch.apply(this, args as any);
+                // 捕获响应头里的反爬头（www_claim / session id），供 content script 读取
+                try {
+                    const response = await orgFetch.apply(this, args as any);
+                    const claim = response.headers.get('x-ig-set-www-claim');
+                    if (claim) {
+                        sessionStorage.setItem('ig_www_claim', claim);
+                        console.log(`${TAG} [IG-Claim] captured → ${claim.slice(0, 40)}`);
+                    }
+                    const sid = response.headers.get('x-web-session-id');
+                    if (sid) {
+                        sessionStorage.setItem('ig_web_session_id', sid);
+                        console.log(`${TAG} [IG-Session] captured → ${sid}`);
+                    }
+                    return response;
+                } catch (e) {
+                    return orgFetch.apply(this, args as any);
+                }
             }
 
             const targetOp = isTargetUrl(url);
