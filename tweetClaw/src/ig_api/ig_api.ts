@@ -1969,15 +1969,16 @@ export class IgApiClient {
   }
 
   /**
-   * 混合 carousel 的 sidecar 组装：children_metadata 里视频子项携带完整元数据，
-   * 图片子项保持最小 { upload_id }。视频子项字段对齐 instagrapi album.py:232-243。
+   * 混合 carousel 的 sidecar 组装：children_metadata 里视频子项与图片子项一致，
+   * 都是极简 { upload_id }（视频上传时已带 media_type:2，IG 从 upload_id 识别视频）。
+   * 之前照 instagrapi 移动端抄的 clips/length 等字段是多余的，且导致 configure 400。
    */
   public async configureSidecarMixed(
     uploadIds: string[],
-    videoUploadId: string,
-    videoDuration: number,
-    videoWidth: number,
-    videoHeight: number,
+    _videoUploadId: string,
+    _videoDuration: number,
+    _videoWidth: number,
+    _videoHeight: number,
     caption: string,
     options: {
       disableComments?: boolean;
@@ -1985,29 +1986,7 @@ export class IgApiClient {
       location?: IgPostMediaParams['location'];
     } = {}
   ): Promise<IgPostMediaResponse> {
-    const pad = (n: number) => String(n).padStart(2, '0');
-    const now = new Date();
-    const dateTimeOriginal = `${now.getFullYear()}${pad(now.getMonth() + 1)}${pad(now.getDate())}T${pad(now.getHours())}${pad(now.getMinutes())}${pad(now.getSeconds())}.000Z`;
-    // IG 网页客户端视频子项的 length 用整数秒（向下取整），与移动端私有 API 的 float 不同
-    const lengthSec = Math.floor(videoDuration / 1000);
-
-    const childrenMetadata = uploadIds.map((id) => {
-      if (id !== videoUploadId) {
-        return { upload_id: id };
-      }
-      return {
-        upload_id: id,
-        clips: JSON.stringify([{ length: lengthSec, source_type: '4' }]),
-        extra: JSON.stringify({ source_width: videoWidth, source_height: videoHeight }),
-        length: lengthSec,
-        poster_frame_index: '0',
-        filter_type: '0',
-        video_result: '',
-        date_time_original: dateTimeOriginal,
-        audio_muted: 'false',
-      };
-    });
-
+    const childrenMetadata = uploadIds.map((id) => ({ upload_id: id }));
     return this._configureSidecar(childrenMetadata, caption, options);
   }
 
