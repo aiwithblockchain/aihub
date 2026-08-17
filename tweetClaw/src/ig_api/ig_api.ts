@@ -1523,6 +1523,9 @@ export class IgApiClient {
       'upload_media_height': height,
       'upload_media_width': width,
       'video_transform': null,
+      // 服务端抽帧：让 IG 从视频抽第一帧作为封面（替代紫色占位图）
+      'extract_cover_frame': '1',
+      'content_tags': 'use_default_cover',
       'video_edit_params': {
         'crop_height': height,
         'crop_width': width,
@@ -2166,17 +2169,15 @@ export class IgApiClient {
 
         console.log(`[IG API] Video uploaded: upload_id=${uploadResult.upload_id}`);
 
-        // 2. 上传视频封面图片
+        // 2. 上传视频封面图片（有自定义封面才传；否则靠 rupload 的 extract_cover_frame 服务端抽帧）
         console.log('[IG API] Step 2: Uploading video thumbnail...');
 
-        let thumbnailBytes: Uint8Array;
+        let thumbnailBytes: Uint8Array | null = null;
 
         if (params.thumbnailBytes) {
-          // 使用自定义封面图片
           thumbnailBytes = params.thumbnailBytes;
           console.log(`[IG API] Using custom thumbnail: size=${thumbnailBytes.length}`);
         } else if (params.thumbnailBase64) {
-          // 解码 base64 封面图片
           const binaryStr = atob(params.thumbnailBase64);
           thumbnailBytes = new Uint8Array(binaryStr.length);
           for (let i = 0; i < binaryStr.length; i++) {
@@ -2184,14 +2185,13 @@ export class IgApiClient {
           }
           console.log(`[IG API] Using custom thumbnail from base64: size=${thumbnailBytes.length}`);
         } else {
-          // 生成默认封面图片
-          thumbnailBytes = this.generateDefaultThumbnail(width, height);
-          console.log(`[IG API] Using default thumbnail: size=${thumbnailBytes.length}`);
+          console.log('[IG API] No custom thumbnail, relying on extract_cover_frame server-side frame');
         }
 
-        await this.uploadVideoThumbnail(uploadResult.upload_id, thumbnailBytes, width, height);
-
-        console.log('[IG API] Video thumbnail uploaded');
+        if (thumbnailBytes) {
+          await this.uploadVideoThumbnail(uploadResult.upload_id, thumbnailBytes, width, height);
+          console.log('[IG API] Video thumbnail uploaded');
+        }
 
         // 3. 配置视频（发布）
         console.log('[IG API] Step 3: Configuring video...');

@@ -23,7 +23,7 @@ export function connect(platform: string) {
     const sendHeartbeat = () => {
         try {
             chrome.runtime.sendMessage(
-                { type: HEARTBEAT_MSG, platform },
+                { type: HEARTBEAT_MSG, platform, url: location.href },
                 () => {
                     if (chrome.runtime.lastError) {
                         reloadOnce(`sendMessage failed: ${chrome.runtime.lastError.message}`);

@@ -22,6 +22,7 @@ import { logger } from '../task/logger';
 import { sendMessageToTab } from '../utils/message-utils';
 import {
     getLiveTabs,
+    getLiveAccounts,
     pruneStaleHealthEntries,
     TWEETCLAW_ALIVE_KEY_PREFIX
 } from '../utils/live-tabs';
@@ -170,7 +171,7 @@ localBridge.igSearchHandler = igSearch;
 localBridge.igGetNotificationsHandler = igGetNotifications;
 localBridge.igGetFollowersHandler = igGetFollowers;
 localBridge.igGetFollowingHandler = igGetFollowing;
-localBridge.collectAccountStatusesHandler = collectAccountStatuses;
+localBridge.collectAccountStatusesHandler = collectAccountStatusesFromHealthTable;
 
 // Initialize Background Task Coordinator
 let taskCoordinator: BackgroundTaskCoordinator | null = null;
@@ -486,9 +487,63 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         const platform = typeof message.platform === 'string' ? message.platform : '';
         const tabId = sender.tab?.id;
         if (platform && tabId != null) {
-            void chrome.storage.session
-                .set({ [`${TWEETCLAW_ALIVE_KEY_PREFIX}${platform}:${tabId}`]: Date.now() })
-                .catch((e) => console.warn('[TweetClaw-BG] health table update failed', e));
+            const url = sender.tab?.url || '';
+            const role = platform === 'xiaohongshu' && url.includes('creator.xiaohongshu.com')
+                ? 'creator'
+                : 'main';
+            void (async () => {
+                let state: 'logged_in' | 'logged_out' | 'unknown' = 'unknown';
+                let account: any = undefined;
+                try {
+                    const resp: any = await sendMessageToTab(tabId, {
+                        type: 'CHECK_LOGIN',
+                        tabId,
+                    });
+                    state = resp?.loggedIn ? 'logged_in' : 'logged_out';
+                    account = resp?.account;
+                } catch (e) {
+                    console.warn('[TweetClaw-BG] heartbeat account collection failed', e);
+                }
+
+                const key = `${TWEETCLAW_ALIVE_KEY_PREFIX}${platform}:${tabId}`;
+                const existing: any = (await chrome.storage.session.get(key))[key];
+                let finalState = state;
+                let finalAccount = account;
+                let loggedOutCount = existing?.loggedOutCount ?? 0;
+
+                if (state === 'logged_in') {
+                    loggedOutCount = 0;
+                } else if (state === 'logged_out') {
+                    // 连续两次 logged_out 才确认离线，过滤单次 DOM/采集抖动。
+                    loggedOutCount += 1;
+                    if (loggedOutCount < 2) {
+                        finalState = existing?.state === 'logged_in' ? 'logged_in' : 'unknown';
+                        finalAccount = existing?.account;
+                    } else {
+                        finalState = 'logged_out';
+                        finalAccount = undefined;
+                    }
+                } else if (existing?.state === 'logged_in') {
+                    // 瞬时采集失败时保留上一次已登录状态，避免账号闪断。
+                    finalState = 'logged_in';
+                    finalAccount = existing.account;
+                }
+
+                console.log(
+                    `[TweetClaw-BG] heartbeat account updated: platform=${platform} tabId=${tabId} state=${state} finalState=${finalState} role=${role} loggedOutCount=${loggedOutCount} hasAccount=${!!finalAccount}`
+                );
+
+                await chrome.storage.session.set({
+                    [key]: {
+                        ts: Date.now(),
+                        state: finalState,
+                        account: finalAccount,
+                        url,
+                        role,
+                        loggedOutCount,
+                    },
+                }).catch((e) => console.warn('[TweetClaw-BG] health table update failed', e));
+            })();
         }
         if (sendResponse) sendResponse({ ok: true });
         return false;
@@ -950,6 +1005,28 @@ async function collectAccountStatuses(): Promise<AccountStatusResult[]> {
     const results = await Promise.all(
         PLATFORM_TAB_CONFIG.map(cfg => checkPlatformLogin(cfg.platform))
     );
+    return results;
+}
+
+async function collectAccountStatusesFromHealthTable(): Promise<AccountStatusResult[]> {
+    const liveAccounts = await getLiveAccounts();
+    const results: AccountStatusResult[] = [];
+
+    for (const platform of ['twitter', 'instagram', 'xiaohongshu'] as const) {
+        const account = liveAccounts[platform];
+        results.push({
+            platform,
+            status: account ? 'logged_in' : 'logged_out',
+            tabId: null,
+            lastCheckedAt: Date.now(),
+            account,
+        });
+    }
+
+    console.log(
+        `[tweetClaw][A41] account status from health table: ${JSON.stringify(results)}`
+    );
+
     return results;
 }
 

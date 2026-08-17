@@ -1309,12 +1309,9 @@ export class LocalBridgeSocket {
         return;
       }
 
-      // A41 账号状态采集：60s 节流，复用心跳节奏
-      // 采集失败 = logged_out，由 background 侧 try/catch 兜底
-      const sinceLastCheck = now - this.lastAccountCheckAt;
-      if (this.collectAccountStatusesHandler && (this.lastAccountCheckAt === 0 || sinceLastCheck >= LocalBridgeSocket.ACCOUNT_CHECK_INTERVAL_MS)) {
-        console.log(`[tweetClaw][A41] collection triggered (sinceLastCheck=${this.lastAccountCheckAt === 0 ? 'first-run' : sinceLastCheck + 'ms'}, interval=${LocalBridgeSocket.ACCOUNT_CHECK_INTERVAL_MS}ms)`);
-        this.lastAccountCheckAt = now;
+      // A41 账号状态采集：直接读取健康表聚合结果，每个心跳周期刷新一次。
+      // 健康表本身有 60s 超时防抖，因此单次采集失败不会导致账号闪断。
+      if (this.collectAccountStatusesHandler) {
         try {
           const results = await this.collectAccountStatusesHandler();
           this.lastAccountStatuses = results;

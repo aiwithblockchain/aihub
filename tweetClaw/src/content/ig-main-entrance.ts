@@ -1128,11 +1128,11 @@ export async function handlePublishVideoTask(message: any): Promise<void> {
       progress: 0.72,
     });
 
-    // 上传封面图（thumbnail）
+    // 上传封面图（有自定义封面才传；否则靠 rupload 的 extract_cover_frame 服务端抽帧）
     const thumbnailBase64: string | undefined = params?.thumbnailBase64;
     const thumbnailBytes: number[] | undefined = params?.thumbnailBytes;
 
-    let thumbBytes: Uint8Array;
+    let thumbBytes: Uint8Array | null = null;
     if (thumbnailBytes) {
       thumbBytes = new Uint8Array(thumbnailBytes);
     } else if (thumbnailBase64) {
@@ -1140,11 +1140,13 @@ export async function handlePublishVideoTask(message: any): Promise<void> {
       thumbBytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) thumbBytes[i] = bin.charCodeAt(i);
     } else {
-      thumbBytes = igApi.generateDefaultThumbnailPublic(width, height);
+      console.log(`${TAG} [START_IG_PUBLISH_VIDEO_TASK] no custom thumbnail, relying on extract_cover_frame`);
     }
 
-    await igApi.uploadVideoThumbnail(uploadId, thumbBytes, width, height);
-    console.log(`${TAG} [START_IG_PUBLISH_VIDEO_TASK] thumbnail uploaded`);
+    if (thumbBytes) {
+      await igApi.uploadVideoThumbnail(uploadId, thumbBytes, width, height);
+      console.log(`${TAG} [START_IG_PUBLISH_VIDEO_TASK] thumbnail uploaded`);
+    }
 
     chrome.runtime.sendMessage({
       type: 'TASK_PROGRESS_FROM_CONTENT',
@@ -1266,11 +1268,11 @@ export async function handleVideoUploadTask(message: any): Promise<void> {
       progress: 0.72,
     });
 
-    // 上传封面图（thumbnail）
+    // 上传封面图（有自定义封面才传；否则靠 rupload 的 extract_cover_frame 服务端抽帧）
     const thumbnailBase64: string | undefined = params?.thumbnailBase64;
     const thumbnailBytes: number[] | undefined = params?.thumbnailBytes;
 
-    let thumbBytes: Uint8Array;
+    let thumbBytes: Uint8Array | null = null;
     if (thumbnailBytes) {
       thumbBytes = new Uint8Array(thumbnailBytes);
     } else if (thumbnailBase64) {
@@ -1278,11 +1280,13 @@ export async function handleVideoUploadTask(message: any): Promise<void> {
       thumbBytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) thumbBytes[i] = bin.charCodeAt(i);
     } else {
-      thumbBytes = igApi.generateDefaultThumbnailPublic(width, height);
+      console.log(`${TAG} [START_IG_VIDEO_UPLOAD_TASK] no custom thumbnail, relying on extract_cover_frame`);
     }
 
-    await igApi.uploadVideoThumbnail(uploadId, thumbBytes, width, height);
-    console.log(`${TAG} [START_IG_VIDEO_UPLOAD_TASK] thumbnail uploaded`);
+    if (thumbBytes) {
+      await igApi.uploadVideoThumbnail(uploadId, thumbBytes, width, height);
+      console.log(`${TAG} [START_IG_VIDEO_UPLOAD_TASK] thumbnail uploaded`);
+    }
 
     // 只返回 uploadId，不 configure（由后端合并所有 upload_id 后统一 configure_sidecar）
     await chrome.runtime.sendMessage({
