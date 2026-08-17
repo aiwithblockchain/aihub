@@ -926,10 +926,9 @@ export async function queryXBasicInfo() {
 
 // ── A41 账号状态采集 ──────────────────────────────────────────────────────────
 //
-// 复用 WS 心跳节奏（60s 节流在 LocalBridgeSocket.startHeartbeat 里做）。
-// 本函数只负责"查 tab + sendMessage 给 content script"，三平台并行。
-// 采集失败 = logged_out（content script 未注入 / tab 不存在 / selector 未命中 都算 logged_out）。
-// 阶段一：只打印日志，不塞进 ping payload，不发往 LocalBridge。
+// 从存活健康表聚合账号状态，供 WS ping 上报使用。
+// 具体状态由 background 处理 TWEETCLAW_HEARTBEAT 时采集并防抖写入，
+// 这里只读取 getLiveAccounts() 的聚合结果，不再逐 tab 发 CHECK_LOGIN。
 
 async function collectAccountStatusesFromHealthTable(): Promise<AccountStatusResult[]> {
     const liveAccounts = await getLiveAccounts();
