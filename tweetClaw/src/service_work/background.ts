@@ -26,6 +26,7 @@ import {
     pruneStaleHealthEntries,
     TWEETCLAW_ALIVE_KEY_PREFIX
 } from '../utils/live-tabs';
+import { ensureXhsCreatorTab } from '../utils/xhs-tabs';
 
 // ── Type Definitions ──────────────────────────────────────────────────
 interface TwitterResponse {
@@ -1122,6 +1123,30 @@ export async function openXhsTab(payload: OpenTabRequestPayload): Promise<OpenTa
 }
 
 /**
+ * 打开新的小红书创作中心标签页。path 是相对 https://creator.xiaohongshu.com/ 的路径。
+ */
+export async function openXhsCreatorTab(payload: OpenTabRequestPayload): Promise<OpenTabResponsePayload> {
+    const path = payload.path || "new/note-manager?source=official";
+    const url = "https://creator.xiaohongshu.com/" + (path.startsWith("/") ? path.substring(1) : path);
+    console.log(`[TweetClaw-BG] openXhsCreatorTab: url=${url}`);
+
+    return new Promise((resolve) => {
+        chrome.tabs.create({ url }, (tab) => {
+            if (chrome.runtime.lastError) {
+                resolve({ success: false, error: chrome.runtime.lastError.message });
+            } else {
+                console.log(`[TweetClaw-BG] openXhsCreatorTab created: tabId=${tab.id}`);
+                resolve({
+                    success: true,
+                    tabId: tab.id,
+                    url: tab.url || url
+                });
+            }
+        });
+    });
+}
+
+/**
  * 打开新的 Instagram 标签页。path 是相对 https://www.instagram.com/ 的路径，
  * 例如 "<username>"、"<username>/reels"。
  */
@@ -1151,6 +1176,8 @@ export async function openTabByPlatform(payload: OpenTabRequestPayload): Promise
     switch (payload.platform) {
         case 'xhs':
             return openXhsTab(payload);
+        case 'xhs_creator':
+            return openXhsCreatorTab(payload);
         case 'ig':
             return openIgTab(payload);
         case 'x':
@@ -1251,6 +1278,53 @@ export async function navigateXhsTab(payload: NavigateTabRequestPayload): Promis
 }
 
 /**
+ * 导航小红书创作中心标签页到指定路径。若已有 creator.xiaohongshu.com 标签页则刷新，
+ * 否则打开新标签页。path 是相对 https://creator.xiaohongshu.com/ 的路径。
+ */
+export async function navigateXhsCreatorTab(payload: NavigateTabRequestPayload): Promise<NavigateTabResponsePayload> {
+    const path = payload.path || "new/note-manager?source=official";
+    const url = "https://creator.xiaohongshu.com/" + (path.startsWith("/") ? path.substring(1) : path);
+    console.log(`[TweetClaw-BG] navigateXhsCreatorTab: url=${url} requestedTabId=${payload.tabId ?? 'none'}`);
+
+    let targetTabId = payload.tabId;
+    if (!targetTabId) {
+        const creatorTabs = await chrome.tabs.query({ url: ['*://creator.xiaohongshu.com/*'] });
+        const targetTab = creatorTabs.find(t => t.active) || creatorTabs[0];
+        targetTabId = targetTab?.id;
+    }
+
+    if (!targetTabId) {
+        const opened = await openXhsCreatorTab({ path, platform: 'xhs_creator' });
+        console.log(`[TweetClaw-BG] navigateXhsCreatorTab opened new tab: tabId=${opened.tabId || 0}`);
+        return {
+            success: opened.success,
+            tabId: opened.tabId || 0,
+            url: opened.url || url,
+            error: opened.error,
+        };
+    }
+
+    return new Promise((resolve) => {
+        chrome.tabs.update(targetTabId!, { url }, (tab) => {
+            if (chrome.runtime.lastError) {
+                resolve({
+                    success: false,
+                    tabId: targetTabId!,
+                    url: "",
+                    error: chrome.runtime.lastError.message
+                });
+            } else {
+                resolve({
+                    success: true,
+                    tabId: tab.id || targetTabId!,
+                    url: tab.url || url
+                });
+            }
+        });
+    });
+}
+
+/**
  * 导航 Instagram 标签页到指定路径。若已有 instagram.com 标签页则刷新，
  * 否则打开新标签页。path 是相对 https://www.instagram.com/ 的路径。
  */
@@ -1303,6 +1377,8 @@ export async function navigateTabByPlatform(payload: NavigateTabRequestPayload):
     switch (payload.platform) {
         case 'xhs':
             return navigateXhsTab(payload);
+        case 'xhs_creator':
+            return navigateXhsCreatorTab(payload);
         case 'ig':
             return navigateIgTab(payload);
         case 'x':
@@ -1333,6 +1409,7 @@ export async function closeTabByPlatform(payload: CloseTabRequestPayload): Promi
                 const matches =
                     (platform === 'x' && (url.includes("x.com") || url.includes("twitter.com"))) ||
                     (platform === 'xhs' && url.includes("xiaohongshu.com")) ||
+                    (platform === 'xhs_creator' && url.includes("creator.xiaohongshu.com")) ||
                     (platform === 'ig' && url.includes("instagram.com"));
                 if (!matches) {
                     resolve({ success: false, reason: "not_found" });
@@ -1652,8 +1729,7 @@ export async function publishXhsImageNote(payload: Record<string, unknown> = {})
         throw new Error('images or imageFileInfos array is required');
     }
 
-    const tabId = await findXhsCreatorTab();
-    if (!tabId) throw new Error('No creator.xiaohongshu.com tab found. Please open creator tab first.');
+    const tabId = await ensureXhsCreatorTab();
 
     const result: any = await sendMessageToTab(tabId, {
         type: 'XHS_PUBLISH_IMAGE_NOTE',
@@ -1676,8 +1752,7 @@ export async function publishXhsVideoNote(payload: Record<string, unknown> = {})
 
     if (!payload.video) throw new Error('video is required');
 
-    const tabId = await findXhsCreatorTab();
-    if (!tabId) throw new Error('No creator.xiaohongshu.com tab found. Please open creator tab first.');
+    const tabId = await ensureXhsCreatorTab();
 
     const result: any = await sendMessageToTab(tabId, {
         type: 'XHS_PUBLISH_VIDEO_NOTE',

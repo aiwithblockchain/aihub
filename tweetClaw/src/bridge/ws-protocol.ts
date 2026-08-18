@@ -380,7 +380,7 @@ export interface QueryXhsHomefeedRequestPayload {
   cursor_score?: string;
 }
 
-export type TabPlatform = 'x' | 'xhs' | 'ig';
+export type TabPlatform = 'x' | 'xhs' | 'xhs_creator' | 'ig';
 
 export interface OpenTabRequestPayload {
   path: string;
